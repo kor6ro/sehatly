@@ -8,3 +8,7 @@
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# Vite build output and its dependency-optimisation cache.
+/dist/
+/node_modules/.vite/

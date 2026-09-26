@@ -2,8 +2,10 @@
 
 @import 'tw-animate-css';
 
-@source '../views';
-@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+/* Todo 5 replaced the two Laravel-side `@source` globs (`../views` and the
+   framework pagination views) with this single source root: those paths do not
+   exist under `web/`, and the relocated kit lives at `../components/ui`. */
+@source '../';
 
 @custom-variant dark (&:is(.dark *));
 
