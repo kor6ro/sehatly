@@ -27,3 +27,6 @@ yarn-error.log
 /resources/js/routes
 /resources/js/wayfinder
 /public/fonts-manifest.dev.json
+
+# OpenCode session bookkeeping — regenerated every session, never part of the product
+.omo/run-continuation/
