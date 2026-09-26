@@ -1,12 +1,26 @@
-export function useInitials() {
-    const getInitials = (fullName: string): string => {
-        const names = fullName.trim().split(' ');
+import { useCallback } from 'react';
 
-        if (names.length === 0) return '';
-        if (names.length === 1) return names[0].charAt(0).toUpperCase();
+export type GetInitialsFn = (fullName: string) => string;
 
-        return `${names[0].charAt(0)}${names[names.length - 1].charAt(0)}`.toUpperCase();
-    };
+function getInitial(name: string): string {
+    return Array.from(name)[0] ?? '';
+}
 
-    return getInitials;
+export function useInitials(): GetInitialsFn {
+    return useCallback((fullName: string): string => {
+        const names = fullName.trim().split(/\s+/u).filter(Boolean);
+
+        if (names.length === 0) {
+            return '';
+        }
+
+        if (names.length === 1) {
+            return getInitial(names[0]).toUpperCase();
+        }
+
+        const firstInitial = getInitial(names[0]);
+        const lastInitial = getInitial(names[names.length - 1]);
+
+        return `${firstInitial}${lastInitial}`.toUpperCase();
+    }, []);
 }

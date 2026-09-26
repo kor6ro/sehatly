@@ -1,0 +1,17 @@
+{
+  "schema_version": 2,
+  "active_work_id": "sehatly-telemedicine-platform",
+  "works": {
+    "sehatly-telemedicine-platform": {
+      "work_id": "sehatly-telemedicine-platform",
+      "active_plan": ".omo/plans/sehatly-telemedicine-platform.md",
+      "plan_name": "sehatly-telemedicine-platform",
+      "session_ids": ["omo:sehatly-telemedicine-platform"],
+      "status": "active",
+      "worktree_path": null,
+      "delivery_mode": "direct",
+      "branch": "feat/sehatly-telemedicine",
+      "notes": "Harness did not expose a live ses_* id at start-work time; continuation is carried by the active thread goal plus this boulder file. Todo 1 creates branch feat/sehatly-telemedicine from main. Wave 2 (after todo 18) is a MANDATORY MANUAL CHECKPOINT: show `php artisan migrate:fresh --seed` + `php artisan sehatly:verify-schema` output verbatim to the user and wait for explicit confirmation before Wave 3."
+    }
+  }
+}

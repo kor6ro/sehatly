@@ -1,0 +1,10 @@
+# Dependencies of the web client / Playwright harness.
+# Must be ignored: `playwright` postinstall materialises browser binaries
+# (hundreds of MB) here, which are build artifacts, not source.
+/node_modules
+
+# Playwright run artifacts (traces, screenshots, videos, html reports).
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
