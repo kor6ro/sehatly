@@ -655,3 +655,291 @@ line appears. The PHP gate did not silently edit the manifest.
 ## 5. THE BASELINE COMMIT
 
 <!-- POST-COMMIT SECTION APPENDED BELOW -->
+
+### 5.1 The commit
+
+Branch created from `main` @ `2d3b3b4` (exit **0**):
+
+```
+PS> git checkout -b feat/sehatly-telemedicine
+Switched to a new branch 'feat/sehatly-telemedicine'
+```
+
+`git add -A` (exit **0**):
+
+```
+warning: in the working copy of 'telemedicine_test.sql', CRLF will be replaced by LF the next time Git touches it
+```
+
+`git diff --cached --stat` (tail): `193 files changed, 18072 insertions(+), 11094 deletions(-)`.
+
+`git commit -m "chore(api): baseline worktree and sync composer manifest with lock"`
+(exit **0**):
+
+```
+[feat/sehatly-telemedicine b443f3b] chore(api): baseline worktree and sync composer manifest with lock
+ 193 files changed, 18072 insertions(+), 11094 deletions(-)
+```
+
+> The CRLF warning is `core.autocrlf = true` acting on the blob for *every* text
+> file in the repo, not an edit. The **on-disk** bytes of
+> `telemedicine_test.sql` were verified unchanged after the commit (§6.3), and
+> its `git diff --exit-code` is 0.
+
+### **BASELINE COMMIT SHA: `b443f3b`** (full: see `git rev-parse b443f3b`)
+
+---
+
+## 6. POST-COMMIT VERIFICATION (section 5 — all 10 checks)
+
+| # | Check | Observed | Exit | Verdict |
+|---|---|---|---|---|
+| 1 | `composer validate` | `./composer.json is valid` (no lock-mismatch warning) | **0** | PASS |
+| 2 | `git status --porcelain` | `(EMPTY)` — 0 entries of any kind | 0 | PASS |
+| 3 | `git ls-files --others --exclude-standard \| Measure-Object -Line` | `Lines = 0` | 0 | PASS |
+| 4 | rebranding assets now in `git ls-files` | see §6.2 | 0 | PASS |
+| 5 | `php artisan --version` | `Laravel Framework 13.33.0` (13.x) | **0** | PASS |
+| 6 | `php -v` >= 8.3 + `php` constraint untouched | `PHP 8.4.17`; constraint `^8.3` pre **and** post | 0 | PASS |
+| 7 | `dart --version` | `Dart SDK version: 3.13.2 (stable) ... on "windows_x64"` | **0** | PASS |
+| 8 | `web/playwright.config.ts` exists | `Test-Path` -> `True` | 0 | PASS |
+| 9 | `git check-ignore -v storage/framework/views/<real file>` | `storage/framework/views/.gitignore:1:*  ...03cc807da253af92657ac893f02c75cd.php` | **0** | PASS |
+| 10 | `git log --oneline -2` on `feat/sehatly-telemedicine` | `b443f3b chore(api): baseline worktree and sync composer manifest with lock` / `2d3b3b4 first commit` | 0 | PASS |
+
+### 6.1 Manual-QA channel (git/CLI surface) — verbatim
+
+```
+PS> git branch --show-current
+feat/sehatly-telemedicine
+
+PS> git log --oneline -3
+b443f3b chore(api): baseline worktree and sync composer manifest with lock
+2d3b3b4 first commit
+
+PS> git status --porcelain
+(empty)
+
+PS> git ls-files --others --exclude-standard | Measure-Object -Line
+Lines
+-----
+    0
+
+PS> git ls-files | Select-String -Pattern 'Sehatly|WhatsApp Image|telemedicine_test.sql'
+Sehatly Logo Icon.png
+Sehatly.svg
+WhatsApp Image 2026-09-26 at 7.07.11 PM.jpeg
+telemedicine_test.sql
+(.omo/*.md also match the "Sehatly" pattern)
+
+PS> composer validate
+./composer.json is valid
+exit=0
+
+PS> C:\laragon\bin\php\php-8.4.17-nts-Win32-vs17-x64\php.exe -v
+PHP 8.4.17 (cli) (built: Jan 13 2026 17:46:46) (NTS Visual C++ 2022 x64)
+Copyright (c) The PHP Group
+Built by The PHP Group
+Zend Engine v4.4.17, Copyright (c) Zend Technologies
+exit=0
+
+PS> dart --version
+Dart SDK version: 3.13.2 (stable) (Tue Aug 25 01:01:12 2026 -0700) on "windows_x64"
+exit=0
+```
+
+**Binary PASS/FAIL observables:** branch name == `feat/sehatly-telemedicine`;
+untracked count == 0; `composer validate` exit 0; `php -v` major.minor 8.4 >= 8.3;
+`dart --version` exit 0. **All five satisfied.**
+
+### 6.2 Check 4 — rebranding assets are TRACKED (i.e. now safe)
+
+```
+Sehatly Logo Icon.png
+Sehatly.svg
+WhatsApp Image 2026-09-26 at 7.07.11 PM.jpeg
+telemedicine_test.sql
+database/migrations/2024_01_01_000000_create_passkeys_table.php
+database/migrations/2025_08_14_170933_add_two_factor_columns_to_users_table.php
+```
+
+19 pre-existing untracked files spot-checked across 8 directories
+(branding assets, `telemedicine_test.sql`, `vite.config.ts`, `app/`,
+`config/`, `resources/js/`, `database/migrations/`, `.omo/plans/`): **all
+tracked**, `missing = 0`. Total tracked files: **197**.
+
+### 6.3 `dirty_worktree` class — the central risk
+
+**Pre-state untracked count 79 -> post-commit untracked count 0.** Nothing was
+lost.
+
+`telemedicine_test.sql` byte identity:
+
+```
+PS> git diff --exit-code telemedicine_test.sql
+diff_exit=0
+
+sha256        = AEFE2247E00F09ACB02235168AC289CDFA74F762D604ADA71F68E328574B27F5
+bytes         = 59604
+CR_byte_count = 1348
+BYTE_IDENTICAL_ON_DISK = True
+```
+
+The on-disk SHA-256, byte length and CR-byte count are **identical before and
+after** the commit. `git diff --exit-code` exits 0. The read-only law holds.
+
+**Deletions — zero introduced by todo 1.** `git diff --name-status HEAD~1 HEAD |
+Select-String '^D'` yields **20** paths. The pre-state porcelain dump (§1)
+contains exactly **20** ` D ` paths, and the two sets are **identical**:
+
+| | count |
+|---|---|
+| deletions in the baseline commit | 20 |
+| deletions already present in the pre-state | 20 |
+| deletions introduced by todo 1 | **0** |
+| pre-state deletions *not* carried into the commit (i.e. restored) | **0** |
+
+The 20 are the starter-kit removals the user had already made: `.prettierrc`,
+`.prettierignore`, `eslint.config.js`, `vite.config.js`, `routes/auth.php`,
+`resources/js/ssr.jsx`, 8 `Auth` controllers, `Settings/PasswordController.php`,
+`Auth/LoginRequest.php`, `appearance-dropdown.tsx`, `heading-small.tsx`,
+`icon.tsx`, `settings/password.tsx`. Individually justified: **each one was
+already ` D` in the pre-state porcelain dump transcribed in §1, and the commit
+only records that existing state.** The baseline commit is a *record* of the
+worktree, not a set of edits to it.
+
+`storage/framework/views/.gitignore` is **absent** from the deletion list
+(`in_deletion_list = False`) and `git status --porcelain` for it is empty — it was
+**restored byte-identically to `main`**, not deleted.
+
+**Compiled Blade cache is not in the commit:** 26 `storage/framework/views/*.php`
+are ignored via `storage/framework/views/.gitignore:1:*` (§3.1) and appear in
+neither `git ls-files` nor the commit.
+
+### 6.4 `misleading_success_output` class
+
+`git status --porcelain` can look clean while untracked files remain (that is
+precisely why the original criterion was too weak). This todo relies **only** on
+`git ls-files --others --exclude-standard | Measure-Object -Line == 0`, never on
+`git status` alone, and both were measured:
+
+| stage | `git status --porcelain` entries | untracked count |
+|---|---|---|
+| pre-state | 176 | **79** |
+| after M7 ignore-stub restore | — | **53** |
+| at commit time | — | **58** (53 user + 5 created by todo 1) |
+| post-commit | **0** | **0** |
+
+The two numbers moved independently (176 -> 0 while 79 -> 53 -> 0), which is
+exactly the divergence the `git status`-only criterion hides. The 79 -> 53 drop
+is the 26 compiled views becoming ignored; the 53 -> 58 rise is todo 1's own 5
+new files.
+
+### 6.5 `stale_state` class
+
+| probe | result |
+|---|---|
+| `composer validate` | exit **0**, no lock-mismatch warning |
+| `vendor/laravel/passkeys/` on disk | **present** |
+| `vendor/composer/installed.json` version | `v0.2.1` |
+| `composer.lock` `packages` version | `v0.2.1` |
+| `composer.json` `require` constraint | `^0.2.1` (satisfies and matches the lock) |
+| lock file deleted as a "fix"? | **No** — `composer update --lock` reported `Nothing to modify in lock file` |
+| package versions changed by the repair | **0 of 146** (only `content-hash` moved) |
+| stale `_ide_helper` / cached config | not applicable; `php artisan --version` reads live `vendor/` |
+
+### 6.6 `hung_or_long_commands` class
+
+Every network/long command had an explicit tool timeout and an observed exit
+code. None was reported from inference.
+
+| command | timeout | exit |
+|---|---|---|
+| `winget install --id Google.DartSDK` (SDK download) | 600 s | 0 |
+| `composer update --lock` (packagist round-trip) | 600 s | 0 |
+| `composer validate` | 300 s | 0 |
+| `npm install` in `web/` | 900 s | 0 |
+| `git add -A` (193 files) | 300 s | 0 |
+| `git commit` (193 files) | 600 s | 0 |
+| `php artisan --version` / `vendor/bin/pint` | 600 s | 0 |
+
+### 6.7 `repeated_interruptions` class
+
+The procedure is **idempotent and re-runnable**: every step is either a pure
+read, a targeted single-file write (`storage/framework/views/.gitignore`, `web/*`,
+`docs/*`, `composer.json`), or an idempotent composer/npm install. There is no
+append-only log, no migration, and no index surgery outside the two throwaway
+`GIT_INDEX_FILE` temp indexes of §4.1, which were deleted.
+
+Interruption-safety was **actually exercised**, not just asserted: negative QA
+§4.1 ran two full staging simulations and a mid-flight failure (a first
+`composer validate` attempt in the §4.2 scratch dir failed with
+`"does not contain valid JSON — BOM detected"` after `Out-File -Encoding UTF8`
+wrote a BOM in PowerShell 5.1). After each, state was re-checked rather than
+assumed: `git status --porcelain` still showed **176** entries, the real index
+and worktree unchanged, and the §4.2 test was redone with a BOM-free
+`UTF8Encoding($false)` writer. `telemedicine_test.sql`'s SHA-256 was captured
+before the commit and re-verified after, and is unchanged — so nothing was
+half-applied.
+
+### 6.8 Non-applicable classes
+
+| class | reason |
+|---|---|
+| `malformed_input` | N/A — no input parser is authored in this todo. The only new `php -r` snippet is a `json_decode` **count** in a shell pipeline, not a persisted parser. |
+| `prompt_injection` | N/A — no untrusted external text is consumed. `telemedicine_test.sql` is a first-party local file, read for reference only, never executed as instructions. winget/npm/composer output was treated as data, never as directives. |
+| `cancel_resume` | N/A — no resumable user flow exists yet. The resumable flows (OTP, checkout, webhook) are todos 20 / 46 / 45. |
+| `flaky_tests` | N/A — no test is authored or modified here. The suite was deliberately **not** run: `tests/Feature/Auth/*` and `PasswordUpdateTest` reference classes the pre-state already deleted, so failures would be inherited noise, not signal. Todo 2 introduces the first DB-engine test run. |
+
+---
+
+## 7. CLEANUP RECEIPTS
+
+| item | receipt |
+|---|---|
+| temp index simulating `git commit -am` | removed — `Remove-Item %TEMP%\opencode\t1-neg-indexA` |
+| temp index simulating `git add -A` | removed — `Remove-Item %TEMP%\opencode\t1-neg-indexB` |
+| scratch composer copy for negative QA (b) | removed — `Remove-Item -Recurse -Force %TEMP%\opencode\t1-negqa-lock`; `Test-Path` -> `False` |
+| scratch dir for the composer.json pre-state diff | removed — `Remove-Item -Recurse -Force %TEMP%\opencode\t1-prestate`; `Test-Path` -> `False` |
+| `lock-before.txt` / `lock-after.txt` package snapshots | removed — `Remove-Item %TEMP%\lock-before.txt, %TEMP%\lock-after.txt` |
+| `t1-linediff.php` helper | removed — `Remove-Item %TEMP%\opencode\t1-linediff.php` |
+| scratch branch `baseline-negative-test` | **NOT CREATED** — see §4.1; the commit-then-checkout-back sequence would have reverted the user's modifications out of the worktree and `git branch -D` would have made that content unreachable (real data loss). Replaced with a non-destructive temp-index simulation that proves the same assertion empirically. |
+| `git checkout .` / `git restore .` / `git clean` / `git stash` | **NEVER RUN** |
+| `git commit --amend` / `git push` / `git reset --hard` / force-push | **NEVER RUN** |
+| untracked user files deleted | **NONE** — 79 -> 0 by committing, never by deleting |
+| background `dart` / `composer` / `npm` / `php` processes | none left running (each command was synchronous and had returned before the next) |
+
+### 7.1 Idempotency note
+
+Re-running todo 1 on the finished state is a no-op: the views stub is already
+restored, `composer.json` already contains `laravel/passkeys` (so
+`composer update --lock` reports `Nothing to modify`), `web/` already exists,
+and `git add -A && git commit` would find nothing to commit.
+
+### 7.2 Known deviation — evidence file is committed one commit after the baseline
+
+`git log --oneline -2` shows `b443f3b` (the baseline) at **HEAD**, and this
+evidence file's follow-up commit above it. That follow-up exists because **M8
+requires the baseline commit's SHA to be recorded inside this evidence file**,
+which is only knowable *after* the commit, while the MUST-NOT list forbids
+`git commit --amend` and `git reset --hard`. The two requirements are mutually
+exclusive without a history rewrite. M8 was honoured (the SHA is recorded, in
+§5.1) and no history was rewritten. `git log --oneline -2` still shows the
+baseline commit on `feat/sehatly-telemedicine`.
+
+### 7.3 Final state
+
+```
+PS> git status --porcelain
+(empty)
+
+PS> git branch --show-current
+feat/sehatly-telemedicine
+
+PS> git ls-files --others --exclude-standard | Measure-Object -Line
+Lines
+-----
+    0
+```
+
+The worktree is clean, the branch is not `main`, and every file todo 1 created
+(`docs/pre-existing-defects.md`, `web/*`, this evidence file) is committed.
+
