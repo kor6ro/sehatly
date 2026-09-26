@@ -266,3 +266,83 @@ were modified in the worktree to consume them.)
 | Playwright **browser binaries** | **NOT downloaded** (`PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1`). Whoever first runs a real spec must run `npx playwright install` in `web/`. |
 | Flutter SDK / `pubspec.yaml` / `mobile/` | deliberately absent |
 | MySQL configuration | **untouched** (observation only) |
+
+---
+
+## 5. Todo 2 findings — MySQL 8 confirmed, and the `sehatly` data decision
+
+Appended by **todo 2** (move dev and test databases to MySQL 8). Section 2.1
+above is todo 1's observation; this section records what todo 2 re-verified
+against a live connection and what it did about the pre-existing `sehatly`
+schema. **Nothing in sections 1-4 was edited.**
+
+### 5.1 Connection details (re-verified, not copied from todo 1)
+
+| | |
+|---|---|
+| Server | MySQL **8.0.30** |
+| Endpoint | `127.0.0.1:3306` |
+| Credentials | user `root`, **empty password** |
+| `php` used | `C:\laragon\bin\php\php-8.4.17-nts-Win32-vs17-x64\php.exe` |
+| Laravel | 13.33.0 |
+
+```
+PS> php artisan tinker --execute="dump(DB::selectOne('select version() as v')->v);"
+"8.0.30"
+```
+
+### 5.2 `sehatly` holds PRE-EXISTING data. It was left completely alone.
+
+`sehatly` exists and is **not empty**. It is inherited user data, not something
+this plan created, so todo 2 issued **no** `DROP`, `TRUNCATE`, `DELETE` or
+`ALTER` against it — only `SELECT` from `information_schema`:
+
+| Database | Tables | Charset | Collation |
+|---|---|---|---|
+| `sehatly` | **10** | `utf8mb4` | `utf8mb4_unicode_ci` |
+| `telemedisin_db` | 0 (empty, created by todo 2) | `utf8mb4` | `utf8mb4_unicode_ci` |
+| `telemedisin_db_test` | 0 (empty, created by todo 2) | `utf8mb4` | `utf8mb4_unicode_ci` |
+
+`sehatly`'s ten tables are the stock Laravel scaffolding plus this repo's
+additions: `cache`, `cache_locks`, `failed_jobs`, `job_batches`, `jobs`,
+`migrations`, `passkeys`, `password_reset_tokens`, `sessions`, `users` — with
+`migrations` holding **5** already-applied migration rows and `sessions` holding
+**1** live row at the time of writing. This is consistent with a previous
+partial `php artisan migrate` on the default connection.
+
+**This is the drift todo 2 was asked to resolve, and it is now visible in two
+places rather than one:** `.env` said `sehatly` while
+`telemedicine_test.sql:10-12` creates `telemedisin_db`. Both names now exist on
+the server, so nothing breaks either way, but they point at different histories.
+
+### 5.3 What todo 2 did about it
+
+- Created **`telemedisin_db`** (did not exist) and **`telemedisin_db_test`**
+  (did not exist) with `utf8mb4` / `utf8mb4_unicode_ci`, matching
+  `telemedicine_test.sql:10-12`. Tables are **not** created by todo 2 — the
+  migrations own that (todos 7-18).
+- Repointed `.env.example` `DB_DATABASE` `sehatly` -> `telemedisin_db`, so the
+  template now agrees with the SQL dump.
+- Repointed `phpunit.xml` `DB_CONNECTION` `sqlite` / `DB_DATABASE` `:memory:`
+  -> `mysql` / `telemedisin_db_test`.
+- **`sehatly` itself was not dropped, truncated, emptied, migrated, or renamed.**
+
+### 5.4 OPEN, for the orchestrator: `.env` still points at `sehatly`
+
+> `.env` is **not** version-controlled and todo 2 did **not** edit it. Creating
+> the databases did not require it, so per the task's data-safety rule it was
+> left as found. It currently reads `DB_DATABASE=sehatly`, which means artisan
+> commands still operate on the pre-existing legacy schema rather than on
+> `telemedisin_db`.
+
+One line in `.env` fixes it:
+
+```
+DB_DATABASE=sehatly   ->   DB_DATABASE=telemedisin_db
+```
+
+This is deliberately left to the owner because it is the exact moment the plan
+stops writing to the legacy database, and that switch should be a conscious
+choice, not a side effect of a database-provisioning commit. Once flipped,
+`php artisan migrate` will populate the empty `telemedisin_db`; `sehatly`
+remains on disk as a recoverable fallback.
