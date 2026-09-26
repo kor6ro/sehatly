@@ -34,10 +34,19 @@ here so the plan text can be corrected.
 1. **`cssMinify` does not control the vendor prefix in Vite 8.3.1.** Building
    the identical source with `esbuild` and with `lightningcss` produced the same
    number of `-webkit-backdrop-filter` occurrences and byte-identical rules.
-   The only measurable difference is elsewhere: `esbuild` folds
-   `color-mix(in oklab, red, blue)` to `#8c53a2`, whereas `lightningcss`
-   leaves `oklab(53.9985% .0962031 -.0928409)` in place. That is a size and
-   output-portability difference, not a prefix-stripping regression.
+   The prefix is emitted by Tailwind's internal LightningCSS step inside
+   `@tailwindcss/vite`, which runs before `build.cssMinify` is consulted.
+   Independently measured on the real app bundle with a clean tree and no
+   probe: `-webkit-backdrop-filter` **1** under both minifiers, `backdrop-filter`
+   **2** under both. `lightningcss` is a strict *superset* of prefixes — it
+   additionally emits `-moz-text-size-adjust`. The only other measured
+   difference is that `lightningcss` rewrites `color-mix(in oklab, red, blue)`
+   into a resolved `oklab(53.9985% .0962031 -.0928409)`, whereas `esbuild`
+   keeps `color-mix(in oklab,red,blue)` verbatim (`oklab(` count 0 vs 2,
+   `color-mix(` count 54 vs 56). An earlier revision of this file had that
+   direction **inverted** and quoted a hex value that appears in neither
+   minifier's output; the correction is recorded in
+   `.omo/evidence/task-5-sehatly.md` §13.2.
 2. **`laravel-echo@1.19.0` type-checks cleanly** against the same
    `web/src/lib/echo.ts` that uses `broadcaster: 'reverb'` and `bearerToken`.
 

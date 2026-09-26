@@ -512,6 +512,24 @@ PS> Select-String -Path vite.config.ts -Pattern 'cssMinify'
 
 Line 46 carries the value `esbuild`.
 
+### 5.6 `vendor/bin/pint` — the plan's mandated pre-commit gate
+
+The plan's commit strategy (line 697) requires `vendor/bin/pint` (NOT
+`--test`) before every commit. Run against the **project-local** PHP that todo 1
+established, it passes:
+
+```
+PS> & "C:\laragon\bin\php\php-8.4.17-nts-Win32-vs17-x64\php.exe" "vendor\bin\pint"
+{"tool":"pint","result":"passed"}
+
+PINT_EXIT=0
+PS> git status --porcelain -- '*.php'
+(empty - 0 files changed)
+```
+
+**Pint passes, 0 files changed.** This worker's earlier belief that the gate
+"could not run" was a false premise; the full correction is in §11.0.
+
 ---
 
 ## 6. Manual QA — the emitted CSS is the artifact, not the green build
@@ -590,19 +608,26 @@ byte-identical.** The prescribed assertion "the emitted CSS no longer contains
 
 **Raw-CSS probe, so the minifier itself is under test** (a literal
 `backdrop-filter: blur(4px)` in a plain `.probe-raw` rule, which Tailwind does
-not generate and therefore cannot pre-prefix):
+not generate and therefore cannot pre-prefix). **The `color-mix` row below was
+measured WRONG by this worker and has been corrected — see §13.2. The recorded
+row now carries the independent verifier's settled numbers, not this worker's
+single-shot reading.**
 
 | | `esbuild` | `lightningcss` |
 | --- | --- | --- |
 | `cssMinify` |  |  |
 | build exit | 0 | 0 |
-| `-webkit-backdrop-filter` occurrences | **4** | **4** |
-| `.probe-raw` as emitted | `background:#8c53a2` | `background:oklab(53.9985% .0962031 -.0928409)` |
+| `-webkit-backdrop-filter` occurrences | **9** | **9** |
+| `backdrop-filter` occurrences | **19** | **19** |
+| `-webkit-` occurrences | **46** | **49** |
+| `oklab(` occurrences | **0** | **2** |
+| `color-mix(` occurrences | **56** | **54** |
 
-```
-esbuild     -> .probe-raw{-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);-webkit-user-select:none;user-select:none;background:#8c53a2}
-lightningcss-> .probe-raw{-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);-webkit-user-select:none;user-select:none;background:oklab(53.9985% .0962031 -.0928409)}
-```
+**Corrected direction, independently measured:** `esbuild` KEEPS
+`color-mix(in oklab,red,blue)` verbatim (`oklab(` count 0), while
+`lightningcss` REWRITES it to a resolved `oklab(53.9985% .0962031 -.0928409)`
+(`oklab(` count 2). The string `8c53a2` that this worker originally reported
+appears in **neither** minifier's output.
 
 **Conclusion, and this is the important part:** the `-webkit-` prefix is
 produced by **Tailwind's own LightningCSS compile step inside
@@ -611,11 +636,12 @@ By the time either minifier sees the stylesheet, the prefix is already present,
 and neither one removes it. The plan's causal story — "Vite 8's `cssMinify`
 default strips the prefix" — does not describe where the prefix comes from.
 
-The *real*, reproducible difference between the two minifiers is elsewhere and
-is not a correctness bug: `esbuild` folds `color-mix(in oklab, red, blue)` down
-to the hex `#8c53a2`, while `lightningcss` leaves the `oklab()` function
-intact. That is an output-portability and size difference (65.54 kB vs
-65.92 kB on the probe build).
+The real, reproducible difference between the two minifiers is not a
+correctness bug: `lightningcss` is a strict *superset* of vendor prefixes (49
+`-webkit-` occurrences vs 46, additionally emitting `-moz-text-size-adjust`)
+and additionally lowers `color-mix(in oklab, …)` to a resolved `oklab()`. On the
+real app bundle with a clean tree and no probe, `-webkit-backdrop-filter` is
+**1** under both minifiers and `backdrop-filter` is **2** under both.
 
 `cssMinify: 'esbuild'` is **kept**, because the plan mandates it and it is not
 wrong to keep — but it is retained on the strength of that mandate, not on a
@@ -888,9 +914,12 @@ broken the rename. The other lane's files (`phpunit.xml`, `.env.example`,
 or committed: `NO_FOREIGN_PATHS=True` and `INDEX_COUNT=0` post-commit. The
 other lane's files were observed in flight in `git status` (a concurrent
 `npm install` in the process table) and were left alone.
-`vendor/bin/pint` was attempted before committing and **could not run** — only
-`php-8.2.29` is installed while `composer.json` requires `^8.3` (§11). No PHP
-file was modified, so it was a no-op regardless.
+`vendor/bin/pint` was invoked before committing and initially appeared to
+**fail**; that failure was a false premise caused by resolving the default
+`php-8.2.29` on `PATH` instead of the project-local interpreter. Re-run against
+`C:\laragon\bin\php\php-8.4.17-nts-Win32-vs17-x64\php.exe` it **passes** with
+exit 0 and `{"tool":"pint","result":"passed"}`, 0 files changed (§11.0). The
+plan's mandated pre-commit gate is satisfied for todo 5.
 
 **`hung_or_long_commands` — PROBED, no hang, no orphans.**
 Every `npm install` and `npm run build` was given an explicit timeout
@@ -945,6 +974,13 @@ not a timing-sensitive measurement, so it has no flake surface.
 
 ## 11. Commit
 
+### 11.0 The pint gate — a false premise, and its correction
+
+**What this worker originally recorded, and why it was wrong.** At todo-5
+execution time the pre-commit gate was invoked as a bare `vendor/bin/pint` and
+failed. This worker then concluded that the gate *could not be run* and wrote
+that into the evidence file. The verbatim failure was:
+
 ```
 PS> vendor/bin/pint
 > Checking Box requirements:
@@ -960,17 +996,46 @@ Fix the following mandatory requirements:
 PINT_EXIT=1
 ```
 
-**`pint` could not run — pre-existing environment limitation, not a defect
-introduced here.** Only `php-8.2.29` is on `PATH`; `composer.json:12` requires
-`"php": "^8.3"`. Confirmed no PHP was touched by this todo:
+**That conclusion was a FALSE PREMISE and has been corrected.** The failure was
+not "pint cannot run" — it was "the *default* `php` on `PATH` is 8.2.29".
+`Get-Command php -All` resolves to:
+
+```
+C:\php-8.2.29\php.exe
+C:\laragon\bin\php\php-8.2.29-nts-Win32-vs16-x64\php.exe
+```
+
+but a project-local PHP **8.4.17** is also installed and is what todo 1
+established for this repo:
+
+```
+C:\laragon\bin\php\php-8.4.17-nts-Win32-vs17-x64\php.exe   (Test-Path -> True)
+```
+
+`composer.json:12` requires `"php": "^8.3"`, which 8.4.17 satisfies. The
+failure above was entirely an artifact of resolving the wrong interpreter. The
+correct invocation uses the project-local binary explicitly:
+
+```
+PS> & "C:\laragon\bin\php\php-8.4.17-nts-Win32-vs17-x64\php.exe" "vendor\bin\pint"
+{"tool":"pint","result":"passed"}
+
+PINT_EXIT=0
+```
+
+**Result: the gate PASSES, 0 files changed.** Confirmed by the empty PHP diff
+afterwards:
 
 ```
 PS> git status --porcelain -- '*.php'
-(empty)
+(empty - pint reformatted nothing; this todo touched no PHP)
 ```
 
-Since zero PHP files were modified, `pint` was a no-op in any case. This is
-reported rather than worked around; upgrading the local PHP is out of scope.
+The plan's mandated pre-commit gate (`vendor/bin/pint`, not `--test`) is
+therefore **satisfied for todo 5**, retroactively. The original mistake is left
+on the record above rather than deleted, because the root cause — defaulting to
+whatever `php` is on `PATH` instead of the project-local interpreter todo 1
+pinned — is a reusable trap for the remaining 49 todos.
 
 ### 11.1 Two deviations from the prescribed commit protocol, both forced
 
@@ -1135,3 +1200,124 @@ The empty directories `resources/js/lib/` and `resources/css/` are left in
 place. They contain zero entries, git does not track empty directories, and
 they are not visible to the commit. They are a Windows filesystem leftover for
 todo 30 to sweep up along with the rest of the Inertia tree.
+
+---
+
+## 13. Independent verification round (records addendum)
+
+An independent verifier reviewed this todo and returned verdict **`needs-fix`**
+at **confidence 0.93**, with one blocker and one advisory that was a genuine
+factual error in a committed artifact. Both are now fixed. Six further
+advisories are **recorded here but deliberately NOT acted on**, because each is
+either outside this todo's scope or a recommendation rather than a defect.
+
+### 13.1 Blocker — the pint gate was skipped on a false premise (FIXED)
+
+This evidence file originally claimed the plan's mandated pre-commit gate
+"could not run" because only `php-8.2.29` was installed. That was **false**:
+a project-local PHP **8.4.17** exists and was established by todo 1. The real
+cause was defaulting to whatever `php` is first on `PATH`.
+
+The gate now runs and passes:
+
+```
+PS> & "C:\laragon\bin\php\php-8.4.17-nts-Win32-vs17-x64\php.exe" "vendor\bin\pint"
+{"tool":"pint","result":"passed"}
+PINT_EXIT=0
+PS> git status --porcelain -- '*.php'
+(empty - 0 files changed)
+```
+
+**The plan's mandated pre-commit gate is satisfied for todo 5.** The original
+mistake is preserved on the record in §11.0 rather than deleted, because
+"default `php` instead of the project-local interpreter" is a trap that will
+recur across the remaining todos.
+
+### 13.2 Advisory — the `color-mix` finding was inverted (FIXED)
+
+This worker reported that `esbuild` folds `color-mix(in oklab, red, blue)` to
+`#8c53a2` while `lightningcss` leaves `oklab(...)` in place. **The direction
+was inverted, and the hex `8c53a2` appears in neither minifier's output.**
+
+Independently measured by the verifier (3 deterministic runs per minifier, via
+an isolated probe entry so no tracked file was ever at risk). The A/B
+experiment was deliberately **not** re-run by this worker, to avoid adding a
+second, less-careful measurement:
+
+| | `esbuild` | `lightningcss` |
+| --- | --- | --- |
+| bundle size | 77145 B | 77438 B |
+| `-webkit-backdrop-filter` | 9 | 9 |
+| `backdrop-filter` | 19 | 19 |
+| `-webkit-` | 46 | 49 |
+| `oklab(` | **0** | **2** |
+| `color-mix(` | 56 | 54 |
+
+Corrected direction: **`esbuild` keeps `color-mix(in oklab,red,blue)` verbatim**
+(`oklab(` count 0), while **`lightningcss` rewrites it** to a resolved
+`oklab(53.9985% .0962031 -.0928409)`.
+
+On the **real app bundle, clean tree, no probe**: `-webkit-backdrop-filter` is
+**1** under both minifiers and `backdrop-filter` is **2** under both;
+`lightningcss` is a strict **superset** of prefixes, additionally emitting
+`-moz-text-size-adjust`. This does not change the headline conclusion: the
+prefix comes from Tailwind's internal LightningCSS step, and `cssMinify` does
+not control it. Both `web/CHANGELOG-VERSIONS.md` and §6.2 of this file have
+been corrected.
+
+### 13.3 Recorded advisories — NOT fixed, and why
+
+These are recorded because downstream todos will hit them. None is a defect in
+this todo's deliverable, and fixing them here would exceed scope.
+
+**(a) The plan's acceptance criteria 4, 5 and 6 are UNMATCHABLE AS WRITTEN.**
+The `grep -q "^  vite: \"\^8"` style checks omit the closing quote of the JSON
+key, so they require the byte sequence `vite: "`, which never appears in valid
+JSON (JSON writes `"vite":`). Correct form:
+
+```
+grep -qE '^\s+"vite": "\^8' web/package.json
+```
+
+The **substance** is correct: `"vite": "^8.3.1"`, `"react-router": "^8.4.0"`,
+`"@daypicker/react": "^10.0.1"`, `"typescript": "^7.0.2"`,
+`"laravel-echo": "^2.5.0"` are all present.
+
+**(b) The plan's `vite@^8` pin justification is FALSE, and so is its premise.**
+`backdrop-filter` appears **nowhere** in `web/src`; the only occurrence in the
+whole repo is the explanatory comment at `web/vite.config.ts:41`. The shadcn
+`sidebar`/`dialog`/`sheet`/`sonner` in this repo use no `backdrop-filter` at
+all, and `cssMinify` does not control the prefix anyway. The **real** reason
+`esbuild` had to be added is that Vite 8 dropped it to an optional peer
+dependency and performs a runtime `import("esbuild")` gated on
+`build.cssMinify === 'esbuild'` — verified empirically: hiding
+`web/node_modules/esbuild` makes the build fail with
+`Cannot find package 'esbuild'`.
+
+**(c) The plan's negative QA (b) for `laravel-echo` can NEVER pass as written.**
+`^1.15` resolves to `1.19.0`, which already has `reverb` in its `Broadcaster`
+map and `[key: string]: any` in `EchoOptions`, so a faithful transcription of
+`web/src/lib/echo.ts` type-checks with **zero** diagnostics. Even at an exact
+`1.15.0` pin the only errors are `TS2315: Type 'Echo' is not generic` — never
+on `broadcaster: 'reverb'`. The `>=2.5.0` floor is a **policy decision, not a
+type-enforceable constraint**.
+
+**(d) npm 11.17 gates esbuild's postinstall; `onlyBuiltDependencies` is
+undeclared.** A fresh `npm ci` + `npm run build` in a clean temp dir **does**
+succeed (independently verified, identical output hashes) because
+`@esbuild/win32-x64` arrives as an optional platform package. Consider pinning
+`onlyBuiltDependencies: ["esbuild"]` for future-proofing. **Not applied here —
+recorded as a recommendation only.**
+
+**(e) Nothing pins the Node version.** No `engines` field in `web/package.json`
+or the root, and no `.nvmrc` / `.node-version`. Node **v24.13.1** was used.
+Recorded as a recommendation; not added here.
+
+**(f) The build is byte-deterministic only after warm-up.** The first esbuild
+probe build emitted **63820 B** while three subsequent runs of identical input
+emitted **77145 B** — a 13.3 kB swing caused by Tailwind emitting the whole
+`backdrop-*` utility family once a `backdrop-filter` token is present in the
+scanned source. **Anyone taking a single-shot CSS measurement should warm up
+first.** This is a real reproducibility caveat and retroactively qualifies the
+single-shot readings in §6.2.
+
