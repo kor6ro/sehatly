@@ -905,7 +905,18 @@ half-applied.
 | `git checkout .` / `git restore .` / `git clean` / `git stash` | **NEVER RUN** |
 | `git commit --amend` / `git push` / `git reset --hard` / force-push | **NEVER RUN** |
 | untracked user files deleted | **NONE** — 79 -> 0 by committing, never by deleting |
-| background `dart` / `composer` / `npm` / `php` processes | none left running (each command was synchronous and had returned before the next) |
+| background `dart` / `composer` / `npm` / `php` processes started by todo 1 | **none** — every command was synchronous and had returned before the next |
+
+**Pre-existing processes observed and deliberately left alone** (not started by
+todo 1, therefore not killed):
+
+| PID | process | note |
+|---|---|---|
+| 17484, 19796 | `mysqld` (Laragon MySQL 8.0.30) | the pre-existing server observed in §2.3; not reconfigured, not restarted |
+| 22288 | `php -S 127.0.0.1:8000 .../server.php` | a pre-existing `php artisan serve`, parent PID 20000 = `cmd.exe` (a manually launched console, not an agent tool). Todo 1 never ran `artisan serve` and did not kill it. |
+| 22 x `node` | started 6:44 PM | opencode / language-server processes, all predating todo 1's first command |
+
+No `dart`, `composer`, `npm` or task-spawned `php` process survived todo 1.
 
 ### 7.1 Idempotency note
 
