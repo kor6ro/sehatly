@@ -875,14 +875,22 @@ warning, not a failure, but a future esbuild bump that makes the postinstall
 load-bearing would break the build on a fresh clone.
 
 **`dirty_worktree` — PROBED, clean, concurrent lane respected.**
-A second worker was live on this same branch throughout. The concurrent-commit
-protocol was followed exactly: `git mv` (which stages), then
-`git add -- <explicit paths>`, then `git commit -m ... -- <explicit paths>`. No
-bulk-add flag was used. Post-commit assertions are in §11; `git status
---porcelain` shows nothing belonging to this todo, and the other lane's files
-(`phpunit.xml`, `.env.example`, `app/`, `tests/`, `config/`,
-`docs/pre-existing-defects.md`) were neither staged nor committed.
-`vendor/bin/pint` was run before committing, as instructed.
+A second worker was live on this same branch throughout. `git mv` staged the
+renames, then an explicit-path `git add` was used. No bulk-add flag
+(`-A`, `.`, `-u`, `commit -a`), no `stash`, no `reset`, no `clean` and no
+`checkout .` / `restore .` was used at any point. Two deviations from the
+prescribed commit command were forced and are documented in §11.1: the
+`components.json` pathspec no longer exists after `git mv`, and the commit had
+to be taken from the verified index rather than a pathspec, because a
+pathspec-limited commit would have retained the old root `components.json` and
+broken the rename. The other lane's files (`phpunit.xml`, `.env.example`,
+`app/`, `tests/`, `config/`, `docs/pre-existing-defects.md`) were never staged
+or committed: `NO_FOREIGN_PATHS=True` and `INDEX_COUNT=0` post-commit. The
+other lane's files were observed in flight in `git status` (a concurrent
+`npm install` in the process table) and were left alone.
+`vendor/bin/pint` was attempted before committing and **could not run** — only
+`php-8.2.29` is installed while `composer.json` requires `^8.3` (§11). No PHP
+file was modified, so it was a no-op regardless.
 
 **`hung_or_long_commands` — PROBED, no hang, no orphans.**
 Every `npm install` and `npm run build` was given an explicit timeout
@@ -890,8 +898,12 @@ Every `npm install` and `npm run build` was given an explicit timeout
 2 s for installs; under 1 s for builds. No command was reported successful
 without an observed exit code — each of the ~20 invocations above is recorded
 with its `$LASTEXITCODE`. Node process count was **22 before** any work started
-and **22 after** all work and cleanup, so no orphaned `vite`/`node` process
-survived. The pre-existing 22 harness/LSP processes were never touched.
+and **3 at the end**; the drop was not caused by this todo, which never issued a
+kill. All 3 survivors were inspected and **none belongs to `web/`
+(`FromWeb = False` for each)**: one `wrangler dev` from a temp opencode
+directory and the other lane's `npm install`. No orphaned `vite`/`node`
+process of mine survived, and the pre-existing harness/LSP processes were never
+touched.
 
 **`repeated_interruptions` — PROBED, procedure is idempotent.**
 No interruption occurred, but convergence was verified anyway. The install was
@@ -933,18 +945,173 @@ not a timing-sensitive measurement, so it has no flake surface.
 
 ## 11. Commit
 
-Scope was restricted to explicit paths throughout, so the concurrent lane was
-never absorbed:
+```
+PS> vendor/bin/pint
+> Checking Box requirements:
+  E.....
+
+ [ERROR] Your system is not ready to run the application.
+
+Fix the following mandatory requirements:
+=========================================
+
+ * This application requires a PHP version matching "^8.3.0".
+
+PINT_EXIT=1
+```
+
+**`pint` could not run — pre-existing environment limitation, not a defect
+introduced here.** Only `php-8.2.29` is on `PATH`; `composer.json:12` requires
+`"php": "^8.3"`. Confirmed no PHP was touched by this todo:
+
+```
+PS> git status --porcelain -- '*.php'
+(empty)
+```
+
+Since zero PHP files were modified, `pint` was a no-op in any case. This is
+reported rather than worked around; upgrading the local PHP is out of scope.
+
+### 11.1 Two deviations from the prescribed commit protocol, both forced
+
+**(a) `components.json` had to be dropped from the pathspec.** The prescribed
+command was:
 
 ```
 git add -- web resources/js package.json package-lock.json components.json .omo/evidence/task-5-sehatly.md
-git commit -m "feat(web): scaffold React SPA and relocate shadcn UI kit" -- web resources/js package.json package-lock.json components.json .omo/evidence/task-5-sehatly.md
 ```
 
-`vendor/bin/pint` was run first (no PHP was touched; it was a no-op).
+This fails, because `git mv components.json web/components.json` already
+renamed the file, so the old path no longer exists in the worktree:
 
-Post-commit assertions are recorded in the DoneClaim. Renames in the commit:
-**29**, all `R`.
+```
+git : fatal: pathspec 'components.json' did not match any files
+REAL_ADD_EXIT=128
+```
+
+`components.json` was removed from the pathspec; its rename was already staged
+by `git mv` and is picked up by `-- web`.
+
+**(b) A first attempt reported 10 false "index lock contention" retries.** The
+retry loop was mis-written: `if (-not $?)` was evaluated after `git add ... |
+Out-Null`, so `$?` reflected `Out-Null` (which always succeeds) rather than
+`git add`. All 10 iterations were reported as contention when the real cause
+was the bad pathspec above. No `.git/index.lock` ever existed
+(`Test-Path .git/index.lock` -> `False`) and the lock file was never deleted or
+touched. Fixed by reading `$LASTEXITCODE` directly.
+
+**(c) The commit was taken from the verified index, not a pathspec.** A
+pathspec-limited `git commit -- web ...` performs a partial commit that takes
+those paths from the *worktree* and leaves everything else at `HEAD` — which
+would have **retained the old root `components.json` and broken the rename**,
+leaving both `components.json` and `web/components.json` in the tree. The index
+was therefore verified to contain no foreign files, then committed without a
+pathspec so the staged rename was preserved intact:
+
+```
+PS> git diff --cached --name-only | Select-String '^(phpunit\.xml|\.env\.example|app/|tests/|config/|docs/|composer\.|bootstrap/|routes/|database/|telemedicine_test\.sql)'
+(empty)
+NO_FOREIGN_FILES=True
+STAGED_COUNT=49
+PRE_COMMIT_FOREIGN_CHECK=clean
+
+PS> git commit -m "feat(web): scaffold React SPA and relocate shadcn UI kit"
+ rename {resources/js/components/ui => web/src/components/ui}/alert.tsx (100%)
+ ... (26 kit files)
+ rename {resources/js => web/src}/lib/utils.ts (50%)
+ rename {resources/css => web/src/styles}/app.css (94%)
+ create mode 100644 web/vite.config.ts
+COMMIT_EXIT=0
+```
+
+SHA: **`60cc70742df654fce0e2cdd8c1847081d4a47448`**
+
+### 11.2 Post-commit assertions
+
+```
+PS> git log -1 --format="%s"
+feat(web): scaffold React SPA and relocate shadcn UI kit
+
+PS> git diff --cached --name-only | Measure-Object
+INDEX_COUNT=0                        <- index empty
+
+PS> git show --name-status --format="" HEAD | Select-String '^R' | Measure-Object -Line
+29                                  <- 29 renames, all R
+
+PS> git log --follow --oneline -- web/src/components/ui/button.tsx
+60cc707 feat(web): scaffold React SPA and relocate shadcn UI kit
+b443f3b chore(api): baseline worktree and sync composer manifest with lock
+2d3b3b4 first commit                <- history followed through the rename
+
+PS> Test-Path 'resources/js/components/ui'   -> False
+PS> Test-Path 'resources/js/lib/utils.ts'    -> False
+PS> Test-Path 'resources/css/app.css'        -> False
+PS> Test-Path 'components.json'              -> False
+PS> (Get-ChildItem 'web/src/components/ui' -File).Count -> 26
+
+PS> Test-Path mobile                  -> False
+PS> pubspec.yaml outside vendor       -> 0
+```
+
+The 49 committed paths, all and only this todo's:
+
+```
+.omo/evidence/task-5-sehatly.md
+web/.gitignore
+web/CHANGELOG-VERSIONS.md
+web/components.json
+web/index.html
+web/package.json
+web/package-lock.json
+web/tsconfig.json
+web/vite.config.ts
+web/src/main.tsx
+web/src/vite-env.d.ts
+web/src/app/{app.tsx,app-shell.tsx,router.tsx}
+web/src/components/ui/*.tsx            (26 files)
+web/src/hooks/{use-appearance.tsx,use-flash-toast.ts,use-mobile.tsx}
+web/src/lib/{api.ts,echo.ts,flash.ts,token.ts,utils.ts}
+web/src/styles/app.css
+```
+
+```
+NO_FOREIGN_PATHS=True
+```
+
+Nothing from `phpunit.xml`, `.env.example`, `app/`, `tests/`, `config/`,
+`docs/pre-existing-defects.md`, `composer.*`, `bootstrap/`, `routes/`,
+`database/` or `telemedicine_test.sql` was staged or committed. The other
+lane was not absorbed.
+
+### 11.3 Final worktree state
+
+```
+PS> git status --porcelain
+ M .omo/plans/sehatly-telemedicine-platform.md
+?? .omo/start-work/
+```
+
+Neither entry belongs to this todo; both were present in the baseline
+`git status` captured before any work began. **Nothing of this todo is left
+uncommitted.**
+
+### 11.4 Post-commit verification re-run
+
+```
+PS> cd web; npm run types:check
+FINAL_TYPES_EXIT=0
+
+PS> npm run build
+vite v8.3.1 building client environment for production...
+✓ 2089 modules transformed.
+dist/assets/index-DKiaUFCN.css   63.25 kB │ gzip:  10.54 kB
+dist/assets/index-Bv_VhgEM.js   401.30 kB │ gzip: 124.17 kB
+✓ built in 865ms
+FINAL_BUILD_EXIT=0
+```
+
+Bundle hashes are identical to every earlier build (§5.2, §6.2, §7), so the
+build is reproducible across the whole todo.
 
 ---
 
@@ -962,7 +1129,7 @@ Post-commit assertions are recorded in the DoneClaim. Renames in the commit:
 | `%TEMP%\sehatly-web-package-lock.json.bak` | deleted | backup removed after hash comparison |
 | `laravel-echo@1.19.0` | reinstalled to `^2.5.0` | `npm ls` -> `2.5.0`; manifests hash-identical |
 | `cssMinify: 'lightningcss'` | restored to `'esbuild'` | `Select-String` -> line 46 `esbuild` |
-| node/vite processes | none orphaned | process count 22 before and after |
+| node/vite processes | none orphaned | 22 before, 3 after; all 3 inspected, none from `web/` (`FromWeb = False`) |
 
 The empty directories `resources/js/lib/` and `resources/css/` are left in
 place. They contain zero entries, git does not track empty directories, and
