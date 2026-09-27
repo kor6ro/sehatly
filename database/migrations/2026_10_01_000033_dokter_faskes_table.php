@@ -30,10 +30,12 @@ use Illuminate\Support\Facades\Schema;
  * here is deferred** and the *Deferred constraints* registry in
  * `docs/schema-notes.md` gains no row.
  *
- * Both `is_utama` and `status_aktif` default to `0`, so an inserted affiliation
- * is inactive and not primary. There is no unique beyond the PK, so the same
- * doctor-facility pair cannot be duplicated, but a doctor may have several
- * active facilities and only "one primary" is an application-level invariant.
+ * `is_utama` defaults to `0` and `status_aktif` defaults to `1` (`:450-451`), so an
+ * inserted affiliation is **active but not primary**: it is inactive only if the
+ * caller says so, and the "primary" flag is always the caller's to set. There is
+ * no unique beyond the PK, so the same doctor-facility pair cannot be duplicated,
+ * but a doctor may have several active facilities and only "one primary" is an
+ * application-level invariant.
  *
  * This table is **module-orphaned** (`docs/migration-order.md` row 33:
  * `Module: ORPHAN`, `Resource: —`, `Controller: —`): nothing in Modules 1-5 reads

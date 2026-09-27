@@ -8,11 +8,12 @@ use Illuminate\Support\Facades\Schema;
 /**
  * SQL table 31 of 75 — `telemedicine_test.sql:409-435`.
  *
- * The second-widest table in the contract (23 columns) and the hub every later
- * clinical table hangs off (`dokter_spesialisasi`, `dokter_faskes`,
- * `dokter_pendidikan` in this batch; `dokter_jadwal`, `dokter_libur`,
- * `konsultasi`, `resep`, `ulasan_dokter` in later ones). Four things here are
- * not expressible by reaching for the obvious helper:
+ * The third-widest table in the contract (23 columns, behind `pasien` at 31 and
+ * `rekam_medis` at 28) and the hub every later clinical table hangs off
+ * (`dokter_spesialisasi`, `dokter_faskes`, `dokter_pendidikan` in this batch;
+ * `dokter_jadwal`, `dokter_libur`, `konsultasi`, `resep`, `ulasan_dokter` in
+ * later ones). Four things here are not expressible by reaching for the
+ * obvious helper:
  *
  *  1. **Four integer columns are UNSIGNED, and the flag is load-bearing.**
  *     `pengalaman_tahun SMALLINT UNSIGNED` (`:418`) and

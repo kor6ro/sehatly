@@ -22,12 +22,11 @@ use Illuminate\Support\Facades\Schema;
  * in-progress qualification has no graduation year yet. The unsigned flag keeps
  * a negative year out; Laravel's signed `smallInteger()` would admit one.
  *
- * `dokter_id BIGINT UNSIGNED NOT NULL` with `ON DELETE CASCADE` (`:463`) — one of
- * the single-column FKs that the composite-PK table beside it (`dokter_faskes`,
- * 33) does not have, and unlike `dokter_spesialisasi` (32) there is **no** unique
- * constraint here at all. A doctor may legitimately have several `sp1` rows from
- * different institutions or re-taken exams, so the duplicates are data, not
- * drift, and no application-level de-duplication rule is warranted.
+ * `dokter_id BIGINT UNSIGNED NOT NULL` with `ON DELETE CASCADE` (`:463`), and
+ * unlike `dokter_spesialisasi` (32) there is **no** unique constraint here at
+ * all. A doctor may legitimately have several `sp1` rows from different
+ * institutions or re-taken exams, so the duplicates are data, not drift, and no
+ * application-level de-duplication rule is warranted.
  *
  * No `dibuat_at` / `diubah_at` at all — this table is in the 39-table "neither"
  * group of `docs/migration-order.md` rule 4, so todo 19's model needs

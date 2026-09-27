@@ -40,9 +40,10 @@ use Illuminate\Support\Facades\Schema;
  *
  * No `dibuat_at` / `diubah_at` at all — this table is in the 39-table "neither"
  * group of `docs/migration-order.md` rule 4, so todo 19's model needs
- * `$timestamps = false`. Both foreign keys resolve inside this batch (`dokter`
- * and `master_spesialisasi` are 30 and 31), so **nothing here is deferred** and
- * the *Deferred constraints* registry in `docs/schema-notes.md` gains no row.
+ * `$timestamps = false`. Both foreign keys resolve inside this batch — `dokter`
+ * (31) and `master_spesialisasi` (30) are both created earlier inside batch D, as
+ * stated at the top of this docblock — so **nothing here is deferred** and the
+ * *Deferred constraints* registry in `docs/schema-notes.md` gains no row.
  */
 return new class extends Migration
 {

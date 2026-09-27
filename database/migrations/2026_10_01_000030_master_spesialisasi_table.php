@@ -17,7 +17,8 @@ use Illuminate\Support\Facades\Schema;
  * No `dibuat_at` / `diubah_at` at all: this is one of the 11 tables the plan's
  * own tally omitted and the corrected 39-table "neither" group (rule 4), so todo
  * 19's `MasterSpesialisasi` needs `$timestamps = false`. Todo 18's
- * `SpesialisasiSeeder` ports the 16 `:1234-1240` rows.
+ * `SpesialisasiSeeder` ports the 16 value tuples at `:1237-1252` of the
+ * `master_spesialisasi` INSERT statement at `:1236-1252`.
  *
  * **`tipe`'s value list is a different vocabulary from `dokter.tipe`'s, and the
  * two overlap in exactly one member.** `:406` is

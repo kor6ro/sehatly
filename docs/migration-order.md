@@ -219,8 +219,16 @@ read them before writing a migration.
    `timestamp NULL`, which is what the SQL says; a hand-rolled `dateTime()` would emit
    `datetime` and is the parity break.
 9. **Never add a `FOREIGN KEY` to a column the SQL leaves bare.** Eight columns look like
-   references and have none (see the plan's list), and `pasien_penjamin.faskes_rujukan_id`
-   (`:346`) is deferred to migration 76.
+   references and have none (see the plan's list). `pasien_penjamin.faskes_rujukan_id`
+   (`:346`) is the sharpest case: the DDL declares no `FOREIGN KEY` for it, so the column
+   is bare **by contract** — plan appendix A.10 / A.11 settled that, and the old ordering
+   argument is dead now that `faskes` exists (batch D, migration 28). Nothing about it is
+   deferred and no constraint is owed, so migration `2026_10_01_000076` must **not** add
+   one; adding it would be `extra_foreign_key` drift. The only column in the contract with
+   a genuinely deferred FK is `pasien_tanda_vital.rekam_medis_id` (`:315`), which the SQL's
+   own section `[14]` (`:1161-1163`) really does add — that one is the single row of the
+   *Deferred constraints* registry in `docs/schema-notes.md`, and it is not a licence to
+   constrain anything else.
 10. **Inline `UNIQUE` is compared by semantics, named keys by name.** MySQL names an inline
     `UNIQUE` after its column (`kode`); Laravel names it `master_provinsi_kode_unique`.
     Both are the same constraint, and the verifier knows that. Only a name the SQL wrote
