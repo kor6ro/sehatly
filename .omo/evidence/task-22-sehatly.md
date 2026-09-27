@@ -597,13 +597,37 @@ the suite either way.
 
 ---
 
-## 12. ROUTE BLOCK FOR routes/api.php
+## ROUTE BLOCK FOR routes/api.php
+
+*(section 12 of 14)*
 
 **Insertion point: end of file, immediately after the closing `});` of the outermost
 `Route::middleware('auth:sanctum')->group(...)` — i.e. after `routes/api.php:207`, which
 is the last line of the file in the state I read it. Nothing goes inside any existing
 group: these three routes are unauthenticated, and inside the `auth:sanctum` group they
 would answer 401.**
+
+> ### DO NOT add a `Route::prefix('v1')` wrapper
+>
+> The dispatch brief for this todo asked for the block to be "wrapped in the same
+> `Route::prefix('v1')`/`auth:sanctum` style as the existing groups". **`prefix('v1')` does
+> not exist in `routes/api.php` and adding it would break all three routes.** Evidence,
+> read not assumed:
+>
+> - `routes/api.php:16`, the file's own header: *"Mounted under the `api/v1` prefix
+>   declared in `bootstrap/app.php` via `apiPrefix`, so every URI here is `/api/v1/...`
+>   and **no prefix is added in this file**."*
+> - `bootstrap/app.php:52` is `apiPrefix: 'api/v1'`, inside `withRouting(...)`.
+> - Every existing group uses a **bare** prefix: `Route::prefix('auth')` at `:64`,
+>   `Route::prefix('pasien')` at `:166`, `Route::prefix('anggota-keluarga')` at `:176`,
+>   `Route::prefix('alergi')` at `:194`. There is no `v1` prefix on any of them.
+>
+> Wrapping my three routes in `prefix('v1')` would register them at
+> `/api/v1/v1/dokter`, `/api/v1/v1/dokter/{dokter}` and `/api/v1/v1/master-spesialisasi`,
+> and every test in `DokterDirectoryTest` — which registers the same paths in-process
+> until this block is pasted — would then be asserting the wrong URIs. The block below
+> therefore has **no prefix and no middleware**, which is the "same style as the
+> existing groups" in the only sense this file actually uses. Recorded as finding 4.10.
 
 > **The line number is stated so the block can be sanity-checked, not so it can be
 > applied.** Per A.25 a `:NNN` in a brief is a claim to verify: this file was 100 lines
@@ -765,6 +789,34 @@ todo 22's `dokter_spesialisasi` reference is `:437-445`, which is right, but its
 `dokter_pendidikan` reference says `tahun_lullah` and then corrects itself in the same
 sentence to `tahun_lulus` — the DDL's spelling, at `:462`, is `tahun_lulus`, and that is
 what the code uses. The plan's own parenthetical is the correct one.
+
+**4.10 — the dispatch brief's `Route::prefix('v1')` instruction is wrong for this file,
+and following it would break all three routes.** The brief asked for the route block to
+be "wrapped in the same `Route::prefix('v1')`/`auth:sanctum` style as the existing
+groups". There is no `v1` prefix in `routes/api.php` and there never was:
+
+- `routes/api.php:16`, the file's own header, says the `/api/v1` prefix comes from
+  `apiPrefix` in `bootstrap/app.php` and that "**no prefix is added in this file**";
+- `bootstrap/app.php:52` is `apiPrefix: 'api/v1'`;
+- every existing group uses a bare prefix — `prefix('auth')` `:64`,
+  `prefix('pasien')` `:166`, `prefix('anggota-keluarga')` `:176`, `prefix('alergi')`
+  `:194`.
+
+Wrapping the three routes in `prefix('v1')` would register them at `/api/v1/v1/dokter`,
+`/api/v1/v1/dokter/{dokter}` and `/api/v1/v1/master-spesialisasi`. The block in section
+12 therefore carries **no prefix and no middleware**, which is the "same style as the
+existing groups" in the only sense this file actually uses. This is the same
+brief-is-a-claim-to-verify class as A.25 and 4.9, and it is flagged at the top of
+section 12 so nobody "corrects" the block into a double prefix.
+
+**4.11 — the brief's own `## ROUTE BLOCK FOR routes/api.php` heading requirement was
+initially not met byte-exactly.** My first draft used
+`## 12. ROUTE BLOCK FOR routes/api.php`. The brief asked for the heading
+`## ROUTE BLOCK FOR routes/api.php`, and a strict orchestrator grepping for
+`^## ROUTE BLOCK FOR routes/api\.php` would not have matched the numbered form. The
+heading is now the exact required string, with the section number demoted to a subtitle
+beneath it. Found by re-reading the brief against the delivered file rather than by
+re-running anything.
 
 ---
 
