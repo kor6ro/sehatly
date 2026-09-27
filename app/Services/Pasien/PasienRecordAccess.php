@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Pasien;
 
+use App\Models\Booking;
 use App\Models\Dokter;
 use App\Models\Pasien;
 use App\Models\PasienAlergi;
@@ -209,6 +210,85 @@ final class PasienRecordAccess
         }
 
         return $alergi;
+    }
+
+    /**
+     * Every booking of this patient, as a scope.
+     *
+     * The same rule as every other child row: the tenant filter IS the query,
+     * so somebody else's booking is simply not found rather than refused.
+     *
+     * @return Builder<Booking>
+     */
+    public function bookingQuery(Pasien $pasien): Builder
+    {
+        return Booking::query()->whereBelongsTo($pasien);
+    }
+
+    /**
+     * One booking of this patient, or a 404.
+     *
+     * @throws ModelNotFoundException, rendered as the 404 envelope by `bootstrap/app.php`
+     */
+    public function bookingOrFail(Pasien $pasien, int $id): Booking
+    {
+        $booking = $this->bookingQuery($pasien)->whereKey($id)->first();
+
+        if ($booking === null) {
+            throw (new ModelNotFoundException)->setModel(Booking::class, [$id]);
+        }
+
+        return $booking;
+    }
+
+    /**
+     * The doctor profile of this account, or a 403.
+     *
+     * `ownDokter()` answers null for a `dokter`-typed account with no `dokter`
+     * row, and an empty list would tell that account nothing is wrong with it.
+     * The profile is incomplete, so the answer is 403 rather than an empty
+     * list.
+     *
+     * @throws AccessDeniedHttpException, rendered as the 403 envelope by `bootstrap/app.php`
+     */
+    public function ownDokterOrFail(User $user): Dokter
+    {
+        $dokter = $this->ownDokter($user);
+
+        if ($dokter === null) {
+            throw new AccessDeniedHttpException('Endpoint ini hanya untuk akun dokter.');
+        }
+
+        return $dokter;
+    }
+
+    /**
+     * Every booking on this doctor's row, as a scope.
+     *
+     * The doctor-side mirror of {@see bookingQuery()}: the row belongs to the
+     * doctor, so a booking on another doctor's row is simply not found.
+     *
+     * @return Builder<Booking>
+     */
+    public function dokterBookingQuery(Dokter $dokter): Builder
+    {
+        return Booking::query()->whereBelongsTo($dokter);
+    }
+
+    /**
+     * One booking on this doctor's row, or a 404.
+     *
+     * @throws ModelNotFoundException, rendered as the 404 envelope by `bootstrap/app.php`
+     */
+    public function dokterBookingOrFail(Dokter $dokter, int $id): Booking
+    {
+        $booking = $this->dokterBookingQuery($dokter)->whereKey($id)->first();
+
+        if ($booking === null) {
+            throw (new ModelNotFoundException)->setModel(Booking::class, [$id]);
+        }
+
+        return $booking;
     }
 
     /**

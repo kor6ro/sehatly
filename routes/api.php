@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\BookingController;
 use App\Http\Controllers\Api\V1\MeController;
 use App\Http\Controllers\Api\V1\PasienController;
 use Illuminate\Support\Facades\Route;
@@ -208,7 +209,40 @@ Route::middleware('auth:sanctum')->group(function (): void {
                 ->whereNumber('id')
                 ->name('destroy');
         });
+
+        /*
+        | The caller's own bookings. A single `GET` with the project meta block;
+        | the tenant scope lives in `PasienRecordAccess::bookingQuery()`, so a
+        | booking on another patient's row is simply absent rather than refused.
+        */
+        Route::get('booking', [BookingController::class, 'indexPasien'])
+            ->middleware('permission:booking.lihat')
+            ->name('booking.index');
     });
+
+    /*
+    | Bookings. `POST` creates through `BookingService` (the `dokter` row lock
+    | is the whole double-booking story), `PUT .../batalkan` cancels, and
+    | `GET dokter/booking` is the doctor-side list.
+    |
+    | `dokter/booking` is a literal segment registered BEFORE the public
+    | `dokter/{dokter}` wildcard below, so the literal is never swallowed by
+    | it. It also carries `tipe:dokter`: "which account type is this" is
+    | exactly the question that list asks, and a patient account is refused
+    | before the controller runs.
+    */
+    Route::post('booking', [BookingController::class, 'store'])
+        ->middleware('permission:booking.buat')
+        ->name('booking.store');
+
+    Route::put('booking/{id}/batalkan', [BookingController::class, 'batalkan'])
+        ->whereNumber('id')
+        ->middleware('permission:booking.batal')
+        ->name('booking.batalkan');
+
+    Route::get('dokter/booking', [BookingController::class, 'indexDokter'])
+        ->middleware(['permission:booking.lihat', 'tipe:dokter'])
+        ->name('dokter.booking.index');
 });
 
 use App\Http\Controllers\Api\V1\DokterController;

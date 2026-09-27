@@ -1420,6 +1420,13 @@ test('the route table exposes the eight auth routes and the eleven patient route
         'POST api/v1/pasien/alergi',
         'PUT api/v1/pasien/alergi/{id}',
         'DELETE api/v1/pasien/alergi/{id}',
+        // Module 2 (booking) wires four routes into the same file, in
+        // registration order: inside the `auth:sanctum` group, after the
+        // patient blocks and before the public directory block.
+        'GET api/v1/pasien/booking',
+        'POST api/v1/booking',
+        'PUT api/v1/booking/{id}/batalkan',
+        'GET api/v1/dokter/booking',
         // The three public doctor-directory routes. Todo 22 does not edit this file - it hands
         // its routes over as a paste-ready block and the orchestrator appends them - so they
         // arrived after this test was written. They are listed in registration order (last)
@@ -1431,16 +1438,16 @@ test('the route table exposes the eight auth routes and the eleven patient route
         'GET api/v1/master-spesialisasi',
     ]);
 
-    // TEN under the `pasien` filter, not the eight the plan's acceptance criterion names.
-    // The plan's own prose enumerates ten: profil read + write, two each for the family and
-    // allergy lists, and two each for the row-addressed update and delete. All ten ship;
-    // the count is not met by dropping endpoints. `GET /api/v1/me` is the eleventh and sits
-    // outside the `pasien` filter.
+    // ELEVEN under the `pasien` filter: the ten above (profil read + write, two
+    // each for the family and allergy lists, and two each for the row-addressed
+    // update and delete) plus the patient booking list. `GET /api/v1/me` sits
+    // outside the `pasien` filter, and the other three booking routes live
+    // outside it too.
     $pasienRoutes = collect(array_keys($routes))
         ->filter(fn (string $key): bool => str_contains($key, 'api/v1/pasien'))
         ->all();
 
-    expect($pasienRoutes)->toHaveCount(10);
+    expect($pasienRoutes)->toHaveCount(11);
 
     $middlewareFor = static function (string $key) use ($routes): array {
         return array_values(array_filter(
@@ -1480,14 +1487,26 @@ test('the route table exposes the eight auth routes and the eleven patient route
             expect(in_array('auth:sanctum', $middleware, true))->toBeTrue("{$key} must carry auth:sanctum");
         }
 
-        // No `permission:` and no `tipe:` anywhere - see the class docblock of
-        // `PasienRecordAccess` for why that is a decision and not an omission.
+        // No `permission:` and no `tipe:` anywhere except the four Module 2
+        // booking routes, which are the first consumers - see the class
+        // docblock of `PasienRecordAccess` for why the absence elsewhere is a
+        // decision and not an omission.
         $guards = array_values(array_filter(
             $middleware,
             static fn (string $m): bool => str_starts_with($m, 'permission:') || str_starts_with($m, 'tipe:'),
         ));
 
-        expect($guards)->toBe([], "{$key} unexpectedly carries a permission/tipe guard.");
+        $expectedGuards = [
+            'POST api/v1/booking' => ['permission:booking.buat'],
+            'GET api/v1/pasien/booking' => ['permission:booking.lihat'],
+            'PUT api/v1/booking/{id}/batalkan' => ['permission:booking.batal'],
+            'GET api/v1/dokter/booking' => ['permission:booking.lihat', 'tipe:dokter'],
+        ];
+
+        expect($guards)->toEqualCanonicalizing(
+            $expectedGuards[$key] ?? [],
+            "{$key} unexpectedly carries a permission/tipe guard.",
+        );
     }
 });
 
@@ -1514,9 +1533,17 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         }
     }
 
-    // Still zero. The 24 codes name no patient-profile, family or allergy action, and
-    // adding one is a policy change in `app/Support/Rbac/`.
-    expect($matches)->toBe([]);
+    // Module 2 (booking) is the first consumer: exactly these five strings, each
+    // proven to resolve against `RbacCatalog` by the loop above, and nothing
+    // else. The 24 codes name no patient-profile, family or allergy action,
+    // and adding any other code is a policy change in `app/Support/Rbac/`.
+    expect(array_map(static fn (array $m): string => $m[0], $matches))->toEqualCanonicalizing([
+        "'permission:booking.buat'",
+        "'permission:booking.batal'",
+        "'permission:booking.lihat'",
+        "'permission:booking.lihat'",
+        "'tipe:dokter'",
+    ]);
 });
 
 test('the validated ENUM lists are the DDL enums, not transcriptions', function (): void {

@@ -1284,8 +1284,17 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         }
     }
 
-    expect($matches)->toBe([], 'Module 1 uses no permission: or tipe: code, and this assertion exists so that a '
-        .'code added later has to be added to RbacCatalog in the same commit.');
+    // Module 2 (booking) is the first consumer: exactly these five strings, each
+    // proven to resolve against `RbacCatalog` by the loop above, and nothing
+    // else. A sixth string here is a policy change that must arrive with its
+    // catalogue entry in the same commit.
+    expect(array_map(static fn (array $m): string => $m[0], $matches))->toEqualCanonicalizing([
+        "'permission:booking.buat'",
+        "'permission:booking.batal'",
+        "'permission:booking.lihat'",
+        "'permission:booking.lihat'",
+        "'tipe:dokter'",
+    ]);
 });
 
 test('the OTP purpose list is the DDL enum, verbatim and in the DDL order', function (): void {
