@@ -432,3 +432,77 @@ like something the schema guarantees and is not.
 The extra-table registry still has exactly seven entries after todo 10, for the
 same reason as after todo 9: no batch-D migration creates a table outside the
 75-table contract. The unit suite re-derives that seven on every run.
+
+## Batch-E schema facts the database cannot enforce (todo 11)
+
+Batch E (`dokter_jadwal`, `dokter_libur`, `booking` — SQL tables 35–37) is at
+parity and **owes no deferred constraint**: all nine of its foreign keys point at a
+table that already exists by the time its own migration runs (`dokter` 31 and
+`faskes` 28 from batch D, `pasien` 20 and `pasien_anggota_keluarga` 21 from batch
+C, `users` 12 from batch B, and `dokter_jadwal` 35 from inside this batch, one row
+earlier in the same commit), so the *Deferred constraints* table above is unchanged
+and still holds exactly one row. Four facts are still worth carrying forward,
+because each looks like something the schema guarantees and is not. The two marked
+**absence is load-bearing** are the ones a later reader is most likely to
+"repair", and each repair would be reported as `extra_index` drift.
+
+- **Double-booking prevention is an application lock, not a unique index.**
+  `booking` (`:498-530`) has **no** unique index on `(dokter_id,
+  tanggal_kunjungan, slot_mulai)`. Its only name-bearing keys are
+  `idx_booking_dokter (dokter_id, tanggal_kunjungan)` (`:528`) and
+  `idx_booking_pasien (pasien_id, status)` (`:529`), both plain non-unique
+  `INDEX` lines, plus the inline `UNIQUE` on `nomor_booking` (`:500`) and the
+  primary key. **Absence is load-bearing.** A unique index is the wrong tool
+  twice over: cancellation is a `status` change and the row stays, so an
+  unconditional unique would make a legitimate re-booking of a cancelled slot
+  collide with the patient's own dead row; and the uniqueness that is actually
+  wanted is *state-dependent* — it applies only outside the exclusion set
+  `('dibatalkan','kadaluarsa')` — which MySQL cannot express, because a `UNIQUE`
+  covers all rows unconditionally and MySQL has no partial index. Todo 27 must
+  therefore run a `DB::transaction` that takes `lockForUpdate()` on the
+  **`dokter`** row before the overlap query. The lock target is `dokter` and not
+  `dokter_jadwal` because `jadwal_id` is nullable (`:504`) while `slot_mulai` and
+  `slot_selesai` are `NOT NULL` (`:508-509`): an instant `chat` / `video_call`
+  booking has no `dokter_jadwal` row to lock, and the `dokter` row exists for
+  every doctor and is the same row for every competing booking at that instant.
+- **`dokter_libur` has no unique on `(dokter_id, tanggal)`, and none is owed.**
+  **Absence is load-bearing.** The whole statement is `:490-496` — seven lines
+  containing one `id` column, three more columns, a single `FOREIGN KEY` line
+  and the closing `) ENGINE=InnoDB;`. There is no `UNIQUE` token and no `INDEX`
+  token in it, so the only index beyond the primary key is the one **MySQL
+  creates itself** for the `dokter_id` foreign key. The duplicate guard is
+  consequently an application-level invariant owned by `SlotAvailabilityService`
+  (todo 26): a `SELECT 1 … WHERE dokter_id = ? AND tanggal = ?` existence check
+  inside the writing transaction. That check-then-act is race-prone under
+  concurrency, and the race is accepted rather than papered over, because a
+  duplicate holiday row is **harmless to every consumer** — availability is a set
+  membership test over blocked dates, which is idempotent over duplicates, and
+  nothing here sums, counts or orders rows.
+- **A schedule row is not self-validating.** `dokter_jadwal.hari` is
+  `TINYINT UNSIGNED` (`:475`) with **no** `CHECK (hari BETWEEN 0 AND 6)`, so the
+  unsigned flag rejects only negatives and `hari = 7` is representable; and
+  nothing prevents two active rows for the same `(dokter_id, hari)` with
+  overlapping `jam_mulai`/`jam_selesai`, or `berlaku_sampai` earlier than
+  `berlaku_mulai`. `MySQL TIME` also admits values past `24:00:00`, so a slot
+  wrapping midnight is representable and breaks naive `H:i:s` parsing.
+  `SlotAvailabilityService` (todo 26) owns all of it. Note that `hari` maps 1:1
+  onto PHP's `date('w')` (`0` Minggu = Sunday … `6` Sabtu = Saturday), so the
+  named constant the plan asks for and the `docs/timezone-policy.md` entry are
+  **todo 19's** work — that file does not exist in the repository yet and todo 11
+  did not create it.
+- **`booking`'s eight `status` values split into a two-value exclusion set and
+  six live states** (`:515-516`), and the split is what every availability and
+  cancellation query must use. `('dibatalkan','kadaluarsa')` release the slot; the
+  other six — `menunggu_pembayaran`, `terjadwal`, `check_in`, `berlangsung`,
+  `selesai`, `no_show` — occupy it. Testing `status != 'dibatalkan'` instead of
+  the six-value membership test would keep `kadaluarsa` rows blocking a slot
+  forever. Related and unenforced: `dibatalkan_oleh` (`:517`) and
+  `alasan_pembatalan` (`:518`) are not coupled to `status = 'dibatalkan'` by any
+  constraint, `nomor_antrian` (`:510`) has no per-doctor/per-day counter and no
+  uniqueness, and `kuota_per_sesi` on `dokter_jadwal` (`:479`) is nullable where
+  `NULL` means "no quota set" — a different statement from `0`, which means
+  "block the session", and the two must not be collapsed.
+
+The extra-table registry still has exactly seven entries after todo 11, for the
+same reason as after todos 9 and 10: no batch-E migration creates a table outside
+the 75-table contract. The unit suite re-derives that seven on every run.
