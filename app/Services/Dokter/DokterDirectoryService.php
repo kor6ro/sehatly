@@ -6,6 +6,7 @@ namespace App\Services\Dokter;
 
 use App\Models\Dokter;
 use App\Models\MasterSpesialisasi;
+use App\Support\Dokter\StrBerlaku;
 use App\Support\Schema\SqlSchemaParser;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -22,7 +23,7 @@ use Illuminate\Support\Facades\DB;
  * | rule | where it is enforced | DDL |
  * | --- | --- | --- |
  * | 1. verification | `v_dokter_katalog`'s own `WHERE` | `d.status_verifikasi = 'terverifikasi'` at `:1183`; column at `:427` |
- * | 2. STR not expired | {@see strBelumKedaluwarsa()} in this class | `d.str_berlaku_sampai` at `:414` |
+ * | 2. STR not expired | {@see StrBerlaku}, called from {@see strBelumKedaluwarsa()} in this class | `d.str_berlaku_sampai` at `:414` |
  *
  * **Rule 1 is delegated, never restated.** The view is the DDL's own expression of
  * the visibility rule and it is read verbatim (migration 77 copies `:1170-1187`
@@ -74,6 +75,14 @@ use Illuminate\Support\Facades\DB;
  * whole day, which is a bookable-consultation denial rather than a patient-safety
  * protection. The boundary is pinned by a test on the exact boundary date, on both
  * sides of it.
+ *
+ * **The decision itself moved to {@see StrBerlaku} in todo 26, and this
+ * section is now the ORIGIN of that decision rather than a second copy of
+ * it.** `SlotAvailabilityService` needs the same boundary against a different
+ * reference day, and a private method here could not be shared. The operator,
+ * the inclusivity and the fail-closed NULL handling all live in that one class
+ * now. This section stays because it is the argument for the decision, and an
+ * argument that travels with the code is worth more than a cross-reference.
  *
  * ## What a NULL expiry means: EXCLUDED
  *
@@ -315,20 +324,24 @@ class DokterDirectoryService
     /**
      * Rule 2, on its own, so the boundary has exactly one spelling in the codebase.
      *
-     * Nested inside a `where(function ...)` rather than applied as two sibling
-     * `where` calls because this method is called from a closure that may itself be
-     * nested; grouping keeps the `NOT NULL` and the comparison from ever being
-     * separated by an `or` a future filter might introduce. The `or` case is the one
-     * that would matter: `A OR B` with `A` being a two-clause rule splits into
+     * The decision itself lives in {@see StrBerlaku}, which todo 26's
+     * `SlotAvailabilityService` also calls. Both services ask the same question
+     * -- is this licence valid on this day -- against different reference days,
+     * and only this one is about visibility while the other is about a specific
+     * consultation. Two spellings of the inclusive boundary would be two sources
+     * of truth, and the looser one is the one that would let an unlicensed
+     * doctor take a consultation.
+     *
+     * Nested inside a `where(function ...)` by that class rather than by this
+     * method because a caller may itself be inside a nested closure; the
+     * grouping keeps the `NOT NULL` and the comparison from ever being separated
+     * by an `or` a future filter might introduce. The `or` case is the one that
+     * would matter: `A OR B` with `A` being a two-clause rule splits into
      * `A1 OR A2`, and `A2` alone admits the NULL.
      */
     private function strBelumKedaluwarsa(Builder $query, ?Carbon $asOf): void
     {
-        $query->where(function (Builder $inner) use ($asOf): void {
-            $inner
-                ->whereNotNull('d.str_berlaku_sampai')
-                ->whereDate('d.str_berlaku_sampai', '>=', $this->today($asOf));
-        });
+        StrBerlaku::terapkan($query, 'd.str_berlaku_sampai', $this->today($asOf));
     }
 
     /**
