@@ -1,0 +1,306 @@
+import { useState } from 'react';
+import { Link, Navigate, useNavigate } from 'react-router';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { KeyRound } from 'lucide-react';
+import { login, type Identifier } from '@/lib/api/auth';
+import { ApiError } from '@/lib/http';
+import { getAccessToken } from '@/lib/token';
+import { setPendingOtp } from '@/stores/pending-otp';
+import { Field, FieldInput, FormErrorSummary } from '@/components/form/field';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Spinner } from '@/components/ui/spinner';
+import { AuthLayout } from '@/pages/auth-layout';
+
+/**
+ * The identifier's two shapes, and the rules that apply to each.
+ *
+ * `AuthRequest::identifierRules()` validates `no_telepon` as
+ * `['nullable','string','max:20']` and `email` as `['nullable','string','email','max:255']`,
+ * plus `LoginRequest`'s own `regex:/^\+?[0-9]{8,20}$/` on the phone. These mirror all
+ * three so an obviously-invalid value does not cost a round trip.
+ *
+ * The server remains the authority: `LoginRequest` is what actually decides, and its 422
+ * is rendered per field below. Client validation here is a convenience, never a substitute.
+ */
+const TELEPON_RULE = /^\+?[0-9]{8,20}$/;
+
+type IdentifierKind = 'no_telepon' | 'email';
+
+/** Built per kind because the two fields have genuinely different rules. */
+function schemaFor(kind: IdentifierKind) {
+    return z.object({
+        identifier:
+            kind === 'email'
+                ? z
+                      .string()
+                      .trim()
+                      .min(1, 'Isi email.')
+                      .max(255, 'Email maksimal 255 karakter.')
+                      .email('Format email tidak valid.')
+                : z
+                      .string()
+                      .trim()
+                      .min(1, 'Isi nomor telepon.')
+                      .max(20, 'Nomor telepon maksimal 20 karakter.')
+                      .regex(TELEPON_RULE, 'Nomor telepon harus 8 sampai 20 digit.'),
+        password: z
+            .string()
+            .min(1, 'Isi kata sandi.')
+            /**
+             * Deliberately only a presence check, matching `LoginRequest`. The server
+             * applies no minimum on login, on purpose: an account whose password predates
+             * a policy change must not be refused as "too short" before the hash is even
+             * compared. A client-side minimum here would reintroduce exactly that bug, in
+             * the one place the server deliberately left it out.
+             */
+            .max(255, 'Kata sandi maksimal 255 karakter.'),
+    });
+}
+
+type LoginForm = z.infer<ReturnType<typeof schemaFor>>;
+
+/**
+ * Turn the two UI fields into the one of `no_telepon` / `email` the server accepts.
+ *
+ * `AuthRequest` refuses both absent and puts the same message on both keys, so the payload
+ * carries exactly one. `no_telepon` wins when both are sent, which is why only one is ever
+ * sent here.
+ */
+function toIdentifier(
+    values: LoginForm,
+    kind: IdentifierKind,
+): Identifier {
+    if (kind === 'email') {
+        return { email: values.identifier };
+    }
+
+    // The stored spelling is what is looked up, exactly. Stripping spaces would make an
+    // account that was registered as `0812 3456` unreachable.
+    return { no_telepon: values.identifier };
+}
+
+/**
+ * `/login`
+ *
+ * ## The response is not a session, and this screen is built around that
+ *
+ * `POST /auth/login` answers `{ success, data: { otp }, message }` and **no token**, by
+ * design. So a successful submit here does not sign anybody in; it records the identifier,
+ * moves to `/otp` and waits for the code that was sent to the phone. A screen that treated
+ * this response as a session would be silently broken, and the failure would only show up
+ * on the first authenticated request.
+ */
+export function LoginPage() {
+    const navigate = useNavigate();
+    const [kind, setKind] = useState<IdentifierKind>('no_telepon');
+    const [serverError, setServerError] = useState<unknown>(null);
+
+    const {
+        register,
+        handleSubmit,
+        setError,
+        formState: { errors, isSubmitting },
+    } = useForm<LoginForm>({
+        resolver: zodResolver(schemaFor(kind)),
+        defaultValues: { identifier: '', password: '' },
+    });
+
+    if (getAccessToken() !== null) {
+        return <Navigate to="/dashboard" replace />;
+    }
+
+    async function onSubmit(values: LoginForm): Promise<void> {
+        setServerError(null);
+
+        const identifier = toIdentifier(values, kind);
+
+        try {
+            const result = await login({ ...identifier, password: values.password });
+
+            setPendingOtp({
+                identifier,
+                tujuan: result.data.otp.tujuan,
+                kedaluwarsa_at: result.data.otp.kedaluwarsa_at,
+                ttl_detik: result.data.otp.ttl_detik,
+            });
+
+            await navigate('/otp', { replace: true });
+        } catch (error) {
+            applyLoginFailure(error, setServerError, setError);
+        }
+    }
+
+    return (
+        <AuthLayout
+            title="Masuk"
+            description="Masukkan nomor telepon atau email yang terdaftar."
+            footer={
+                <>
+                    Belum punya akun?{' '}
+                    <Link to="/register" className="text-primary underline-offset-4 hover:underline">
+                        Daftar
+                    </Link>
+                </>
+            }
+        >
+            <form
+                onSubmit={handleSubmit(onSubmit)}
+                className="flex flex-col gap-4"
+                noValidate
+            >
+                <FormErrorSummary error={serverError} />
+
+                {/**
+                 * The 401 is rendered as a banner rather than as a field error because the
+                 * server sends it with an **empty** `errors` map: a wrong password is not
+                 * attributable to the password field in a way the user can act on, and
+                 * `AuthController` deliberately gives an unknown identifier and a wrong
+                 * password the same body so the endpoint is not an account oracle.
+                 */}
+                {serverError instanceof ApiError && serverError.isUnauthorized ? (
+                    <Alert variant="destructive" role="alert">
+                        <KeyRound />
+                        <AlertTitle>Gagal masuk</AlertTitle>
+                        <AlertDescription>
+                            <p>{serverError.message}</p>
+                        </AlertDescription>
+                    </Alert>
+                ) : null}
+
+                {serverError instanceof ApiError && serverError.isForbidden ? (
+                    <Alert variant="destructive" role="alert">
+                        <KeyRound />
+                        <AlertTitle>Akun dinonaktifkan</AlertTitle>
+                        <AlertDescription>
+                            <p>{serverError.message}</p>
+                        </AlertDescription>
+                    </Alert>
+                ) : null}
+
+                <Field
+                    label="Nomor telepon atau email"
+                    errors={[
+                        ...(errors.identifier?.message === undefined
+                            ? []
+                            : [errors.identifier.message]),
+                        ...fieldErrorsOf(serverError, kind),
+                    ]}
+                    required
+                >
+                    <FieldInput
+                        type={kind === 'email' ? 'email' : 'tel'}
+                        inputMode={kind === 'email' ? 'email' : 'numeric'}
+                        autoComplete="username"
+                        placeholder={
+                            kind === 'email' ? 'nama@contoh.id' : '081234567890'
+                        }
+                        {...register('identifier')}
+                    />
+                </Field>
+
+                <div className="flex items-center gap-1 text-xs">
+                    <span className="text-muted-foreground">Gunakan</span>
+
+                    <Button
+                        type="button"
+                        variant={kind === 'no_telepon' ? 'secondary' : 'ghost'}
+                        size="sm"
+                        onClick={() => setKind('no_telepon')}
+                    >
+                        Telepon
+                    </Button>
+
+                    <Button
+                        type="button"
+                        variant={kind === 'email' ? 'secondary' : 'ghost'}
+                        size="sm"
+                        onClick={() => setKind('email')}
+                    >
+                        Email
+                    </Button>
+                </div>
+
+                <Field
+                    label="Kata sandi"
+                    errors={
+                        errors.password?.message === undefined
+                            ? []
+                            : [errors.password.message]
+                    }
+                    required
+                >
+                    <FieldInput
+                        type="password"
+                        autoComplete="current-password"
+                        {...register('password')}
+                    />
+                </Field>
+
+                <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? <Spinner /> : null}
+
+                    {isSubmitting ? 'Mengirim kode...' : 'Lanjutkan'}
+                </Button>
+
+                <p className="text-muted-foreground text-xs">
+                    Langkah kedua adalah kode OTP yang dikirim ke nomor telepon
+                    terdaftar. Kode dibutuhkan untuk mendapatkan sesi.
+                </p>
+            </form>
+        </AuthLayout>
+    );
+}
+
+/**
+ * Attach a 422 to the field the user actually filled in.
+ *
+ * The server names the key it received - `no_telepon` or `email` - and this form sends
+ * exactly one of them, so the mapping is by identity rather than by position. A 401 has
+ * an empty `errors` map and therefore contributes nothing here, which is correct: the
+ * banner owns that case.
+ */
+function fieldErrorsOf(error: unknown, kind: IdentifierKind): string[] {
+    if (!(error instanceof ApiError)) {
+        return [];
+    }
+
+    return error.fieldErrors(kind);
+}
+
+type SetFieldError = (name: 'password' | 'identifier', value: { message: string }) => void;
+
+function applyLoginFailure(
+    error: unknown,
+    setServerError: (value: unknown) => void,
+    setError: SetFieldError,
+): void {
+    setServerError(error);
+
+    if (!(error instanceof ApiError) || !error.isValidation) {
+        return;
+    }
+
+    /**
+     * `requireAtLeastOneIdentifier()` writes the same message onto *both* keys, so a
+     * client that sent neither is told about both. This form cannot send neither - the
+     * field is required - but a `max:20` or `email` failure still lands on `identifier`,
+     * and that one is worth putting on the control itself.
+     */
+    const identifierMessages = [
+        ...error.fieldErrors('no_telepon'),
+        ...error.fieldErrors('email'),
+    ];
+
+    if (identifierMessages.length > 0) {
+        setError('identifier', { message: identifierMessages[0] ?? '' });
+    }
+
+    const passwordMessages = error.fieldErrors('password');
+
+    if (passwordMessages.length > 0) {
+        setError('password', { message: passwordMessages[0] ?? '' });
+    }
+}
