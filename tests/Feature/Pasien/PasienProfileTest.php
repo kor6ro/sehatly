@@ -1435,6 +1435,13 @@ test('the route table exposes the eight auth routes and the eleven patient route
         // exactly the drift this assertion exists to catch.
         'GET api/v1/dokter',
         'GET api/v1/dokter/{dokter}',
+        // The two public schedule routes, wired after the directory block for the
+        // same reason: a later todo appends to `routes/api.php` rather than
+        // rewriting it, so they are listed here explicitly rather than folded in
+        // silently. The comment above the directory three is the reason this list
+        // is a closed set and why a new entry is never added by widening a filter.
+        'GET api/v1/dokter/{dokter}/jadwal',
+        'GET api/v1/dokter/{dokter}/slot',
         'GET api/v1/master-spesialisasi',
     ]);
 
@@ -1467,6 +1474,12 @@ test('the route table exposes the eight auth routes and the eleven patient route
     // values that hold no role and therefore no grant. They were wired into this file after
     // this test was written, so the anonymous set is stated here explicitly rather than
     // inferred - an inferred set would have silently stopped covering new public routes.
+    //
+    // The two schedule routes, `GET .../jadwal` and `GET .../slot`, are anonymous for the
+    // same reason and by the same argument: a patient picks a consultation date from a
+    // calendar and has to be able to see which hours are free before they hold a token.
+    // Their eligibility is decided by `DokterDirectoryService::find()` inside the
+    // controller, never by a middleware, so "public" here costs no data.
     $anonymous = [
         'POST api/v1/auth/register',
         'POST api/v1/auth/login',
@@ -1474,6 +1487,8 @@ test('the route table exposes the eight auth routes and the eleven patient route
         'POST api/v1/auth/refresh',
         'GET api/v1/dokter',
         'GET api/v1/dokter/{dokter}',
+        'GET api/v1/dokter/{dokter}/jadwal',
+        'GET api/v1/dokter/{dokter}/slot',
         'GET api/v1/master-spesialisasi',
     ];
 

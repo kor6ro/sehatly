@@ -287,5 +287,36 @@ Route::get('dokter/{dokter}', [DokterController::class, 'show'])
     ->whereNumber('dokter')
     ->name('dokter.show');
 
+/*
+| The doctor's schedule and bookable slots, both PUBLIC and both ungated for the
+| same reasons the three routes above are: a patient has to be able to see when a
+| doctor is free before they have an account, and `dokter.lihat` resolves through
+| `EnsurePermission`, which answers 401 for an anonymous caller and 403 for
+| `perawat` and `kurir`.
+|
+| They are registered here, AFTER `dokter/{dokter}`, and that ordering is stated
+| rather than assumed: a two-segment wildcard cannot swallow a three-segment path,
+| so neither of these can be shadowed by `dokter.show` and no comment is needed to
+| prove it. They DO have to come after `dokter/booking` above, which is a literal
+| two-segment path and would otherwise be unreachable -- that is the one ordering
+| constraint in this file and it is already satisfied.
+|
+| `whereNumber('dokter')` on both, so a non-numeric segment is a 404 from the
+| router rather than a `TypeError`, and so the segment can never carry a
+| non-identifier into a query. That 404 is the SAME body the controllers publish
+| for an ineligible doctor, deliberately: see `DokterController::jadwal()`.
+|
+| Neither route is a write. The plan lists no write endpoint for `dokter_jadwal`,
+| so windows are seeded, not POSTed, and there is deliberately no `Route::apiResource`
+| or `Route::resource` for either table here.
+*/
+Route::get('dokter/{dokter}/jadwal', [DokterController::class, 'jadwal'])
+    ->whereNumber('dokter')
+    ->name('dokter.jadwal');
+
+Route::get('dokter/{dokter}/slot', [DokterController::class, 'slot'])
+    ->whereNumber('dokter')
+    ->name('dokter.slot');
+
 Route::get('master-spesialisasi', [DokterController::class, 'spesialisasiIndex'])
     ->name('master-spesialisasi.index');
