@@ -124,7 +124,7 @@ their own — the two views are `CREATE OR REPLACE VIEW` and the deferred FK is 
 
 | # | SQL line | Object | Migration filename | Todo | What it does |
 | --- | --- | --- | --- | --- | --- |
-| 76 | 1161 | `fk_vital_rm` (deferred FK) | `2026_10_01_000076_add_deferred_foreign_keys_table.php` | 18 | `ALTER TABLE pasien_tanda_vital ADD CONSTRAINT fk_vital_rm FOREIGN KEY (rekam_medis_id) REFERENCES rekam_medis(id) ON DELETE SET NULL`, plus the deferred `pasien_penjamin.faskes_rujukan_id -> faskes(id)` FK recorded in todo 9. `down()` drops constraints before any table. |
+| 76 | 1161 | `fk_vital_rm` (deferred FK) | `2026_10_01_000076_add_deferred_foreign_keys_table.php` | 18 | `ALTER TABLE pasien_tanda_vital ADD CONSTRAINT fk_vital_rm FOREIGN KEY (rekam_medis_id) REFERENCES rekam_medis(id) ON DELETE SET NULL`. `pasien_penjamin.faskes_rujukan_id` is **not** part of this migration — it is bare by contract (see rule 9). `down()` drops constraints before any table. |
 | 77 | 1170 | `v_dokter_katalog` (view) | `2026_10_01_000077_create_v_dokter_katalog_view_table.php` | 18 | Raw `DB::statement('CREATE OR REPLACE VIEW v_dokter_katalog AS ...')` copied verbatim from `:1170-1187` **including** `GROUP_CONCAT(s.nama SEPARATOR ', ')`. MySQL-only, so it cannot be expressed fluently. `public $withinTransaction = false`; `down()` starts with `DROP VIEW IF EXISTS`. |
 | 78 | 1190 | `v_pendapatan_bulanan` (view) | `2026_10_01_000078_create_v_pendapatan_bulanan_view_table.php` | 18 | Raw `CREATE OR REPLACE VIEW` from `:1190-1196`, including `DATE_FORMAT(p.dibayar_at, '%Y-%m')`. `public $withinTransaction = false`; `down()` starts with `DROP VIEW IF EXISTS`. |
 
