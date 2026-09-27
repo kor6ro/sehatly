@@ -10,42 +10,173 @@ use Tests\TestCase;
 uses(TestCase::class);
 
 /**
+ * What the contract (`telemedicine_test.sql`) defines that no migration in
+ * `database/migrations/` has created yet: the missing TABLES and the missing
+ * VIEWS.
+ *
+ * DERIVED, never listed by hand. Walking the migration directory is the same
+ * pattern `the extra-table registry is parsed from docs/schema-notes.md` below
+ * already uses, and for the same reason: a hard-coded expectation is correct at
+ * exactly one point in the project's history and goes stale the moment the next
+ * batch lands its objects. Todo 8 pinned `56`, a five-name list and
+ * `--tables=booking`, and the list named `pasien` - a todo-9 table - so it broke
+ * on the very next commit.
+ *
+ * VIEWS are derived too, not left as two literal regexes. The two view
+ * migrations (`2026_10_01_000077`/`_000078`) are authored in todo 18, *after*
+ * the last table migration in todo 17, and they emit `CREATE OR REPLACE VIEW`
+ * rather than `Schema::create` - so a table-only derivation reaches "nothing
+ * missing" one commit before the verdict actually flips, and a test that
+ * inverted on that signal alone would go red at todo 17. Deriving both means the
+ * inversion happens exactly when the schema is complete.
+ *
+ * Source of truth: the **migration set**, not the live database. The live schema
+ * is verified separately, by the command itself, against the reference DDL;
+ * asserting that its `missing_table` / `missing_view` rows equal this derived
+ * set is what proves the two agree. Deriving from the migrations keeps the
+ * expectation independent of whether a migration has been *run* yet, and means a
+ * table that exists in the database but has no migration cannot quietly satisfy a
+ * check that is really about the migration set.
+ *
+ * Declared as a file-scope closure rather than a `function`, deliberately: a
+ * test file that declares a global function fatals the entire suite at include
+ * time the moment a second file declares the same name.
+ *
+ * @return array{tables: list<string>, views: list<string>} sorted, lower-cased
+ */
+$missingFromMigrations = function (): array {
+    $files = glob(database_path('migrations').'/*.php');
+
+    expect($files)->toBeArray()->not->toBeEmpty('database/migrations/ must not be empty');
+
+    $literalTables = [];
+    $createCalls = 0;
+    $literalViews = [];
+    $createViewCalls = 0;
+
+    foreach ($files as $file) {
+        $code = (string) file_get_contents($file);
+
+        $createCalls += preg_match_all('/Schema::create\s*\(/', $code);
+        preg_match_all("/Schema::create\s*\(\s*'([A-Za-z0-9_]+)'/", $code, $matches);
+        array_push($literalTables, ...$matches[1]);
+
+        $createViewCalls += preg_match_all('/\bCREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+/i', $code);
+        preg_match_all('/\bCREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+`?([A-Za-z0-9_]+)`?/i', $code, $viewMatches);
+        array_push($literalViews, ...$viewMatches[1]);
+    }
+
+    // A `Schema::create($variable)` - or a view name built at runtime - that this
+    // walk cannot resolve would leave the derived set silently too small, and a
+    // too-small set makes every assertion downstream pass for the wrong reason
+    // (a derived missing count of 0 next to 25 real `Schema::create` calls).
+    // Refuse rather than under-test, and name the files so it is actionable.
+    $creators = implode(', ', array_map('basename', array_filter(
+        $files,
+        static fn (string $file): bool => str_contains((string) file_get_contents($file), 'Schema::create'),
+    )));
+
+    expect($createCalls)->toBeGreaterThan(0, 'no Schema::create call found in database/migrations/');
+    expect($literalTables)->toHaveCount(
+        $createCalls,
+        $creators.' must each pass a literal table name to Schema::create(); '
+            .($createCalls - count($literalTables)).' call(s) were not extractable, so the derived set is incomplete',
+    );
+    expect($literalViews)->toHaveCount(
+        $createViewCalls,
+        'every CREATE VIEW in database/migrations/ must name its view with a literal',
+    );
+
+    // `migrations` is Laravel's ledger, created by the migrator rather than by a
+    // `Schema::create` call, but it does exist in the live schema.
+    $created = array_values(array_unique([...array_map('strtolower', $literalTables), 'migrations']));
+
+    $contract = (new SqlSchemaParser)->parseFile(base_path('telemedicine_test.sql'));
+
+    $missingTables = array_values(array_diff($contract->tableNames(), $created));
+    sort($missingTables);
+
+    $createdViews = array_values(array_unique(array_map('strtolower', $literalViews)));
+    $missingViews = array_values(array_diff($contract->views, $createdViews));
+    sort($missingViews);
+
+    return ['tables' => $missingTables, 'views' => $missingViews];
+};
+
+/**
  * The command's contract: read-only, exit 1 on drift naming the offender, exit 0
  * only on an exact match, and never green when it could not understand its inputs.
  */
-test('the verifier exits 1 and names every table the migrations have not created yet', function () {
+test('the verifier exits 1 and names every table the migrations have not created yet', function () use ($missingFromMigrations) {
+    $missing = $missingFromMigrations();
+    $missingTables = $missing['tables'];
+    $missingViews = $missing['views'];
+
     $exitCode = Artisan::call('sehatly:verify-schema');
     $output = Artisan::output();
 
+    // Todo 18 is the point at which the last object is migrated - the two views
+    // and the deferred FK, `2026_10_01_000076`-`_000078` - and the verdict
+    // inverts to exit 0 / PASS. Assert the inverted shape explicitly rather than
+    // skipping, so the test is a real check on both sides of that commit instead
+    // of going quiet. Nothing here needs editing when it happens.
+    if ($missingTables === [] && $missingViews === []) {
+        expect($exitCode)->toBe(0);
+        expect($output)->toContain('PASS');
+        expect($output)->not->toContain('missing_table');
+        expect($output)->not->toContain('missing_view');
+
+        return;
+    }
+
     expect($exitCode)->toBe(1);
-    expect($output)->toContain('missing_table');
     expect($output)->toContain('FAIL');
     expect($output)->toContain('read-only');
 
     // Every missing table is named, not merely counted. This is the plan's
     // criterion 2: "it exits 1 and names the offending table/column".
     //
-    // Batch-B state (todo 8): 19 of the 75 tables now exist in
-    // `telemedisin_db_test` (11 batch-A masters + 8 batch-B tables), so the
-    // named tables must all be ones later batches still own — `master_provinsi`
-    // and `users` are present and must NOT appear here. Re-point this list
-    // again when todos 9-17 land their tables.
-    foreach (['pasien', 'booking', 'ulasan_dokter', 'persetujuan_pdp', 'audit_log'] as $table) {
-        expect($output)->toMatch('/missing_table\s+'.$table.'\b/', 'the report must name '.$table);
+    // The names are derived from the live migration set, so this exhaustively
+    // checks the report against every table still owed, at every batch boundary,
+    // without a hand-maintained list to re-point.
+    expect(substr_count($output, 'missing_table'))->toBe(count($missingTables));
+
+    preg_match_all('/missing_table\s+([A-Za-z0-9_]+)/', $output, $named);
+    expect($named[1])->toEqualCanonicalizing(
+        $missingTables,
+        'the report must name exactly the contract tables no migration creates yet',
+    );
+
+    if ($missingTables !== []) {
+        expect($output)->toContain('missing_table');
+
+        // The same check as a loop, so a failure names the offending table.
+        foreach (array_values(array_unique([
+            $missingTables[0],
+            $missingTables[(int) floor(count($missingTables) / 2)],
+            $missingTables[count($missingTables) - 1],
+        ])) as $table) {
+            expect($output)->toMatch('/missing_table\s+'.preg_quote($table, '/').'\b/', 'the report must name '.$table);
+        }
     }
 
-    expect(substr_count($output, 'missing_table'))->toBe(56); // 75 - 19 created
-    expect($output)->toMatch('/missing_view\s+v_dokter_katalog\b/');
-    expect($output)->toMatch('/missing_view\s+v_pendapatan_bulanan\b/');
+    // Same derivation for the views, for the same reason: they are authored in
+    // todo 18, one commit after the last table migration.
+    expect(substr_count($output, 'missing_view'))->toBe(count($missingViews));
+
+    foreach ($missingViews as $view) {
+        expect($output)->toMatch('/missing_view\s+'.preg_quote($view, '/').'\b/', 'the report must name '.$view);
+    }
 });
 
-test('the JSON report is machine-readable, and its exit code matches its verdict', function () {
+test('the JSON report is machine-readable, and its exit code matches its verdict', function () use ($missingFromMigrations) {
+    $missing = $missingFromMigrations();
+    $registeredExtras = count(ExtraTableRegistry::fromMarkdown(base_path('docs/schema-notes.md')));
+
     $exitCode = Artisan::call('sehatly:verify-schema', ['--json' => true]);
     $json = json_decode(Artisan::output(), true);
 
-    expect($exitCode)->toBe(1);
     expect($json)->toBeArray();
-    expect($json['ok'])->toBeFalse();
     expect($json['exit_code'])->toBe($exitCode);
     expect($json['read_only'])->toBeTrue();
     expect($json['expected']['tables'])->toBe(75);
@@ -53,39 +184,154 @@ test('the JSON report is machine-readable, and its exit code matches its verdict
     expect($json['expected']['columns'])->toBeGreaterThan(600);
     expect($json['live']['database'])->toBe('telemedisin_db_test');
     expect($json['reference']['md5'])->toBe(md5_file(base_path('telemedicine_test.sql')));
-    expect($json['drift_count'])->toBeGreaterThan(0);
+    expect($json['notes_registry']['registered_extra_tables'])->toBe($registeredExtras);
 
-    // Batch-B state (todo 8): the seven documented extra tables
-    // (`docs/schema-notes.md`) are present in `telemedisin_db_test` and read as
-    // informational, so drift and discrepancy totals legitimately differ — by
-    // exactly the registry size. On a 0-table database both totals agreed and
-    // this line read `toBe($json['discrepancy_count'])`; that form can never
-    // pass again while the extras exist, so pin the decomposition instead of
-    // dropping the check.
-    expect($json['discrepancy_count'] - $json['drift_count'])->toBe(7);
+    // The documented extra tables (`docs/schema-notes.md`) are present in
+    // `telemedisin_db_test` and read as informational, so drift and discrepancy
+    // totals legitimately differ - by exactly the registry size. On a 0-table
+    // database both totals agreed and this line read
+    // `toBe($json['discrepancy_count'])`; that form can never pass again while
+    // the extras exist, so pin the decomposition instead of dropping the check.
+    //
+    // The size is DERIVED, not the literal 7 this line used to hold. The
+    // registry is regenerated whenever database/migrations/ changes, so a pinned
+    // number here went stale the moment todo 7 deleted three scaffold
+    // migrations - the same defect todo 8 then reintroduced above.
+    expect($json['discrepancy_count'] - $json['drift_count'])->toBe($registeredExtras);
 
-    $missing = array_values(array_filter($json['discrepancies'], fn ($d) => $d['kind'] === 'missing_table'));
-    expect($missing)->toHaveCount(56); // 75 - 19 created (11 batch A + 8 batch B)
-    expect(array_column($missing, 'table'))
-        ->toContain('pasien', 'booking', 'ulasan_dokter', 'persetujuan_pdp');
+    $rows = array_values(array_filter($json['discrepancies'], fn ($d) => $d['kind'] === 'missing_table'));
+    expect(array_column($rows, 'table'))->toEqualCanonicalizing(
+        $missing['tables'],
+        'the JSON report must name exactly the contract tables no migration creates yet',
+    );
+
+    $viewRows = array_values(array_filter($json['discrepancies'], fn ($d) => $d['kind'] === 'missing_view'));
+    expect(array_column($viewRows, 'table'))->toEqualCanonicalizing(
+        $missing['views'],
+        'the JSON report must name exactly the contract views no migration creates yet',
+    );
 
     // Proof the parser is not vacuous, carried in the machine-readable channel too.
     expect($json['multi_line_column_declarations'])->toHaveCount(11);
     expect($json['expected'])->toMatchArray(['foreign_keys' => 105, 'checks' => 3]);
+
+    // Todo 18 flips the verdict, not the accounting: with nothing left to
+    // migrate the report is ok, drift is zero, and the only rows that remain are
+    // the informational extras. Same explicit branch as the text-channel test.
+    if ($missing['tables'] === [] && $missing['views'] === []) {
+        expect($exitCode)->toBe(0);
+        expect($json['ok'])->toBeTrue();
+        expect($json['drift_count'])->toBe(0);
+        expect($rows)->toBe([]);
+        expect($viewRows)->toBe([]);
+
+        return;
+    }
+
+    expect($exitCode)->toBe(1);
+    expect($json['ok'])->toBeFalse();
+    expect($json['drift_count'])->toBeGreaterThan(0);
 });
 
-test('the scope can be narrowed to a single table, and the narrow run still names the offender', function () {
-    // Batch-B state (todo 8): `master_provinsi` exists in `telemedisin_db_test`
-    // now, so scoping to it exits 0 and cannot prove the narrow run names an
-    // offender. Scope to `booking` — still uncreated until a later batch — to
-    // keep the exit-1-and-names-it teeth. Re-point when booking lands.
-    $exitCode = Artisan::call('sehatly:verify-schema', ['--tables' => 'booking']);
+test('the scope can be narrowed to a single table, and the narrow run still names the offender', function () use ($missingFromMigrations) {
+    $contract = (new SqlSchemaParser)->parseFile(base_path('telemedicine_test.sql'))->tableNames();
+    $notYetCreated = $missingFromMigrations()['tables'];
+
+    // Anchor the narrow run on a table no migration has created yet, so the run
+    // really has an offender to name. DERIVED, not the literal `booking` this
+    // test used to pass: `booking` is a todo-11 table, so the anchor broke the
+    // day todo 11 landed it, and `master_provinsi` (the batch-A anchor before
+    // it) broke the day todo 8 landed that one.
+    if ($notYetCreated === []) {
+        // Todo 17 onwards every table exists, so a table-scoped run has nothing
+        // to name and the verdict inverts to exit 0. Two A.7 traps apply here and
+        // are why the assertions read the output rather than trusting the code:
+        // the PASS banner is formatted from the FULL reference model, so it
+        // prints "75 tables, 2 views verified" after checking one table; and a
+        // name the DDL does not define also exits 0. So check the echoed scope
+        // line and the Discrepancies line.
+        $anchor = $contract[0];
+
+        expect(Artisan::call('sehatly:verify-schema', ['--tables' => $anchor]))->toBe(0);
+
+        $output = Artisan::output();
+        expect($output)->toMatch('/scope\s+'.preg_quote($anchor, '/').'\b/', 'the echoed scope must list '.$anchor);
+        expect($output)->toMatch('/Discrepancies:\s+0\b/');
+
+        return;
+    }
+
+    $anchor = $notYetCreated[0];
+
+    $exitCode = Artisan::call('sehatly:verify-schema', ['--tables' => $anchor]);
     $output = Artisan::output();
 
     expect($exitCode)->toBe(1);
-    expect($output)->toContain('booking');
-    expect($output)->toContain('scope');
+    expect($output)->toMatch('/missing_table\s+'.preg_quote($anchor, '/').'\b/', 'the narrow run must name '.$anchor);
+    expect($output)->toMatch('/scope\s+'.preg_quote($anchor, '/').'\b/');
     expect($output)->toContain('FAIL');
+});
+
+test('the derived expectations are not vacuous: the walk extracts every Schema::create call', function () use ($missingFromMigrations) {
+    // The adversarial failure this guards is a derivation that silently matches
+    // nothing and reports a missing count of 0 - which would make the three
+    // tests above pass for the wrong reason and the verifier look green. So the
+    // two numbers are counted independently and printed, every run: an extracted
+    // count of 0 next to a non-zero call count is a failure, not a quiet pass.
+    $files = glob(database_path('migrations').'/*.php');
+
+    expect($files)->toBeArray()->not->toBeEmpty();
+
+    $createCalls = 0;
+    $extracted = 0;
+    $viewCalls = 0;
+    $viewsExtracted = 0;
+
+    foreach ($files as $file) {
+        $code = (string) file_get_contents($file);
+
+        $createCalls += preg_match_all('/Schema::create\s*\(/', $code);
+        $extracted += preg_match_all("/Schema::create\s*\(\s*'([A-Za-z0-9_]+)'/", $code);
+        $viewCalls += preg_match_all('/\bCREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+/i', $code);
+        $viewsExtracted += preg_match_all('/\bCREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+`?([A-Za-z0-9_]+)`?/i', $code);
+    }
+
+    $contract = (new SqlSchemaParser)->parseFile(base_path('telemedicine_test.sql'));
+    $missing = $missingFromMigrations();
+    $registered = count(ExtraTableRegistry::fromMarkdown(base_path('docs/schema-notes.md')));
+
+    fwrite(STDERR, sprintf(
+        "\n  [derive] migrations=%d Schema::create calls=%d extracted=%d"
+            .' | CREATE VIEW calls=%d extracted=%d | contract tables=%d views=%d'
+            ." | derived-missing tables=%d views=%d | registry=%d\n",
+        count($files),
+        $createCalls,
+        $extracted,
+        $viewCalls,
+        $viewsExtracted,
+        count($contract->tableNames()),
+        count($contract->views),
+        count($missing['tables']),
+        count($missing['views']),
+        $registered,
+    ));
+
+    expect($createCalls)->toBeGreaterThan(0, 'database/migrations/ contains no Schema::create call at all');
+    expect($extracted)->toBe(
+        $createCalls,
+        'extracted '.$extracted.' of '.$createCalls.' Schema::create calls; the derived set is incomplete',
+    );
+    expect($viewsExtracted)->toBe($viewCalls);
+
+    // The missing set is the contract minus what the migrations create, so the
+    // two must partition the contract exactly. Asserted as a relationship, never
+    // as a pinned number, so this survives todos 9 through 18 landing objects.
+    $contractTables = $contract->tableNames();
+    $created = array_diff($contractTables, $missing['tables']);
+
+    expect($missing['tables'])->toEqualCanonicalizing(array_values(array_diff($contractTables, $created)));
+    expect(array_merge($missing['tables'], $created))->toEqualCanonicalizing($contractTables);
+    expect(array_diff($missing['views'], $contract->views))->toBe([]);
 });
 
 test('an unparseable reference exits 2 with a clear message, never 0', function () {

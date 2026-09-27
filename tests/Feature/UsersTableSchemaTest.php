@@ -20,9 +20,11 @@ use Illuminate\Support\Facades\Schema;
  * Intended end state of `telemedisin_db_test` after a run: fully migrated to
  * the batch-B schema, every table empty (each test's inserts roll back).
  */
-function usersBatchBPayload(string $uuid, ?string $email, string $noTelepon): array
-{
-    return [
+test('two users with NULL email coexist under the nullable-UNIQUE', function () {
+    // A `function` at this file's top level would be global, and a second test
+    // file declaring the same name would fatal the ENTIRE run at include time
+    // rather than failing one test. Keep it inside the closures that use it.
+    $payload = fn (string $uuid, ?string $email, string $noTelepon): array => [
         'uuid' => $uuid,
         'nama_lengkap' => 'Pasien Uji Skema',
         'email' => $email,
@@ -32,19 +34,28 @@ function usersBatchBPayload(string $uuid, ?string $email, string $noTelepon): ar
         'status' => 'pending_verifikasi',
         'bahasa' => 'id',
     ];
-}
 
-test('two users with NULL email coexist under the nullable-UNIQUE', function () {
-    DB::table('users')->insert(usersBatchBPayload('11111111-1111-4111-8111-111111111111', null, '081100000001'));
-    DB::table('users')->insert(usersBatchBPayload('22222222-2222-4222-8222-222222222222', null, '081100000002'));
+    DB::table('users')->insert($payload('11111111-1111-4111-8111-111111111111', null, '081100000001'));
+    DB::table('users')->insert($payload('22222222-2222-4222-8222-222222222222', null, '081100000002'));
 
     expect(DB::table('users')->count())->toBe(2);
 });
 
 test('a second insert with a duplicate no_telepon raises QueryException', function () {
-    DB::table('users')->insert(usersBatchBPayload('33333333-3333-4333-8333-333333333333', 'pertama@example.test', '081100000003'));
+    $payload = fn (string $uuid, ?string $email, string $noTelepon): array => [
+        'uuid' => $uuid,
+        'nama_lengkap' => 'Pasien Uji Skema',
+        'email' => $email,
+        'no_telepon' => $noTelepon,
+        'kata_sandi_hash' => '$2y$04$S1gn7ur3Unu54bl3H45hF0rT35t1ng0nlyxxxxxxxx',
+        'tipe' => 'pasien',
+        'status' => 'pending_verifikasi',
+        'bahasa' => 'id',
+    ];
 
-    DB::table('users')->insert(usersBatchBPayload('44444444-4444-4444-8444-444444444444', 'kedua@example.test', '081100000003'));
+    DB::table('users')->insert($payload('33333333-3333-4333-8333-333333333333', 'pertama@example.test', '081100000003'));
+
+    DB::table('users')->insert($payload('44444444-4444-4444-8444-444444444444', 'kedua@example.test', '081100000003'));
 })->throws(QueryException::class, 'Duplicate entry');
 
 test('users carries the SQL column list, not the scaffold one', function () {
