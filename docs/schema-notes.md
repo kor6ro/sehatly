@@ -1003,3 +1003,257 @@ here.
   column, index or constraint **name**, and 234 citations across 119 distinct lines
   were printed and checked against the claims they support.
 
+
+## Batch-I schema limitations the database cannot enforce (todo 15)
+
+Batch I (`master_lab_tindakan`, `master_lab_paket`, `lab_paket_item`,
+`lab_permintaan`, `lab_permintaan_detail`, `lab_hasil` — SQL tables 55-60) is at
+parity and **owes no deferred constraint**. All **ten** of its foreign keys point at
+a table that already exists when the migration declaring them runs: `pasien` 20
+(batch C), `faskes` 28 and `dokter` 31 (batch D), and `master_lab_tindakan` 55,
+`master_lab_paket` 56 and `lab_permintaan` 58 — **three of them from inside this same
+batch**, earlier in the same commit. The *Deferred constraints* table above is
+therefore unchanged and still holds exactly one row (`fk_vital_rm`, added by
+migration 76 per SQL section `[14]`, `:1161-1163`). **Batch I defers nothing and
+registers nothing.** The extra-table registry still has exactly seven entries.
+
+**All six tables are module-orphaned — migrated and modelled for referential
+completeness, never exercised by Modules 1-5.** `docs/migration-order.md` rows
+55-60 all read `Module: ORPHAN`, `Resource: —`, `Controller: —`, and no endpoint in
+the plan's scope selects from any of them. They are nonetheless *referenced*, which
+is the whole reason they must exist rather than be omitted:
+
+| Referencing site | SQL line | How it points at this batch |
+| --- | --- | --- |
+| `invoice.referensi_tipe` includes `'lab_permintaan'` | `:940` | A **polymorphic string**, not a join — `invoice.referensi_id` has no foreign key by design, so nothing validates the pairing |
+| `notifikasi.tipe` includes `'lab'` | `:1041` | A category label on a notification row |
+| `rekam_medis_lampiran.tipe` includes `'hasil_lab'` | `:686` | A document category; **nothing joins it to `lab_hasil`**, and `lab_hasil.file_pdf_url` (`:916`) is an independent bare URL |
+
+### Three reference-shaped columns that are **BARE by contract**, and two of them are absent from the plan's own todo-15 text
+
+`lab_permintaan` declares **exactly three** `FOREIGN KEY` clauses (`:889`-`:891`) and
+`lab_hasil` **exactly two** (`:917`-`:918`). Three further columns read exactly like
+references and have **none**:
+
+| Column | SQL line | A constraint here would | Why it is bare |
+| --- | --- | --- | --- |
+| `lab_permintaan.rekam_medis_id` | **`:879`** | **succeed** (`rekam_medis` is table 42) | Provenance, not a lookup. Nullable because a request may have no medical record at all — a walk-in patient at the laboratory. **Not named in the plan's todo-15 prose at all.** |
+| `lab_permintaan.konsultasi_id` | **`:880`** | **succeed** (`konsultasi` is table 38) | Same reason: the ordering doctor may never have held a teleconsultation. **Not named in the plan's todo-15 prose at all.** |
+| `lab_hasil.diperiksa_oleh` | **`:914`** | **succeed** (`users` is table 12) | A verifying pathologist at the `faskes` running the test need not have a platform account, so a foreign key would make a legitimate external verifier unrepresentable. Same class as `audit_log.user_id` (`:1120`) and `artikel.reviewer_user_id` (`:1078`). **In the plan's generated no-FK list, absent from its todo-15 prose.** |
+
+**All three were proven FK-free against `information_schema.REFERENTIAL_CONSTRAINTS`,
+not by reading `SHOW CREATE TABLE`** — `SHOW CREATE TABLE` only shows the
+constraints that exist, so it cannot distinguish "absent" from "not looked for". A
+column with zero foreign keys **does not appear in that result set at all**, so
+"no row returned" is the expected evidence and a query returning nothing is a pass,
+not a failed lookup. Each column was separately confirmed to *exist* (as
+`bigint unsigned`, nullable) so that "no row" cannot be confused with "no column".
+
+**The asymmetry inside `lab_permintaan` is deliberate and must not be
+"harmonised".** The three constrained columns — `pasien_id` (`:881`), `dokter_id`
+(`:882`) and `faskes_lab_id` (`:883`) — are the ones the request's *validity*
+depends on: a request must name a patient and an ordering doctor, and optionally the
+facility that will run the test. The two bare columns are **provenance**, and both
+are nullable precisely because a request can have neither. **Migration
+`2026_10_01_000076` must not add a constraint to any of the three**, and none
+belongs in the *Deferred constraints* registry, because a registry row would promise
+a constraint the DDL never declares.
+
+### `lab_paket_item` has **NO `id` COLUMN** — it is a composite-PK join table
+
+`paket_id` and `tindakan_id` (`:869`-`:870`) with `PRIMARY KEY (paket_id,
+tindakan_id)` (`:871`) and **nothing else**: no surrogate key, no timestamps, no
+price, no ordering column. This is one of exactly four such tables in the contract
+(`role_permissions` 15, `user_roles` 16, `dokter_faskes` 33, `lab_paket_item` 57) and
+rule 3 of `docs/migration-order.md` names all four. **`$table->id()` here would be
+wrong twice over** — it emits `BIGINT UNSIGNED` *and* creates a column the DDL does
+not have — and todo 19's model needs `public $incrementing = false`, a two-element
+`protected $primaryKey` and `public $timestamps = false`.
+
+**The primary key's COLUMN ORDER is load-bearing.** `paket_id` is the leftmost
+prefix, so the PK doubles as InnoDB's support index for that foreign key and MySQL
+creates no second index for it; `tindakan_id` is not a leftmost prefix of anything,
+so InnoDB builds an implicit one that `SHOW CREATE TABLE` prints as
+``KEY `lab_paket_item_tindakan_id_foreign` (`tindakan_id`)``. No index beyond
+the PK is in the DDL, and `SchemaDiffer::diffIndexes()` treats a leftover live index
+whose ordered column list exactly equals a *matched* foreign key's local columns as
+implied rather than as `extra_index` drift (commit `27c6ca8`). **Do not suppress
+them by adding covering indexes of our own** — that creates a real extra index. The
+same applies to `lab_permintaan` (3 implicit), `lab_permintaan_detail` (3) and
+`lab_hasil` (2), because `PRIMARY KEY (id)` covers none of their foreign keys.
+
+### `lab_paket_item` has **NO SEED ROWS**, and that is not a defect to repair
+
+`telemedicine_test.sql` contains **no `INSERT INTO lab_paket_item` anywhere in the
+file** — verified by enumerating every `INSERT INTO <table>` target in the whole
+file, which yields exactly 15 and includes `master_lab_tindakan` (`:1319`) and
+`master_lab_paket` (`:1332`) but not this one. So the three seeded packages
+(`:1333`-`:1335`) have **no** line items. Consequences, all unenforced:
+
+- **No seeded package has any contents**, so `master_lab_paket.harga` (`:864`) is a
+  price with nothing to be checked against and every bundle reads as opaque.
+- **Nothing derives a package price from its contents.** `lab_paket_item` has no
+  price column at all, so `('Medical Check Up Dasar', …, 120000.00)` (`:1333`) is an
+  independent fact, not a sum — `LAB-001` Hemoglobin is `35000.00` (`:1321`) and
+  `LAB-009` Urinalisa is `50000.00` (`:1329`).
+
+**A migration must not insert bridge rows**: that would invent data the SQL does not
+contain and break the 1:1 fidelity claim. **Todo 18 owns this** — it authors a
+`DevFixtureSeeder`, explicitly labelled as new data with no source in the SQL and
+held outside that claim, exactly as it must for `obat_interaksi`.
+
+### Five facts recorded because each looks like something the schema guarantees and is not
+
+Each is invisible to `migrate:fresh`, to `php -l` and to a green test suite.
+
+- **`lab_permintaan_detail` cannot say whether a line is a test, a package, both, or
+  neither.** `tindakan_id` (`:897`) and `paket_id` (`:898`) are **both** nullable
+  **and both** carry a real foreign key (`:901`, `:902`). There is **no** `CHECK
+  ((tindakan_id IS NULL) <> (paket_id IS NULL))`, no trigger and no default for
+  either, so three shapes are all perfectly valid and all representable: a line
+  naming **both** a single test and a whole package (a service reading
+  `tindakan_id` first and `paket_id` second silently discards the package it just
+  found), a line naming **neither**, and a `prioritas = 'cito'` (`:899`) line that
+  escalates a whole package at once. **The application layer is the only validator
+  of that invariant**, and `lab_paket_item` does not help: it describes packages, not
+  request lines. A `CHECK` cannot be added without being `missing_check` drift.
+- **`lab_hasil.nilai VARCHAR(100) NOT NULL` (`:909`) is a STRING, and three separate
+  things depend on it.** `master_lab_tindakan.nilai_rujukan_laki` (`:853`) is itself
+  `VARCHAR(100)` free text — the seed stores `13.0-17.0` (`:1321`), `<200` (`:1324`),
+  `negatif` (`:1330`) and `NULL` (`:1329`, `LAB-009`, which has no sex-specific
+  interval) — and a purely qualitative result such as `positive` or `not detected`
+  has no numeric representation at all, so one column holds both kinds of result.
+  And
+  **`is_abnormal` (`:912`) is a STORED flag with no trigger and no generated
+  column**: nothing in the database compares `nilai` with `nilai_rujukan`, so the
+  writer's assertion *is* the fact. Emitting a numeric type here is `column_type`
+  drift and is the plan's own acceptance criterion for this todo.
+- **Two `DEFAULT`s in this batch have OPPOSITE polarity, and both are easy to
+  invert.** `master_lab_tindakan.status_aktif` (`:857`) and
+  `master_lab_paket.status_aktif` (`:865`) are `TINYINT(1) NOT NULL DEFAULT **1**` —
+  an omitted value is **ACTIVE**, and both seeds omit the column (`:1319`-`:1320`,
+  `:1332`), so all 13 seeded rows are active. `lab_hasil.is_abnormal` (`:912`) is
+  `TINYINT(1) NOT NULL DEFAULT **0**` — an omitted value is **NORMAL**. A result is
+  normal unless someone says otherwise; a test is active unless someone says
+  otherwise. This is the same defect class as todo 10's `dokter_faskes` blocker,
+  where a docblock claimed `0` while the code and the SQL both said `1`.
+- **`lab_permintaan.faskes_lab_id` points at `faskes(id)` and nothing constrains the
+  facility type.** `FOREIGN KEY (faskes_lab_id) REFERENCES faskes(id)` (`:891`) and
+  `faskes.tipe` is an unconstrained five-value ENUM (`:365`:
+  `rumah_sakit, klinik, puskesmas, apotek, laboratorium`). **A hospital or a
+  pharmacy is therefore representable as the facility running a laboratory test,**
+  and the application must validate the type. This is the **fourth** unconstrained
+  facility-identity column in the schema, after the three pharmacy ones batch H
+  recorded (`resep.apotek_id` `:749`, `pesanan_obat.apotek_id` `:802`,
+  `apotek_stok.apotek_id` `:831`) — and the first on the laboratory side.
+- **A laboratory result is clinical evidence that is destroyed with its request.**
+  `lab_hasil.lab_permintaan_id` is `ON DELETE CASCADE` (`:917`), so deleting a
+  `lab_permintaan` deletes its results and takes `file_pdf_url` (`:916`) with them.
+  The same defect class the plan already records for
+  `akses_rekam_medis_log.rekam_medis_id ON DELETE CASCADE` (`:1153`), where
+  "deleting a medical record deletes the evidence that it was accessed". Weaker
+  here — a result is not a log — and **not** a reason to alter the schema, but a
+  service that must retain released results has to copy them out first and nothing
+  here prevents or warns about it.
+
+### The cascades and the restricts are deliberately mismatched, in a consistent pattern
+
+**Four cascades, six restricts, across ten foreign keys.** The cascades are
+`lab_paket_item.paket_id` (`:872`), `lab_permintaan_detail.lab_permintaan_id`
+(`:900`) and `lab_hasil.lab_permintaan_id` (`:917`) — plus
+`master_lab_paket`-side parentage, i.e. every link from a *bundle or a request* to
+what it contains. The other six carry **no** `ON DELETE` clause and so materialise
+MySQL's implicit `NO ACTION` (`RESTRICT` for DML). The reading is the one batches F,
+G and H already established: **the *record* link cascades, the *catalogue* or
+*person* link restricts.** A line without its request is worthless; but deleting a
+test must be blocked while any package or result still names it, because a bundle
+whose price was derived from that test would silently change composition.
+
+### Two things a later reader is likely to mistake for mistakes
+
+- **`lab_permintaan.status` is a FIVE-value ENUM that WRAPS ACROSS TWO LINES**
+  (`:884`-`:885`). Read `:884` alone and the value list is complete but the column
+  looks **nullable with no default** — `column_nullable` plus `column_default`
+  drift, and a `NOT NULL` column silently made nullable. The plan's "Multi-line
+  ENUMs — treat as single units" list names six and **omits this one**, as it also
+  omits four others. Measured by walking the file for every declaration spanning
+  more than one physical line, there are **eleven**: `booking.status` (515-516),
+  `konsultasi.status` (542-543), `konsultasi_chat.tipe_pesan` (568-569),
+  `master_obat.bentuk_sediaan` (713-714), `resep.status` (751-752),
+  `pesanan_obat.status` (810-811, found by todo 14), **`lab_permintaan.status`
+  (884-885)**, `invoice.status` (947-948), `klaim_bpjs.status` (1022-1023),
+  `home_care_pesanan.status` (1104-1105) and `persetujuan_pdp.jenis` (1137-1138).
+  The verifier's own derived "wrapped decls 11" list agrees with the measurement and
+  is right, so **the defect is in the plan's prose list and in rule 6 of
+  `docs/migration-order.md`, not in the tooling.** Both are orchestrator- or
+  contract-owned and were **not** edited by todo 15.
+- **Every index in this batch is compared BY SEMANTICS, never by name.** The DDL
+  names **no** index and **no** constraint anywhere in these six tables — there is
+  not one `idx_*` or `uq_*` between `:847` and `:919`. The only uniques are the two
+  *inline* `UNIQUE`s on `master_lab_tindakan.kode` (`:849`) and
+  `lab_permintaan.nomor_permintaan` (`:878`), so rule 10's name comparison never
+  fires and MySQL's `kode` / Laravel's `master_lab_tindakan_kode_unique` are the
+  same constraint. **Do not rename either to `uq_kode`** to imitate `apotek_stok`'s
+  `uq_stok` (`:840`): a name the DDL never wrote is not part of the contract.
+  `lab_paket_item`'s composite PK is the one name-authoritative index in the batch,
+  and its column order is the contract.
+
+### What todo 15's negative QA measured, and the one check this project's safety rests on
+
+Three mutations were applied, verified and reverted byte-identically (SHA-256 proved
+equal before and after in every case). They are recorded because the first two are
+defects **no other check in this project would catch**.
+
+| Mutation | `php -l` | `migrate:fresh` | unit suite | `verify-schema` | Verdict |
+| --- | --- | --- | --- | --- | --- |
+| `lab_hasil.satuan` → `NOT NULL` (dropped `->nullable()`) | exit 0 | exit 0 | **93/93 green** | **exit 1**, `column_nullable lab_hasil.satuan expected: NULL \| actual: NOT NULL` | **caught** |
+| **`lab_hasil.file_pdf_url`'s declaration swallowed by a `//` comment** | exit 0 | exit 0 | **93/93 green** | **exit 1**, `missing_column lab_hasil.file_pdf_url expected: varchar(500) NULL DEFAULT <none> \| actual: -` | **caught** |
+
+The second row is the important one, and it is the defect class todo 14 disclosed
+about itself. **A column declaration sitting inside a comment is not a syntax error
+and not a migration failure** — the table is created, smaller, and entirely valid, so
+`php -l` exits 0, `migrate:fresh` exits 0, and **all 93 unit tests stay green**,
+because the suite derives its expectations from the migration files rather than
+diffing the schema. **Only `sehatly:verify-schema` sees it**, and it saw it in
+0.3 s. A static check also catches it without a database round-trip: stripping
+comments with PHP's own `token_get_all` and counting `$table->…('col')` calls gives
+**10** executable declarations against the DDL's **11**.
+
+**The generalisation, and it is the most important sentence in this section: in this
+project a green build, a green `migrate:fresh` and a green test suite together prove
+almost nothing about schema correctness.** All three were observed green over a wrong
+`DEFAULT`, a wrong unsigned flag, a duplicated column, a **swallowed column
+declaration**, a wrong ENUM value, four corruptions of a single ENUM value, a
+fabricated table name and a fabricated finding. The parity verifier is the only check
+in the loop that sees a column that is *absent*, and the comment audit is the only
+one that sees a comment that is *wrong*.
+
+### Findings about this project's own documents, found by reading rather than by trusting
+
+- **The plan's todo-15 prose cites `invoice.referensi_tipe` at `:941`; it is at
+  `:940`.** `:941` is `referensi_id BIGINT UNSIGNED NOT NULL COMMENT 'Polimorfik'`.
+  Seventh consecutive batch to find a wrong inline `:NNN` in this plan's prose, and
+  — as in todos 10 through 14 — the *line-index table* in `docs/migration-order.md`
+  rows 55-60 carries the **correct** line for all six of this batch's tables. The
+  migration cites `:940`.
+- **The plan's "Multi-line ENUMs" list is five entries short** (eleven exist, listed
+  above). The list in the plan and rule 6 of `docs/migration-order.md` both carry
+  the same six, and todo 14's entry in this file already recorded a seventh while
+  asserting the list was otherwise complete. It was not. This is A.19's lesson
+  again: a count in this plan is not evidence, and so is a claim that a list is
+  complete.
+- **The plan's todo-15 line-index table has no row for any of the six laboratory
+  tables at all** — it jumps from `apotek_stok` (`:829`/`:833`/`:834`) to
+  `master_metode_pembayaran` (`:925`). Every citation in these six migrations was
+  therefore resolved by searching `telemedicine_test.sql` for the column, index or
+  constraint **name**, and **257 citation tokens across 95 distinct SQL lines** were
+  printed and read against the claims they support.
+- **One defect in this project's own documents was left in place deliberately.** The
+  brief for this todo spelled the sixth table `master_lab_tindres` and the
+  `verify-schema` scope argument `lab_permVirus_detail`. Both are transcription
+  errors, and **the misspelled scope argument was run deliberately as a control**:
+  `--tables=master_lab_tindres` exits **0** with a single
+  `unknown_requested_table` informational row and a **green "PASS — 75 tables, 2
+  views verified" banner**, having verified nothing at all. That is A.8's second
+  false-green trap demonstrated end-to-end, and it is why the real run's `scope` line
+  was read rather than its exit code.
