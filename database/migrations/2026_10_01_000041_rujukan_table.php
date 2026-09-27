@@ -92,7 +92,7 @@ use Illuminate\Support\Facades\Schema;
  *
  * `diagnosis_kerja VARCHAR(255) NULL` (`:605`) repeats the short working-diagnosis
  * label that `konsultasi.diagnosis_kerja` (`:552`) and
- * `surat_keterangan` also carry — it is a third copy of the same fact, unconstrained
+ * `rekam_medis` also carry — it is a third copy of the same fact, unconstrained
  * and unsynchronised with the other two. `alasan_rujukan TEXT NULL` (`:607`) is the
  * free-text referral reason and is the column a referring clinician actually writes.
  *
