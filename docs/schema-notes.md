@@ -1257,3 +1257,349 @@ one that sees a comment that is *wrong*.
   views verified" banner**, having verified nothing at all. That is A.8's second
   false-green trap demonstrated end-to-end, and it is why the real run's `scope` line
   was read rather than its exit code.
+
+## Batch-J schema limitations the database cannot enforce (todo 16)
+
+Batch J (`master_metode_pembayaran`, `invoice`, `pembayaran`, `refund`,
+`master_promo`, `promo_redemption`, `klaim_bpjs` — SQL tables 61-67) is at parity
+and **owes no deferred constraint**. All **seven** of its foreign keys point at a
+table that already exists when the migration declaring them runs: `pasien` 20
+(batch C), and `master_metode_pembayaran` 61, `invoice` 62, `pembayaran` 63 and
+`master_promo` 65 — **four of them from inside this same batch**, earlier in the
+same commit. The *Deferred constraints* table above is therefore unchanged and
+still holds exactly one row (`fk_vital_rm`, added by migration 76 per SQL section
+`[14]`, `:1161-1163`), confirmed live: `pasien_tanda_vital.rekam_medis_id` still
+has **0** foreign keys. **Batch J defers nothing and registers nothing.** The
+extra-table registry still has exactly seven entries, so the derived
+`schema-notes.md` contract in the unit suite is unchanged.
+
+**Batch J contains no `ON DELETE` clause at all.** Measured by scanning
+`telemedicine_test.sql:921-1034` (SQL section `[11]`, the invoicing/payment/promo
+section in full): **zero** `ON DELETE` and **zero** `ON UPDATE` inside a
+`FOREIGN KEY` clause. The only two `ON UPDATE` occurrences in the range are the
+`diubah_at` column definitions at `:952` and `:1028`. All seven constraints
+therefore materialise MySQL's implicit `NO ACTION`, which `information_schema`
+reports verbatim — a payment still named by a refund cannot be deleted, an
+invoice still named by a payment cannot be deleted, and a patient still named by
+an invoice **or a promo redemption** cannot be deleted. That is coherent for
+financial records and it is the DDL's choice, not one made here. It is also the
+reason `master_promo` and `master_metode_pembayaran` must be retired via
+`status_aktif` rather than deleted, and the plan should read it that way: a
+"cleanup" DELETE on either master row is blocked by these seven constraints.
+
+### `invoice` is a polymorphic hub and `referensi_id` is **BARE by contract**
+
+`referensi_tipe` (`:940`, six values) and `referensi_id BIGINT UNSIGNED NOT NULL
+COMMENT 'Polimorfik'` (`:941`) are a **discriminated union**, and
+`invoice.referensi_id` is the twenty-fifth entry in the plan's generated
+reference-shaped-but-no-FK list. **No foreign key is possible and none exists.** A
+foreign key names exactly one parent table; this column's parent is a *function*
+of `referensi_tipe`, so the constraint is not expressible at all. All six targets
+declare `id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT` — `booking` (`:499`),
+`konsultasi` (`:537`), `resep` (`:743`), `pesanan_obat` (`:798`),
+`lab_permintaan` (`:877`), `home_care_pesanan` (`:1094`) — which is exactly what
+lets one column hold any of them, and a matching width is **not** evidence that a
+constraint belongs here.
+
+**Ownership is a service-layer responsibility and the database checks nothing.**
+Nothing verifies that `referensi_id` exists *in the table named by
+`referensi_tipe`*, and nothing verifies that `promo_redemption.pasien_id` equals
+`invoice.pasien_id` for the invoice that row names. Both are application
+invariants. Proved FK-free against `information_schema.REFERENTIAL_CONSTRAINTS`
+joined to `KEY_COLUMN_USAGE` — **not** by reading `SHOW CREATE TABLE`, which only
+shows constraints that exist and so cannot distinguish "absent" from "not looked
+for" — with the column separately confirmed to exist as `bigint unsigned NOT NULL`.
+
+`INDEX idx_ref (referensi_tipe, referensi_id)` (`:955`) is the only index that
+makes the polymorphism affordable, and **its column order is part of the contract**
+(`referensi_tipe` first). The negative QA in this todo's evidence file measured
+what happens when it is removed: `migrate:fresh` exits 0, the 93-test unit suite
+stays 93/93, and **only** `verify-schema` fails, naming `missing_index invoice
+expected: idx_ref`. An index removal reduces query performance and never
+correctness, so no functional test in this project can catch it.
+
+### Only **4 of the 6** `referensi_tipe` values are reachable in Modules 1-5
+
+This is a fact about the **application**, not about the DDL, which is why it
+belongs here and not in a migration comment (a comment implying the SQL says it
+would be a false claim). `docs/migration-order.md` gives the derivation:
+
+| `referensi_tipe` value | Parent table | Contract row | Module | Reachable in M1-M5 |
+| --- | --- | --- | --- | --- |
+| `booking` | `booking` | 37 | M2 booking | **yes** |
+| `konsultasi` | `konsultasi` | 38 | M3 consultation | **yes** |
+| `resep` | `resep` | 49 | M4 pharmacy | **yes** |
+| `pesanan_obat` | `pesanan_obat` | 52 | M5 order | **yes** |
+| `lab_permintaan` | `lab_permintaan` | 58 | **ORPHAN**, Resource —, Controller — | **no** |
+| `home_care` | `home_care_pesanan` | 72 | **ORPHAN**, Resource —, Controller — | **no** |
+
+The two unreachable values are unreachable for the same reason batch I's six
+tables are: they are migrated for referential completeness and no endpoint in the
+plan's scope creates them. **The ENUM still permits both**, so a row naming
+`referensi_tipe = 'lab_permintaan'` is representable and would point at a table
+nothing else can reach — another reason ownership is the service's job. Todo 45
+must not treat the six-value list as six usable options.
+
+### Webhook idempotency has no dedupe key, and this batch does not add one
+
+`pembayaran.nomor_referensi` is `VARCHAR(100) NULL COMMENT 'Transaction ID
+payment gateway'` (`:963`) with **no `UNIQUE` and no index of any kind**. Measured
+live: **0** rows in `information_schema.STATISTICS` name this column on either
+database. The only non-primary index in the DDL is
+`idx_bayar_status (status, dibayar_at)` (`:972`), which cannot serve a lookup that
+knows only the transaction id, and there is no `webhook_event_id` column to index
+instead.
+
+**No index was added, because `telemedicine_test.sql` is read-only law** and an
+added index is `extra_index` drift (`docs/migration-order.md` rule 7). The
+trade-off, stated so it is not rediscovered as a defect:
+
+- **Correctness** is unaffected. The idempotency check is a
+  `where nomor_referensi = ?` existence query (with the `gateway` predicate) run
+  inside the update transaction. A missing index changes how long the answer
+  takes, not what it is.
+- **Cost.** Every gateway callback is a full table scan of `pembayaran`, growing
+  linearly with lifetime order volume, and under `REPEATABLE READ` the next-key
+  locks a full scan takes widen the callback's write contention.
+- **Uniqueness is NOT database-enforced.** A duplicate `nomor_referensi` is
+  representable and two concurrent callbacks for one transaction can both pass the
+  check before either commits. **Todo 45's webhook handler must be idempotent in
+  its side effects**, not merely guarded by the check.
+- **NULL is the normal case** for `cod` and `tunai`, which have no gateway at all,
+  so a lookup must never assume the column is populated and must not treat a NULL
+  match as a replay of another NULL.
+
+`va_number` (`:964`) has the same shape and is likewise neither unique nor
+indexed.
+
+### `promo_redemption.invoice_id NOT NULL` decides where a redemption row is written
+
+`invoice_id BIGINT UNSIGNED NOT NULL` (`:1004`) resolves an ambiguity in the spec,
+and the resolution is forced by the DDL rather than chosen: **a redemption row is
+written when a promo is applied to an invoice, not by a pure
+`POST /promo/validasi` check.** A validation that has not yet touched an invoice
+has nothing to point at — the column is `NOT NULL`, has no `DEFAULT`, and no
+`CHECK` forgives it. Emitting a row at validation time would need a nullable
+column (`column_nullable` drift), a placeholder invoice, or a second table for
+un-committed validations, and none exists in the contract.
+
+**Todos 44 and 45 must honour this**: `POST /promo/validasi` is a pure read and
+writes nothing; the row is written when the invoice is created with the discount
+applied, in the same transaction; and `nilai_diskon` (`:1005`) is the discount **as
+applied** — a snapshot after `maks_diskon` capping and after `gratis_ongkir`
+resolves to a shipping amount, not a live read of `master_promo.nilai`.
+
+**Three consequences the schema cannot repair:**
+
+- An invoice created with a promo and then abandoned **consumes a redemption
+  permanently**: there is no `status`, no `voided_at` and no unique key.
+- Re-applying the promo to a *second* invoice for the same cart consumes a second
+  redemption.
+- `nilai_diskon` is a snapshot, so editing `master_promo.nilai` afterwards does not
+  rewrite what a past invoice was discounted by, and nothing keeps the two in step.
+
+### **No quota and no redemption-uniqueness is enforceable anywhere in this batch**
+
+`promo_redemption` has **no unique key of any kind** — only the primary key. The
+DDL declares none and one cannot be added (rule 7). Therefore:
+
+- `master_promo.kuota_per_user` (`:994`, `TINYINT UNSIGNED NOT NULL DEFAULT 1`)
+  **cannot be enforced by this schema.** Nothing stops one patient redeeming one
+  promo on ten invoices. The quota is a convention the service honours by
+  counting rows, and the count is a race under concurrency.
+- `master_promo.kuota_total` (`:993`, `INT UNSIGNED NULL`, NULL = unlimited) is
+  unenforced for the same reason.
+- A **double-submission race is unguarded**: two concurrent redemptions for the
+  same promo on the same invoice both insert, and any report that sums
+  `nilai_diskon` counts the discount twice. The only available mitigations are a
+  transaction plus `lockForUpdate()` on the `invoice` row, or an
+  `INSERT … SELECT … WHERE NOT EXISTS`. There is no unique key to fall back on.
+
+What the three foreign keys *do* guarantee is that a redemption's `promo_id`,
+`pasien_id` and `invoice_id` each point at a real row, so the ledger cannot hold
+a dangling half. They do **not** guarantee the three agree with each other.
+
+### Two bare columns in `klaim_bpjs`, plus two bare code columns
+
+`klaim_bpjs` declares **no `FOREIGN KEY` clause at all**, and **neither
+`booking_id` (`:1014`) nor `rekam_medis_id` (`:1015`) is mentioned anywhere in the
+plan's todo-16 prose.** That omission is exactly how an invented constraint gets
+written, and this project has already produced that defect three times
+(`resep.konsultasi_id` in batch H,
+`pasien_penjamin.faskes_rujukan_id` before that, `lab_hasil.diperiksa_oleh` in
+batch I). Both targets exist many batches earlier — `booking` is table 37 and
+`rekam_medis` is table 42 — so `->foreign()` would **succeed** and become permanent
+`extra_foreign_key` drift while `migrate:fresh`, `php -l` and the whole 93-test
+unit suite stayed green.
+
+The substantive reading, and it is coherent: a BPJS claim is a **regulatory
+submission about a patient's eligibility** and it legitimately outlives the
+clinical episode. `booking_id` is nullable because a claim may cover an encounter
+never booked through the platform (a walk-in at a partner `faskes`, or an episode
+predating it). `rekam_medis_id` is nullable because a `rawat_inap` claim
+(`tipe_layanan`, `:1018`) can be filed before the inpatient record is finalised,
+or for care delivered outside this system. A `CASCADE` on either would destroy a
+filed claim when the clinical record is edited — the same retention defect the
+project already records for `akses_rekam_medis_log.rekam_medis_id ON DELETE
+CASCADE` (`:1153`).
+
+`diagnosa_icd10 VARCHAR(8) NULL` (`:1019`) and `tindakan_icd9cm VARCHAR(8) NULL`
+(`:1020`) are also unconstrained, the same class as
+`rekam_medis_diagnosa.icd10_kode` (`:660`) and `rekam_medis_tindakan.icd9cm_kode`
+(`:672`). Here the **widths are deliberately compatible** with the catalogue —
+`master_icd10.kode` is `VARCHAR(8) NOT NULL UNIQUE` (`:117`) and
+`master_icd9cm.kode` is `VARCHAR(8) NOT NULL UNIQUE` (`:124`), the **same 8** — so
+a foreign key would be *mechanically* possible (the parent key is unique) and
+still wrong: a claim is filed against what the clinician wrote, and a diagnosis
+not yet in the platform's catalogue must not block a regulatory submission.
+Reconciling the two is a later data-quality task, not a write-time constraint.
+
+All four columns were proven FK-free against
+`information_schema.REFERENTIAL_CONSTRAINTS` joined to `KEY_COLUMN_USAGE`, and
+each was separately confirmed to **exist** as `bigint unsigned` / `varchar(8)`
+nullable, so "no row returned" cannot be confused with "no column".
+
+### Six facts recorded because each looks like something the schema guarantees
+
+1. **`invoice.total` has no `DEFAULT`, and four of the five money columns do.**
+   `subtotal`, `diskon`, `biaya_admin` and `biaya_pengiriman` are all
+   `DECIMAL(14,2) NOT NULL DEFAULT 0` (`:942`-`:945`); `total DECIMAL(14,2) NOT
+   NULL` (`:946`) is required at insert and nothing computes it. This is the one
+   deliberate asymmetry in the block and it is the right way round — a
+   zero-defaulted total would silently accept an unpriced invoice. Four more money
+   columns are in the same "no default" group: `pembayaran.jumlah` (`:962`),
+   `refund.jumlah` (`:978`), `master_promo.nilai` (`:990`) and
+   `promo_redemption.nilai_diskon` (`:1005`), so a zero-value payment, refund,
+   promo or redemption row is not reachable by omission.
+2. **`biaya_admin_flat` and `biaya_admin_persen` both default to 0, i.e. NO fee**
+   (`:931`-`:932`), and because both are `NOT NULL` there is no third "unconfigured"
+   state. A method added without a fee is indistinguishable from a free one, so a
+   checkout must read the fee from the row and must **not** treat 0 as "fall back
+   to a default". The scales differ and both matter: `(12,2)` flat and `(5,2)`
+   percent, so the largest expressible percentage is `999.99` and a 100 % fee is
+   the boundary.
+3. **`invoice.status` defaults to `'menunggu_pembayaran'`, not `'draft'`**
+   (`:947`-`:948`), so an invoice row is created *already awaiting payment* and
+   `draft` is reachable only by an explicit write. `dibatalkan` sits at position 5,
+   **before** both refund states, so ENUM position is not a lifecycle order.
+4. **The contract spells "expired" two ways and both are reproduced.** As an ENUM
+   member, `kedaluwarsa` appears **3** times (`rujukan.status` `:610`, `resep.status`
+   `:752`, `pembayaran.status` `:966`) and `kadaluarsa` **2** times
+   (`booking.status` `:516`, `invoice.status` `:947`). The `d` form is also the
+   only one used for expiry **column** names (`user_otp.kedaluwarsa_at` `:184`,
+   `user_refresh_tokens.kedaluwarsa_at` `:208`, `apotek_stok.kedaluwarsa` `:836`).
+   `invoice.status` is therefore in the minority spelling, and a "consistency
+   cleanup" across the two tables would break one of them. Do not perform it.
+5. **Two status ENUMs default to their *first* member and a third has no default
+   at all:** `refund.status` defaults to `diajukan` (`:980`, the first of four) and
+   `pembayaran.status` to `pending` (`:966`, the first of five), while
+   `master_promo.tipe_diskon` (`:989`) has **no** `DEFAULT`, so omitting it is
+   MySQL 1364 rather than a silent default. That asymmetry is correct: the
+   meaning of `nilai` (`:990`) depends entirely on `tipe_diskon`, so a defaulted
+   type would make `nilai` ambiguous. A reader who assumes "ENUMs here default to
+   their first value" is right twice and wrong once.
+6. **`refund.jumlah` is never reconciled against `pembayaran.jumlah`.** A refund
+   larger than the payment, a second refund row for one payment, and a payment with
+   `status = 'refund'` and no refund row are **all representable** — there is no
+   `CHECK` and no uniqueness. Partial refunds are the point of the table, so the
+   *absence* of a uniqueness constraint is a deliberate gap; the *absence* of any
+   total-vs-refunded reconciliation is a real limitation. Compounding it,
+   `refund` and `pembayaran.status = 'refund'` are not linked by any foreign key,
+   so the two can disagree in both directions; only `dibuat_at` exists, so a
+   four-state workflow carries a single timestamp and a rejection leaves no record
+   of when or by whom.
+
+### `klaim_bpjs` is migrated for referential completeness and never exercised
+
+`docs/migration-order.md` row 67 records `Module: ORPHAN`, `Resource: —`,
+`Controller: —`; the spec allows V-Claim to be stubbed, so **no service, client,
+endpoint or seeder may be built against it.** It must still exist in full for two
+concrete reasons: `master_metode_pembayaran.tipe` (`:929`) carries a `'bpjs'`
+member and the seed at `:1278` inserts a `BPJS` method with
+`penyedia = 'BPJS Kesehatan'`, so a payment **can** be routed to BPJS even though
+the claim submission is stubbed; and the `nomor_sep` / `nomor_kartu` pair is the
+eligibility data a stubbed claim row would carry.
+
+`nomor_sep` is the table's only uniqueness (`:1016`, inline `UNIQUE`) and is what
+makes a claim traceable — a resubmission after `perlu_perbaikan` must reuse the
+same SEP. `nomor_kartu` is **`CHAR(13)`** (`:1017`), fixed-width, and must stay
+`char()`: storing 13 characters is identical under `CHAR(13)` and `VARCHAR(13)`,
+but *reading* is not — `CHAR` is blank-padded on retrieval and strips trailing
+spaces, so a hand-typed 10-digit number silently becomes 13 characters and any
+comparison against a 13-digit value behaves differently without erroring.
+
+`perlu_perbaikan` is a **return for correction and the schema makes it a dead
+end**: no revision column, no `versi`, no draft/body split, no submissions table.
+The only way to resubmit is to `UPDATE` the same row, overwriting the rejected
+submission, and `diubah_at` (`:1028`) is then the only record it happened. Treat
+both `ditolak` and `perlu_perbaikan` as states that cannot be appended to — the
+same terminality the project already records for `resep_verifikasi`, whose
+`resep_id` is `UNIQUE` (`:788`), so a prescription can be verified once, ever.
+
+### Seed coverage: one table seeded, one not, and three ENUM values unexercised
+
+`master_metode_pembayaran` has **14** seed rows at `:1264`-`:1278`, supplying only
+`(kode, nama, tipe, penyedia)`, so all 14 inherit `biaya_admin_flat = 0`,
+`biaya_admin_persen = 0` and `status_aktif = 1` from their defaults. Counting the
+distinct `tipe` values actually present gives **6 of the 9**:
+`va_bank` 5, `e_wallet` 5, `qris` 1, `cod` 1, `tunai` 1, `bpjs` 1.
+**`kartu_kredit`, `gerai_retail` and `asuransi` have no seed row at all**, so a
+todo-18 seeder replaying only the INSERT leaves three legal payment methods
+unrepresented.
+
+`master_promo` has **no `INSERT INTO` anywhere in the file** — confirmed by
+scanning all 15 `INSERT INTO` statements, none of which names it. Whatever promos
+exist are therefore unsourced fixture data, in the same position as
+`obat_interaksi` and `lab_paket_item`. There is also no index on `mulai_at` or
+`selesai_at` and no `CHECK (selesai_at > mulai_at)`, so "which promos are live
+right now" is a scan of the whole catalogue and an inverted window is
+representable; the intended expiry mechanism is an application job flipping
+`status_aktif` to 0, because the table has no `status` column to record *why* a
+promo is off.
+
+### Findings about this project's own documents, found by reading rather than by trusting
+
+- **The plan's todo-16 prose misspells a column name: `biaya_pengirpikan`.** The
+  DDL at `:945` and the live schema both say **`biaya_pengiriman`**. This is a
+  transposed identifier in a list an executor copies from, and it is the exact
+  defect class A.17 describes; the migration declares the DDL's spelling and says
+  so in place.
+- **The plan's todo-16 prose cites both `invoice` indexes at `:953-954`.** They are
+  at **`:954`** (`idx_invoice`) and **`:955`** (`idx_ref`); `:953` is the
+  `FOREIGN KEY (pasien_id)` clause. The order is right — `idx_invoice` before
+  `idx_ref` — so only the range is off by one.
+- **The plan's "Webhook idempotency has no dedupe key" bullet cites
+  `idx_bayar_status (status, dibayar_at)` at `:970`.** It is at **`:972`**; `:970`
+  is `FOREIGN KEY (invoice_id) REFERENCES invoice(id)`. This is the **eighth**
+  consecutive batch to find a wrong inline `:NNN` in this plan's prose, and again
+  the line-index table in this file's `docs/migration-order.md` rows 61-67 carries
+  the correct lines for all seven tables.
+- **`invoice.referensi_tipe` is at `:940`, not `:941`.** `:941` is
+  `referensi_id`. This is the citation todo 15 already found in **its own** prose
+  (plan line 374); it is repeated here for completeness because todo 16 owns the
+  column.
+- **`docs/migration-order.md` rule 6's multi-line-ENUM list is still stale.** It
+  names six entries and two of them — `konsultasi.status` (`:542`) and
+  `konsultasi_chat.tipe_pesan` (`:568`) — are **not** wrapped: both close their
+  own `ENUM(...)` on the same line and only their `NOT NULL DEFAULT` continues on
+  the next. The wrapped list is **five**, and `invoice.status` (`:947`-`:948`) is
+  one of them. The rule was not corrected in place, so anyone re-deriving ENUM
+  handling from it will over-count.
+- **The verifier prints `wrapped decls 11`, and that number is not a wrapped-ENUM
+  count.** `SchemaSpec::multiLineColumns()` reports declarations whose `endLine`
+  exceeds `line`, which is true for all six of `konsultasi.status`,
+  `konsultasi_chat.tipe_pesan`, `lab_permintaan.status`, `pesanan_obat.status`,
+  `home_care_pesanan.status` and `klaim_bpjs.status` even though each of those
+  closes its own `ENUM(...)` on its own line. Asking it a different question —
+  "does any line open an `ENUM(` that its own line does not close?" — gives
+  **5**, at `:515`, `:713`, `:751`, `:947` and `:1137`. Recorded here because
+  A.20's whole lesson is that naming a second source is not corroboration unless
+  it was asked the same question, and this is a live instance inside this
+  project's own tooling output.
+- **A defect in this project's own documents was left in place deliberately.**
+  `docs/migration-order.md` rule 6 is the stale list described above. Fixing it
+  would widen this commit beyond my own paths, and the same reasoning that left
+  `000041_rujukan_table.php:93-96`'s stale `diagnosis_kerja` claim in place
+  (A.19) applies: the correction is dispatched separately rather than smuggled
+  into a migration batch. **It is a real, live, wrong instruction**, and rule 6 is
+  the text an executor will actually follow.
