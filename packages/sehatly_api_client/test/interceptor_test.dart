@@ -280,6 +280,174 @@ void main() {
     });
   });
 
+  group('the anonymous-401 refresh gate', () {
+    /// A 200 the refresh endpoint would answer with, so a refresh that *did*
+    /// happen is observable both as a call count and as a rotated store.
+    ResponseBody refreshOk() => ScriptedAdapter.jsonResponse(<String, Object?>{
+      'success': true,
+      'data': <String, Object?>{
+        'token': <String, Object?>{
+          'token_type': 'Bearer',
+          'access_token': 'rotated',
+          'expires_in': 1439,
+          'access_token_expires_at': '2099-01-01T00:00:00.000000Z',
+          'refresh_token': 'rotated-refresh',
+          'refresh_token_expires_at': '2099-02-01T00:00:00.000000Z',
+        },
+      },
+      'message': 'ok',
+    }, 200);
+
+    test('a 401 from an anonymous GET spends no refresh token', () async {
+      // The regression this pins. `GET /dokter` is a **safe method**, so it used to
+      // clear both remaining gates in `onError` and drive a real rotation: a 401
+      // off a route the caller never authenticated to cost a one-shot refresh
+      // token, and a spent token reads as theft to the server.
+      final List<ApiException> expired = <ApiException>[];
+      final ScriptedAdapter adapter = ScriptedAdapter();
+
+      adapter.handler = (RecordedRequest r) async {
+        if (r.path == RefreshCoordinator.defaultRefreshPath) {
+          return refreshOk();
+        }
+
+        return ScriptedAdapter.errorResponse('Unauthenticated.', 401);
+      };
+
+      final FakeSecureBackend store = FakeSecureBackend();
+      final SehatlyApiClient client = seeded(
+        adapter,
+        onSessionExpired: expired.add,
+        store: store,
+      );
+
+      await expectLater(
+        client.dokter.index(),
+        throwsA(
+          isA<ApiException>().having(
+            (ApiException e) => e.statusCode,
+            'statusCode',
+            401,
+          ),
+        ),
+      );
+
+      expect(
+        adapter.countOf(RefreshCoordinator.defaultRefreshPath),
+        0,
+        reason: 'an anonymous request carries no credential, so a rotation '
+            'cannot repair its 401 and must not be attempted',
+      );
+      expect(
+        adapter.countOf(pathDokter),
+        1,
+        reason: 'no replay either: there is nothing new to present',
+      );
+      expect(
+        store.values[kRefreshTokenKey],
+        'refresh-1',
+        reason: 'the stored refresh token must be untouched, not merely unused',
+      );
+      expect(
+        store.values[kAccessTokenKey],
+        'access-1',
+        reason: 'a failed anonymous read must not sign the session out',
+      );
+      expect(
+        expired,
+        isEmpty,
+        reason: 'a public-route 401 is not the end of the session',
+      );
+      client.close();
+    });
+
+    test('a 401 from an anonymous POST spends no refresh token', () async {
+      // The severe instance of the same bug, and the one a user hits by accident.
+      // `POST /auth/login` answers 401 for a wrong password, is marked anonymous,
+      // and opts into `allowUnsafeRetry` -- so before the gate it refreshed, and
+      // a mistyped password cost a refresh token. Two wrong attempts against an
+      // account with a live session elsewhere could revoke the whole chain.
+      final List<ApiException> expired = <ApiException>[];
+      final ScriptedAdapter adapter = ScriptedAdapter();
+
+      adapter.handler = (RecordedRequest r) async {
+        if (r.path == RefreshCoordinator.defaultRefreshPath) {
+          return refreshOk();
+        }
+
+        return ScriptedAdapter.errorResponse('Email atau kata sandi salah.', 401);
+      };
+
+      final FakeSecureBackend store = FakeSecureBackend();
+      final SehatlyApiClient client = seeded(
+        adapter,
+        onSessionExpired: expired.add,
+        store: store,
+      );
+
+      await expectLater(
+        client.auth.login(
+          password: 'wrong-password',
+          email: 'siti@example.test',
+        ),
+        throwsA(
+          isA<ApiException>().having(
+            (ApiException e) => e.statusCode,
+            'statusCode',
+            401,
+          ),
+        ),
+      );
+
+      expect(adapter.countOf(RefreshCoordinator.defaultRefreshPath), 0);
+      expect(adapter.countOf(pathAuthLogin), 1);
+      expect(store.values[kRefreshTokenKey], 'refresh-1');
+      expect(expired, isEmpty);
+      client.close();
+    });
+
+    test('an authenticated 401 on the same path still refreshes', () async {
+      // The control. Without this the two tests above would also pass against a
+      // build where the gate suppressed *every* refresh, which is not a fix but
+      // the opposite of one: it would turn an expired access token into a hard
+      // sign-out on every screen.
+      final ScriptedAdapter adapter = ScriptedAdapter();
+      var meCalls = 0;
+
+      adapter.handler = (RecordedRequest r) async {
+        if (r.path == RefreshCoordinator.defaultRefreshPath) {
+          return refreshOk();
+        }
+
+        if (r.path == '/me') {
+          meCalls += 1;
+
+          if (meCalls == 1) {
+            return ScriptedAdapter.errorResponse('Unauthenticated.', 401);
+          }
+
+          return ScriptedAdapter.successResponse(<String, Object?>{
+            'user': userJson(),
+          });
+        }
+
+        return ScriptedAdapter.errorResponse('Resource not found.', 404);
+      };
+
+      final SehatlyApiClient client = seeded(adapter);
+      final User profile = await client.me.show();
+
+      expect(profile.namaLengkap, 'Siti Aminah');
+      expect(
+        adapter.countOf(RefreshCoordinator.defaultRefreshPath),
+        1,
+        reason: 'the gate keys on the anonymous marker, not on the path',
+      );
+      expect(meCalls, 2, reason: 'one original, one replay');
+      client.close();
+    });
+  });
+
   group('the loop terminator', () {
     test(
       'a replay that 401s again is passed through, not re-refreshed',

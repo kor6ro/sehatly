@@ -64,8 +64,21 @@ import 'refresh_coordinator.dart';
 /// | key | meaning |
 /// | --- | --- |
 /// | [retriedKey] | this request has already been replayed once after a refresh |
-/// | [noAuthKey] | do not attach `Authorization` to this request |
+/// | [noAuthKey] | do not attach `Authorization` to this request, and do not refresh on its 401 |
 /// | [allowUnsafeRetryKey] | the caller accepts a replay of a non-idempotent request |
+///
+/// ## Why an anonymous 401 is never refreshed
+///
+/// `noAuthKey` is read in [onRequest] *and* in [onError], and the second read is
+/// load-bearing rather than defensive. A request marked anonymous left this
+/// class without an `Authorization` header, so its 401 is the server refusing an
+/// unidentified caller -- a guard regression on a public route, or a policy
+/// change -- and no amount of rotation changes the answer. Refreshing anyway
+/// would spend a one-shot refresh token to learn that, and because a spent
+/// refresh token reads as theft to the server, a client that raced itself here
+/// would lose every live refresh token for the account over a 401 from
+/// `GET /dokter`. The pass-through 401 is the recoverable outcome; the rotation
+/// is not.
 ///
 /// ## Why a non-idempotent request is not replayed by default
 ///
@@ -108,12 +121,17 @@ class AuthInterceptor extends QueuedInterceptor {
   /// impossible.
   static const String retriedKey = 'sehatly_retried';
 
-  /// Suppresses the `Authorization` header for one request.
+  /// Suppresses the `Authorization` header for one request, **and** suppresses
+  /// the refresh on its 401.
   ///
   /// Needed for `POST /api/v1/auth/logout`'s sibling call during sign-out and for
   /// any future public endpoint reached through the authenticated client. The
   /// token is also never attached to a request that already carries an
   /// `Authorization` header, so a caller that set one by hand is not overwritten.
+  ///
+  /// It is read in [onError] as well as [onRequest], and that second read is the
+  /// one that keeps a public route from costing a refresh token. See the class
+  /// docblock.
   static const String noAuthKey = 'sehatly_no_auth';
 
   /// Opts one request in to being replayed after a refresh despite being
@@ -186,6 +204,25 @@ class AuthInterceptor extends QueuedInterceptor {
     final RequestOptions options = err.requestOptions;
 
     if (err.response?.statusCode != 401) {
+      handler.next(err);
+      return;
+    }
+
+    // Explicitly anonymous. This is a 401 for a request that carried no
+    // credential, so no rotation can repair it, and attempting one is not a
+    // no-op: `POST /auth/refresh` revokes the presented refresh token on every
+    // use, so spending one here burns a one-shot token to fix nothing. If the
+    // token was already spent, or a concurrent request spent it first, the
+    // server reads the replay as theft and revokes *every* live refresh token for
+    // the account -- turning a public-route 401 into a sign-out the caller never
+    // asked for. A 401 on `/dokter` or `/master-spesialisasi` is a server-side
+    // guard regression, and the honest response to a regression is the 401.
+    //
+    // Checked before the method gate and before [retriedKey] because it is the
+    // strongest of the three statements: there is nothing here to refresh *with*.
+    // The flag rides along on a replay, because `_replayOptionsFor` copies
+    // `extra` across, so an anonymous request can never re-enter this path.
+    if (options.extra[noAuthKey] == true) {
       handler.next(err);
       return;
     }
