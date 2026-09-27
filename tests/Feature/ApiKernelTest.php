@@ -330,9 +330,34 @@ class ApiKernelTest extends TestCase
         // Everything under /api must carry the v1 segment, because
         // `apiPrefix: 'api/v1'` is what todo 53 and the mobile client key off.
         $this->assertNotEmpty($uris);
-        $this->assertSame([], array_values(array_filter(
-            $uris,
-            fn ($uri) => ! str_starts_with($uri, 'api/v1/')
-        )));
+
+        // One deliberate exception: the Reverb auth endpoint. Task 31 mounts it
+        // in the `api` group via `withBroadcasting(prefix: 'api', ...)` because
+        // it is authenticated by a Sanctum bearer token rather than by the
+        // session cookie, and task 35 pins the client to `authEndpoint:
+        // '/api/broadcasting/auth'`. It is a transport-level endpoint, not part
+        // of the versioned domain, so it is not namespaced under `v1`.
+        //
+        // The exception is compared as a set rather than filtered out, so a
+        // second unversioned route cannot be added without failing this test.
+        $allowedOutsideV1 = ['api/broadcasting/auth'];
+
+        $this->assertSame(
+            [],
+            array_values(array_diff(
+                array_values(array_filter(
+                    $uris,
+                    fn ($uri) => ! str_starts_with($uri, 'api/v1/')
+                )),
+                $allowedOutsideV1
+            )),
+            'An /api route outside api/v1 was added that is not an approved exception.'
+        );
+
+        // And each approved exception is actually registered, so the allowlist
+        // cannot rot into a no-op that would then mask a future regression.
+        foreach ($allowedOutsideV1 as $uri) {
+            $this->assertContains($uri, $uris);
+        }
     }
 }

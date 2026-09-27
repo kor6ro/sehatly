@@ -48,6 +48,46 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
         apiPrefix: 'api/v1',
     )
+    ->withBroadcasting(
+        channels: __DIR__.'/../routes/channels.php',
+        attributes: [
+            /*
+            |--------------------------------------------------------------------
+            | The broadcast auth endpoint
+            |--------------------------------------------------------------------
+            |
+            | `withBroadcasting()` expands to exactly two things
+            | (`vendor/laravel/framework/src/Illuminate/Foundation/Configuration/ApplicationBuilder.php`):
+            | `Broadcast::routes($attributes)`, which registers
+            | `GET|POST /broadcasting/auth`, and a `require` of the channels file.
+            | The first needs a prefix and a middleware stack, which is what
+            | `$attributes` is for.
+            |
+            | `prefix: api` and NOT `api/v1` is a contract fact, not a preference.
+            | The Dart client posts to `/api/broadcasting/auth`
+            | (`packages/sehatly_api_client/lib/src/realtime/realtime_socket.dart`),
+            | which is the framework's own default path, so moving the endpoint
+            | under `/api/v1` would 404 the only client this application has.
+            |
+            | `auth:sanctum` is what turns the endpoint from "anyone can ask"
+            | into "a caller proves who they are first". The route is registered
+            | without it by default (`BroadcastManager::routes()` falls back to
+            | `['middleware' => ['web']]`), and on this application the `web`
+            | group has no session to authenticate, so every request would fail
+            | the user lookup further down rather than for the stated reason.
+            | Naming `auth:sanctum` moves the 401 to the guard, where the rest of
+            | `/api/*` puts it.
+            |
+            | `api` before `auth:sanctum` is ordering, not decoration: it is the
+            | same stateless group `withRouting(apiPrefix: 'api/v1')` builds, and
+            | it is what the CORS entry in `config/cors.php` matches.
+            |
+            */
+
+            'prefix' => 'api',
+            'middleware' => ['api', 'auth:sanctum'],
+        ],
+    )
     ->withMiddleware(function (Middleware $middleware): void {
         /*
         |--------------------------------------------------------------------
