@@ -446,6 +446,150 @@ enum DokterJenjang {
       _decode(DokterJenjang.values, value, (DokterJenjang v) => v.wire);
 }
 
+/// `konsultasi_chat.pengirim_tipe` -- `telemedicine_test.sql:567` --
+/// `ENUM('pasien','dokter','sistem')`.
+///
+/// Three members and the third is not a sender at all: a `sistem` message is
+/// written by the server, not by either party. It carries a `pengirim_user_id`
+/// like every other row (the column is `NOT NULL`, :566), so a client that keys
+/// "is this mine" off the type must exclude `sistem` explicitly rather than
+/// assuming the two-party set.
+///
+/// `pasien` and `dokter` are `users.tipe` values, but they are **not** the whole
+/// of [UserTipe]: a `perawat` or `bidan` who is neither cannot be a chat sender,
+/// which is why this is a separate three-member enum and not a narrowed alias.
+enum ChatPengirimTipe {
+  /// `pasien`
+  pasien('pasien'),
+
+  /// `dokter`
+  dokter('dokter'),
+
+  /// `sistem`
+  sistem('sistem');
+
+  const ChatPengirimTipe(this.wire);
+
+  /// The exact DDL member, as it appears on the wire.
+  final String wire;
+
+  /// Decodes a DDL member, or returns `null` when the value is not a member.
+  static ChatPengirimTipe? fromWire(String? value) =>
+      _decode(ChatPengirimTipe.values, value, (ChatPengirimTipe v) => v.wire);
+}
+
+/// `konsultasi_chat.tipe_pesan` -- `telemedicine_test.sql:568-569` --
+/// `ENUM('teks','gambar','dokumen','audio','video_note','resep',
+/// 'surat_keterangan','sistem')` -- `NOT NULL DEFAULT 'teks'`.
+///
+/// Eight members in three groups, and the grouping is what a renderer keys on:
+///
+/// | group | members | what it carries |
+/// | --- | --- | --- |
+/// | free text | `teks` | `isi` |
+/// | upload | `gambar`, `dokumen`, `audio`, `video_note` | `file_url`, `file_nama`, `file_ukuran_kb` |
+/// | authored on another screen | `resep`, `surat_keterangan` | `isi`, plus a row in `resep` (:742) / `surat_keterangan` (:581) |
+/// | no human author | `sistem` | `isi` |
+///
+/// The three groups are inferred from the member names and from the columns
+/// beside them, not from anything the DDL states: nothing in
+/// `konsultasi_chat` says which members populate `file_url`, and the endpoint
+/// that publishes these rows does not exist yet (plan todo 32). The inference is
+/// recorded rather than presented as fact, so todo 32 can contradict it in one
+/// place.
+///
+/// `resep` and `surat_keterangan` are not free text the sender typed: both
+/// tables carry `dokter_id NOT NULL` (`:748`, `:587`), so a doctor authors them
+/// on a prescription or medical-letter screen and they reach the transcript as
+/// their own row. A bubble that renders all eight as a string is wrong for five
+/// of them.
+///
+/// The column is `NOT NULL DEFAULT 'teks'`, so a create that omits it is stored
+/// as `teks` rather than rejected -- the default is a real state a client can
+/// receive, and [ChatTipePesan] models `teks` first for that reason.
+enum ChatTipePesan {
+  /// `teks`
+  teks('teks'),
+
+  /// `gambar`
+  gambar('gambar'),
+
+  /// `dokumen`
+  dokumen('dokumen'),
+
+  /// `audio`
+  audio('audio'),
+
+  /// `video_note`
+  videoNote('video_note'),
+
+  /// `resep`
+  resep('resep'),
+
+  /// `surat_keterangan`
+  suratKeterangan('surat_keterangan'),
+
+  /// `sistem`
+  sistem('sistem');
+
+  const ChatTipePesan(this.wire);
+
+  /// The exact DDL member, as it appears on the wire.
+  final String wire;
+
+  /// Decodes a DDL member, or returns `null` when the value is not a member.
+  static ChatTipePesan? fromWire(String? value) =>
+      _decode(ChatTipePesan.values, value, (ChatTipePesan v) => v.wire);
+
+  /// Whether the member is an upload rather than typed text.
+  ///
+  /// **Inferred, not stated by the DDL.** True for the four members whose names
+  /// denote a file -- `gambar`, `dokumen`, `audio`, `video_note` -- and false for
+  /// the other four. The inference rests on those names and on the three
+  /// `file_*` columns sitting beside this one (`:571-573`, all `NULL`-able);
+  /// nothing in `konsultasi_chat` says which members populate them, and the
+  /// publishing endpoint is the plan's todo 32.
+  ///
+  /// It is exposed because a bubble has to choose between a text body and a
+  /// preview before it has read the columns, and branching on `fileUrl != null`
+  /// instead gets that choice wrong in the one case that matters: an upload whose
+  /// file failed to store has a null `file_url` and is still a [gambar], so a
+  /// `fileUrl` test renders an empty bubble where a retryable error belongs.
+  bool get isAttachment => switch (this) {
+    ChatTipePesan.gambar ||
+    ChatTipePesan.dokumen ||
+    ChatTipePesan.audio ||
+    ChatTipePesan.videoNote => true,
+    ChatTipePesan.teks ||
+    ChatTipePesan.resep ||
+    ChatTipePesan.suratKeterangan ||
+    ChatTipePesan.sistem => false,
+  };
+
+  /// Whether the member is authored by the server rather than by a party.
+  ///
+  /// True for [sistem] only. [resep] and [suratKeterangan] are **not** included:
+  /// `resep` (:742) and `surat_keterangan` (:581) are their own tables with a
+  /// `dokter_id` each, so a doctor authors them from a prescription or a
+  /// medical-letter screen and they arrive in the transcript as a row referencing
+  /// that record. Calling them server-written would misattribute a doctor's work
+  /// to the backend.
+  ///
+  /// A [sistem] message is the one member with no human author, which is why it
+  /// is the one a bubble should render as a notice and refuse to attach a reply
+  /// to.
+  bool get isSystemGenerated => switch (this) {
+    ChatTipePesan.sistem => true,
+    ChatTipePesan.teks ||
+    ChatTipePesan.gambar ||
+    ChatTipePesan.dokumen ||
+    ChatTipePesan.audio ||
+    ChatTipePesan.videoNote ||
+    ChatTipePesan.resep ||
+    ChatTipePesan.suratKeterangan => false,
+  };
+}
+
 /// Decodes [wire] against [values] using [wireOf], or returns `null`.
 ///
 /// Returns `null` rather than throwing for an unknown member. The server is the

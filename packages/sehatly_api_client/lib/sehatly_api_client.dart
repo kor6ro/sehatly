@@ -26,6 +26,20 @@
 ///   being selected by accident.
 /// - [RefreshCoordinator] and [AuthInterceptor] -- single-flight rotation and the
 ///   bearer header.
+/// - [RealtimeClient] -- the private-channel chat listener. It re-reads the
+///   access token on **every** subscribe, deduplicates by `konsultasi_chat.id`,
+///   and re-subscribes plus backfills on reconnect, because the broker replays
+///   nothing.
+/// - [RealtimeSocket] and the rest of `realtime_socket.dart` -- the
+///   transport-agnostic Pusher-protocol seam. [RealtimeClient] is written
+///   against it, so the whole realtime layer is unit-testable with no broker and
+///   no open port, and the concrete `laravel_reverb` binding is twenty lines in
+///   the consuming app. See `README.md`.
+/// - [ChatMessage] and [ChatPengirimTipe] / [ChatTipePesan] -- the
+///   `konsultasi_chat` row and its two DDL vocabularies.
+/// - [PushRegistration] and [PushTokenProvider] -- the FCM lifecycle, behind an
+///   interface so the package stays Flutter-free. The `firebase_messaging`
+///   wiring is a copy-pasteable block in `README.md`, not compiled here.
 /// - The DTOs and the DDL `ENUM` vocabularies, transcribed from
 ///   `telemedicine_test.sql` with the source line named on every constant.
 ///
@@ -34,10 +48,12 @@
 /// There is no `flutter:` SDK constraint in `pubspec.yaml` and no Flutter import
 /// anywhere in `lib/`. The package resolves, analyzes and tests with a bare
 /// `dart` binary, so it can be verified on a CI runner that has no Flutter, and
-/// the concrete `SecureKeyValueBackend` -- the twenty lines that wrap
-/// `flutter_secure_storage` -- lives in the consuming app behind the interface.
-/// See `README.md` for the OWASP MASVS-STORAGE-1 reasoning and the
-/// copy-pasteable adapter.
+/// the two concrete adapters -- the twenty lines that wrap
+/// `flutter_secure_storage`, and the twenty that wrap `firebase_messaging` --
+/// live in the consuming app behind [SecureKeyValueBackend] and
+/// [PushTokenProvider] respectively. `README.md` carries both as
+/// copy-pasteable blocks, with the MASVS-STORAGE-1 reasoning for the storage
+/// split.
 library;
 
 export 'src/api/auth_api.dart';
@@ -57,6 +73,10 @@ export 'src/core/pagination.dart';
 export 'src/fake/fake_api.dart';
 export 'src/model/dto.dart';
 export 'src/model/enums.dart';
+export 'src/realtime/chat_message.dart';
+export 'src/realtime/push_registration.dart';
+export 'src/realtime/realtime_client.dart';
+export 'src/realtime/realtime_socket.dart';
 export 'src/storage/key_value_backend.dart';
 export 'src/storage/token_storage.dart';
 export 'src/storage/token_store.dart';
