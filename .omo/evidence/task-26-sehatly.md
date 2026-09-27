@@ -657,15 +657,45 @@ added, renamed or dropped, and **no DB-level uniqueness was added to `booking`**
 - the plan's todo 27 states that the double-booking guard is explicitly an
 application-level concern, and `SHOW CREATE TABLE booking` is unchanged.
 
-`packages/sehatly_api_client` shows modifications in `git status`
-(`lib/sehatly_api_client.dart`, `lib/src/model/enums.dart`, and a new
-`lib/src/realtime/`, `test/chat_message_test.dart`,
+`packages/sehatly_api_client` was **actively being modified by another executor
+while this todo ran** - `lib/sehatly_api_client.dart`, `lib/src/model/enums.dart`,
+and a new `lib/src/realtime/`, `test/chat_message_test.dart`,
 `test/push_registration_test.dart`, `test/realtime_client_test.dart`,
-`test/support/fake_realtime_socket.dart`). **None of those are mine** - another
-executor is working in that tree concurrently. This is exactly why the commit
-uses an explicit pathspec and never `git add -A`: a bare `git commit --amend`
-builds from the current index and would sweep that work in. `dart analyze` and
-`dart test` were not run by this todo and `packages/` was not modified.
+`test/support/fake_realtime_socket.dart` all appeared in `git status`
+uncommitted while I worked. None of those are mine. That is exactly why the
+commit used an EXPLICIT pathspec and never `git add -A`: a bare
+`git commit --amend` builds from the current index and would have swept that
+work in - which is the exact hazard the todo 24 ledger entry records.
+
+That executor finished and committed as `65156b2` **on top of** this todo's two
+commits, so the branch now reads:
+
+```
+65156b2 feat(api-client): add realtime chat client and push registration
+0002f07 plan: ledger entry 37 for todo 26
+b59271d feat(api): add quota-aware SlotAvailabilityService, developed test-first
+e85ee64 plan: close todo 23, ledger entries 35-36
+```
+
+`git show --pretty=format: --name-only b59271d 0002f07` lists exactly six paths -
+this evidence file, the two new services, the modified directory service, the
+test file and the ledger - and no `packages/` path. `packages/` was not modified
+by this todo, and `dart analyze` / `dart test` were not run by it.
+
+**One misstep worth recording, because it is the same class the ledger already
+warns about.** After committing, I noticed PowerShell had interpolated
+`$tanggal` out of the commit *body* and amended to fix it. `git commit --amend`
+targets `HEAD`, and `HEAD` was by then the **ledger** commit, not the code
+commit - so I put the code commit's message on the ledger commit and left a
+misleading "5 files" subject over a 1-file diff. Fixed by
+`git reset --mixed` back to `e85ee64`, re-committing the code with `--only -F`
+and a BOM-less, `0xE2`-free message file, then re-appending the ledger line with
+the correct hash. The two orphaned commits are unreachable. The lesson is the
+one already in the ledger: check what `HEAD` actually points at before amending,
+and prefer `--amend --only -F <file>` with an explicit path list, which does not
+touch the index. Verified afterwards: `b59271d` lists 5 files and 2868
+insertions, and its subject's first bytes are `66 65 61 74` = "feat", with no
+UTF-8 BOM and no U+200B.
 
 ## 9. What is deliberately NOT here
 
