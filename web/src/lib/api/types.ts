@@ -19,6 +19,7 @@
  * | `DokterDetail` | `DokterDetailResource` |
  * | `Spesialisasi` | `MasterSpesialisasiResource` |
  * | `UserDevice` | `UserDeviceResource` |
+ * | `Booking` | `BookingResource` |
  * | `IssuedToken` | `AuthTokenResource` (re-declared in `lib/http.ts`) |
  * | `OtpChallenge` | the inline `otp` array in `AuthController` |
  *
@@ -339,4 +340,159 @@ export type OtpChallenge = {
     kedaluwarsa_at: Iso;
     /** `OtpService::TTL_MENIT * 60`. Rendered as a countdown, not as a number. */
     ttl_detik: number;
+};
+
+// ============================================================================
+// booking
+// ============================================================================
+
+/**
+ * `booking.tipe_layanan` ENUM('chat','video_call','kunjungan_klinik','home_visit')
+ * at `telemedicine_test.sql:506`, in the DDL's own order.
+ *
+ * The same four values, in the same order, are `BookingRequest::TIPE_LAYANAN` on the
+ * server, and `Rule::in` refuses anything else with a 422 naming the field. A closed
+ * vocabulary fixed by the schema is therefore a safe thing for a `Select` to enumerate:
+ * the client cannot offer an option the server would reject, and it must not invent one
+ * it would accept.
+ */
+export type TipeLayanan =
+    | 'chat'
+    | 'video_call'
+    | 'kunjungan_klinik'
+    | 'home_visit';
+
+/**
+ * `dokter_jadwal.tipe_layanan` ENUM('online','klinik','home_visit') at
+ * `telemedicine_test.sql:473` - a **different** ENUM from {@link TipeLayanan}.
+ *
+ * This is the trap the plan's own enum list invites. The two share exactly one member,
+ * `home_visit`, and the two names a client would most expect to overlap - `online` and
+ * `chat`/`video_call` - are mutually exclusive. A slot's `tipe_layanan` is a
+ * *schedule window* classification and a booking's is a *service* classification, so
+ * neither is a subset of the other and neither may be widened into the other.
+ *
+ * `SlotAvailabilityService` publishes the schedule row's own string without narrowing it,
+ * which is why {@link Slot}'s field is typed as this union or the raw string.
+ */
+export type TipeLayananJadwal = 'online' | 'klinik' | 'home_visit';
+
+/**
+ * `booking.status`, the EIGHT-value ENUM at `telemedicine_test.sql:515`-`:516`, in the
+ * DDL's own order.
+ *
+ * Eight, and the order matters twice over. `BookingRequest::STATUS_SEMUA` is the server's
+ * list-filter vocabulary and `STATUS_TIDAK_BISA_DIBATALKAN` is its cancel guard, both
+ * subsets of this one, and `SlotAvailabilityService::STATUS_TIDAK_MENGKONSUMSI` is the
+ * two that RELEASE a slot. Declaring eight named members rather than `string` is what
+ * makes a client that renders "eight distinct badges" a compile error when a ninth value
+ * appears, instead of a badge that silently falls through to a default colour.
+ */
+export type StatusBooking =
+    | 'menunggu_pembayaran'
+    | 'terjadwal'
+    | 'check_in'
+    | 'berlangsung'
+    | 'selesai'
+    | 'dibatalkan'
+    | 'no_show'
+    | 'kadaluarsa';
+
+/**
+ * `booking.dibatalkan_oleh` ENUM('pasien','dokter','sistem') at `:517`.
+ *
+ * Nullable, and only ever set together with `status = 'dibatalkan'`.
+ * `BookingService::dibatalkanOleh()` maps the seven `users.tipe` values onto exactly these
+ * three, so the column is closed even though its input is not.
+ */
+export type DibatalkanOleh = 'pasien' | 'dokter' | 'sistem';
+
+/**
+ * One element of `booking.lampiran_keluhan`, the JSON column at `:512`.
+ *
+ * `BookingResource` re-emits each element in `{nama, url}` order because MySQL sorts JSON
+ * object keys by length and reads a stored `{nama, url}` back as `{url, nama}`; the
+ * `{nama, url}` shape is therefore the API's contract rather than the storage order. Both
+ * members are typed nullable because the resource publishes `?? null` for either, and the
+ * write rule (`StoreBookingRequest`) requires both as non-empty, so a half-filled element
+ * can only come from another writer.
+ */
+export type LampiranKeluhan = {
+    nama: string | null;
+    url: string | null;
+};
+
+/**
+ * `booking.pasien` as `BookingResource` publishes it **only when the relation was
+ * eager-loaded**, which today means only on `GET /api/v1/dokter/booking`.
+ *
+ * The patient list loads `['dokter', 'jadwal']` and never `pasien`, so a patient reading
+ * their own bookings gets no `pasien` key at all - not `null`, absent. That is why this is
+ * optional rather than nullable.
+ *
+ * `nik` is **always masked** by `App\Support\NikMasker`, for the same reason and with the
+ * same consequences as {@link PasienProfile.nik}: it is not a NIK, it is not editable, and
+ * no operation in this client can unmask it.
+ */
+export type BookingPasien = {
+    id: number;
+    /** Masked: first four characters, U+2022 bullets, last four. Never a bare NIK. */
+    nik: string | null;
+    nama_lengkap: string | null;
+};
+
+/**
+ * One `booking` row, transcribed field by field from `App\Http\Resources\BookingResource`.
+ *
+ * The three fields that most often get typed wrongly are called out here because each has
+ * been measured against the live API rather than inferred:
+ *
+ * - `slot_mulai` / `slot_selesai` are **strings**, not `Date`s. `booking.slot_mulai` is
+ *   `TIME NOT NULL` (`:508`) and `Booking` declares no cast for either, so
+ *   `BookingResource` publishes the raw `H:i:s` string. Observed on the wire as
+ *   `"09:00:00"` / `"09:15:00"`. These are **Asia/Jakarta wall clock** and are never
+ *   zone-converted, so handing them to `new Date(...)` would shift the displayed time by
+ *   the reader's offset - which is the entire reason `formatWaktu` is the wrong formatter
+ *   for them and `formatJam` is the right one.
+ * - `nomor_antrian` is `number | null` and is **null in practice**. The DDL declares the
+ *   column and nothing enforces it, so a newly created booking publishes `null`. A UI that
+ *   renders it as though it were assigned shows a blank where a number belongs.
+ * - `tanggal_kunjungan` is `toDateString()`, so `Y-m-d` and a calendar date, never an
+ *   instant. It is the **consultation date**, which is the day `StrBerlaku` evaluates the
+ *   doctor's licence against and never today.
+ */
+export type Booking = {
+    id: number;
+    /** `BK<Ymd><suffix>`, e.g. `BK20261028P8UTGR`; `VARCHAR(30) UNIQUE` at `:500`. */
+    nomor_booking: string;
+    pasien_id: number;
+    /** `NULL` means "for the patient themselves", which is the common case. */
+    anggota_keluarga_id: number | null;
+    dokter_id: number;
+    /**
+     * `NULL` on an instant booking. Observed `null` for a doctor with no
+     * `dokter_jadwal` row, which is the case the `dokter` row lock exists for.
+     */
+    jadwal_id: number | null;
+    /** `NULL` for an instant booking: the venue is not part of a telemedicine slot. */
+    faskes_id: number | null;
+    tipe_layanan: TipeLayanan;
+    /** `Y-m-d`. The CONSULTATION date. */
+    tanggal_kunjungan: Tanggal;
+    /** `H:i:s`, Asia/Jakarta wall clock, uncast. */
+    slot_mulai: string;
+    /** `H:i:s`, Asia/Jakarta wall clock, uncast. */
+    slot_selesai: string;
+    nomor_antrian: number | null;
+    keluhan: string | null;
+    lampiran_keluhan: LampiranKeluhan[] | null;
+    is_rujukan: boolean;
+    is_konsultasi_lanjutan: boolean;
+    status: StatusBooking;
+    dibatalkan_oleh: DibatalkanOleh | null;
+    alasan_pembatalan: string | null;
+    dibuat_oleh_user_id: number;
+    dibuat_at: Iso;
+    /** Present only on the doctor-side list. See {@link BookingPasien}. */
+    pasien?: BookingPasien;
 };

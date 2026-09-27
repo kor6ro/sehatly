@@ -76,6 +76,46 @@ export function formatDecimal(value: Decimal, digits = 1): string {
 }
 
 /**
+ * A `TIME` column, published as `H:i:s` and never zone-shifted.
+ *
+ * ## Why this is not `formatWaktu`
+ *
+ * `booking.slot_mulai` and `booking.slot_selesai` are `TIME NOT NULL`, `Booking` declares
+ * no cast for either, and `SlotAvailabilityService` states the value is **Asia/Jakarta wall
+ * clock** that is never converted. A `TIME` is not an instant: it is a time of day on a day
+ * the reader already knows from `tanggal_kunjungan` beside it.
+ *
+ * `new Date("09:00:00")` parses as **today at 09:00 UTC**, so `formatWaktu` on a slot would
+ * print a different hour for every reader outside UTC+7 and would imply a date the row does
+ * not have. That is the same calendar-date argument `formatTanggal` makes about `DATE`, and
+ * it is why this function exists as a separate one rather than as a flag.
+ *
+ * The seconds are dropped: a published slot is on a whole minute, and a bare `09:15` reads
+ * as a consultation start where `09:15:00` reads as a database value. A malformed value is
+ * returned unchanged for the reason `formatWaktu` returns it unchanged.
+ */
+export function formatJam(value: string | null): string {
+    if (value === null || value === '') {
+        return '-';
+    }
+
+    const parts = value.split(':');
+
+    if (parts.length < 2 || !/^[0-9]{2}$/.test(parts[0] ?? '')) {
+        return value;
+    }
+
+    const jam = Number(parts[0]);
+    const menit = Number(parts[1]);
+
+    if (!Number.isFinite(jam) || !Number.isFinite(menit)) {
+        return value;
+    }
+
+    return `${String(jam).padStart(2, '0')}:${String(menit).padStart(2, '0')}`;
+}
+
+/**
  * A `DATE` column, published as `Y-m-d` and never zone-shifted.
  *
  * Parsed by splitting the string rather than by handing it to `new Date(string)`: a

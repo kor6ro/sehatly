@@ -11,6 +11,9 @@ import { FamilyPage } from '@/pages/family-page';
 import { AllergyPage } from '@/pages/allergy-page';
 import { DoctorDirectoryPage } from '@/pages/doctor-directory-page';
 import { DoctorDetailPage } from '@/pages/doctor-detail-page';
+import { MyBookingsPage } from '@/pages/my-bookings-page';
+import { BookingCreatePage } from '@/pages/booking-create-page';
+import { DoctorBookingsPage } from '@/pages/doctor-bookings-page';
 
 /**
  * The route table.
@@ -76,6 +79,29 @@ export const router = createBrowserRouter([
                             { path: '/profil', element: <ProfilePage /> },
                             { path: '/profil/keluarga', element: <FamilyPage /> },
                             { path: '/profil/alergi', element: <AllergyPage /> },
+
+                            /**
+                             * Module 2. All three sit inside `RequireAuth` and therefore
+                             * inside `AppShell`, because all four booking endpoints
+                             * carry `auth:sanctum` and a `permission:` - unlike `/dokter`
+                             * above, which is deliberately public.
+                             *
+                             * `/booking/:dokterId` carries the doctor's id as a `string`,
+                             * not a number, so a non-numeric segment produces the API's own
+                             * 404 envelope rather than a `NaN` reaching `dokter_id`. The
+                             * order matters and is not cosmetic: `/booking` is a literal and
+                             * `/booking/:dokterId` has a parameter, and the literal is
+                             * registered first so it is never swallowed by the parameter.
+                             */
+                            { path: '/booking', element: <MyBookingsPage /> },
+                            {
+                                path: '/booking/:dokterId',
+                                element: <BookingCreatePage />,
+                            },
+                            {
+                                path: '/dokter/booking',
+                                element: <DoctorBookingsPage />,
+                            },
                         ],
                     },
                 ],

@@ -251,6 +251,24 @@ export class ApiError extends Error {
         return this.status === 422;
     }
 
+    /**
+     * A 422 reporting that the requested booking slot is gone.
+     *
+     * `SlotTakenException` has six factories and five of them key their message under
+     * `slot`; the sixth, `nomorHabis()`, keys under `nomor_booking` instead and is
+     * deliberately **not** matched here, because "the slot filled up" and "we could not
+     * mint a document number" need different advice to the patient.
+     *
+     * The semantics are deliberately identical to `ApiException.isSlotTaken` in
+     * `packages/sehatly_api_client`, which is the pure-Dart client the mobile team
+     * imports: status 422 **and** a top-level `slot` key in `errors`, never a message
+     * match. Two clients classifying the same failure differently is the defect this
+     * prevents.
+     */
+    get isSlotTaken(): boolean {
+        return this.isValidation && Object.hasOwn(this.errors, 'slot');
+    }
+
     get isUnauthorized(): boolean {
         return this.status === 401;
     }

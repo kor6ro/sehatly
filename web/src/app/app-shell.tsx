@@ -1,5 +1,7 @@
 import { NavLink, Outlet, useNavigate } from 'react-router';
 import {
+    CalendarDays,
+    ClipboardCheck,
     ClipboardList,
     HeartPulse,
     LogOut,
@@ -181,6 +183,40 @@ function AppSidebar() {
                                     <Stethoscope />
 
                                     Direktori dokter
+                                </NavLink>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
+                    </SidebarMenu>
+                </SidebarGroup>
+
+                {/**
+                 * Booking is shown to every signed-in account, not only to patients,
+                 * because `GET /api/v1/dokter/booking` is a real doctor-side surface and
+                 * `tipe:dokter` is the only thing separating the two. Hiding it from a
+                 * doctor would hide the one list they can actually read, and showing it to
+                 * a patient costs them a 403 screen that explains why - which is the
+                 * server's own contract, not a client-side guess.
+                 */}
+                <SidebarGroup>
+                    <SidebarGroupLabel>Booking</SidebarGroupLabel>
+
+                    <SidebarMenu>
+                        <SidebarMenuItem>
+                            <SidebarMenuButton asChild>
+                                <NavLink to="/booking">
+                                    <CalendarDays />
+
+                                    Booking saya
+                                </NavLink>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
+
+                        <SidebarMenuItem>
+                            <SidebarMenuButton asChild>
+                                <NavLink to="/dokter/booking">
+                                    <ClipboardCheck />
+
+                                    Booking masuk
                                 </NavLink>
                             </SidebarMenuButton>
                         </SidebarMenuItem>

@@ -3,6 +3,7 @@ import { AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
@@ -139,6 +140,35 @@ export function FieldInput({ className, ...props }: ComponentProps<typeof Input>
     );
 }
 
+/**
+ * A `Textarea` already wired to its `Field`.
+ *
+ * Added by Module 2, which is the first todo whose forms need a multi-line input - and
+ * the only honest way it exists, because `Field`'s `Label` points at the generated `id`
+ * and a bare `<Textarea>` spread with `register()` carries no `id` at all. A `Keluhan`
+ * control no screen reader can reach is the defect this prevents.
+ *
+ * Forwarded refs are what make `register()` work on it: `useForm` attaches its `ref` to
+ * the element, so this forwards everything `Textarea` forwards.
+ */
+export function FieldTextarea({
+    className,
+    rows,
+    ...props
+}: ComponentProps<typeof Textarea>) {
+    const control = useFieldControl();
+
+    return (
+        <Textarea
+            id={control.id}
+            aria-invalid={control.invalid || undefined}
+            aria-describedby={control.describedBy}
+            className={className}
+            rows={rows}
+            {...props}
+        />
+    );
+}
 /**
  * A `Select` already wired to its `Field`.
  *
