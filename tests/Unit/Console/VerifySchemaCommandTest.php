@@ -24,11 +24,17 @@ test('the verifier exits 1 and names every table the migrations have not created
 
     // Every missing table is named, not merely counted. This is the plan's
     // criterion 2: "it exits 1 and names the offending table/column".
-    foreach (['master_provinsi', 'users', 'booking', 'ulasan_dokter', 'persetujuan_pdp'] as $table) {
+    //
+    // Batch-B state (todo 8): 19 of the 75 tables now exist in
+    // `telemedisin_db_test` (11 batch-A masters + 8 batch-B tables), so the
+    // named tables must all be ones later batches still own — `master_provinsi`
+    // and `users` are present and must NOT appear here. Re-point this list
+    // again when todos 9-17 land their tables.
+    foreach (['pasien', 'booking', 'ulasan_dokter', 'persetujuan_pdp', 'audit_log'] as $table) {
         expect($output)->toMatch('/missing_table\s+'.$table.'\b/', 'the report must name '.$table);
     }
 
-    expect(substr_count($output, 'missing_table'))->toBe(75);
+    expect(substr_count($output, 'missing_table'))->toBe(56); // 75 - 19 created
     expect($output)->toMatch('/missing_view\s+v_dokter_katalog\b/');
     expect($output)->toMatch('/missing_view\s+v_pendapatan_bulanan\b/');
 });
@@ -48,12 +54,20 @@ test('the JSON report is machine-readable, and its exit code matches its verdict
     expect($json['live']['database'])->toBe('telemedisin_db_test');
     expect($json['reference']['md5'])->toBe(md5_file(base_path('telemedicine_test.sql')));
     expect($json['drift_count'])->toBeGreaterThan(0);
-    expect($json['drift_count'])->toBe($json['discrepancy_count']);
+
+    // Batch-B state (todo 8): the seven documented extra tables
+    // (`docs/schema-notes.md`) are present in `telemedisin_db_test` and read as
+    // informational, so drift and discrepancy totals legitimately differ — by
+    // exactly the registry size. On a 0-table database both totals agreed and
+    // this line read `toBe($json['discrepancy_count'])`; that form can never
+    // pass again while the extras exist, so pin the decomposition instead of
+    // dropping the check.
+    expect($json['discrepancy_count'] - $json['drift_count'])->toBe(7);
 
     $missing = array_values(array_filter($json['discrepancies'], fn ($d) => $d['kind'] === 'missing_table'));
-    expect($missing)->toHaveCount(75);
+    expect($missing)->toHaveCount(56); // 75 - 19 created (11 batch A + 8 batch B)
     expect(array_column($missing, 'table'))
-        ->toContain('master_provinsi', 'booking', 'ulasan_dokter', 'persetujuan_pdp');
+        ->toContain('pasien', 'booking', 'ulasan_dokter', 'persetujuan_pdp');
 
     // Proof the parser is not vacuous, carried in the machine-readable channel too.
     expect($json['multi_line_column_declarations'])->toHaveCount(11);
@@ -61,11 +75,15 @@ test('the JSON report is machine-readable, and its exit code matches its verdict
 });
 
 test('the scope can be narrowed to a single table, and the narrow run still names the offender', function () {
-    $exitCode = Artisan::call('sehatly:verify-schema', ['--tables' => 'master_provinsi']);
+    // Batch-B state (todo 8): `master_provinsi` exists in `telemedisin_db_test`
+    // now, so scoping to it exits 0 and cannot prove the narrow run names an
+    // offender. Scope to `booking` — still uncreated until a later batch — to
+    // keep the exit-1-and-names-it teeth. Re-point when booking lands.
+    $exitCode = Artisan::call('sehatly:verify-schema', ['--tables' => 'booking']);
     $output = Artisan::output();
 
     expect($exitCode)->toBe(1);
-    expect($output)->toContain('master_provinsi');
+    expect($output)->toContain('booking');
     expect($output)->toContain('scope');
     expect($output)->toContain('FAIL');
 });

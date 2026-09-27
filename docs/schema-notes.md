@@ -272,3 +272,30 @@ as drift. The deliberate folds are:
   work.
 - **Never pass `bootstrap` or `.` to pint.** Naming that path overrides pint's cache
   exclude and it reformats `bootstrap/cache/*.php`. Bare `vendor/bin/pint` is safe.
+
+## Batch-B schema limitations the database cannot enforce (todos 8, 20, 45)
+
+Batch B (`users`, `roles`, `permissions`, `role_permissions`, `user_roles`,
+`user_otp`, `user_devices`, `user_refresh_tokens` — SQL tables 12–19) is at
+parity, but four of its shapes push work into the application layer. Each is
+recorded here with a one-line justification, because each looks like an
+omission a later reader would "fix" — and the verifier would report every such
+fix as drift:
+
+- `user_refresh_tokens.token_hash` (`:207`) carries **no UNIQUE**: rotation
+  cannot look a token up by index, so every refresh is a full table scan and
+  the rotation flow must do an application-level
+  `WHERE token_hash = ?` existence check inside the rotation transaction —
+  this is the model todo 45's idempotency work builds on.
+- `user_refresh_tokens` has **no `device_id` column**: there is no column to
+  scope a `dicabut` update to one device, so per-device token revocation is
+  impossible — revocation is always per user (all tokens) or per token (one
+  row). Adding the column would be drift.
+- `user_otp` has **no attempt-counter column**: the schema records
+  `sudah_dipakai` and `kedaluwarsa_at` but nothing counts guesses, so OTP
+  brute-force protection is application-only and lives entirely in todo 20's
+  rate limiter.
+- `users.kata_sandi_hash` (`:138`) is `NOT NULL` with **no nullable or
+  OTP-only representation**: an OTP-only signup (phone number, no password)
+  must still generate a random unusable hash, because the column cannot hold
+  "no password yet".
