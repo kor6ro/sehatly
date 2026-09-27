@@ -387,3 +387,48 @@ seven from the live migration set, so the count is re-proved on every run rather
 than pinned. The deferred-constraint registry is derived the same way and re-proved
 on every run by `tests/Unit/Schema/SchemaDifferDeferredConstraintTest.php` and
 `tests/Unit/Console/VerifySchemaDeferredConstraintTest.php`.
+
+## Batch-D schema facts the database cannot enforce (todo 10)
+
+Batch D (`faskes`, `faskes_layanan`, `master_spesialisasi`, `dokter`,
+`dokter_spesialisasi`, `dokter_faskes`, `dokter_pendidikan` — SQL tables 28–34) is
+at parity and **owes no deferred constraint**: all ten of its foreign keys point at
+a table that already exists by the time its own migration runs
+(`master_provinsi` / `master_kabupaten_kota` / `master_kecamatan` from batch A,
+`users` from batch B, and `faskes` / `dokter` / `master_spesialisasi` from inside
+the batch), so the *Deferred constraints* table above is unchanged and still holds
+exactly one row. Four facts are still worth carrying forward, because each looks
+like something the schema guarantees and is not.
+
+- **`pasien_penjamin.faskes_rujukan_id` remains unconstrained now that `faskes`
+  exists.** Its bareness was never an ordering artefact, and after this batch that
+  argument is gone entirely: `faskes` is table 28, immediately after the batch-C
+  migration that created the column. Appendix A.10 / A.11 settled it and the DDL
+  declares no `FOREIGN KEY` for it (`:346`); adding one now is
+  `extra_foreign_key` drift. **Migration `2026_10_01_000076` must not add it.**
+- **A `dokter` row may be `status_aktif = 1` *and* `status_verifikasi = 'pending'`.**
+  `:427` defaults the verification status to `'pending'` and `:430` defaults
+  `status_aktif` to `1`, and nothing couples them, so a freshly inserted doctor is
+  active-but-unverified and "only verified doctors are listed" is an application
+  rule rather than a constraint. Todo 22 encodes it in `v_dokter_katalog`
+  (`:1170-1187`); any query against `dokter` directly must reproduce **both**
+  predicates or it leaks unverified doctors into the public directory.
+- **`master_spesialisasi.tipe` and `dokter.tipe` are different vocabularies.** The
+  first is `('dokter_umum','spesialis','subspesialis')` (`:406`), the second
+  `('dokter_umum','dokter_spesialis','dokter_gigi','psikolog','bidan','perawat',
+  'apoteker')` (`:412`). They share exactly one member, so `'spesialis'` is **not**
+  `'dokter_spesialis'` and a string comparison between the two matches nothing.
+  There is no mapping table, so any translation is hand-written service-layer
+  code — relevant to todo 22, which filters the directory by both `spesialisasi`
+  and `tipe`.
+- **`is_utama` is a flag the schema does not police.** `dokter_spesialisasi` (`:441`)
+  and `dokter_faskes` (`:450`) both have `is_utama TINYINT(1) NOT NULL DEFAULT 0`,
+  and the `(dokter_id, spesialisasi_id)` uniqueness on the former stops duplicate
+  *rows* but nothing stops two rows of the same doctor both having `is_utama = 1`
+  (or none at all). "At most one primary specialisation / facility" is therefore an
+  application-level invariant, and `GET /dokter/{id}` (todo 22) has to break the
+  tie itself.
+
+The extra-table registry still has exactly seven entries after todo 10, for the
+same reason as after todo 9: no batch-D migration creates a table outside the
+75-table contract. The unit suite re-derives that seven on every run.
