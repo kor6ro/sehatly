@@ -822,6 +822,11 @@ re-running anything.
 
 ## 14. Committed paths
 
+Two commits, both on `feat/sehatly-telemedicine`.
+
+**`b8c23ac` — `feat(api): add the public doctor directory backed by v_dokter_katalog`**
+(9 files, 3202 insertions; the implementation and the tests):
+
 ```
 app/Services/Dokter/DokterKatalog.php
 app/Services/Dokter/DokterDirectoryService.php
@@ -834,8 +839,19 @@ tests/Feature/Dokter/DokterDirectoryTest.php
 .omo/evidence/task-22-sehatly.md
 ```
 
-`routes/api.php` and `app/Support/ApiResponse.php` are **not** in this commit. Neither
+**`88155a9` — `docs(m1): correct the route-block heading and flag the v1-prefix trap`**
+(1 file, 53 insertions; documentation only, no code/test/route/schema file touched):
+
+```
+.omo/evidence/task-22-sehatly.md
+```
+
+`routes/api.php` and `app/Support/ApiResponse.php` are **not** in either commit. Neither
 `app/Models/`, `app/Support/Rbac/`, `app/Services/Auth/`, `AuthController.php`,
 `database/migrations/`, `database/seeders/` nor `database/factories/` was touched.
 `telemedicine_test.sql` is byte-identical at SHA-256
 `AEFE2247E00F09ACB02235168AC289CDFA74F762D604ADA71F68E328574B27F5`.
+
+Both commits used an **explicit pathspec**. `git add -A` was never run, and the staged
+set was checked to be exactly 9 files before the first commit and exactly 1 before the
+second, so neither picked up the concurrently-arriving todo-21 work.
