@@ -31,13 +31,18 @@ use Illuminate\Support\Facades\Route;
 |
 | ## The rate limiter names are prefixed, and that is load-bearing
 |
-| `FortifyServiceProvider` already registers a named limiter called `login`,
-| which reads `$request->session()` -- a call that does not exist on the
-| stateless `api` group. Registering `login` again here would either overwrite
-| Fortify's (silently removing the web form's throttling) or be overwritten by it
-| (leaving this endpoint unthrottled), depending on provider order. `auth-*`
-| can collide with nothing in the framework, and todo 52 widens this vocabulary
-| for the rest of the sensitive surface.
+| Every limiter below is named `auth-*` rather than `login`, `two-factor` or
+| `passkeys`. Those three names belonged to the Fortify scaffold, which
+| `App\Providers\FortifyServiceProvider` registered and which read
+| `$request->session()` -- a call that does not exist on the stateless `api`
+| group. Registering the same name in both places would either overwrite the
+| scaffold's (silently removing the web form's throttling) or be overwritten by
+| it (leaving this endpoint unthrottled), depending on provider order. Todo 30
+| deleted Fortify and with it the collision, so the prefix is now historical
+| rather than load-bearing; the names are unchanged because `routes/api.php`
+| already spells them and a rename would buy nothing but a second chance to
+| mistype one. `auth-*` can collide with nothing in the framework, and todo 52
+| widens this vocabulary for the rest of the sensitive surface.
 |
 | The three limits are the plan's: 10/min on the OTP-sending endpoint, 5/min on
 | login, 5/min on OTP verify. `user_otp` has **no attempt-counter column**, so
@@ -207,6 +212,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
 });
 
 use App\Http\Controllers\Api\V1\DokterController;
+
 /*
 |--------------------------------------------------------------------------
 | Module 1 -- the public doctor directory. Three routes, and NONE of them is

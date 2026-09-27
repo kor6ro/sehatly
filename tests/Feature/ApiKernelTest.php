@@ -25,6 +25,15 @@ use Tests\TestCase;
  *
  * No database is touched: the kernel is reached before any model or query, so the
  * test is safe to run against an empty `telemedisin_db_test`.
+ *
+ * **Todo 30 rewrote one precondition in this file rather than deleting the test.**
+ * `test_unauthenticated_request_renders_401_envelope_without_redirecting_to_login`
+ * used to assert `Route::has('login')` was **true** as the reason its 401
+ * assertion meant anything - "otherwise this test proves nothing", because
+ * Fortify had registered the route the framework would otherwise redirect to.
+ * Deleting Fortify falsifies that, so the precondition is now the opposite claim
+ * (no named authentication route exists) and the `Location` assertion is
+ * unchanged.
  */
 class ApiKernelTest extends TestCase
 {
@@ -122,13 +131,21 @@ class ApiKernelTest extends TestCase
         $response->assertStatus(401);
         $response->assertHeader('Content-Type', 'application/json');
 
-        // The redirect target really does exist, so a 302 here would be reachable:
-        // Fortify registered the `login` route and Laravel's default
-        // `unauthenticated()` fallback would send the client to it.
-        $this->assertTrue(
+        // Todo 30 removed Fortify, so there is no longer a `login` route for the
+        // framework's `unauthenticated()` fallback to name. The precondition this
+        // assertion used to carry - "the redirect target really does exist, so a
+        // 302 here would be reachable" - was true at the time it was written and
+        // would have become false silently, which is the shape of a test that
+        // stops testing anything. It is restated in the only direction that stays
+        // true as the application grows: **no** named authentication route exists
+        // that a browser could be sent to, so a 302 could not be produced even in
+        // principle. `WebSurfaceTest` asserts the same absence across the whole
+        // route table and the deleted files' paths.
+        $this->assertFalse(
             Route::has('login'),
-            'Expected Fortify to have registered a login route, otherwise this test proves nothing.'
+            'A named login route exists again, so the 401 must be re-checked for a Location header.'
         );
+        $this->assertFalse(Route::has('password.confirm'), 'An authentication route reappeared.');
 
         $this->assertNull(
             $response->headers->get('Location'),

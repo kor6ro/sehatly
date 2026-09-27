@@ -31,7 +31,6 @@ use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as AuthenticatableModel;
 use Illuminate\Notifications\Notifiable;
-use Laravel\Fortify\Contracts\PasskeyUser;
 use Laravel\Sanctum\HasApiTokens;
 use Tests\TestCase;
 
@@ -807,7 +806,39 @@ test('User keeps the auth stack and drops the scaffold contracts', function () {
     // `telepon_terverifikasi` / `email_terverifikasi`, not an `email_verified_at`,
     // and there are no `two_factor_*` or passkey columns at all.
     expect($model instanceof MustVerifyEmail)->toBeFalse();
-    expect($model instanceof PasskeyUser)->toBeFalse();
+
+    // **This line used to be vacuous and todo 30 is why.** It read
+    // `expect($model instanceof PasskeyUser)->toBeFalse()` against
+    // `Laravel\Fortify\Contracts\PasskeyUser`, and `instanceof` against a class
+    // that does not exist is simply false - it cannot fail, so it proved nothing
+    // while reading as if it proved something. Todo 30 uninstalled the package
+    // that declared the interface, so the honest replacement is to assert the
+    // interface is gone and then to pin the model's implemented-interface list
+    // exactly, which DOES fail if any contract is added.
+    expect(interface_exists('Laravel\Fortify\Contracts\PasskeyUser'))->toBeFalse();
+
+    // The same argument applies to every other Fortify contract the scaffold
+    // model implemented; each is asserted absent by name rather than by
+    // `instanceof`, which would be equally vacuous, and the check is over the
+    // model's real interface list so re-adding one would fail here.
+    $implemented = array_values(class_implements($model));
+
+    foreach ([
+        'Laravel\Fortify\PasskeyAuthenticatable',
+        'Laravel\Fortify\TwoFactorAuthenticatable',
+        'Laravel\Fortify\Contracts\TwoFactorAuthenticatable',
+        'Laravel\Fortify\Contracts\PasskeyUser',
+    ] as $removed) {
+        expect(interface_exists($removed))->toBeFalse($removed.' still exists.');
+        expect($implemented)->not->toContain($removed);
+    }
+
+    // The two the model legitimately keeps, so the list above is a subtraction
+    // rather than an emptiness: `Authenticatable` is the whole point of the
+    // class, and `CanResetPassword` arrives with
+    // `Illuminate\Foundation\Auth\User` rather than being added here.
+    expect($implemented)->toContain(Authenticatable::class)
+        ->and($implemented)->toContain('Illuminate\Contracts\Auth\CanResetPassword');
 
     $used = class_uses_recursive(User::class);
     foreach ([HasApiTokens::class, Notifiable::class, SoftDeletes::class] as $trait) {

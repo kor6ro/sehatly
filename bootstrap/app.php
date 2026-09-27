@@ -2,8 +2,6 @@
 
 use App\Http\Middleware\EnsurePermission;
 use App\Http\Middleware\EnsureUserType;
-use App\Http\Middleware\HandleAppearance;
-use App\Http\Middleware\HandleInertiaRequests;
 use App\Support\ApiResponse;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
@@ -12,7 +10,6 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Validation\ValidationException;
@@ -52,13 +49,82 @@ return Application::configure(basePath: dirname(__DIR__))
         apiPrefix: 'api/v1',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
+        /*
+        |--------------------------------------------------------------------
+        | Guests are never redirected
+        |--------------------------------------------------------------------
+        |
+        | **This line is load-bearing and its removal is a 500 on every
+        | unauthenticated API request.**
+        |
+        | `ApplicationBuilder::withMiddleware()` registers a default guest
+        | redirect of `fn () => route('login')` before this callback runs -
+        | `vendor/laravel/framework/src/Illuminate/Foundation/Configuration/ApplicationBuilder.php:291`.
+        | Fortify was the package that made `route('login')` resolve, and todo 30
+        | removed it. The failure was found by three **green** baseline tests, not
+        | by the eleven red ones: an unauthenticated `POST /api/v1/...` behind
+        | `auth:sanctum` reached
+        | `Illuminate\Auth\Middleware\Authenticate::redirectTo()`
+        | (`.../Authenticate.php:104`), which called that closure, which threw
+        | `RouteNotFoundException: Route [login] not defined`. The middleware's own
+        | `AuthenticationException` never got thrown, so the render callback below
+        | never saw it, and the client received a sanitised **500** where the whole
+        | contract promises a 401.
+        |
+        | `redirectGuestsTo(null)` is the framework's own opt-out
+        | (`.../Configuration/Middleware.php:539`): it installs `fn () => null`, so
+        | `redirectTo()` returns null, `Authenticate::unauthenticated()` throws the
+        | `AuthenticationException` it always meant to throw, and the renderer
+        | turns it into `{"success":false,"message":"Unauthenticated.","errors":{}}`.
+        |
+        | There is deliberately no replacement URL. A bearer-token API has no page
+        | to send a caller to, and inventing one - `/login` on this application is
+        | now the SPA's client-side route, which a 302 to it would defeat - would
+        | reintroduce exactly the redirect `ApiKernelTest` asserts is absent.
+        |
+        */
 
-        $middleware->web(append: [
-            HandleAppearance::class,
-            HandleInertiaRequests::class,
-            AddLinkHeadersForPreloadedAssets::class,
-        ]);
+        $middleware->redirectGuestsTo(null);
+
+        /*
+        |--------------------------------------------------------------------
+        | The web group appends nothing
+        |--------------------------------------------------------------------
+        |
+        | Todo 30 removed the three entries that used to be here, and each was
+        | removed for a reason that is checkable rather than a matter of taste:
+        |
+        | - `HandleInertiaRequests` and `HandleAppearance` extended or read the
+        |   Inertia root template that `resources/views/app.blade.php` no longer
+        |   is. Inertia itself is uninstalled, so the second class no longer had
+        |   a parent to extend.
+        | - `Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets` is not
+        |   an Inertia class, and is kept in stock Laravel apps for the HTML
+        |   surface. It was dropped here because it is now provably inert:
+        |   `AddLinkHeadersForPreloadedAssets::handle()`
+        |   (`vendor/laravel/framework/src/Illuminate/Http/Middleware/AddLinkHeadersForPreloadedAssets.php:33`)
+        |   only writes a `Link` header when `Vite::preloadedAssets()` is
+        |   non-empty, and that list is filled solely by the `@vite` and
+        |   `@preload` Blade directives. The SPA shell in `routes/web.php`
+        |   serves a prebuilt `index.html` and emits no Vite tag, so the
+        |   condition can never be true and the middleware could never act.
+        |
+        | `encryptCookies()` is no longer called with an exception list either.
+        | Its two names, `appearance` and `sidebar_state`, were the only cookies
+        | the Inertia scaffold read: `HandleAppearance` shared `appearance` into
+        | the view, and `HandleInertiaRequests::share()` read `sidebar_state`.
+        | Both classes are gone and nothing else in the application reads either
+        | cookie, so leaving them unencrypted would be an exemption with no reader
+        | behind it. Laravel's default exception list is empty, which is the
+        | behaviour wanted here.
+        |
+        | The group is left at the framework default. The `web` group still
+        | starts a session and shares validation errors, and the SPA shell
+        | still runs through it, but nothing in this application reads session
+        | state any more: `/api/v1` is bearer-token authenticated and lives in the
+        | stateless `api` group.
+        |
+        */
 
         /*
         |--------------------------------------------------------------------
@@ -99,8 +165,10 @@ return Application::configure(basePath: dirname(__DIR__))
         | evaluated first and does not consult the `Accept` header at all, which is
         | what guarantees an `api/*` caller that sends no `Accept: application/json`
         | still gets JSON rather than an HTML error page. `expectsJson()` is kept
-        | as the second disjunct so XHR callers outside the prefix are unaffected
-        | until todo 30 removes the Inertia surface.
+        | as the second disjunct so an XHR caller outside the prefix still gets
+        | JSON: the SPA is served from this same origin in the same-origin
+        | deployment `routes/web.php` supports, so its `fetch` calls are XHR and
+        | may legitimately be addressed without the `api/` prefix.
         |
         */
 
@@ -116,15 +184,20 @@ return Application::configure(basePath: dirname(__DIR__))
         | One callback renders every `api/*` failure so a client never has to
         | parse a second body shape depending on which layer raised the error.
         | Returning `null` for non-API paths hands the exception back to Laravel's
-        | default handler, leaving the Inertia/HTML surface working.
+        | default handler, which now only ever sees the SPA shell in
+        | `routes/web.php` and its health check.
         |
         | This is registered on `render()` rather than on `shouldRenderJsonWhen()`
         | because of ordering inside `Handler::render()`: `renderViaCallbacks()`
         | runs *before* the `unauthenticated()` fallback that 302s a browser to
-        | `/login`, and before `renderExceptionResponse()`. Owning the response
-        | here is therefore the only way to stop a Fortify-style redirect from
-        | ever reaching an `api/*` client, and the only way to stop the default
-        | 500 from serialising the throwable.
+        | a login page, and before `renderExceptionResponse()`. Owning the response
+        | here is therefore the only way to stop a redirect from ever reaching an
+        | `api/*` client, and the only way to stop the default 500 from
+        | serialising the throwable. Since todo 30 removed Fortify there is no
+        | named `login` route for that fallback to name, so a browser hitting an
+        | `api/*` path without a token gets the 401 envelope below and not a
+        | redirect. `ApiKernelTest` asserts the absence of the route as well as
+        | the absence of the header, so the property cannot rot back.
         |
         | Status mapping: 422 validation, 401 unauthenticated, 403 unauthorized,
         | 404 not found, and a sanitized 500 for everything else.

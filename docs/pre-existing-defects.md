@@ -346,3 +346,123 @@ stops writing to the legacy database, and that switch should be a conscious
 choice, not a side effect of a database-provisioning commit. Once flipped,
 `php artisan migrate` will populate the empty `telemedisin_db`; `sehatly`
 remains on disk as a recoverable fallback.
+
+---
+
+## 6. Todo 30 - section 3.4 resolved, and what replaced it
+
+Section 3.4 recorded that the Laravel starter kit's auth scaffolding had been
+deleted while its replacements - `FortifyServiceProvider`, `config/fortify.php`,
+`config/inertia.php`, `SecurityController`, `HandleAppearance` and the passkey
+and 2FA React components - had been added in its place, and that the suite
+still contained `tests/Feature/Auth/*` and
+`tests/Feature/Settings/PasswordUpdateTest.php` referencing the deleted
+classes. It predicted "auth/password tests to fail against this baseline".
+
+Measured at the start of todo 30: **428 tests, 417 passed, 11 failed**, and
+every one of the 11 was in that predicted set. Todo 30 removed the scaffold for
+real, and the suite is now **416 tests, 416 passed, 0 failed**.
+
+### 6.1 Why those tests could not have passed
+
+Not "the classes were deleted" - the deeper reason is that the contract's
+`users` table cannot support them. `telemedicine_test.sql:132-149` declares
+`nama_lengkap`, `email`, `no_telepon`, `kata_sandi_hash`, `tipe`, `status`,
+`foto_profil`, `bahasa`, `telepon_terverifikasi`, `email_terverifikasi`,
+`last_login_at`, `dibuat_at`, `diubah_at` and `dihapus_at`. It declares **no**
+`password`, **no** `name`, **no** `email_verified_at`, **no** `remember_token`
+and **no** `two_factor_*` column, and there is no `password_reset_tokens` table
+anywhere in the schema or in either database. The scaffold's own tests wrote
+`User::factory()->create(['password' => ...])` and asserted
+`$user->email_verified_at`, which are MySQL 1054 by construction.
+
+### 6.2 Files removed, and the baseline each was checked against
+
+Every path below was verified present in the todo-1 baseline commit `b443f3b`
+before deletion, as the plan requires. `resources/js/{actions,routes,wayfinder}`
+were gitignored generated output and so appear in no commit; they are named in
+`b443f3b`'s `.gitignore`.
+
+| path | why |
+|---|---|
+| `app/Providers/FortifyServiceProvider.php` | every view it registered was `Inertia::render()`, and `Inertia\Inertia` no longer exists |
+| `app/Actions/Fortify/CreateNewUser.php`, `ResetUserPassword.php` | write `name` / `email_verified_at` / `password`, none of which exist |
+| `app/Concerns/PasswordValidationRules.php`, `ProfileValidationRules.php` | the two validation traits the two actions above needed |
+| `app/Http/Middleware/HandleInertiaRequests.php` | extended `Inertia\Middleware` |
+| `app/Http/Middleware/HandleAppearance.php` | shared the `appearance` cookie into the Inertia root view |
+| `app/Http/Controllers/Settings/ProfileController.php` | wrote `email_verified_at` (its line 36) and soft-deleted on a `password` check |
+| `app/Http/Controllers/Settings/SecurityController.php` | wrote `password`; its passkey query needs a `passkeys` table that does not exist |
+| `app/Http/Requests/Settings/*` (4 files) | validated `current_password` and `password` against columns that do not exist |
+| `config/fortify.php` | `use Laravel\Fortify\Features` - the class is gone |
+| `config/inertia.php` | configures the uninstalled adapter |
+| `routes/settings.php` | registered the settings, `appearance.edit` and `.well-known/passkey-endpoints` routes |
+| `resources/js/**` (62 tracked files plus 3 generated directories) | the whole Inertia page, layout, hook, type and component tree |
+| `vite.config.ts`, `tsconfig.json` | the root front-end build; its only entry was `resources/js/app.tsx` and its `tsconfig` `include` was `resources/js/**` |
+| `resources/views/app.blade.php` | **rewritten, not deleted** - see 6.4 |
+
+`config/auth.php` was deliberately **kept**. It is stock Laravel configuration
+and it declares the `users` Eloquent provider that both `auth:sanctum` and
+Sanctum resolve through.
+
+Composer packages removed: `inertiajs/inertia-laravel`, `laravel/fortify`,
+`laravel/passkeys`, `laravel/wayfinder`, and the 13 transitive packages that
+only they pulled in (including `web-auth/webauthn-lib`, `pragmarx/google2fa`
+and `symfony/serializer`). No `passkeys` migration was ever published, so no
+`passkeys` table existed and none of the 7 registered extra tables in
+`docs/schema-notes.md` is affected.
+
+### 6.3 The 11 failures, classified
+
+Each was classified as (a) a feature this contract deliberately does not have,
+(b) real behaviour reached through the wrong layer, or (c) a genuine bug. The
+full table, with the reason and the API test that already covers the behaviour,
+is in `.omo/evidence/task-30-sehatly.md` section 3. **Eleven were (a), two were
+(b), and none was (c).**
+
+### 6.4 `resources/views/app.blade.php` and the SPA shell
+
+The plan asked for the file to be rewritten as a bare shell with a
+`<div id="app">` and `@vite(['resources/js/app.tsx'])`. That was not done,
+because the premise had expired. The `@vite` argument no longer exists, and the
+manifest it would have read (`public/build/manifest.json`) had been stale since
+todo 5: it names `resources/css/app.css` and twelve
+`resources/js/pages/*.tsx` modules, none of which still exist, and its entry
+chunk calls `createInertiaApp()` against an uninstalled backend. The
+`resources/js` entry also no longer exists to be mounted - `web/src/main.tsx`
+is the SPA's entry and it has been since todo 5, and it mounts on `#root`, not
+`#app`.
+
+What the file is now: a bare shell with `<div id="root">`, no `@inertia`, no
+`@vite`, and no `$page`. It is rendered with a **503** and only when
+`web/dist/index.html` is absent, so a deployment that never built the SPA says
+so instead of serving a 200 that mounts nothing. When the build exists,
+`routes/web.php` serves the real `web/dist/index.html` byte for byte.
+
+### 6.5 One real bug, and it was not one of the 11
+
+Removing Fortify broke every unauthenticated API request.
+`ApplicationBuilder::withMiddleware()` registers a default guest redirect of
+`fn () => route('login')` at
+`vendor/laravel/framework/src/Illuminate/Foundation/Configuration/ApplicationBuilder.php:291`,
+and Fortify was the only thing that made `route('login')` resolve. Without it,
+`Illuminate\Auth\Middleware\Authenticate::redirectTo()` threw
+`RouteNotFoundException`, the middleware's own `AuthenticationException` was
+never thrown, the render callback in `bootstrap/app.php` never saw it, and an
+unauthenticated `POST /api/v1/...` answered a sanitised **500** where the whole
+contract promises a 401.
+
+It was caught by three tests that were **green** at the baseline -
+`ApiKernelTest::test_unauthenticated_request_renders_401_envelope_without_redirecting_to_login`,
+`ApiKernelTest::test_api_requests_render_json_even_without_an_accept_header` and
+`RbacMiddlewareTest`'s 401-envelope case - and by nothing among the 11. The fix
+is `$middleware->redirectGuestsTo(null)` in `bootstrap/app.php`, the framework's
+own opt-out, which installs `fn () => null` so the `AuthenticationException` is
+thrown and rendered as 401.
+
+The first of those three also had to be **rewritten**, not deleted. Its
+precondition was `assertTrue(Route::has('login'), '... otherwise this test
+proves nothing')` - an assertion that removal falsifies, and whose falsification
+would have turned a real regression into a red test. It now asserts the
+opposite, which is the property that stays true as the application grows: no
+named authentication route exists for a redirect to name.
+

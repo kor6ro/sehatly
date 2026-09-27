@@ -89,12 +89,16 @@ class AppServiceProvider extends ServiceProvider
      * password first -- so a limiter on "OTP send" is a limiter on registration, and an
      * unauthenticated caller cannot use it to have codes sent to somebody else's phone.
      *
-     * ## `login` is deliberately not the name
+     * ## Every name is `auth-*`, and the reason is now historical
      *
-     * `FortifyServiceProvider` already registers a named `login` limiter that reads
-     * `$request->session()`, which does not exist on the stateless `api` group.
-     * Registering the same name here would silently clobber one or the other depending
-     * on provider order. Every name below is `auth-*` for that reason.
+     * These were originally named to avoid colliding with the named `login` limiter
+     * that the now-deleted `FortifyServiceProvider` registered, which read
+     * `$request->session()` - a call that does not exist on the stateless `api` group,
+     * so registering the same name would have silently clobbered one or the other
+     * depending on provider order. Todo 30 removed Fortify, so that collision can no
+     * longer happen and `login` is free again. The `auth-*` names are kept rather than
+     * renamed: `routes/api.php` already spells them, and renaming them would buy
+     * nothing but a second chance to mistype a limiter name.
      */
     private function configureRateLimiting(): void
     {
