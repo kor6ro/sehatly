@@ -738,3 +738,268 @@ The extra-table registry still has exactly seven entries after todo 13, for the
 same reason as after todos 9, 10, 11 and 12: no batch-G migration creates a
 table outside the 75-table contract. The unit suite re-derives that seven on every
 run.
+
+## Batch-H schema limitations the database cannot enforce (todo 14)
+
+Batch H (`master_obat`, `obat_interaksi`, `resep`, `resep_item`,
+`resep_verifikasi`, `pesanan_obat`, `pesanan_obat_tracking`, `apotek_stok` — SQL
+tables 47–54) is at parity and **owes no deferred constraint**: all **15** of its
+foreign keys point at a table that already exists by the time its own migration
+runs (`pasien` 20 from batch C, `faskes` 28 and `dokter` 31 from batch D,
+`users` 12 from batch B, `konsultasi` 38 and `rekam_medis` 42 from batches F
+and G, and `master_obat` 47, `resep` 49 and `pesanan_obat` 52 from inside this
+batch, one row earlier in the same commit), so the *Deferred constraints* table
+above is unchanged and still holds exactly one row (`fk_vital_rm`, added by
+migration 76 per SQL section `[14]`, `:1161-1163`). **Batch H defers nothing and
+registers nothing.** The extra-table registry therefore still has exactly seven
+entries, and the unit suite re-derives that seven on every run.
+
+Five facts are recorded because each looks like something the schema guarantees and
+is not. Every one of them is invisible to `migrate:fresh`, to `php -l` and to a
+green test suite: all three of those were observed green over a mutation of the
+first one during this todo's own negative QA.
+
+- **`obat_interaksi.uq_interaksi` covers ONE DIRECTION ONLY, and the schema cannot
+  stop a row being written in either direction.** `UNIQUE KEY uq_interaksi
+  (obat_a_id, obat_b_id)` (`:739`) is a composite unique on an **ordered** pair, so
+  MySQL treats `(1, 2)` and `(2, 1)` as two distinct rows and the only duplicate
+  it rejects is a repeat of the *same* ordered pair. There is no
+  `CHECK (obat_a_id < obat_b_id)`, no unique on the reversed pair and no trigger.
+  **Todo 38's `ObatInteraksiService` MUST query both `(obat_a_id = :x AND
+  obat_b_id = :y)` and `(obat_a_id = :y AND obat_b_id = :x)`** — a single-direction
+  query returns half of the interactions that exist, with no error and no warning,
+  which is a pharmacovigilance hole rather than a bug report. **Todo 46 inherits
+  the same requirement**, because an interaction missed at dispensing time is an
+  interaction never warned about. And **any seeder MUST write canonical pairs with
+  `obat_a_id < obat_b_id`**: that is the only thing that makes a pair findable by a
+  one-direction query, and it is a convention with no enforcement behind it. SQL
+  section `[16]` inserts **no** `obat_interaksi` rows at all, so the first writer is
+  todo 18's `DevFixtureSeeder` or todo 38's own — the convention has to be
+  established there, and a mixed-direction table is undetectable by any query this
+  schema supports. Do **not** "fix" this by adding a unique on the reversed pair or
+  by reordering the columns: that is `extra_index` drift, and it still would not
+  prevent a row with `a > b`.
+- **`resep.berlaku_sampai` carries a seven-day validity as PROSE ONLY.** `berlaku_sampai
+  DATE NOT NULL` (`:755`) has the DDL comment `'E-resep berlaku 7 hari'` and
+  **nothing else**: no `DEFAULT`, no trigger, no generated column, no `CHECK`. MySQL
+  cannot express `DEFAULT (tanggal_resep + INTERVAL 7 DAY)` at all — a column
+  default must be a constant, and the expression form it does accept rejects
+  another column — so the interval exists in exactly two places and this file plus
+  the migration's own comment are them. **Todo 39's `ResepService` MUST write
+  `berlaku_sampai` explicitly as `tanggal_resep + 7 days`**, and **todo 46's
+  checkout MUST enforce it**, because nothing re-derives or re-checks it. The column
+  being `NOT NULL` with no default means an omitted value is impossible and a
+  *wrong* one is representable and silently changes what a pharmacist may legally
+  dispense. The interval runs from **`tanggal_resep`** (`:754`, a `DATETIME` the
+  prescriber supplies, which may legitimately differ from the row's insertion
+  time) and **not** from `dibuat_at`.
+- **`resep_item.obat_id` is NULLABLE BY DESIGN and `nama_obat` is a SNAPSHOT, so a
+  prescription line is not a join to the catalogue.** `obat_id BIGINT UNSIGNED NULL`
+  (`:770`) carries the comment `'NULL = racikan / obat non-katalog'`, and
+  `is_racikan` (`:776`) plus `racikan_nama` (`:777`) exist precisely to describe a
+  compounded preparation or a drug dispensed before it was catalogued — a
+  `NOT NULL` here would make racikan literally unrepresentable.
+  `nama_obat VARCHAR(255) NOT NULL` (`:771`) is an explicit snapshot of the name at
+  prescribing time, `NOT NULL` **even when `obat_id IS NULL`**, which is what makes
+  it a snapshot rather than a mirror. Three consequences:
+  1. **Todo 39's Resource MUST return `nama_obat` and MUST NOT substitute a live
+     join to `master_obat`.** A join silently rewrites historical prescriptions
+     when the catalogue is renamed and returns nothing for a racikan. `obat_id` may
+     be exposed as an id, never as a name source.
+  2. **Todo 38's interaction engine MUST skip every row where `obat_id IS NULL` and
+     MUST document that racikan are STRUCTURALLY UNCHECKABLE** — there is nothing to
+     join on, so such a line is *unexamined*, not low-risk. The same structural
+     reason makes allergy checking best-effort and failing open: `pasien_alergi.nama_alergen`
+     (`:278`) is free text and not a foreign key to `master_obat`.
+  3. Nothing keeps `nama_obat` and `master_obat.nama_generik` (`:711`) in step, and
+     they are not even the same column — the catalogue also has an optional
+     `nama_brand` (`:712`) — so the schema does not record which one was
+     snapshotted.
+- **`resep_verifikasi.resep_id` is `NOT NULL UNIQUE`, so a prescription is verified
+  exactly once, ever, and a rejection is TERMINAL.** `resep_id BIGINT UNSIGNED NOT
+  NULL UNIQUE` (`:788`, written inline so MySQL names the index `resep_id` and
+  `SchemaDiffer` compares it by semantics rather than by name) means a second row
+  for the same prescription cannot exist. **A re-verification is an `UPDATE` of the
+  existing row, not an `INSERT`** — an insert-then-catch-duplicate pattern throws
+  away the `catatan` the pharmacist just typed. And because the DDL records exactly
+  three outcomes (`:790`, `sesuai` / `ada_koreksi` / `ditolak`) with no second row
+  to move between them and no "returned for correction" member in `resep.status`
+  (`:751`–`:752`), **a rejected prescription cannot be revised and re-submitted**:
+  the rejection path is terminal and must be documented as such, not worked around.
+  Nothing records the prior outcome and there is no `dibuat_at`/`diubah_at` on the
+  table, so the same `UPDATE` also destroys the previous `diverifikasi_at` — a
+  pharmacist who corrects a rejection erases when they rejected it. The only
+  defensible mitigation is application-level (an audit sink such as `audit_log`,
+  table 73); a history column would be `extra_column` drift.
+- **`apotek_stok.jumlah_stok` and `apotek_stok.stok_minimum` are SIGNED `INT`, and
+  that is what makes oversell detectable.** Both are `INT NOT NULL DEFAULT 0`
+  (`:833`, `:834`) — **not** `INT UNSIGNED`, unlike `resep_item.jumlah`
+  (`SMALLINT UNSIGNED`, `:774`) and `resep.jumlah_iter` (`TINYINT UNSIGNED`,
+  `:757`), which are quantities that cannot be negative. There is no
+  `CHECK (jumlah_stok >= 0)` and no movement ledger, so **the service layer is the
+  guard** and the signedness is the audit trail for the one condition the database
+  is forbidden from preventing. **Todo 46's oversell detection depends on it**: with
+  `INT UNSIGNED`, MySQL 8 raises `ERROR 1690 (22003)` and **rejects** a decrement
+  below zero instead of storing it, so the oversell surfaces as a driver error,
+  never reaches a row, and never appears in a low-stock report or an audit. With a
+  signed `INT` the decrement succeeds, the row goes negative, and
+  `WHERE jumlah_stok < 0` is a complete oversell report. **Writing
+  `unsignedInteger()` here is a parity break that silently destroys that
+  detection** — and it is invisible to every other check in this project, which is
+  exactly what todo 14's negative QA demonstrated (below).
+
+Two reference-shaped columns are bare by contract, and **both are absent from the
+plan's own todo-14 prose**, which is how an invented constraint gets written.
+**Absence is load-bearing.** `konsultasi` is table 38 and `rekam_medis` is table 42,
+so `->foreign()` on either would succeed and become permanent
+`extra_foreign_key` drift — and `migrate:fresh` stays green while it does.
+
+| Column | SQL line | Target that exists and would work | Why it is bare |
+| --- | --- | --- | --- |
+| `resep.konsultasi_id` | `:745` | `konsultasi.id` (table 38) | Provenance, not a lookup: a `tipe = 'manual'` or walk-in prescription has no consultation, which is why the column is nullable. **Not named in the plan's todo-14 text at all.** |
+| `resep.rekam_medis_id` | `:746` | `rekam_medis.id` (table 42) | Same reason: the prescription may be issued without a medical record. **Not named in the plan's todo-14 text at all.** |
+
+**The asymmetry inside one table is deliberate and must not be "harmonised".**
+`resep` declares exactly three `FOREIGN KEY` clauses — on `pasien_id` (`:761`),
+`dokter_id` (`:762`) and `apotek_id` (`:763`) — and those three are the columns the
+prescription's *validity* depends on: a prescription must name a patient, a
+prescriber and (optionally) a dispensing pharmacy. The two bare columns are
+**provenance**: which consultation and which record it came from, both optional.
+Verified by grepping every `FOREIGN KEY` line in the file and, at runtime, by
+`information_schema.REFERENTIAL_CONSTRAINTS` — `resep` has foreign keys on
+`apotek_id`, `dokter_id` and `pasien_id` and **zero** on `konsultasi_id` and
+`rekam_medis_id`. Contrast `pesanan_obat.resep_id` (`:800`), which **does** carry a
+real foreign key (`:814`): one `resep_id` column being constrained says nothing
+about the other. **Migration `2026_10_01_000076` must not add a constraint to either
+bare column**, and neither belongs in the *Deferred constraints* registry, because
+registration would promise a constraint the DDL never declares.
+
+Three shapes that are correct but that a later reader is likely to mistake for
+mistakes, recorded so they are not "harmonised":
+
+- **The four cascades and the eleven `RESTRICT`s are deliberately mismatched.** The
+  cascades are `obat_interaksi.obat_a_id` (`:737`), `obat_interaksi.obat_b_id`
+  (`:738`), `resep_item.resep_id` (`:781`) and `pesanan_obat_tracking.pesanan_obat_id`
+  (`:826`); the other eleven carry **no** `ON DELETE` clause and so materialise
+  MySQL's implicit `NO ACTION` (`RESTRICT` for DML). The pattern is the one batches
+  F and G already established: the *record* link cascades, the *person* or
+  *catalogue* link restricts. An interaction row and a parcel trail are worthless
+  without their parent, while deleting a drug must be blocked while prescription
+  lines reference it and deleting a prescription must be blocked while a
+  pharmacist's verification exists, because that verification is the legal evidence
+  required by `:785` (*"Wajib secara hukum: e-resep diverifikasi apoteker sebelum
+  dipenuhi"*).
+- **`master_obat`'s three ENUMs are NOT contiguous, and the middle one is a plain
+  `VARCHAR`.** In declaration order they are `bentuk_sediaan` (`:713`–`:714`, twelve
+  values), `satuan` (`:716`, eight values) and `kelas_obat` (`:719`, six values) —
+  and **`kelas_terapi VARCHAR(100) NULL` sits at `:718`, between the second and the
+  third**. It is a real column and not part of any value list. The three lists are
+  also semantically unrelated: dosage **form**, dispensing **unit** and legal
+  **control class**, and `tablet`/`kapsul` are members of *both* the first and the
+  second, which is precisely why conflating them corrupts a catalogue rather than
+  merely mislabelling a row. `kelas_terapi` is free text — the DDL comment
+  `'Antibiotik, Analgetik, dll'` is an example, not an enumeration, and the seed at
+  `:1311`–`:1313` duly stores `Analgetik-Antipiretik`, `Antibiotik` and
+  `Antihistamin`. The plan's todo-14 prose previously claimed all three ENUMs sat
+  in `:711-717`; an executor trusting that range would have shipped
+  `missing_column` drift here.
+- **`pesanan_obat_tracking.status` is a `VARCHAR(100)` and shares a NAME with an
+  ENUM.** `pesanan_obat.status` (`:810`–`:811`) is a six-value ENUM;
+  `pesanan_obat_tracking.status` (`:822`) is unconstrained free text, so the order's
+  state machine is closed and the parcel trail's is **open**. Any string is
+  insertable into the tracking table — a typo, a courier's own vocabulary such as
+  `in_transit`, or an order-state name carrying a different meaning — and a
+  `dibatalkan` order beside a `selesai` tracking row is perfectly representable.
+  **Todo 46 must validate this column in the application and must read the order's
+  state from `pesanan_obat.status`, never from here.** Converting it to an enum
+  would be `column_type` drift against a read-only contract. Related: that table has
+  no `dibuat_at`, and `waktu DATETIME NOT NULL` (`:825`) is its de-facto created-at,
+  so todo 19's model needs `const CREATED_AT = 'waktu'` — the same shape as
+  `konsultasi_chat`'s `terkirim_at` (`:575`).
+
+Two more facts about this batch that no index or constraint can fix:
+
+- **`pesanan_obat` has NO line items, so an over-the-counter order has nowhere to
+  record what was bought.** `resep_id` is nullable (`:800`) and there is **no
+  `pesanan_obat_item` table anywhere in the 75**, so a `tipe = 'obat_bebas'` or
+  `'produk_kesehatan'` order has no product lines and `subtotal` cannot be
+  recomputed from them. **Todo 46 must restrict the order flow to `tipe =
+  'resep_dokter'`**, where the prescription's own `resep_item` rows supply the
+  products, and record the limitation. Related and unenforced: nothing checks
+  `total = subtotal + biaya_kirim` (`:807`–`:809`), nor
+  `resep_item.subtotal = harga_satuan * jumlah` (`:778`–`:779`) — no `CHECK`, no
+  generated column, no trigger — and all five money columns default to `0`, which
+  means "not priced" or "not yet calculated" and is indistinguishable from free.
+- **Pharmacy identity is unconstrained, and lot identity is unrepresentable.** All
+  three pharmacy columns point at `faskes(id)` — `resep.apotek_id` (`:749`),
+  `apotek_stok.apotek_id` (`:831`) and `pesanan_obat.apotek_id` (`:802`) — and
+  nothing constrains `faskes.tipe` to `'apotek'` (`:365`), so a hospital is
+  representable as the dispensing or fulfilling pharmacy and the application must
+  validate it. And `UNIQUE KEY uq_stok (apotek_id, obat_id)` (`:840`) is the pair
+  alone, so **a second batch of the same drug with a different `kedaluwarsa` cannot
+  be represented at all**: one pharmacy has exactly one row per drug, re-stocking
+  overwrites quantity and date in place, and with no movement ledger the lot history
+  is not recoverable from this table. Note also that this unique covers only **one**
+  of the two foreign-key columns — its leftmost is `apotek_id`, so `obat_id` is not
+  a leftmost prefix of anything and MySQL builds an implicit support index that
+  `SHOW CREATE TABLE` prints as `KEY apotek_stok_obat_id_foreign (obat_id)`. That
+  index is not in the DDL and `SchemaDiffer::diffIndexes()` treats it as implied by
+  the matched foreign key (commit `27c6ca8`) rather than as `extra_index` drift, so
+  the table reaches `Discrepancies: 0` with it present and it must not be "removed"
+  by adding a covering index of one's own.
+
+### What the negative QA in todo 14 measured, and what it means for later batches
+
+Two mutations were applied, verified and reverted byte-identically. Both are
+recorded because each is a defect that **no other check in this project would
+catch**, and both confirm the verifier is stricter than it looks:
+
+| Mutation | `php -l` | `migrate:fresh` | `verify-schema` | Verdict |
+| --- | --- | --- | --- | --- |
+| `apotek_stok.jumlah_stok` → `unsignedInteger()` | exit 0 | exit 0 | **exit 1**, `column_unsigned apotek_stok.jumlah_stok expected: signed \| actual: unsigned` | **caught** |
+| `master_obat.kelas_obat` members 3 and 4 swapped, **membership unchanged** | exit 0 | exit 0 | **exit 1**, `column_type master_obat.kelas_obat` with both full value lists printed | **caught** |
+
+The second row answers a question future batches depend on: **the verifier compares
+an `ENUM` as a SEQUENCE, not as a set.** `TypeNormaliser::type()` builds the
+canonical string `enum('a','b','c')` by reading the member list verbatim and never
+sorts it, so both a wrong letter and a wrong position are reported as `column_type`.
+Reordering an ENUM is therefore not a cosmetic change and not a safe
+"harmonisation" — it changes the sort index, which is what `ORDER BY` and
+`MIN()`/`MAX()` on that column mean.
+
+The first row is the sharper lesson. A signedness inversion on a stock column still
+builds, still lints, still migrates and still leaves the whole unit suite green;
+only `column_unsigned` sees it. That is the same failure mode as todo 10's five
+hidden comment defects and todo 13's self-inflicted corruptions, and it is why the
+signedness is written into migration `2026_10_01_000054`'s own comment as well as
+here.
+
+### Two defects in this project's own documents, found by reading rather than by trusting
+
+- **`pesanan_obat.status` is a SEVENTH multi-line ENUM, and the plan's list of six
+  omits it.** The six values fit on `:810` and the `NOT NULL DEFAULT
+  'menunggu_pembayaran'` tail is on `:811`. The plan's "Multi-line ENUMs — treat as
+  single units" list names six (`booking.status` 515-516, `konsultasi.status`
+  542-543, `konsultasi_chat.tipe_pesan` 568-569, `master_obat.bentuk_sediaan`
+  713-714, `resep.status` 751-752, `persetujuan_pdp.jenis` 1137-1138) and
+  `docs/migration-order.md` rule 6 carries the same six. Reading only `:810` yields
+  the values with an **empty tail** — a nullable column with no default, i.e.
+  `column_nullable` plus `column_default` drift and a `NOT NULL` column silently
+  made nullable. The plan's *parser* is right, incidentally: the verifier's derived
+  "wrapped decls 11" list **does** include `pesanan_obat.status (810-811)`, so the
+  defect is in the prose list and in the hand-written rule, not in the tooling. Both
+  documents are contract- or orchestrator-owned and were **not** edited by todo 14.
+- **Five of the plan's todo-14 inline `:NNN` citations are wrong, and its own
+  line-index table has all five right** — the A.16 pattern for the fifth
+  consecutive batch. `INDEX idx_obat_nama` is at `:728`, not `:727` (which is
+  `diubah_at`); `UNIQUE KEY uq_interaksi` at `:739`, not `:738` (which is the
+  `obat_b_id` foreign key); `resep.berlaku_sampai` at `:755`, not `:761` (which is
+  the `pasien_id` foreign key); `INDEX idx_resep_pasien` at `:764`, not `:765`
+  (which is the statement's closing `) ENGINE=InnoDB;`); and `UNIQUE KEY uq_stok` at
+  `:840`, not `:845` (which is the section banner between `[9] RESEP & FARMASI` and
+  `[10] LABORATORIUM` — `master_lab_tindakan` has no `harga_jual` column at all; its
+  money column is `harga DECIMAL(12,2)` at `:856`). Every citation in the eight
+  migrations was therefore resolved by searching `telemedicine_test.sql` for the
+  column, index or constraint **name**, and 234 citations across 119 distinct lines
+  were printed and checked against the claims they support.
+
