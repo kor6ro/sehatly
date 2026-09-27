@@ -200,18 +200,69 @@ test('SHOW CREATE TABLE output parses through the same grammar as the reference 
 test('the extra-table registry is parsed from docs/schema-notes.md', function () {
     $entries = ExtraTableRegistry::fromMarkdown(base_path('docs/schema-notes.md'));
 
+    // The expectation is DERIVED from the live migration set, not hard-coded. A
+    // hard-coded list is what made this test red after todo 7 deleted three
+    // scaffold migrations: the registry was correctly regenerated and the test
+    // silently went stale. Enumerating database/migrations/ means the next
+    // scaffold add or removal fails HERE, naming the table, instead of surfacing
+    // as `undocumented_extra_table` drift ten todos later.
+    $contractTables = (new SqlSchemaParser)->parseFile(base_path('telemedicine_test.sql'))->tableNames();
+
+    $created = ['migrations'];   // Laravel's migration ledger, created by the migrator itself
+    $literalNames = [];
+    $files = glob(database_path('migrations').'/*.php');
+    $createCalls = 0;
+
+    expect($files)->toBeArray()->not->toBeEmpty();
+
+    foreach ($files as $file) {
+        $code = (string) file_get_contents($file);
+
+        $createCalls += preg_match_all('/Schema::create\s*\(/', $code);
+        preg_match_all("/Schema::create\s*\(\s*'([A-Za-z0-9_]+)'/", $code, $matches);
+        array_push($literalNames, ...$matches[1]);
+    }
+
+    // A `Schema::create($variable)` this walk cannot resolve would make the
+    // expectation silently incomplete, so refuse to pass rather than under-test.
+    $creators = array_values(array_filter(
+        $files,
+        fn (string $file): bool => str_contains((string) file_get_contents($file), 'Schema::create')
+    ));
+    $creators = implode(', ', array_map('basename', $creators));
+
+    expect($literalNames)->toHaveCount(
+        $createCalls,
+        $creators.' must each pass a literal table name to Schema::create(), or this test is blind to them'
+    );
+
+    $created = array_values(array_unique([...$created, ...array_map('strtolower', $literalNames)]));
+
     // Everything the migrations create that is not one of the 75 tables.
-    expect(array_keys($entries))->toEqualCanonicalizing([
-        'migrations', 'cache', 'cache_locks', 'jobs', 'job_batches', 'failed_jobs',
-        'passkeys', 'personal_access_tokens', 'password_reset_tokens', 'sessions',
-    ]);
+    $expectedExtras = array_values(array_diff($created, $contractTables));
+    $registered = array_keys($entries);
+
+    expect($registered)->toEqualCanonicalizing($expectedExtras);
+
+    // Same assertion, but naming the offender so a failure is actionable.
+    expect(array_values(array_diff($expectedExtras, $registered)))->toBe(
+        [],
+        'database/migrations/ creates tables docs/schema-notes.md does not register',
+    );
+    expect(array_values(array_diff($registered, $expectedExtras)))->toBe(
+        [],
+        'docs/schema-notes.md registers tables no migration in database/migrations/ creates',
+    );
 
     foreach ($entries as $table => $justification) {
         expect($justification)->not->toBe('', $table.' needs a justification');
         expect($justification)->not->toBe('registered without a justification');
     }
 
-    // `users` is one of the 75 tables, so registering it as an extra would be wrong.
+    // `users` is one of the 75 tables, so registering it as an extra would be
+    // wrong — and the subtraction above is exactly what keeps it out once todo 8
+    // authors `2026_10_01_000012_users_table.php`.
+    expect($contractTables)->toContain('users');
     expect(array_key_exists('users', $entries))->toBeFalse();
 });
 

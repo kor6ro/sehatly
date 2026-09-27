@@ -23,7 +23,7 @@ $env:PATH = "C:\laragon\bin\php\php-8.4.17-nts-Win32-vs17-x64;$env:PATH"
 | 3. `php artisan migrate:rollback --step=11` then `php artisan migrate` exits 0 | **PASS** — exit 0 / exit 0 (section 4) |
 | 4. `verify-schema --tables=master_provinsi,master_agama,master_icd10` exits 0 | **PASS** — exit 0, `Discrepancies: 0` (section 6) |
 | 5. A.4 scaffold disposition complete | **PASS, with a forced third deletion** — 3 migrations deleted, not 2 (section 5) |
-| 6. Commit contains only the intended paths | **PASS** — 14 `A` + 3 `D` (section 11) |
+| 6. Commit contains only the intended paths | **PASS** — 13 `A` + 3 `D` + 1 `M` = 17 files changed (section 11) |
 | Manual-QA happy path over **all 11** batch-A tables, `Discrepancies: 0` | **FAIL, exit 1, 3 discrepancies — a verifier defect, not schema drift** (section 7) |
 
 The one red is worth reading before anything else: **`master_kabupaten_kota`,
@@ -721,7 +721,7 @@ sehatly                tables=10  migration rows=5  [cache, cache_locks, failed_
 
 ## 11. Files committed / deleted
 
-Created (14):
+Created (13):
 
 ```
 docs/migration-order.md
@@ -747,7 +747,9 @@ Deleted (3): the two A.4-named scaffold migrations plus
 
 **The task brief expected exactly 2 deletions; the third was forced by the FK collision
 above, and A.4 explicitly assigned that decision to todo 7. It is called out here because
-it changes the expected `git show --name-status` shape from "11 A + 2 D" to "11 A + 3 D".**
+it changes the expected `git show --name-status` shape from "11 A + 2 D" to
+"13 A + 3 D + 1 M" — 13 added (11 migrations, this file, `docs/migration-order.md`),
+3 deleted, and `docs/schema-notes.md` modified, for 17 files changed in total.**
 
 No Model, Resource, Controller, seeder, factory or route was created for any of the 11
 tables — todo 19 owns the models, todo 18 the seeders, todo 42 the reference-data

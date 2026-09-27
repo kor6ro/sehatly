@@ -56,6 +56,18 @@ registered extra table and forgive a table that is really drift.
 Seven registered extras, verified against the live `telemedisin_db` after todo 7's
 `migrate:fresh`: all seven present, `0` `undocumented_extra_table`.
 
+**The seven are derived, not asserted.**
+`tests/Unit/Console/VerifySchemaCommandTest.php` reads this file, enumerates every table
+`database/migrations/*.php` actually creates with `Schema::create('<literal>')`, adds
+Laravel's own `migrations` ledger, subtracts the 75 contract tables
+(`SqlSchemaParser` → `telemedicine_test.sql`), and requires the registry to cover exactly
+what is left. It previously pinned a literal list of **ten**, which went stale the moment
+todo 7 deleted three scaffold migrations and made `php artisan test tests/Unit` red
+(73 tests, 72 passed) even though this file was correct. **Adding, removing or renaming a
+migration now fails that test, naming the table, instead of silently going stale** — and a
+`Schema::create($variable)` the walk cannot read fails it loudly rather than passing while
+under-testing. If you add a scaffold table, add its row here in the same commit.
+
 ## Scaffold-migration disposition (decided and executed in todo 7)
 
 Plan Appendix A.4 assigned this decision to todo 7 rather than todo 18, because
@@ -98,11 +110,17 @@ removes the Inertia/Fortify surface. Recorded, not worked around — the plan al
 accepts transients of exactly this kind (A.3 on the 44 deliberately broken
 `resources/` files).
 
-## Known verifier defect: InnoDB's implicit FK-support index
+## Known verifier defect: InnoDB's implicit FK-support index — ALREADY FIXED in `27c6ca8`
 
-Found and measured in todo 7. It is a defect in `App\Support\Schema\SchemaDiffer`
-(todo 6's code), **not** in any migration, and it is recorded here because it is the
+Found and measured in todo 7. It was a defect in `App\Support\Schema\SchemaDiffer`
+(todo 6's code), **not** in any migration, and it is recorded here because it was the
 thing standing between todo 18 and its "75 tables, 2 views verified" exit 0.
+
+> **STATUS: FIXED. Commit `27c6ca8` (`fix(dev): treat InnoDB FK-support indexes as implied
+> rather than drift`), one commit after `c6d0beb`.** This section previously ended "It is
+> todo 18's to make" and the plan's Appendix A.7 assigned the fix to todo 18. **Todo 18 must
+> not re-apply it.** Re-deriving an already-landed fix either duplicates the behaviour or
+> "simplifies" it back into a prefix match and reintroduces the drift.
 
 80 of the 105 foreign keys in `telemedicine_test.sql` reference columns that **no
 index in the DDL covers**. InnoDB requires an index on the referencing columns, so
@@ -110,21 +128,36 @@ MySQL creates one itself, named after the column, and prints it in
 `SHOW CREATE TABLE` — so does the reference import, and so does a faithful migration.
 `SqlSchemaParser` only records a `PRIMARY KEY`, a name-bearing `INDEX`/`UNIQUE KEY`,
 an inline `UNIQUE` and an inline `PRIMARY KEY`; it never synthesises InnoDB's implicit
-index. `SchemaDiffer::diffIndexes()` therefore reports every such index as
-`extra_index` **drift**, and no migration can make it go away:
+index. `SchemaDiffer::diffIndexes()` therefore reported every such index as
+`extra_index` **drift**, and no migration could make it go away:
 
     master_kabupaten_kota  KEY `master_kabupaten_kota_provinsi_id_foreign` (provinsi_id)  -> extra_index drift
 
-Three batch-A tables are affected — `master_kabupaten_kota`, `master_kecamatan`,
+Three batch-A tables were affected — `master_kabupaten_kota`, `master_kecamatan`,
 `master_kelurahan` — one each. The other eight have no foreign key, which is why
 `verify-schema --tables=master_provinsi,master_agama,master_icd10` is green and why the
 plan's own criterion picked those three.
 
-Two tempting "fixes" are both wrong: omitting the foreign key loses a real constraint
-and yields `missing_foreign_key` instead, and naming the index explicitly only changes
-which name appears. The minimal correct fix is one behaviour in `diffIndexes()`: do not
-report an `extra_index` whose column list is exactly the local-column list of a
-matched expected foreign key. It is todo 18's to make, because todo 18 owns the green.
+The fix is the minimal correct one: `diffIndexes()` now builds the set of *implied*
+indexes from the local-column lists of the foreign keys that matched, and skips any
+leftover live index whose ordered column list is exactly one of them. It is stricter
+than a prefix match on purpose — a deliberate composite index such as
+`(provinsi_id, nama)`, or a reordered `(b, a)` for a key on `(a, b)`, is still reported,
+because no engine would ever create either on its own. The rationale is recorded on the
+method itself (`app/Support/Schema/SchemaDiffer.php`, `diffIndexes()`).
+
+Two "fixes" available to a **migration** author are both still wrong, and the guidance is
+unchanged: omitting the foreign key loses a real constraint and yields
+`missing_foreign_key` instead, and naming the index explicitly only changes which name
+appears. **So a batch author must still not "fix" an `extra_index` by hand** — if you see
+one naming a bare FK-support index, compare its ordered column list against the foreign
+key's local columns first; if they match exactly and it is still reported, that is a bug to
+report, not a migration to edit.
+
+**The measurement is retained as the calibration reference: 105 foreign keys, 80 with no
+covering index.** Re-measure it with `App\Support\Schema\SqlSchemaParser`, which returns
+exactly 105/80. A naive index regex reports **0 uncovered**, because it matches the
+`KEY (...)` tail of `FOREIGN KEY (...) REFERENCES ...`.
 
 `docs/migration-order.md` carries the same warning for the batch authors of todos 8-17.
 
@@ -136,13 +169,19 @@ acceptance criteria that depend on the right numbers:
 
 - Tables with **neither** `dibuat_at` nor `diubah_at`: **39**, not 28. The plan's list
   has 29 entries, wrongly includes `apotek_stok` (which has `diubah_at`), and omits
-  `master_provinsi`, `master_kabupaten_kota`, `master_kecamatan`, `master_kelurahan`,
-  `master_penjamin`, `master_spesialisasi`, `master_metode_pembayaran`, `master_promo`,
-  `persetujuan_pdp` and `artikel_kategori`.
+  **11**: `master_provinsi`, `master_kabupaten_kota`, `master_kecamatan`,
+  `master_kelurahan`, `master_penjamin`, `master_spesialisasi`, `konsultasi_chat`,
+  `master_metode_pembayaran`, `master_promo`, `artikel_kategori`, `persetujuan_pdp`.
+  **Derivation: 29 − 1 + 11 = 39.**
 - Tables with `dibuat_at` only: **19**, not 18 — the plan omits `audit_log` (`:1129`).
+  **Derivation: 18 + 1 = 19.**
 - `diubah_at` only: **1** (`apotek_stok`). Both columns: **16** — and those 16 are the
   only tables that need the raw `ON UPDATE CURRENT_TIMESTAMP` `ALTER`, since Laravel 13
   has no Blueprint helper for it.
+
+39 + 19 + 1 + 16 = 75, so the split is exhaustive. Todo 19 must **not** assert
+`$timestamps === false` for "all 28": that assertion passes while silently under-testing
+11 tables. Use the per-table facts in `docs/migration-order.md` instead.
 
 The full per-table split is in `docs/migration-order.md`.
 
@@ -176,6 +215,14 @@ as drift. The deliberate folds are:
   `idx_spesialisasi`, …) *are* compared by name, keyed on
   `(TABLE_NAME, INDEX_NAME)` — `idx_icd10` is reused on two different tables
   (`telemedicine_test.sql:119` and `:297`), which is legal in MySQL.
+  **Do not "correct" `:297` to `:291`.** `:291` is where `pasien_riwayat_penyakit`'s
+  `icd10_kode VARCHAR(8) NULL` *column* is declared; the `INDEX idx_icd10 (icd10_kode)`
+  that uses it is at `:297`, the last line of that table's body. The plan contradicts
+  itself on this point — its authoritative line-number index says `297`, while two
+  inline citations in the plan's prose say `291`. The authoritative index wins (the plan
+  says so explicitly), and the file confirms it:
+  `Select-String -Path telemedicine_test.sql -Pattern idx_icd10` returns exactly
+  `:119 INDEX idx_icd10 (kode)` and `:297 INDEX idx_icd10 (icd10_kode)`.
 - **Foreign keys are compared semantically** (local columns, referenced table and
   columns, `ON DELETE`, `ON UPDATE`), because an inline `FOREIGN KEY` is named
   `<table>_ibfk_<n>` by the engine. The one name the DDL writes — `fk_vital_rm` at

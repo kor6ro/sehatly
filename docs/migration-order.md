@@ -130,17 +130,37 @@ their own — the two views are `CREATE OR REPLACE VIEW` and the deferred FK is 
 
 ## Pre-existing migrations that are NOT part of this contract
 
+Every `laravel/…` scaffold migration that existed before this contract was authored. The
+Fate column is the authority: a `DELETED` row names a file that is **absent from disk, absent
+from `git ls-tree HEAD database/migrations/`, and absent from the `telemedisin_db.migrations`
+ledger.** Re-check with those three, not with this table:
+
+```powershell
+Get-ChildItem database\migrations | Select-Object -ExpandProperty Name
+git ls-tree --name-only HEAD database/migrations/
+# then: select migration from telemedisin_db.migrations order by migration
+```
+
 | Migration | Tables | Fate |
 | --- | --- | --- |
-| `0001_01_01_000001_create_cache_table.php` | `cache`, `cache_locks` | Kept. Legitimate extra, registered in `docs/schema-notes.md`. |
-| `0001_01_01_000002_create_jobs_table.php` | `jobs`, `job_batches`, `failed_jobs` | Kept. Legitimate extra, registered. |
-| `2024_01_01_000000_create_passkeys_table.php` | `passkeys` | Kept and registered, per the todo-7 decision recorded in `docs/schema-notes.md`. |
-| `2026_09_26_222801_create_personal_access_tokens_table.php` | `personal_access_tokens` | Kept. Sanctum, published in todo 3, registered. |
+| `0001_01_01_000001_create_cache_table.php` | `cache`, `cache_locks` | **KEPT.** Legitimate extra, registered in `docs/schema-notes.md`. |
+| `0001_01_01_000002_create_jobs_table.php` | `jobs`, `job_batches`, `failed_jobs` | **KEPT.** Legitimate extra, registered. |
+| `2026_09_26_222801_create_personal_access_tokens_table.php` | `personal_access_tokens` | **KEPT.** Sanctum, published in todo 3, registered. |
 | `0001_01_01_000000_create_users_table.php` | `users`, `password_reset_tokens`, `sessions` | **DELETED in todo 7** (plan Appendix A.4): it collides with row 12 `users`, and `password_reset_tokens` / `sessions` are not among the 75. |
 | `2025_08_14_170933_add_two_factor_columns_to_users_table.php` | (adds `users.two_factor_*`) | **DELETED in todo 7** (plan Appendix A.4): `->after('password')` cannot resolve because the SQL's `users` has `kata_sandi_hash` and no `password`. |
+| `2024_01_01_000000_create_passkeys_table.php` | `passkeys` | **DELETED in todo 7** — the decision plan Appendix A.4 explicitly left to todo 7, and the full reasoning is in `docs/schema-notes.md` ("Scaffold-migration disposition"). **Do not restore it.** It declares `foreignId('user_id')->constrained()->cascadeOnDelete()`, and it sorts at `2024_01_01_000000`, i.e. **before every `2026_10_01_*` row**, while `users` is not created until todo 8 (row 12). Re-adding the file therefore hard-fails `migrate:fresh` with `SQLSTATE[HY000]: General error: 1824 Failed to open the referenced table 'users'` before a single batch-A table is created, breaking the `migrate:fresh` acceptance criterion of all ten of todos 8-17. `laravel/passkeys` stays in `composer.json` and `config/fortify.php` / `app/Providers/FortifyServiceProvider.php` keep their `passkeys` feature block until todo 30 removes the whole web-auth surface; nothing queries the table at boot, so its absence cannot affect `/api/v1`. |
 
-All four surviving scaffolds sort **before** `2026_10_01_*`, so the order above is
-unaffected. `2026_09_26_222801` < `2026_10_01_000001`; verified in todo 7's evidence.
+All **three** surviving scaffolds sort **before** `2026_10_01_000001`, so the order above is
+unaffected: `0001_01_01_000001` < `0001_01_01_000002` < `2026_09_26_222801` < `2026_10_01_000001`.
+Verified in todo 7's evidence against the migrator's own output and re-verified against disk,
+`git ls-tree HEAD` and the `migrations` ledger when the passkeys row was corrected.
+
+The three deleted files also mean the registry in `docs/schema-notes.md` has **seven** entries,
+not ten: `passkeys`, `password_reset_tokens` and `sessions` are gone with them.
+`tests/Unit/Console/VerifySchemaCommandTest.php` derives that seven from the live migration set
+rather than pinning a literal list, so the next scaffold removal fails the test instead of
+silently going stale.
+
 
 ## Parity rules that apply to every row above
 
@@ -167,13 +187,18 @@ read them before writing a migration.
 
    | Shape | Count | Notes |
    | --- | --- | --- |
-   | neither `dibuat_at` nor `diubah_at` | **39** | the plan says 28 and lists 29; it omits the 4 `master_*` wilayah tables, `master_penjamin`, `master_spesialisasi`, `master_metode_pembayaran`, `master_promo`, `persetujuan_pdp` and `artikel_kategori`, and wrongly counts `apotek_stok` (which *has* `diubah_at`). **Todo 19's `$timestamps = false` test must assert 39, not 28.** |
-   | `dibuat_at` only | **19** | the plan says 18; `audit_log` (`:1129`) is the one it omits. |
+   | neither `dibuat_at` nor `diubah_at` | **39** | the plan says 28 and lists 29; it wrongly counts `apotek_stok` (which *has* `diubah_at`) and omits **11**: `master_provinsi`, `master_kabupaten_kota`, `master_kecamatan`, `master_kelurahan`, `master_penjamin`, `master_spesialisasi`, `konsultasi_chat`, `master_metode_pembayaran`, `master_promo`, `artikel_kategori`, `persetujuan_pdp`. **Derivation: 29 − 1 + 11 = 39. Todo 19's `$timestamps = false` test must assert 39, not 28.** |
+   | `dibuat_at` only | **19** | the plan says 18; `audit_log` (`:1129`) is the one it omits. **Derivation: 18 + 1 = 19.** |
    | `diubah_at` only | **1** | `apotek_stok` (`:837`). No `dibuat_at` at all. |
    | both | **16** | these 16 are the only tables that need the raw `ON UPDATE` `ALTER` in rule 5: `artikel`, `booking`, `dokter`, `dokter_jadwal`, `faskes`, `home_care_pesanan`, `invoice`, `klaim_bpjs`, `konsultasi`, `lab_permintaan`, `master_obat`, `pasien`, `pesanan_obat`, `rekam_medis`, `resep`, `users`. |
 
-   `konsultasi_chat` (39) is in the "neither" group by column name, but its created-at column
-   is `terkirim_at` (`:575`), so its model needs `const CREATED_AT = 'terkirim_at'`.
+   39 + 19 + 1 + 16 = 75, so the split is exhaustive. It was re-measured off the reference
+   DDL with `App\Support\Schema\SqlSchemaParser` when this section was corrected, not copied
+   from the plan or from todo 7's evidence.
+
+   `konsultasi_chat` (contract row 39, not a count) is in the "neither" group by column name,
+   but its created-at column is `terkirim_at` (`:575`), so its model needs
+   `const CREATED_AT = 'terkirim_at'`.
 5. **For every `dibuat_at`/`diubah_at` pair: `->useCurrent()` *and* a raw follow-up
    `DB::statement('ALTER TABLE x MODIFY diubah_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP')`**
    in the same migration. Laravel 13 has no Blueprint helper for `ON UPDATE CURRENT_TIMESTAMP`.
@@ -201,7 +226,7 @@ read them before writing a migration.
     Both are the same constraint, and the verifier knows that. Only a name the SQL wrote
     (`idx_icd10`, `idx_jadwal`, `uq_stok`, …) is compared by name, keyed on
     `(TABLE_NAME, INDEX_NAME)` — `idx_icd10` appears on two different tables
-    (`master_icd10:119` and `pasien_riwayat_penyakit:291`), which is legal in MySQL.
+    (`master_icd10:119` and `pasien_riwayat_penyakit:297`), which is legal in MySQL.
 11. **`master_icd10` reproduces a redundant index on purpose:** `INDEX idx_icd10 (kode)`
     (`:119`) *alongside* `UNIQUE (kode)`. Both must exist.
 12. **Comments are not compared** (they are documentation, and `:538` even stores the
@@ -228,9 +253,11 @@ CREATE TABLE master_kabupaten_kota (
 Importing `telemedicine_test.sql` produces exactly that. So does a correct migration. The
 reference model built by `App\Support\Schema\SqlSchemaParser` only records a `PRIMARY KEY`, a
 name-bearing `INDEX`/`UNIQUE KEY`, an inline `UNIQUE` and an inline `PRIMARY KEY` — it never
-synthesises InnoDB's implicit index — and `SchemaDiffer::diffIndexes()` reports every
-unconsumed live index as `extra_index` **drift**. Consequence: any table with an uncovered FK
-cannot reach `Discrepancies: 0`, no matter how faithfully it is migrated.
+synthesises InnoDB's implicit index — and `SchemaDiffer::diffIndexes()` used to report every
+unconsumed live index as `extra_index` **drift**. Consequence **while the defect was open**:
+any table with an uncovered FK could not reach `Discrepancies: 0`, no matter how faithfully it
+was migrated. That is no longer true — see "ALREADY FIXED" below. The measurement and the
+migration guidance are kept because the underlying InnoDB behaviour has not changed.
 
 In batch A this affects exactly three tables — `master_kabupaten_kota`, `master_kecamatan`,
 `master_kelurahan` (one each). The other eight batch-A tables have no foreign key, which is
@@ -241,9 +268,40 @@ and why the unfiltered run at full parity will carry 80 such entries.
 not add a covering index of your own.** Omitting the FK to silence the verifier loses a real
 constraint (and produces `missing_foreign_key` instead); naming the index explicitly just
 changes which name appears. The defect belongs to `SchemaDiffer`, not to a migration, and
-is recorded in `docs/schema-notes.md` for todo 18, which owns the 75-tables/2-views green.
-The minimal fix is one behaviour in `diffIndexes()`: do not report an `extra_index` whose
-column list is exactly the local-column list of a matched expected foreign key.
+is recorded in `docs/schema-notes.md`.
+
+### ALREADY FIXED — commit `27c6ca8`. Do not re-apply it.
+
+The section above originally ended "it is todo 18's to make". **It is not todo 18's any
+more.** The fix landed in commit **`27c6ca8`** (`fix(dev): treat InnoDB FK-support indexes as
+implied rather than drift`), which is one commit after `c6d0beb`:
+
+> `SchemaDiffer::diffIndexes()` now builds the set of *implied* indexes from the local-column
+> lists of the foreign keys that **matched**, and skips any leftover live index whose ordered
+> column list is exactly one of them.
+
+That is the minimal correct fix, and it is stricter than a prefix match on purpose: a
+deliberate composite index such as `(provinsi_id, nama)`, or a reordered `(b, a)` for a key on
+`(a, b)`, is still reported — no engine would ever create either on its own. The rationale is
+recorded on the method itself (`app/Support/Schema/SchemaDiffer.php`, `diffIndexes()`).
+
+**Consequences for todos 8-18:**
+
+- **Todo 18 must NOT re-apply it.** Re-deriving a fix that is already in `HEAD` either
+  duplicates the behaviour or, worse, "simplifies" it back into the prefix match and
+  reintroduces the drift.
+- **A batch author must still not "fix" an `extra_index` by hand.** The guidance above is
+  unchanged and still load-bearing: if you see an `extra_index` naming a bare FK-support
+  index, it is a *different* index (a real prefix mismatch, or an index your migration
+  invented). Do not edit your migration to silence it — compare its column list against the
+  FK's local columns first.
+- **The measurement is retained** and is the calibration reference for re-checking:
+  **105 foreign keys, 80 with no covering index** in the reference DDL (batch A's share is 3:
+  `master_kabupaten_kota`, `master_kecamatan`, `master_kelurahan`, one each).
+
+Re-measure with `App\Support\Schema\SqlSchemaParser`, which returns exactly 105/80. A naive
+index regex reports **0 uncovered**, because it matches the `KEY (...)` tail of
+`FOREIGN KEY (...) REFERENCES ...`; that is the trap the number is here to prevent.
 
 ## Verification
 
