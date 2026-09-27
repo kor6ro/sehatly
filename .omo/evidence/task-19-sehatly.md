@@ -406,6 +406,52 @@ A whole-repo `pint --test` lists 5 files, all of them the concurrent RBAC execut
 
 `php -l` was run over all 77 authored files: 0 failures.
 
+**The application still boots.** Rewriting `User.php` is the one change in this task that touches a
+class the framework itself extends, so "the suite is green" is not by itself evidence that the app
+resolves. Two commands establish it:
+
+```
+> php artisan route:list
+ GET|HEAD .well-known/passkey-endpoints .. well-known.passkeys
+ GET|HEAD / .. home
+ POST email/verification-notification verification.send
+ GET|HEAD email/verify .. verification.notice
+ GET|HEAD email/verify/{id}/{hash} .. verification.verify
+ GET|HEAD forgot-password .. password.request
+ GET|HEAD login .. login
+ POST login .. login.store
+ POST logout .. logout
+ POST passkeys/confirm .. passkey.confirm
+ GET|HEAD passkeys/confirm/options .. passkey.confirm-options
+ GET|HEAD register .. register
+ GET|HEAD reset-password/{token} .. password.reset
+ GET|HEAD sanctum/csrf-cookie .. sanctum.csrf-cookie
+exit 0
+```
+
+Every Fortify, Passkeys and Sanctum route is registered, which means `FortifyServiceProvider` boots
+and resolves `User` through the `web` guard in `config/auth.php`. The plan's own acceptance criterion
+for this todo also passes:
+
+```
+> php artisan tinker --execute="dump(get_class(new App\Models\Role)); ..."
+"App\Models\Role"
+"App\Models\Role"          <- (new User)->roles()->getRelated()
+"user_roles"               <- (new Role)->users()->getTable()
+"App\Models\PasienAlergi"  <- (new Pasien)->pasienAlergi()->getRelated()::class
+["dokter_id", "faskes_id"] <- (new DokterFaskes)->getKeyName()
+"diubah_at"                <- (new ApotekStok)->getUpdatedAtColumn()
+"terkirim_at"              <- (new KonsultasiChat)->getCreatedAtColumn()
+exit 0
+```
+
+Honest note on how that run went: the first attempt failed with
+`BadMethodCallException: Call to undefined method App\Models\Role::roles()`. That was a mistake in my
+verification expression, not a defect in the model - `roles()` is `User`'s relation, and `Role` has
+`users()` and `permissions()`. Reported because a failed check that turns out to be a typo in the
+check is still a failed check, and quietly rerunning until green without saying so is the behaviour
+A.18 exists to catch.
+
 ## 11. Hygiene (A.26)
 
 Both checks run over all 78 authored files (75 models, 1 concern, 1 test, 1 evidence file).
