@@ -18,6 +18,17 @@ namespace App\Support\Schema;
  *     the same constraint. Only a name the DDL actually wrote is compared by name.
  *  2. **CHECK constraints are compared by expression.** MySQL generates the names
  *     (`ulasan_dokter_chk_1`), so only the expression is stable.
+ *
+ * Deliberately not compared:
+ *
+ *  - **Storage engine, charset and collation.** The reference sets `utf8mb4` once at
+ *    database level, not per table, so there is nothing per-table to diff.
+ *  - **Column order, and generated-column expressions / `SRID`.** Neither is in the
+ *    contract; both are tokenised without being compared.
+ *  - **The names of inline `UNIQUE` indexes.** Engine-generated on one side,
+ *    Laravel-generated on the other; only the shape is stable (rule 1).
+ *  - **Indexes implicitly created by InnoDB to support a foreign key are implied by
+ *    that FK and are not compared.** See {@see diffIndexes()}.
  */
 final class SchemaDiffer
 {
@@ -125,9 +136,13 @@ final class SchemaDiffer
             }
         }
 
-        $this->diffIndexes($want, $have, $out);
-        $this->diffForeignKeys($want, $have, $out);
         $this->diffChecks($want, $have, $out);
+
+        // Foreign keys before indexes: an index that InnoDB created to back a
+        // foreign key is only recognisable as such once the key has been matched.
+        // The report order does not depend on this — diff() re-sorts by kind.
+        $matchedForeignKeys = $this->diffForeignKeys($want, $have, $out);
+        $this->diffIndexes($want, $have, $matchedForeignKeys, $out);
     }
 
     /**
@@ -191,10 +206,32 @@ final class SchemaDiffer
      * an inline `UNIQUE` is matched on semantics only, because MySQL and Laravel
      * disagree about its name by design.
      *
+     * The one index this forgives is the one InnoDB builds to back a foreign key.
+     * It reuses an existing index whose leftmost prefix covers the key's columns
+     * and otherwise creates an index on exactly those columns, in order — so a
+     * leftover index whose ordered column list is exactly a matched foreign key's
+     * local column list is *implied* by that key and is not drift.
+     * {@see telemedicine_test.sql} relies on this: 80 of its 105 foreign keys are
+     * declared with no covering index at all.
+     *
+     * The comparison is deliberately exact ordered equality rather than a prefix.
+     * A prefix match would also forgive a deliberate composite index such as
+     * `(provinsi_id, nama)`, which no engine would ever create on its own, and a
+     * differently ordered list such as `(b, a)` for a key on `(a, b)`. Neither is
+     * implied, so both are still reported. An index the DDL named is consumed by
+     * the loop above and never reaches this pool.
+     *
+     * @param  list<ForeignKeySpec>  $matchedForeignKeys  expected keys that found a live counterpart
      * @param  list<Discrepancy>  $out
      */
-    private function diffIndexes(TableSpec $want, TableSpec $have, array &$out): void
+    private function diffIndexes(TableSpec $want, TableSpec $have, array $matchedForeignKeys, array &$out): void
     {
+        $implied = [];
+
+        foreach ($matchedForeignKeys as $foreignKey) {
+            $implied[$this->columnListKey($foreignKey->columns)] = true;
+        }
+
         $remaining = $have->indexes;
         $consumed = [];
 
@@ -237,8 +274,24 @@ final class SchemaDiffer
                 continue;
             }
 
+            if (isset($implied[$this->columnListKey($index->columns)])) {
+                continue;
+            }
+
             $out[] = new Discrepancy('extra_index', $want->name, null, null, $index->label());
         }
+    }
+
+    /**
+     * An ordered column list reduced to a comparable key. Case is folded because
+     * both sides arrive from the parser, which lower-cases identifiers, but the
+     * comparison must not depend on that.
+     *
+     * @param  list<string>  $columns
+     */
+    private function columnListKey(array $columns): string
+    {
+        return strtolower(implode(',', $columns));
     }
 
     /**
@@ -283,11 +336,13 @@ final class SchemaDiffer
      * the engine.
      *
      * @param  list<Discrepancy>  $out
+     * @return list<ForeignKeySpec> the expected keys that matched a live key
      */
-    private function diffForeignKeys(TableSpec $want, TableSpec $have, array &$out): void
+    private function diffForeignKeys(TableSpec $want, TableSpec $have, array &$out): array
     {
         $remaining = $have->foreignKeys;
         $consumed = [];
+        $matched = [];
 
         foreach ($want->foreignKeys as $key) {
             $match = $key->nameIsAuthoritative && $key->name !== null
@@ -299,6 +354,8 @@ final class SchemaDiffer
 
                 continue;
             }
+
+            $matched[] = $key;
 
             if ($match->semanticKey() !== $key->semanticKey()) {
                 $out[] = new Discrepancy('foreign_key_action', $want->name, null, $key->label(), $match->label());
@@ -312,6 +369,8 @@ final class SchemaDiffer
 
             $out[] = new Discrepancy('extra_foreign_key', $want->name, null, null, $foreignKey->label());
         }
+
+        return $matched;
     }
 
     /**
