@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use App\Support\Schema\DeferredConstraintRegistry;
 use App\Support\Schema\Discrepancy;
 use App\Support\Schema\ExtraTableRegistry;
 use App\Support\Schema\LiveSchemaReader;
@@ -32,7 +31,7 @@ class VerifySchemaParity extends Command
     protected $signature = 'sehatly:verify-schema
         {--tables= : Comma-separated subset of expected tables to verify (default: all)}
         {--sql= : Path to the reference SQL (default: telemedicine_test.sql at the project root)}
-        {--notes= : Path to the notes file holding the extra-table and deferred-constraint registries (default: docs/schema-notes.md)}
+        {--notes= : Path to the notes file holding the extra-table registry (default: docs/schema-notes.md)}
         {--json : Emit a machine-readable JSON report on stdout}';
 
     protected $description = 'Diff the live information_schema against telemedicine_test.sql (read-only, non-zero on drift)';
@@ -63,14 +62,33 @@ class VerifySchemaParity extends Command
 
             $expected = $parser->parseFile($referencePath);
 
-            // Both registries live in the same notes file and both are mandatory:
-            // a missing or unusable one raises, lands in the catch below, and the
-            // run exits 2. Neither can degrade into an empty allow-list.
+            // The extra-table registry lives in the notes file and is mandatory: a
+            // missing or unusable one raises, lands in the catch below, and the run
+            // exits 2, so it can never degrade into an empty allow-list.
+            //
+            // There was a second, mandatory registry here until todo 18 -
+            // `DeferredConstraintRegistry::fromMarkdown($notesPath)`, reading a
+            // sibling "## Deferred constraints" section - and it is GONE. It existed
+            // solely to excuse `fk_vital_rm`, the one foreign key the DDL adds by
+            // `ALTER TABLE` after all 75 tables exist. Migration
+            // `2026_10_01_000076` has now added that constraint, so the registry's
+            // own rule 2 reclassified the row as `fulfilled_deferred_foreign_key`
+            // DRIFT and the row had to go. The call was removed in the same commit as
+            // the section because **it is unconditional and the class raises on an
+            // empty registry**: deleting the row alone would have turned the run from
+            // exit 1 into exit 2 rather than exit 0, which is the trap plan appendix
+            // A.11 warned about.
+            //
+            // `SchemaDiffer::diff()` still accepts a `$deferredConstraints` array and
+            // defaults it to `[]`. That parameter is retained rather than removed
+            // because it is the differ's own public contract and
+            // `tests/Unit/Schema/SchemaDifferDeferredConstraintTest.php` still pins
+            // the three rules against fixtures - a future deferred constraint would
+            // need this call reinstated, and the parameter is what it would feed.
             $registry = ExtraTableRegistry::fromMarkdown($notesPath);
-            $deferrals = DeferredConstraintRegistry::fromMarkdown($notesPath);
             $live = $reader->read($database);
             $crossCheck = $this->crossCheck($live['spec'], $live['sourceCounts']);
-            $discrepancies = [...$differ->diff($expected, $live['spec'], $onlyTables, $registry, $deferrals), ...$crossCheck];
+            $discrepancies = [...$differ->diff($expected, $live['spec'], $onlyTables, $registry), ...$crossCheck];
             $drift = array_values(array_filter($discrepancies, static fn (Discrepancy $d): bool => $d->isDrift()));
         } catch (Throwable $e) {
             if ($json) {
@@ -105,7 +123,6 @@ class VerifySchemaParity extends Command
             'notes_registry' => [
                 'path' => $this->relative($notesPath),
                 'registered_extra_tables' => count($registry),
-                'registered_deferred_constraints' => count($deferrals),
             ],
             'scope' => $onlyTables === null ? 'all expected tables' : implode(', ', $onlyTables),
             'expected' => $expected->summary(),
@@ -138,9 +155,9 @@ class VerifySchemaParity extends Command
         $this->row('reference SQL', $report['reference']['path'].'  ('.number_format($report['reference']['bytes']).' bytes, md5 '.substr((string) $report['reference']['md5'], 0, 12).')');
         $this->row('live database', $report['live']['driver'].' / '.$report['live']['database']);
         $this->row('notes registry', $report['notes_registry']['path'].'  ('
-            .$report['notes_registry']['registered_extra_tables'].' registered extra tables, '
-            .$report['notes_registry']['registered_deferred_constraints'].' deferred constraint'
-            .($report['notes_registry']['registered_deferred_constraints'] === 1 ? '' : 's').')');
+            .$report['notes_registry']['registered_extra_tables'].' registered extra table'
+            .($report['notes_registry']['registered_extra_tables'] === 1 ? '' : 's')
+            .'; no deferred-constraint registry, retired in todo 18 when its last row resolved)');
         $this->row('scope', (string) $report['scope']);
 
         $this->section('Parsed reference model (proof the parser is not vacuous)');

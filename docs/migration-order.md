@@ -203,10 +203,18 @@ read them before writing a migration.
    `DB::statement('ALTER TABLE x MODIFY diubah_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP')`**
    in the same migration. Laravel 13 has no Blueprint helper for `ON UPDATE CURRENT_TIMESTAMP`.
 6. **`$table->enum('col', [...])` in the SQL's exact order** — ENUM order is semantic: it is
-   the sort index. Multi-line ENUMs (`booking.status` at `:515-516`, `konsultasi.status` at
-   `:542-543`, `konsultasi_chat.tipe_pesan` at `:568-569`, `master_obat.bentuk_sediaan` at
-   `:713-714`, `resep.status` at `:751-752`, `persetujuan_pdp.jenis` at `:1137-1138`) are
-   read as one unit.
+   the sort index. Separately, **exactly five** ENUM declarations in the contract have a value
+   list that continues onto the next physical line, and reading only the first line yields a
+   truncated value list plus a column that looks nullable with no default:
+   `booking.status` (`:515-516`), `master_obat.bentuk_sediaan` (`:713-714`), `resep.status` (`:751-752`),
+   `invoice.status` (`:947-948`), `persetujuan_pdp.jenis` (`:1137-1138`).
+   **This list previously named six entries, two of which were not wrapped at all** — `konsultasi.status` (`:542`)
+   and `konsultasi_chat.tipe_pesan` (`:568`) each close their own `ENUM(...)` on their own line — **and it
+   omitted `invoice.status`, which is wrapped.** Read a wrapped ENUM as one unit.
+   This is a DIFFERENT question from the "wrapped decls 11" figure the schema verifier prints on
+   every run: that number counts declarations whose end line exceeds their start line, which really
+   is 11. Both numbers are correct answers to their own question; only the five answer this rule.
+   See appendix A.20 and A.22 of the plan.
 7. **Declare `->index([...])` / `->unique([...])` explicitly** instead of relying on
    `constrained()` shorthand, so the index set is visible in the migration rather than
    implied. Do **not** add an index the SQL does not have: the verifier reports an
@@ -221,14 +229,21 @@ read them before writing a migration.
 9. **Never add a `FOREIGN KEY` to a column the SQL leaves bare.** Eight columns look like
    references and have none (see the plan's list). `pasien_penjamin.faskes_rujukan_id`
    (`:346`) is the sharpest case: the DDL declares no `FOREIGN KEY` for it, so the column
-   is bare **by contract** — plan appendix A.10 / A.11 settled that, and the old ordering
+   is bare **by contract** - plan appendix A.10 / A.11 settled that, and the old ordering
    argument is dead now that `faskes` exists (batch D, migration 28). Nothing about it is
    deferred and no constraint is owed, so migration `2026_10_01_000076` must **not** add
-   one; adding it would be `extra_foreign_key` drift. The only column in the contract with
-   a genuinely deferred FK is `pasien_tanda_vital.rekam_medis_id` (`:315`), which the SQL's
-   own section `[14]` (`:1161-1163`) really does add — that one is the single row of the
-   *Deferred constraints* registry in `docs/schema-notes.md`, and it is not a licence to
-   constrain anything else.
+   one; adding it would be `extra_foreign_key` drift.
+
+   **Updated in todo 18, when the last deferral was resolved.** The only column in the
+   contract with a genuinely deferred FK was `pasien_tanda_vital.rekam_medis_id` (`:315`),
+   which the SQL's own section `[14]` (`:1161-1163`) really does add, and which migration
+   `2026_10_01_000076` has now created. **There are no deferred constraints left**, so the
+   sentence claiming that one "is the single row of the *Deferred constraints* registry in
+   `docs/schema-notes.md`" is gone: that section was removed, along with its
+   `DeferredConstraintRegistry::fromMarkdown()` call in `VerifySchemaParity` and its
+   assertion in `VerifySchemaCommandTest`, all in the same commit that added the
+   constraint. **The rule itself is unchanged and still binding** - it was never a licence
+   to constrain anything beyond what the DDL declares, and it never was.
 10. **Inline `UNIQUE` is compared by semantics, named keys by name.** MySQL names an inline
     `UNIQUE` after its column (`kode`); Laravel names it `master_provinsi_kode_unique`.
     Both are the same constraint, and the verifier knows that. Only a name the SQL wrote

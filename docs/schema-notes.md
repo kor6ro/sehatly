@@ -21,15 +21,27 @@ in a migration and record it here. This file *is* that record, and
 - an extra table that is **missing from this table is drift** and the verifier exits
   `1` naming it;
 - a registry entry for a table that no longer exists in the live schema is reported
-  as informational, so this file can be trimmed when a migration is removed;
-- a **deliberately deferred constraint** listed in the *Deferred constraints* table
-  below is informational, the same three rules apply to it in reverse, and a
-  constraint that is listed there but has since been created is **drift** — the
-  deferral is over and the row has to go.
+  as informational, so this file can be trimmed when a migration is removed.
 
-That is what makes the "75 tables, 2 views verified" green at todo 18 possible
-without touching the SQL file: the framework's own tables are present, declared, and
-therefore forgiven.
+**There was a second registry here until todo 18, and it is gone.** A
+*Deferred constraints* section, exactly parallel to the one above, existed to
+register `fk_vital_rm` as a `missing_foreign_key` that was intentionally absent
+until `rekam_medis` could exist. Its three rules were: a registered
+`missing_foreign_key` is informational; a registered constraint that is **present**
+is **drift**, so a stale row forces its own removal; and an unregistered
+`missing_foreign_key` stays drift. That is what made the "75 tables, 2 views
+verified" green at todo 18 achievable without touching the SQL file, together with
+the framework's own tables being present, declared, and therefore forgiven.
+
+**The deferral it existed for is resolved**: migration
+`2026_10_01_000076_add_deferred_foreign_keys_table.php` adds `fk_vital_rm` from SQL
+section `[14]` (`:1161-1163`), so rule 2 reported the row as
+`fulfilled_deferred_foreign_key` **drift** and the section had to go. The whole
+section was removed in the same commit as the constraint, together with
+`VerifySchemaParity`'s `DeferredConstraintRegistry::fromMarkdown()` call — because
+that call is **unconditional** and the class **raises on an empty registry**, so
+deleting the section alone would have made the verifier exit `2` rather than `0`.
+Do not reintroduce either half.
 
 `users` is deliberately **not** in the registry — it is one of the 75 tables
 (`telemedicine_test.sql:132`). The scaffold migration that also created it was a
@@ -43,11 +55,19 @@ prose here, unforgivable in code. They are gone because their migration is gone.
 ## Registered extra tables
 
 The verifier parses this table. Keep the first column a single backticked table name
-and every cell on one line. Each registry parses **only the rows under its own
-heading** (`ExtraTableRegistry::HEADING` and
-`DeferredConstraintRegistry::HEADING`, both resolved by `SchemaNotesSection`), so
-the two tables below can never read each other's rows — but keeping each table's
-rows inside its own section is still what makes that true.
+and every cell on one line. The parser reads **only the rows under its own heading**
+(`ExtraTableRegistry::HEADING`, resolved by `SchemaNotesSection`), so a markdown
+table added anywhere else in this file cannot be mistaken for a registry row.
+
+**This used to be two registries, not one.** A `DeferredConstraintRegistry` parsed a
+sibling `## Deferred constraints` section through the same helper, which is why
+`SchemaNotesSection` exists at all: left unscoped, each parser would have read the
+other's rows, and the extras parser would have forgiven `fk_vital_rm` as a *table*.
+That registry was removed in todo 18 with its last deferral resolved, so
+`DeferredConstraintRegistry` is now an unused class kept only for the tests that
+pin the retired behaviour. If a new deferred constraint ever appears, it needs a
+registry row **and** the `fromMarkdown()` call reinstated in the same commit —
+neither alone is sufficient, and the second without the first exits `2`.
 
 | Table | Source migration | Justification |
 | --- | --- | --- |
@@ -73,38 +93,6 @@ todo 7 deleted three scaffold migrations and made `php artisan test tests/Unit` 
 migration now fails that test, naming the table, instead of silently going stale** — and a
 `Schema::create($variable)` the walk cannot read fails it loudly rather than passing while
 under-testing. If you add a scaffold table, add its row here in the same commit.
-
-## Deferred constraints
-
-A **deliberately not-yet-created** constraint, registered so the verifier reports it
-as informational instead of drift. The verifier parses this table exactly as it
-parses the extra tables above, and enforces three rules:
-
-- a `missing_foreign_key` listed here is **informational**, not drift — but it is
-  still printed by name, so an outstanding deferral is always visible in the report;
-- a constraint listed here that is **present in the live schema is `DRIFT`**. The
-  deferral has been fulfilled, so the row is stale and has to go in the same commit
-  that adds the constraint. Without this rule a row here could excuse the
-  constraint forever, and the "75 tables, 2 views verified" run would pass with the
-  foreign key still absent;
-- a `missing_foreign_key` **not** listed here stays **drift**, exactly as before. A
-  row forgives one named constraint and nothing else.
-
-Keyed on the **constraint name**, not on table + column: `fk_vital_rm` is the only
-name the DDL itself writes for a foreign key, so it is the only stable handle on
-"this specific constraint is deferred", and a table + column key would forgive
-*any* foreign key on that column. An inline `FOREIGN KEY` is named
-`<table>_ibfk_<n>` by the engine, so an engine-named key can never be registered.
-
-The registry is **mandatory** — a missing or empty one makes the verifier exit `2`
-rather than pass — and `--notes=<path>` points both registries at a different file
-for testing. When the last deferral is resolved, the correct end state is to delete
-this section **and** its `DeferredConstraintRegistry::fromMarkdown()` call
-together; leaving an empty section behind would exit `2` forever.
-
-| Constraint | Table | Added by | Justification |
-| --- | --- | --- | --- |
-| `fk_vital_rm` | `pasien_tanda_vital` | `2026_10_01_000076` | Column `rekam_medis_id` is present; the FK is added by migration 76 per SQL section `[14]` (`:1161-1163`) because `rekam_medis` does not exist until batch G (todo 13). Full reasoning in *Batch-C deferred and deliberately unconstrained columns* below. |
 
 ## Scaffold-migration disposition (decided and executed in todo 7)
 
@@ -349,25 +337,33 @@ extra-table registry is the wrong instrument for all three, and each is recorded
 in the place that fits it.
 
 - `pasien_tanda_vital.rekam_medis_id` (`:315`) — **column present, foreign key
-  deferred to migration `2026_10_01_000076` per the SQL's section `[14]`
-  (`:1161-1163`)**, which adds `CONSTRAINT fk_vital_rm … ON DELETE SET NULL`. The
-  deferral is a dependency ordering, not a choice: `rekam_medis` is SQL table 42
-  (batch G, todo 13) and this column is created at position 25, so declaring the
-  constraint here fails `migrate:fresh` with MySQL 1824. Until todo 18 the column
-  has **no** row in `information_schema.REFERENTIAL_CONSTRAINTS`; that absence is
-  the correct state, and adding the constraint early is drift
-  (`extra_foreign_key`). **This one is machine-readable**: it is the single row of
-  the *Deferred constraints* table above, which is what makes the verifier report
-  it as informational instead of failing the run.
+  RESOLVED in todo 18.** It was deferred until migration `2026_10_01_000076` per the
+  SQL's section `[14]` (`:1161-1163`), which adds
+  `CONSTRAINT fk_vital_rm — ON DELETE SET NULL`; that migration has now run and
+  the constraint exists in the live schema. The deferral was a dependency ordering,
+  not a choice: `rekam_medis` is SQL table 42 (batch G, todo 13) and this column is
+  created at position 25, so declaring the constraint inline at `:312` would fail
+  `migrate:fresh` with MySQL 1824. Between todo 9 and todo 18 the column had **no** row
+  in `information_schema.REFERENTIAL_CONSTRAINTS` and that absence was the correct
+  state; **it is no longer the correct state**. Adding the constraint *earlier* than
+  position 76 would still have been `extra_foreign_key` drift, which is what the
+  retired registry row existed to express. Note the delete rule is `ON DELETE SET NULL`
+  and deliberately **not** `CASCADE`, which is the opposite polarity to `pasien_id`'s
+  `ON DELETE CASCADE` (`:328`) on the same table: a reading is meaningless without its
+  patient, but the measurement outlives the encounter record it was filed under.
 - `pasien_penjamin.faskes_rujukan_id` (`:346`) — **column present as a nullable
   unsigned `BIGINT` with NO foreign key, and none is owed.** The plan's
   authoritative no-foreign-key list (line 152) records `:346` as carrying none, and
-  live measurement agrees: the only constraint this batch defers is `fk_vital_rm`.
-  An earlier revision of this file called it an "FK to `faskes` deferred to
-  migration 76" — **that was wrong**; the prose lost to the authoritative list.
-  So leave it a bare unsigned `BIGINT`, do not widen it to `foreignId()` semantics,
-  and do **not** register it as deferred: registration would be a promise to create
-  a constraint the DDL never declares, and migration 76 must not add one.
+  live measurement agrees: the only constraint this batch ever deferred was
+  `fk_vital_rm`, and that deferral is now resolved. An earlier revision of this file
+  called it an "FK to `faskes` deferred to migration 76" — **that was wrong**; the prose
+  lost to the authoritative list. So leave it a bare unsigned `BIGINT`, do not widen
+  it to `foreignId()` semantics, and do **not** register it anywhere: registration
+  would be a promise to create a constraint the DDL never declares.
+  **Migration `2026_10_01_000076` now exists and deliberately does not touch this
+  column** — see the "DO NOT add a foreign key to `pasien_penjamin.faskes_rujukan_id`"
+  section of that migration's own docblock, which records the prohibition so that a
+  later reader cannot quietly "complete" it.
 - `pasien_riwayat_penyakit.icd10_kode` (`:291`) — a **bare indexed column with no
   foreign key, by design**: the SQL declares `INDEX idx_icd10 (icd10_kode)` (`:297`)
   and no `FOREIGN KEY` line, even though `master_icd10` already exists from batch A
@@ -384,9 +380,11 @@ Recorded in batch A and B this file's registry has seven entries; it still has
 exactly seven after todo 9, because no batch-C migration creates a table outside the
 75-table contract. `tests/Unit/Console/VerifySchemaCommandTest.php` derives that
 seven from the live migration set, so the count is re-proved on every run rather
-than pinned. The deferred-constraint registry is derived the same way and re-proved
-on every run by `tests/Unit/Schema/SchemaDifferDeferredConstraintTest.php` and
-`tests/Unit/Console/VerifySchemaDeferredConstraintTest.php`.
+than pinned. The deferred-constraint registry was derived the same way and
+re-proved on every run by `tests/Unit/Schema/SchemaDifferDeferredConstraintTest.php`
+and `tests/Unit/Console/VerifySchemaDeferredConstraintTest.php`; both files are still
+present but now pin the **retired** behaviour, because with the last deferral
+resolved there is no registry row left for either of them to derive.
 
 ## Batch-D schema facts the database cannot enforce (todo 10)
 
@@ -396,8 +394,7 @@ at parity and **owes no deferred constraint**: all ten of its foreign keys point
 a table that already exists by the time its own migration runs
 (`master_provinsi` / `master_kabupaten_kota` / `master_kecamatan` from batch A,
 `users` from batch B, and `faskes` / `dokter` / `master_spesialisasi` from inside
-the batch), so the *Deferred constraints* table above is unchanged and still holds
-exactly one row. Four facts are still worth carrying forward, because each looks
+the batch), so this batch deferred nothing of its own. Four facts are still worth carrying forward, because each looks
 like something the schema guarantees and is not.
 
 - **`pasien_penjamin.faskes_rujukan_id` remains unconstrained now that `faskes`
@@ -405,7 +402,7 @@ like something the schema guarantees and is not.
   argument is gone entirely: `faskes` is table 28, immediately after the batch-C
   migration that created the column. Appendix A.10 / A.11 settled it and the DDL
   declares no `FOREIGN KEY` for it (`:346`); adding one now is
-  `extra_foreign_key` drift. **Migration `2026_10_01_000076` must not add it.**
+  `extra_foreign_key` drift. **Migration `2026_10_01_000076` exists and must not add it either.**
 - **A `dokter` row may be `status_aktif = 1` *and* `status_verifikasi = 'pending'`.**
   `:427` defaults the verification status to `'pending'` and `:430` defaults
   `status_aktif` to `1`, and nothing couples them, so a freshly inserted doctor is
@@ -440,8 +437,8 @@ parity and **owes no deferred constraint**: all nine of its foreign keys point a
 table that already exists by the time its own migration runs (`dokter` 31 and
 `faskes` 28 from batch D, `pasien` 20 and `pasien_anggota_keluarga` 21 from batch
 C, `users` 12 from batch B, and `dokter_jadwal` 35 from inside this batch, one row
-earlier in the same commit), so the *Deferred constraints* table above is unchanged
-and still holds exactly one row. Four facts are still worth carrying forward,
+earlier in the same commit), so this batch deferred nothing of its own. Four facts
+are still worth carrying forward,
 because each looks like something the schema guarantees and is not. The two marked
 **absence is load-bearing** are the ones a later reader is most likely to
 "repair", and each repair would be reported as `extra_index` drift.
@@ -515,8 +512,7 @@ foreign keys point at a table that already exists by the time its own migration
 runs (`booking` 37 from batch E, `konsultasi` 38 from inside this batch one
 migration earlier, `pasien` 20 from batch C, `dokter` 31 and `faskes` 28 from
 batch D, `users` 12 from batch B, and `surat_keterangan` 40 from inside this
-batch), so the *Deferred constraints* table above is unchanged and still holds
-exactly one row (`fk_vital_rm`, added by migration 76). Five facts are still
+batch), so this batch deferred nothing of its own. Five facts are still
 worth carrying forward, because each looks like something the schema guarantees
 and is not. The three marked **absence is load-bearing** are the ones a later
 reader is most likely to "repair", and every such repair would be reported as
@@ -530,7 +526,7 @@ reader is most likely to "repair", and every such repair would be reported as
   that once justified adding it is dead: `konsultasi` is table 38, created one
   migration **before** this one, so `->foreign('konsultasi_id')->references('id')->on('konsultasi')`
   would succeed and stay green forever while being permanent
-  `extra_foreign_key` drift. **Migration `2026_10_01_000076` must not add it.**
+  `extra_foreign_key` drift. **Migration `2026_10_01_000076` exists and must not add it either.**
   The cost is real and is why this is written down rather than left implicit: a
   medical letter whose `konsultasi_id` points at a deleted consultation is
   representable, and — because a cascade needs a constraint — it cannot be
@@ -547,7 +543,7 @@ reader is most likely to "repair", and every such repair would be reported as
   *destination*. The consequence is that a `faskes_asal_id` naming a facility
   this installation has never heard of is representable, so any consumer that
   wants the referring facility's name must treat the join as optional. Migration
-  `2026_10_01_000076` must not add it either.
+  **Migration `2026_10_01_000076` exists** and must not add it either.
 - **`konsultasi.booking_id` is `NULL UNIQUE` (`:538`), and the `NULL` half is
   load-bearing.** The `UNIQUE` is what makes "one consultation per booking" a
   database guarantee (MySQL 1062 on the second row for one booking) rather than
@@ -612,8 +608,7 @@ parity and **owes no deferred constraint**: all nine of its foreign keys point a
 a table that already exists by the time its own migration runs (`pasien` 20 from
 batch C, `faskes` 28 and `dokter` 31 from batch D, `konsultasi` 38 from batch F,
 and `rekam_medis` 42 from inside this batch, one row earlier in the same commit),
-so the *Deferred constraints* table above is unchanged and still holds exactly
-one row (`fk_vital_rm`, added by migration 76 per SQL section `[14]`, `:1161-1163`).
+so this batch deferred nothing of its own.
 **Batch G defers nothing and registers nothing.**
 
 Four facts are recorded because each looks like something the schema guarantees
@@ -671,9 +666,9 @@ reader is most likely to "repair", and every such repair would be reported as
   | `rekam_medis_tindakan.icd9cm_kode` | `:672` | `master_icd9cm.kode` (table 11) | Same shape, but **nullable** (a procedure may be described in words only via `nama_tindakan`) and with **no index at all**, so a code lookup is a full scan — the one place in this batch where the rule costs a query plan as well as integrity. |
   | `rekam_medis_lampiran.diunggah_oleh` | `:687` | `users.id` (table 12) | `NOT NULL` yet unconstrained, so an attachment naming a user this installation never had is representable. `users` carries `dihapus_at` (`:148`), so the intended lifecycle is a soft delete that leaves the id resolvable — which is why the constraint is absent rather than deferred. **Not named in the plan's todo-13 text at all.** |
 
-  **Migration `2026_10_01_000076` must not add a constraint to any of the four.**
-  None of them is in the *Deferred constraints* registry and none should be:
-  registration would promise a constraint the DDL never declares.
+  **Migration `2026_10_01_000076` exists and must not add a constraint to any of the four.**
+  None of them may ever be registered as deferred, because registration would
+  promise a constraint the DDL never declares.
 - **"Exactly one primary diagnosis per record" is unenforced, and no index can
   enforce it.** `rekam_medis_diagnosa.jenis` (`:662`) is a four-value ENUM
   (`utama`, `sekunder`, `diferensial`, `komplikasi`) with **no default**, so
@@ -748,9 +743,8 @@ foreign keys point at a table that already exists by the time its own migration
 runs (`pasien` 20 from batch C, `faskes` 28 and `dokter` 31 from batch D,
 `users` 12 from batch B, `konsultasi` 38 and `rekam_medis` 42 from batches F
 and G, and `master_obat` 47, `resep` 49 and `pesanan_obat` 52 from inside this
-batch, one row earlier in the same commit), so the *Deferred constraints* table
-above is unchanged and still holds exactly one row (`fk_vital_rm`, added by
-migration 76 per SQL section `[14]`, `:1161-1163`). **Batch H defers nothing and
+batch, one row earlier in the same commit), so this batch deferred nothing of its
+own. **Batch H defers nothing and registers nothing.**
 registers nothing.** The extra-table registry therefore still has exactly seven
 entries, and the unit suite re-derives that seven on every run.
 
@@ -870,9 +864,9 @@ Verified by grepping every `FOREIGN KEY` line in the file and, at runtime, by
 `apotek_id`, `dokter_id` and `pasien_id` and **zero** on `konsultasi_id` and
 `rekam_medis_id`. Contrast `pesanan_obat.resep_id` (`:800`), which **does** carry a
 real foreign key (`:814`): one `resep_id` column being constrained says nothing
-about the other. **Migration `2026_10_01_000076` must not add a constraint to either
-bare column**, and neither belongs in the *Deferred constraints* registry, because
-registration would promise a constraint the DDL never declares.
+about the other. **Migration `2026_10_01_000076` exists and must not add a
+constraint to either bare column**, and neither may ever be registered as deferred,
+because registration would promise a constraint the DDL never declares.
 
 Three shapes that are correct but that a later reader is likely to mistake for
 mistakes, recorded so they are not "harmonised":
@@ -1012,9 +1006,8 @@ parity and **owes no deferred constraint**. All **ten** of its foreign keys poin
 a table that already exists when the migration declaring them runs: `pasien` 20
 (batch C), `faskes` 28 and `dokter` 31 (batch D), and `master_lab_tindakan` 55,
 `master_lab_paket` 56 and `lab_permintaan` 58 — **three of them from inside this same
-batch**, earlier in the same commit. The *Deferred constraints* table above is
-therefore unchanged and still holds exactly one row (`fk_vital_rm`, added by
-migration 76 per SQL section `[14]`, `:1161-1163`). **Batch I defers nothing and
+batch**, earlier in the same commit, so this batch deferred nothing of its own.
+**Batch I defers nothing and registers nothing.**
 registers nothing.** The extra-table registry still has exactly seven entries.
 
 **All six tables are module-orphaned — migrated and modelled for referential
@@ -1054,10 +1047,11 @@ not a failed lookup. Each column was separately confirmed to *exist* (as
 (`:882`) and `faskes_lab_id` (`:883`) — are the ones the request's *validity*
 depends on: a request must name a patient and an ordering doctor, and optionally the
 facility that will run the test. The two bare columns are **provenance**, and both
-are nullable precisely because a request can have neither. **Migration
-`2026_10_01_000076` must not add a constraint to any of the three**, and none
-belongs in the *Deferred constraints* registry, because a registry row would promise
-a constraint the DDL never declares.
+the facility that will run the test. The two bare columns are **provenance**, and
+both are nullable precisely because a request can have neither. **Migration
+`2026_10_01_000076` exists and must not add a constraint to any of the three**, and
+none of them may ever be registered as deferred, because a registry row would
+promise a constraint the DDL never declares.
 
 ### `lab_paket_item` has **NO `id` COLUMN** — it is a composite-PK join table
 
@@ -1266,10 +1260,7 @@ and **owes no deferred constraint**. All **seven** of its foreign keys point at 
 table that already exists when the migration declaring them runs: `pasien` 20
 (batch C), and `master_metode_pembayaran` 61, `invoice` 62, `pembayaran` 63 and
 `master_promo` 65 — **four of them from inside this same batch**, earlier in the
-same commit. The *Deferred constraints* table above is therefore unchanged and
-still holds exactly one row (`fk_vital_rm`, added by migration 76 per SQL section
-`[14]`, `:1161-1163`), confirmed live: `pasien_tanda_vital.rekam_medis_id` still
-has **0** foreign keys. **Batch J defers nothing and registers nothing.** The
+same commit. This batch therefore deferred nothing of its own. **Batch J defers nothing and registers nothing.** The
 extra-table registry still has exactly seven entries, so the derived
 `schema-notes.md` contract in the unit suite is unchanged.
 
@@ -1613,10 +1604,7 @@ of its foreign keys point at a table that already exists when the migration
 declaring them runs: `users` 12 (batch B), `pasien` 20 and
 `pasien_anggota_keluarga` 21 (batch C), `dokter` 31 (batch D), `rekam_medis` 42
 (batch G) and `artikel_kategori` 70 — **one from inside this same batch**, earlier
-in the same commit. The *Deferred constraints* table above is therefore unchanged
-and still holds exactly one row (`fk_vital_rm`, added by migration 76 per SQL
-section `[14]`, `:1161-1163`), confirmed live:
-`pasien_tanda_vital.rekam_medis_id` still has **0** foreign keys.
+in the same commit. This batch therefore deferred nothing of its own.
 **Batch K defers nothing and registers nothing.** The extra-table registry still
 has exactly seven entries.
 
@@ -1930,20 +1918,26 @@ earlier batches reported as wrapped are gone.
   (`resep.konsultasi_id` in batch H, `pasien_penjamin.faskes_rujukan_id` before
   that, `lab_hasil.diperiksa_oleh` in batch I). Migration
   `2026_10_01_000071` says so in place.
-- **`tests/Unit/Console/VerifySchemaDeferredConstraintTest.php:249` asserts
-  `missing_table > 0` on the full run, and that is now false — correctly.**
+- **`tests/Unit/Console/VerifySchemaDeferredConstraintTest.php:249` asserted
+  `missing_table > 0` on the full run, and that became false at todo 17 —
+  correctly. RESOLVED in todo 18.**
   Plan appendix A.9's own table predicts `missing_table` = **0** at todo 17
-  (48/41/38/34/29/21/15/8/**0**/0 for todos 9-18), and this batch creates the last
-  eight tables, so the global "schema still incomplete" signal is now carried by
+  (48/41/38/34/29/21/15/8/**0**/0 for todos 9-18), and that batch created the last
+  eight tables, so the global "schema still incomplete" signal was carried by
   **two `missing_view` rows** (migrations 77 and 78, todo 18) instead. The test's
   sibling in `VerifySchemaCommandTest.php` was already fixed for exactly this
   boundary — its docblock at lines 26-32 explains that views must be derived too
   "or a test that inverted on that signal alone would go red at todo 17" — and this
-  second file was not. **This is a pre-existing latent defect that todo 17 is the
-  first commit to expose, not a migration defect**, and it was deliberately **not**
-  edited here: the test file is outside this commit's authorised paths, and editing
-  a test to make a suite green is the failure mode this project has spent ten
-  batches fighting. The fix is one assertion, and it belongs with todo 18.
+  second file was not. **This was a pre-existing latent defect that todo 17 was the
+  first commit to expose, not a migration defect**, and todo 17 deliberately did
+  **not** edit it: the test file was outside that commit's authorised paths, and
+  editing a test to make a suite green is the failure mode this project has spent
+  ten batches fighting. Todo 18 found it, and **re-scoped the whole file** rather
+  than deleting the one assertion: six of its eight tests were premised on a
+  pending deferral keeping the full run failing, and with the last deferral resolved
+  the correct end state is exit 0 and zero drift. The reasoning, the table of which
+  assertions were void and why, and the coverage that was preserved instead are in
+  that file's own docblock.
 - **A comment can break the derived unit suite, and only the unit suite can see
   it.** This batch's own `000069` docblock originally spelled the method name with
   its argument list in prose. `VerifySchemaCommandTest.php` derives its
@@ -1956,3 +1950,111 @@ earlier batches reported as wrapped are gone.
   gate except the test suite could find — and it is why the file now says why it
   avoids the spelling.
 
+## Seed data: what is faithful and what is not (todo 18)
+
+**The project's 1:1 fidelity claim covers SCHEMA, not DATA.** It means
+`database/migrations/**` reproduces `telemedicine_test.sql` exactly — 75 tables,
+2 views, every column, index, foreign key and CHECK — and
+`php artisan sehatly:verify-schema` is the instrument that proves it. **It says
+nothing about row counts**, and todo 18 added seeders without weakening it. The
+distinction matters because a reader who assumes "fidelity" covers the seed rows
+will reasonably expect `lab_paket_item` and `obat_interaksi` to be populated, and
+they are populated by data that is in no SQL file.
+
+### The nine section-`[16]` seeders ARE faithful
+
+`database/seeders/{MasterWilayah,MasterUmum,Spesialisasi,Penjamin,
+MetodePembayaran,Icd,Obat,Lab,ArtikelKategori}Seeder.php` port
+`telemedicine_test.sql:1203-1344` statement for statement. **15 tables, 151 rows**,
+and every count was derived by parsing the DDL's own `INSERT` tuples rather than
+read from a comment or a plan:
+
+| Table | Rows | Table | Rows |
+| --- | --- | --- | --- |
+| `master_provinsi` | 38 | `master_metode_pembayaran` | 14 |
+| `master_agama` | 7 | `master_icd10` | 15 |
+| `master_golongan_darah` | 4 | `master_icd9cm` | 6 |
+| `master_pendidikan` | 8 | `master_obat` | 7 |
+| `master_status_pernikahan` | 4 | `master_lab_tindakan` | 10 |
+| `master_hubungan_keluarga` | 7 | `master_lab_paket` | 3 |
+| `master_spesialisasi` | 16 | `artikel_kategori` | 6 |
+| `master_penjamin` | 6 | **total** | **151** |
+
+`verify-schema` **cannot check any of this** — it compares schema, not data
+— so the row counts are checked by reading `COUNT(*)` back after seeding, and
+those measurements are in `.omo/evidence/task-18-sehatly.md`.
+
+### `DevFixtureSeeder` is NOT faithful, and here is exactly what it adds
+
+`database/seeders/DevFixtureSeeder.php` creates **7 tables, 21 rows** that have **no
+source in `telemedicine_test.sql`**: 5 `users`, 2 `pasien`, 2 `faskes`, 3 `dokter`,
+4 `dokter_spesialisasi`, 3 `lab_paket_item` and 2 `obat_interaksi`.
+
+**`telemedicine_test.sql` contains no `INSERT` for `lab_paket_item` or
+`obat_interaksi` anywhere.** I enumerated every `INSERT INTO <target>` in all 1,349
+lines — case-insensitive — and got exactly **15** distinct targets, all in
+section `[16]`, and neither table is among them. Each appears exactly twice in the
+file and both occurrences are accounted for:
+
+| Line | Statement | Kind |
+| --- | --- | --- |
+| `:31` | `DROP TABLE IF EXISTS lab_paket_item, master_lab_paket, master_lab_tindakan;` | reset |
+| `:868` | `CREATE TABLE lab_paket_item (` | DDL |
+| `:33` | `DROP TABLE IF EXISTS ... , obat_interaksi, master_obat;` | reset |
+| `:731` | `CREATE TABLE obat_interaksi (` | DDL |
+
+The file's **last** statement is `artikel_kategori` at `:1338`-`:1344`; `:1346`-`:1348`
+are the `SELESAI` banner and `:1349` is a bare `SELECT ... AS status`. So there is
+nothing after it, and the "3 `lab_paket_item` rows" and the `obat_interaksi` pairs
+are **new data**.
+
+**A correction to the plan's own wording, recorded because the number is wrong in a
+way that matters.** The plan calls them "**3** `lab_paket_item` rows". The *three* is
+the number of **package mappings**; the number of **rows** is **7**, because
+`lab_paket_item` is a composite-PK join table and each mapping is one row per action:
+
+| Package | Actions | Rows |
+| --- | --- | --- |
+| `Medical Check Up Dasar` | `LAB-001`, `LAB-002`, `LAB-009` | 3 |
+| `Cek Gula & Kolesterol` | `LAB-003`, `LAB-004` | 2 |
+| `Fungsi Hati Lengkap` | `LAB-005`, `LAB-006` | 2 |
+| | | **7** |
+
+All six `LAB-*` codes were verified against `:1321-1330` before use.
+
+**These two tables are not the only unsourced ones.** `master_promo` also has **no**
+`INSERT` anywhere in the file, so any promo is fixture data in the same position; the
+seeder does not create one. And `v_pendapatan_bulanan` is **empty by parity**, not by
+omission: the DDL seeds no `invoice` and no `pembayaran` rows, so importing
+`telemedicine_test.sql` itself yields zero rows in that view.
+
+### The doctor fixture is load-bearing, and the reason is `verify-schema`'s blind spot
+
+**`verify-schema` compares views by NAME AND EXISTENCE ONLY.** `SchemaDiffer` emits
+`missing_view` and `extra_view` and nothing else for views, because MySQL re-renders
+`VIEW_DEFINITION` server-side. **A view that exists and is completely wrong is still
+`Discrepancies: 0`.** So the parity verdict says nothing about whether
+`v_dokter_katalog` returns anything, and the doctor fixture is what makes it
+non-empty.
+
+`v_dokter_katalog` filters on **three** predicates — `status_verifikasi =
+'terverifikasi'`, `status_aktif = 1` and `tersedia_telemedisin = 1` — and
+`status_verifikasi` **defaults to `'pending'`** (`:427`). A doctor inserted with
+defaults is therefore invisible to the view. The fixture creates three doctors, of
+which **two** are visible and one is deliberately left `pending` **and**
+`status_aktif = 1` — the exact active-but-unverified combination the batch-D note
+above warns about — so that the view's filtering is *observable* rather than
+assumed. A view that returned all three would be wrong, and the measured count of
+**2** is what proves it is not.
+
+### Both view definitions were verified by hand, because nothing automated can
+
+`telemedicine_test.sql:1170-1187` and `:1190-1196` were copied **verbatim** into
+migrations 77 and 78 as PHP nowdocs, and the copies were compared to the DDL
+**byte for byte** (whitespace-normalised, case-sensitive) — both are identical.
+`GROUP_CONCAT(s.nama SEPARATOR ', ')` and `DATE_FORMAT(p.dibayar_at, '%Y-%m')` are
+preserved exactly, because both are MySQL-only syntax that no fluent builder
+reproduces and both are the kind of token a re-quoting pass mangles.
+
+The two `SHOW CREATE VIEW` outputs, the seven-column and three-column lists, their
+types, and both `COUNT(*)` values are in `.omo/evidence/task-18-sehatly.md`.

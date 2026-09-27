@@ -1,6 +1,5 @@
 <?php
 
-use App\Support\Schema\DeferredConstraintRegistry;
 use App\Support\Schema\ExtraTableRegistry;
 use App\Support\Schema\LiveSchemaReader;
 use App\Support\Schema\SqlSchemaParser;
@@ -199,18 +198,23 @@ test('the JSON report is machine-readable, and its exit code matches its verdict
     // number here went stale the moment todo 7 deleted three scaffold
     // migrations - the same defect todo 8 then reintroduced above.
     //
-    // It is now the sum of BOTH registries, for the same derived reason: a
-    // `missing_foreign_key` listed in the notes file's *Deferred constraints*
-    // table is informational too (plan Appendix A.10 rule 1), so the extras alone
-    // under-count by the number of outstanding deferrals. Deriving the sum keeps
-    // this line a real check at todo 18 as well: once migration 76 lands
-    // `fk_vital_rm`, rule 2 reclassifies the row as DRIFT, so a registry that is
-    // still listed makes `registered_deferred_constraints` disagree with the
-    // informational total and this assertion fails - which is the registry
-    // forcing itself to be updated, with no test edited.
-    $registeredDeferrals = count(DeferredConstraintRegistry::fromMarkdown(base_path('docs/schema-notes.md')));
-    expect($json['notes_registry']['registered_deferred_constraints'])->toBe($registeredDeferrals);
-    expect($json['discrepancy_count'] - $json['drift_count'])->toBe($registeredExtras + $registeredDeferrals);
+    // It used to be the sum of BOTH registries, because a `missing_foreign_key`
+    // listed in the notes file's *Deferred constraints* table is informational
+    // too (plan appendix A.10 rule 1), so the extras alone under-counted by the
+    // number of outstanding deferrals. **There is now only one registry.** The
+    // last deferral was resolved in todo 18 by migration
+    // `2026_10_01_000076`, and retiring the registry took four edits in four
+    // files; this line is the third. Adding the deferral term back would require
+    // `DeferredConstraintRegistry::fromMarkdown()` in the command, which raises
+    // on an empty registry, so the two would have to land together.
+    //
+    // NOTE on the expected total: the extras are reported as informational, not
+    // suppressed, so `discrepancy_count` is **7, not 0**, and it always will be
+    // while seven registered extra tables exist. Zero *drift* is the invariant;
+    // zero *discrepancies* is not reachable without deleting either the registry
+    // rows - which turns all seven into `undocumented_extra_table` drift - or the
+    // tables, which the framework requires.
+    expect($json['discrepancy_count'] - $json['drift_count'])->toBe($registeredExtras);
 
     $rows = array_values(array_filter($json['discrepancies'], fn ($d) => $d['kind'] === 'missing_table'));
     expect(array_column($rows, 'table'))->toEqualCanonicalizing(
@@ -417,10 +421,20 @@ test('running the verifier changes nothing in the database, and is idempotent', 
     $before = $fingerprint();
     expect($before)->not->toBe('[]');
 
-    expect(Artisan::call('sehatly:verify-schema'))->toBe(1);
-    expect(Artisan::call('sehatly:verify-schema'))->toBe(1);
+    // The verdict is DERIVED, not pinned. This test is about two properties - the
+    // run is read-only, and it is idempotent - and neither is about whether the
+    // schema currently matches. It used to assert `toBe(1)` twice, which was a
+    // fourth hard-coded expectation of the pre-todo-18 state in this file (after
+    // the three in A.9) and inverted the moment migration 76 and the two views
+    // landed. Asserting the two runs AGREE, and that nothing changed underneath
+    // them, is the actual property and it holds at any migration position.
+    $first = Artisan::call('sehatly:verify-schema');
+    $second = Artisan::call('sehatly:verify-schema');
+
+    expect($second)->toBe($first, 'two consecutive runs of a read-only verifier must reach the same verdict');
 
     expect($fingerprint())->toBe($before);
+    expect($first)->toBeIn([0, 1], 'the verifier must reach a real verdict, never the "could not run" exit 2');
 });
 
 test('the verifier reads the configured database, not a hard-coded one', function () {
