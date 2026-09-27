@@ -1420,6 +1420,15 @@ test('the route table exposes the eight auth routes and the eleven patient route
         'POST api/v1/pasien/alergi',
         'PUT api/v1/pasien/alergi/{id}',
         'DELETE api/v1/pasien/alergi/{id}',
+        // The three public doctor-directory routes. Todo 22 does not edit this file - it hands
+        // its routes over as a paste-ready block and the orchestrator appends them - so they
+        // arrived after this test was written. They are listed in registration order (last)
+        // rather than folded in silently: this is a closed set over the WHOLE api/v1 surface
+        // on purpose, and a closed set that quietly forgives a concurrently-wired route is
+        // exactly the drift this assertion exists to catch.
+        'GET api/v1/dokter',
+        'GET api/v1/dokter/{dokter}',
+        'GET api/v1/master-spesialisasi',
     ]);
 
     // TEN under the `pasien` filter, not the eight the plan's acceptance criterion names.
@@ -1440,14 +1449,25 @@ test('the route table exposes the eight auth routes and the eleven patient route
         ));
     };
 
-    // The four anonymous auth routes are the only ones without `auth:sanctum`, and that is
-    // the point of the guard: register, login, otp/verify and refresh cannot require a token
-    // that the caller does not have yet. Every route this todo added requires one.
+    // The four anonymous auth routes cannot require `auth:sanctum`: register, login,
+    // otp/verify and refresh all run before the caller holds a token. Every route this todo
+    // added requires one.
+    //
+    // The three doctor-directory routes are also anonymous, and that is todo 22's decision
+    // rather than an omission on its part: the plan makes `GET /api/v1/dokter` a pre-
+    // authentication browsing surface, so gating it with `permission:dokter.lihat` would
+    // 401 every anonymous visitor and 403 `perawat` and `kurir`, which are real `users.tipe`
+    // values that hold no role and therefore no grant. They were wired into this file after
+    // this test was written, so the anonymous set is stated here explicitly rather than
+    // inferred - an inferred set would have silently stopped covering new public routes.
     $anonymous = [
         'POST api/v1/auth/register',
         'POST api/v1/auth/login',
         'POST api/v1/auth/otp/verify',
         'POST api/v1/auth/refresh',
+        'GET api/v1/dokter',
+        'GET api/v1/dokter/{dokter}',
+        'GET api/v1/master-spesialisasi',
     ];
 
     foreach (array_keys($routes) as $key) {

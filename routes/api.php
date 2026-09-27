@@ -205,3 +205,47 @@ Route::middleware('auth:sanctum')->group(function (): void {
         });
     });
 });
+
+use App\Http\Controllers\Api\V1\DokterController;
+/*
+|--------------------------------------------------------------------------
+| Module 1 -- the public doctor directory. Three routes, and NONE of them is
+| gated.
+|--------------------------------------------------------------------------
+|
+| `GET /dokter` and `GET /dokter/{dokter}` are unauthenticated on purpose. The
+| plan's todo 22 says so explicitly, and `RbacCatalog` is what makes it the only
+| workable answer: `dokter.lihat` **is** a real permission code, but
+| `permission:` resolves through `EnsurePermission`, which answers 401 for an
+| anonymous caller - so the gate would 401 every visitor who has not registered
+| yet, which is the opposite of a directory. And it would 403 `perawat` and
+| `kurir`, which are real `users.tipe` ENUM values (telemedicine_test.sql:139)
+| that hold no role in `RbacCatalog::ROLES` and therefore no grant at all.
+|
+| `dokter.lihat` is not dead vocabulary, it is the wrong vocabulary *here*: it
+| belongs on an administrative directory that is supposed to list unverified,
+| inactive and STR-expired doctors so an operator can renew or suspend them.
+| That endpoint must be authenticated and must NOT reuse this controller's
+| query, because its purpose is to bypass the two eligibility rules
+| `DokterDirectoryService` exists to enforce.
+|
+| `{dokter}`, not `{id}` and not `{id}` bound to a model: todo 26 adds
+| `{dokter}/jadwal` and `{dokter}/slot`, and a `Dokter $dokter` type-hint would
+| make implicit route-model binding resolve the segment and **bypass both
+| eligibility rules**, answering 200 with an unverified doctor's profile.
+|
+| `DokterDirectoryTest` registers these three routes in-process and only when
+| they are ABSENT, so it passes both before and after this block is pasted, and
+| after pasting it drives this real route table.
+|
+*/
+
+Route::get('dokter', [DokterController::class, 'index'])
+    ->name('dokter.index');
+
+Route::get('dokter/{dokter}', [DokterController::class, 'show'])
+    ->whereNumber('dokter')
+    ->name('dokter.show');
+
+Route::get('master-spesialisasi', [DokterController::class, 'spesialisasiIndex'])
+    ->name('master-spesialisasi.index');
