@@ -1,0 +1,42 @@
+# Analysis configuration for the Sehatly pure-Dart API client.
+#
+# `strict-casts` and `strict-raw-types` are switched on deliberately. This
+# package's entire job is to turn `Map<String, dynamic>` JSON into typed models,
+# and the two strict flags are the only analyzer settings that turn a mistyped
+# field access into a compile-time error instead of a `null` that surfaces three
+# layers later as a wrong value in a patient record.
+include: package:lints/recommended.yaml
+
+analyzer:
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
+  errors:
+    # A published API client must document its public surface. An undocumented
+    # public member is a defect here, not a style preference, because the mobile
+    # team reads this package as its API reference.
+    public_member_api_docs: error
+    # Treat unused code as an error rather than a hint: a DTO field the client
+    # never reads is a field whose wire name was never token-audited.
+    unused_element: error
+    # A Dart named parameter cannot start with an underscore, so
+    # `required Dio dio` -> `_dio = dio` has no `this._dio` form to be rewritten
+    # into. Every hit this lint raises in this package is exactly that shape: a
+    # public named parameter feeding a private field, which is the shape every
+    # interceptor, endpoint group and store in `lib/src` uses on purpose. The
+    # lint is therefore unsatisfiable here rather than merely unfollowed, and the
+    # two alternatives -- an `// ignore` on every constructor, or promoting the
+    # fields to public -- are both worse than the one duplicated assignment.
+    prefer_initializing_formals: ignore
+
+linter:
+  rules:
+    - always_declare_return_types
+    - avoid_dynamic_calls
+    - avoid_slow_async_io
+    - cancel_subscriptions
+    - directives_ordering
+    - prefer_final_locals
+    - prefer_single_quotes
+    - unawaited_futures

@@ -1,0 +1,22 @@
+name: sehatly_api_client
+description: >-
+  Pure-Dart (Flutter-free) API client for the Sehatly telemedicine platform.
+  Dio-backed, with single-flight token refresh, a secure/plain token storage
+  split, and typed error and pagination models for the Module 1 surface.
+version: 0.1.0
+publish_to: none
+
+# The SDK floor is 3.13.0 because that is the toolchain the repository is built
+# and verified with. There is deliberately NO `flutter:` key anywhere in this
+# file: the package must resolve, analyze and test with a bare `dart` binary, and
+# a Flutter SDK constraint would make `dart pub get` fail for the mobile team's
+# CI runners that have not installed Flutter yet.
+environment:
+  sdk: '>=3.13.0 <4.0.0'
+
+dependencies:
+  dio: ^5.11.1
+
+dev_dependencies:
+  lints: ^6.1.0
+  test: ^1.26.2
