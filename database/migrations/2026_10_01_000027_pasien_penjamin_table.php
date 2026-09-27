@@ -18,16 +18,16 @@ use Illuminate\Support\Facades\Schema;
  * implicit FK-support index requirement for the `penjamin_id` foreign key, so MySQL
  * creates no second index on that column.
  *
- * **`faskes_rujukan_id` is a bare nullable `BIGINT UNSIGNED` with NO foreign key.**
- * The column's own comment says "Faskes tingkat 1 (untuk BPJS)" and it clearly
- * points at `faskes` — but `faskes` is SQL table 28 (`:360`), authored in batch D
- * (todo 10), i.e. *after* this row in the migration order. Declaring the constraint
- * here would fail `migrate:fresh` with MySQL 1824 and break the acceptance criteria
- * of this todo and todo 10 both. It is therefore created as a plain column and the
- * constraint is deferred to
- * `2026_10_01_000076_add_deferred_foreign_keys_table.php` (todo 18), alongside
- * `fk_vital_rm`; the deferral is recorded in `docs/schema-notes.md` so todo 18 has
- * it in writing rather than in a comment.
+ * **`faskes_rujukan_id` is a bare nullable `BIGINT UNSIGNED` with NO foreign
+ * key, by design — and none is owed.** The column's own comment says "Faskes
+ * tingkat 1 (untuk BPJS)" and it clearly points at `faskes`, but the SQL
+ * declares no `FOREIGN KEY` for it (`telemedicine_test.sql:346`) and the plan's
+ * authoritative no-foreign-key list records it as carrying none; the only
+ * constraint this batch defers is `fk_vital_rm`. `faskes` is SQL table 28
+ * (`:360`), authored in batch D (todo 10), so the ordering is **not** the
+ * reason — the column is unconstrained because the contract says so. Do not
+ * widen it to `foreignId()` semantics and do not register it as deferred:
+ * registration would promise a constraint the DDL never declares.
  *
  * `dibuat_at` only — no `diubah_at`, so no raw `ON UPDATE` `ALTER` is issued.
  */
@@ -45,8 +45,9 @@ return new class extends Migration
             $table->string('nomor_peserta', 30)->comment('13 digit untuk BPJS');
             $table->enum('kelas_rawat', ['kelas_1', 'kelas_2', 'kelas_3'])->nullable();
 
-            // Bare by design: `faskes` is table 28, authored in todo 10. The
-            // constraint is deferred to migration 76 (todo 18).
+            // Bare by design: the SQL declares no FOREIGN KEY for this column
+            // (`telemedicine_test.sql:346`), and `faskes` only arrives in
+            // todo 10 — so nothing is deferred here and none is owed.
             $table->unsignedBigInteger('faskes_rujukan_id')->nullable()
                 ->comment('Faskes tingkat 1 (untuk BPJS)');
 
