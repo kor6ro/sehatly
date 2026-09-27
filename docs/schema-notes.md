@@ -1603,3 +1603,356 @@ promo is off.
   (A.19) applies: the correction is dispatched separately rather than smuggled
   into a migration batch. **It is a real, live, wrong instruction**, and rule 6 is
   the text an executor will actually follow.
+
+## Batch-K schema limitations the database cannot enforce (todo 17)
+
+Batch K (`notifikasi`, `ulasan_dokter`, `artikel_kategori`, `artikel`,
+`home_care_pesanan`, `audit_log`, `persetujuan_pdp`, `akses_rekam_medis_log` —
+SQL tables 68-75) is at parity and **owes no deferred constraint**. All **eleven**
+of its foreign keys point at a table that already exists when the migration
+declaring them runs: `users` 12 (batch B), `pasien` 20 and
+`pasien_anggota_keluarga` 21 (batch C), `dokter` 31 (batch D), `rekam_medis` 42
+(batch G) and `artikel_kategori` 70 — **one from inside this same batch**, earlier
+in the same commit. The *Deferred constraints* table above is therefore unchanged
+and still holds exactly one row (`fk_vital_rm`, added by migration 76 per SQL
+section `[14]`, `:1161-1163`), confirmed live:
+`pasien_tanda_vital.rekam_medis_id` still has **0** foreign keys.
+**Batch K defers nothing and registers nothing.** The extra-table registry still
+has exactly seven entries.
+
+**`ulasan_dokter` holds the ONLY `CHECK` constraints in the entire 75-table
+contract** — three of them, at `:1055`-`:1057`, on `rating`, `rating_komunikasi` and
+`rating_akurasi`, all of the form `<col> BETWEEN 1 AND 5`. This is the single
+most important fact about the batch and it is worth stating as a schema-wide
+conclusion rather than a per-table note: **these three columns are the only
+columns in the whole contract whose value range the database polices.** There is
+no other `CHECK` in `telemedicine_test.sql`, no trigger anywhere and no generated
+column, so every other numeric and enumerated value in the schema is validated by
+the application layer alone.
+
+MySQL 8.0.16+ **enforces** `CHECK`; before 8.0.16 the grammar parsed one and
+ignored it, which is why it was historically treated as documentation. The
+running server is 8.0.30, and enforcement was proven by *executing* violating
+inserts rather than read out of the DDL: `rating = 6` and `rating = 0` are both
+rejected with **MySQL 3819** naming `ulasan_dokter_chk_1`, `rating_komunikasi = 9`
+with 3819 naming `chk_2`, `rating_akurasi = 7` with 3819 naming `chk_3`, while
+`rating = 5`, `rating = 1` and `rating_komunikasi = NULL` all succeed. A NULL is
+correctly not a violation, which is what makes the two nullable sub-scores
+optional rather than required.
+
+Laravel 13's Blueprint has **no** `CHECK` builder, so the three constraints are
+issued as raw `DB::statement('ALTER TABLE ... ADD CHECK ...')` calls after the
+table is created. They are added **unnamed**, on purpose: the DDL writes no
+constraint name (they are inline column constraints), so MySQL auto-generates
+`ulasan_dokter_chk_1`/`_2`/`_3` in creation order, which is exactly what importing
+`telemedicine_test.sql` produces. Naming them `chk_rating` and siblings — as the
+dispatched brief's illustrative snippet does — would invent a name the contract
+never had. This is parity-safe by construction rather than by luck:
+`SchemaDiffer::diffChecks()` compares CHECKs **by normalised expression only**,
+precisely because the names are engine-generated.
+
+**A negative-QA measurement that generalises A.21.** Removing one of the three
+`CHECK` statements leaves `php -l` at **exit 0** and `migrate:fresh` at **exit 0**,
+and drops the live CHECK count from 3 to 2 **silently**. The unit suite is
+**completely blind to it**: 93 tests, 92 passed, 1 failed — byte-identical to the
+unmutated run, same single failure, same 465 assertions. Only
+`verify-schema` sees it (exit 1, `missing_check ulasan_dokter expected:
+rating_akurasi between 1 and 5`). So the contract's only DDL-level value-range
+guarantee can be deleted with **three of the four gates green**, and — as in todo
+16's `idx_ref` — no functional test ever could catch it, because a constraint
+affects only what the database rejects, never what the application can do.
+
+### `ulasan_dokter.konsultasi_id` is `NOT NULL UNIQUE`, so a second review is impossible
+
+`:1052` — `konsultasi_id BIGINT UNSIGNED NOT NULL UNIQUE COMMENT '1 konsultasi = 1
+ulasan'`, declared as an inline `->unique()` (rule 10: an inline `UNIQUE` is
+compared by *semantics*). **One consultation yields exactly one review, and that
+is enforced by the database, not by convention.** A second insert fails with MySQL
+1062 — proven live during this todo's own probe run.
+
+The consequence for todo 41 is structural and not advisory: the review flow must
+be **INSERT-then-UPDATE-or-409**, never a second `INSERT`. A submit handler that
+unconditionally inserts is wrong against this schema, and no application-level
+de-duplication changes it, because the uniqueness lives in the index.
+
+The **reply** is on the same row — `balasan_dokter` (`:1060`) and `dibalas_at`
+(`:1061`) are ordinary nullable columns, there is no replies table and no reply
+uniqueness, so answering a review is an `UPDATE`. That is also why `dibuat_at`
+(`:1062`) is the review's creation time and not a last-write time, and why the
+table has no `diubah_at` at all.
+
+### Three bare columns in batch K, and three different `ON DELETE` polarities for a `user_id`
+
+`artikel.reviewer_user_id` (`:1078`), `audit_log.user_id` (`:1120`) and
+`audit_log.record_id` (`:1123`) all carry a reference-shaped name and **no foreign
+key**. All three were proven FK-free against
+`information_schema.REFERENTIAL_CONSTRAINTS` joined to `KEY_COLUMN_USAGE` — **not**
+by reading `SHOW CREATE TABLE`, which shows only constraints that exist and so
+cannot distinguish "absent" from "not looked for" — and each was separately
+confirmed to **exist**, so that "no row" cannot be confused with "no column":
+
+| Column | SQL line | Live type | Why it is bare |
+| --- | --- | --- | --- |
+| `artikel.reviewer_user_id` | `:1078` | `bigint unsigned` NULL | The DDL's own COMMENT says *"Reviewer medis (revisi medis)"* — a **workflow role, not an identity**. The clinician who medically signs off need not be an author or staff member, and the column is nullable because the common case is an article never medically reviewed (`status = 'draft'`). Contrast `artikel.penulis_user_id` (`:1077`), which **is** constrained at `:1090`: one `_user_id` column being constrained says nothing about the other. |
+| `audit_log.user_id` | `:1120` | `bigint unsigned` NULL | The plan's bare-column list states the reason: unconstrained **so the log survives user deletion**. **ATTRIBUTION: that rationale is the plan's, not the SQL's — `:1120` carries no `COMMENT` text.** Nullable separately, because a `login`/`logout` action has no actor. |
+| `audit_log.record_id` | `:1123` | `varchar(64)` NULL | **A string, and it must be.** See below. |
+
+**`audit_log.record_id VARCHAR(64)` is why the audit log cannot key on a numeric
+id, and therefore why `idx_audit_tabel` is a string index.** `audit_log` is the
+project's generic, table-agnostic trail, so (`tabel_target`, `record_id`) must be
+able to name the primary key of *every* model todo 43's observers watch — and not
+all of them are numeric. **Four** contract tables have a composite primary key and
+**no `id` at all** (rule 3): `role_permissions` 15, `user_roles` 16,
+`dokter_faskes` 33 and `lab_paket_item` 57. A single `BIGINT` cannot name any of
+them; `VARCHAR(64)` can, by storing e.g. `"12|34"`.
+
+Both leading columns of `INDEX idx_audit_tabel (tabel_target, record_id,
+dibuat_at)` (`:1131`) are therefore `VARCHAR(64)`, so **the index is collated, not
+numeric**: a scan for `record_id = '9'` also visits `'10'` and `'100'`, which is
+correct and unavoidable, and a `WHERE` that drops the quotes matches nothing. An
+`unsignedBigInteger()` here would be a parity break that makes an audit row for a
+composite-keyed or UUID-keyed target **unrepresentable**.
+
+**Three different treatments of a `user_id` across one batch, each deliberate:**
+
+| Column | SQL line | Treatment | Why |
+| --- | --- | --- | --- |
+| `notifikasi.user_id` | `:1046` | `ON DELETE CASCADE` | A notification is a personal, non-clinical artefact addressed to one user; a notification addressed to a deleted account is unreachable and a standing privacy liability. |
+| `persetujuan_pdp.user_id` | `:1143` | `ON DELETE CASCADE` | A consent record is personal too — a consent row outliving its subject would assert an agreement by someone who no longer exists. |
+| `audit_log.user_id` | `:1120` | **no constraint** | An audit row is **evidence**, and a `CASCADE` would destroy the record of what a user did at the moment their account was removed. The cost is the well-known one: an audit row can outlive its subject and then dangle, so `user_id` must be read as a *historical* identifier and never joined as a live one. |
+
+**Do not "harmonise" these.** The same split appears in
+`akses_rekam_medis_log` (75), where `rekam_medis_id` **cascades** (`:1153`) and
+`pengakses_user_id` **restricts** (`:1154`, no `ON DELETE` written): *the record*
+link cascades, *the person* link restricts.
+
+### `akses_rekam_medis_log.rekam_medis_id ON DELETE CASCADE` is a retention defect — recorded, not fixed
+
+`:1153` is a genuine schema defect: deleting a medical record deletes the evidence
+that it was accessed, contrary to UU PDP No. 27/2022 and Permenkes 24/2022
+retention duties. The plan already records this at line 192 and the plan's own
+`migration-order.md` row 75 contract repeats it. It is **documented and not
+altered**, because changing it would be foreign-key drift against a read-only
+contract.
+
+**The mitigation is operational and currently total: medical records must never be
+hard-deleted; only `dihapus_at` soft deletion is permitted.** `rekam_medis` has no
+`dihapus_at` of its own (its 28 columns are `:622`-`:654`, and it is in neither the
+"both" nor the "`dibuat_at` only" timestamp group), so it is in practice **never
+deletable at all** — which is what makes the cascade unreachable today. **That is a
+coincidence of the current column set, not a guarantee.** Any future migration that
+adds `dihapus_at` to `rekam_medis` *and* introduces a hard-delete path would
+silently turn this into a compliance hole, and must re-examine the constraint
+first. Recorded here because nothing else in the repository would surface it.
+
+### `persetujuan_pdp` is append-only, immutable, and keyed per document VERSION
+
+`persetujuan_pdp` has **no `dibuat_at` and no `diubah_at`** — one of the **39**
+contract tables with neither, and one of the eleven the plan's own (wrong) list of
+29 omitted. `$table->timestamps()` must not be called, and **todo 19's model needs
+`public $timestamps = false`**. The absence is load-bearing: a consent record is
+evidence and must be immutable, and a table with an `updated_at` invites an
+`UPDATE` that rewrites the past. The row's only chronology is `disetujui_at`
+(`:1141`), which is a fact about the act and not bookkeeping — it is caller-supplied
+and is `NOT NULL` **even when `disetujui = 0`**, because a refusal is dated too.
+
+**`UNIQUE KEY uq_consent (user_id, jenis, versi_dokumen)` (`:1144`) makes
+uniqueness per VERSION, and all three columns are load-bearing:**
+
+- A re-consent after a policy version bump is a **new row**, not an update. The old
+  consent stays on record against the document it was actually given for, and an
+  `UPDATE` would destroy exactly the evidence that matters. A user may hold any
+  number of consent rows across versions.
+- A same-version duplicate is **rejected by the database** (MySQL 1062), with no
+  application logic involved and a retry that keeps failing — which is correct.
+- **A revocation at the same version cannot be a new row**, because the key would
+  collide. There is no `dicabut_at`, no `status` and no partial unique index in
+  MySQL, so the only representable options are to `UPDATE` the existing row's
+  `disetujui` flag (losing the fact that consent was once given) or to `DELETE` it
+  (losing the row). `disetujui TINYINT(1) NOT NULL` (`:1140`) is the lever that
+  makes the first option possible and is the **only** reason a revocation is
+  representable at all.
+
+**`versi_dokumen` is a `VARCHAR(20)`, so "the latest version" cannot be computed
+with `MAX(versi_dokumen)`** — string collation puts `"10.0"` **before** `"9.0"`.
+Any "highest version wins" lookup must parse the version or order by
+`disetujui_at`. **Todo 47 owns that rule and the revoked-same-version collision,
+and the DDL decides the shape of both.**
+
+### `artikel_kategori` is three columns wide, and `jenis` is not one of them
+
+`artikel_kategori` (`CREATE TABLE` at `:1068`, spanning `:1068`-`:1072`) has
+**exactly three columns** — `id` (`:1069`, `SMALLINT UNSIGNED`),
+`nama` (`:1070`) and `slug` (`:1071`) — with **no ENUM of any kind** and **no
+timestamps**. Plan appendix **A.23** exists because the plan itself attributed the
+wrapped `jenis` declaration at `:1137`-`:1138` to `artikel_kategori.jenis`, a
+column this table does not have, while getting the line numbers right. `:1137` is
+inside `persetujuan_pdp` (`CREATE TABLE` at `:1134`).
+
+`persetujuan_pdp.jenis` is the wrapped ENUM and it has **five** values, counted
+from **both** `:1137` and `:1138`:
+`syarat_ketentuan`, `kebijakan_privasi`, `berbagi_data_medis`, `pemasaran`,
+`komunikasi_tindak_lanjut`. Reading `:1137` alone yields **four** and makes the
+column look nullable with no default — three separate discrepancies
+(`column_type`, `column_nullable`, `column_default`) from one misread line. The
+verifier reports a truncation of exactly this kind as `column_type` with **both
+full value lists printed**, proven by this todo's negative QA: truncating the
+migration's list to the four values on `:1137` leaves `php -l` at exit 0,
+`migrate:fresh` at exit 0 and the 93-test unit suite at exactly 92/93 (same single
+pre-existing failure, same 465 assertions), while `verify-schema` exits 1 with
+`column_type persetujuan_pdp.jenis` and both lists. **The A.20 claim is therefore
+demonstrated directly on the column this batch owns**, and it confirms that the
+verifier compares an ENUM as a **sequence**, not a set.
+
+`artikel_kategori` is also the only table in batch K with **no foreign key and no
+FK-less reference-shaped column either** — nothing about a category points
+anywhere — and, having no FK, it has no InnoDB implicit support index, so
+`PRIMARY KEY (id)` is the sole index the engine creates on its own. It is
+nonetheless genuinely referenced: `artikel.kategori_id` carries a real
+`FOREIGN KEY (kategori_id) REFERENCES artikel_kategori(id)` at `:1089`, and
+`artikel.kategori_id` is `SMALLINT UNSIGNED` to match this table's 16-bit `id`, so
+`foreignId()` would be wrong there too.
+
+### `dibaca_at DATETIME` is the unread flag, and `idx_notif`'s column order is the contract
+
+`notifikasi.dibaca_at` is `DATETIME NULL` (`:1044`) and must be `dateTime()`, never
+`timestamp()` — the two are not interchangeable in MySQL, so the wrong builder is
+both `column_type` drift and a silent reinterpretation of the value. **A `NULL`
+here *is* the unread state**: there is no `terbaca` boolean and no `status` column,
+so the unread count is literally `WHERE user_id = ? AND dibaca_at IS NULL`. That is
+what makes `INDEX idx_notif (user_id, dibaca_at)` (`:1047`) load-bearing, and
+**`user_id` is the leftmost column** — a reversed `(dibaca_at, user_id)` would be a
+different index and would be reported as `missing_index` plus `extra_index` drift,
+because rule 10 compares a DDL-written name by name *and* column list.
+
+`notifikasi.tipe` is a **seven**-value ENUM with **no `DEFAULT`**
+(`booking`, `pembayaran`, `resep`, `chat`, `lab`, `promo`, `sistem`), so omitting
+it is MySQL 1364 rather than a silent classification. The list mixes transaction
+classes with marketing (`promo`) and a catch-all (`sistem`), and nothing in the
+DDL distinguishes a transactional notification from an advertisement — so "unread
+count by category" is a product decision for todo 47, not a schema fact.
+
+`notifikasi.payload` is `JSON NULL` (`:1043`) and must be `json()`, never `text()`.
+**Nothing validates its shape and there is no redaction**, so a payload holding
+clinical data is stored exactly as the observer wrote it; that is a service-layer
+obligation the schema neither helps nor hinders.
+
+### `audit_log` is append-only by construction, and its `data_lama`/`data_baru` pair is why
+
+`audit_log` has `dibuat_at` only (`:1129`) and **no `diubah_at`** — it is the one
+table the plan's own "`dibuat_at` only" list omitted (the plan says 18; the
+measured figure is **19**), so migration `2026_10_01_000073` is the correction.
+**Todo 19's model needs `const CREATED_AT = 'dibuat_at'` and
+`public $timestamps = false`.** The absence is the point of the table: an audit
+log is append-only, an `UPDATE` to a past row would destroy the evidence it holds,
+so the schema removes the possibility of an update timestamp entirely rather than
+merely discouraging it. `akses_rekam_medis_log` is append-only for the same reason
+and carries the same single `dibuat_at`.
+
+`data_lama` and `data_baru` are **both** `JSON NULL` (`:1124`-`:1125`), which is
+the right shape for a before/after pair and the reason the pair cannot be
+collapsed: a `create` has no `data_lama`, a `delete` has no `data_baru`, and a
+`read` or `login` has neither. `aksi` (`:1121`) is an **eight**-value ENUM with no
+default whose members are **three different vocabularies** — CRUD
+(`create`/`read`/`update`/`delete`), authentication events with no record at all
+(`login`/`logout`), and bulk egress (`download`/`export`) — which is why
+`tabel_target` and `record_id` are both nullable. `read` being a member is what
+makes reading a medical record an auditable event, and it is the mechanism behind
+`akses_rekam_medis_log` existing as a separate, typed, constrained table.
+
+### Two `DEFAULT`s in this batch have opposite polarity, and one `TINYINT(1)` reads backwards
+
+`ulasan_dokter.is_anonim TINYINT(1) NOT NULL DEFAULT **1**` (`:1059`) — **the
+default is TRUE**, so a review is **anonymous** unless its author opts in. This is
+the exact defect class plan appendix A.15 records as a blocker in batch D, where a
+docblock claimed "defaults to 0" while the code and the SQL both said `1`; read it
+the right way round here. The `(1)` is a display width MySQL 8 does not emit, so
+the live column is `tinyint` with `COLUMN_DEFAULT` `'1'`.
+
+By contrast every money and counter default in this batch is **0** and therefore
+means "not supplied" rather than a real value: `artikel.jumlah_view`
+(`INT UNSIGNED NOT NULL DEFAULT 0`, `:1085`), `home_care_pesanan.durasi_jam`
+(`TINYINT UNSIGNED NOT NULL DEFAULT **1**`, `:1102` — one hour, a real figure) and
+`home_care_pesanan.biaya` (`DECIMAL(12,2) NOT NULL DEFAULT 0`, `:1106`). Because
+`biaya` is `NOT NULL`, an unpriced order is representable and indistinguishable
+from a genuinely free one, and **nothing computes it** from `durasi_jam` and
+`tipe_layanan` — no `CHECK`, no generated column, no trigger.
+
+### Two status ENUMs default to their first member; one does not default at all
+
+`artikel.status` defaults to `'draft'` (`:1084`, the first of four) and
+`home_care_pesanan.status` defaults to `'menunggu_pembayaran'` (`:1104`-`:1105`,
+the first of six). `notifikasi.tipe` (`:1041`), `audit_log.aksi` (`:1121`),
+`home_care_pesanan.tipe_layanan` (`:1098`), `persetujuan_pdp.jenis`
+(`:1137`-`:1138`) and `akses_rekam_medis_log.tujuan_akses` (`:1151`) have **no
+`DEFAULT`**, so omitting any of them is MySQL 1364 rather than a silent
+classification. A reader who assumes "ENUMs here default to their first value" is
+right twice and wrong three times in this batch alone.
+
+**`home_care_pesanan.status` is NOT wrapped.** `ENUM(` opens **and** closes on
+`:1104`; `:1105` carries only `NOT NULL DEFAULT 'menunggu_pembayaran',`. A prior
+report in this project claimed `:1104`-`:1105` was a sixth wrapped ENUM, and it is
+not. The wrapped count was re-derived from scratch with the predicate "does any
+line open an `ENUM(` that its own line does not close?" and gives exactly **five**:
+`booking.status` (`:515-516`), `master_obat.bentuk_sediaan` (`:713-714`),
+`resep.status` (`:751-752`), `invoice.status` (`:947-948`) and
+`persetujuan_pdp.jenis` (`:1137-`). The other single-line declarations whose
+*declaration* merely spans two lines are `konsultasi.status` (`:542`-`:543`),
+`konsultasi_chat.tipe_pesan` (`:568`-`:569`),
+`lab_permintaan.status` (`:884`-`:885`), `pesanan_obat.status` (`:810`-`:811`),
+`klaim_bpjs.status` (`:1022`-`:1023`) and `home_care_pesanan.status`
+(`:1104`-`:1105`). That is a **different question** from the `wrapped decls 11` the
+verifier prints on every run, which counts declarations whose end line exceeds
+their start line; both numbers are right and only the five answer the parity
+question (A.20/A.22). `docs/migration-order.md` rule 6 now carries the correct
+five-entry list, and the `konsultasi.status` / `konsultasi_chat.tipe_pesan` /
+`lab_permintaan.status` / `pesanan_obat.status` / `klaim_bpjs.status` entries that
+earlier batches reported as wrapped are gone.
+
+### Findings about this project's own documents, found by reading rather than by trusting
+
+- **The plan's todo-17 prose cites `INDEX idx_notif (user_id, dibaca_at)` at
+  `:1045`.** It is at **`:1047`**; `:1045` is `dibuat_at`. Ninth consecutive batch
+  to find a wrong inline `:NNN` in this plan's prose, and again the line-index
+  table at line 134 of the plan — and `docs/migration-order.md` rows 68-75 — carry
+  the **correct** lines for all eight tables.
+- **The plan's todo-17 prose cites the three `CHECK` constraints at `:1052-1054`.**
+  They are at **`:1055`-`:1057`**. `:1052` is `konsultasi_id` and `:1053`/`:1054`
+  are `pasien_id` / `dokter_id` — so the citation names a range that does not
+  contain a single `CHECK`, and an executor trusting it would have looked for
+  constraints on the wrong columns. The plan's own `konsultasi_id` citation at
+  `:1052` in the same sentence is correct, which is what makes the range error
+  easy to miss.
+- **The plan's todo-17 prose does not mention `artikel.reviewer_user_id` as a bare
+  column at all**, although the authoritative bare-column list at plan line 181
+  names it with the correct line `:1078`. That omission is exactly how an invented
+  constraint gets written, and this project has produced that defect three times
+  (`resep.konsultasi_id` in batch H, `pasien_penjamin.faskes_rujukan_id` before
+  that, `lab_hasil.diperiksa_oleh` in batch I). Migration
+  `2026_10_01_000071` says so in place.
+- **`tests/Unit/Console/VerifySchemaDeferredConstraintTest.php:249` asserts
+  `missing_table > 0` on the full run, and that is now false — correctly.**
+  Plan appendix A.9's own table predicts `missing_table` = **0** at todo 17
+  (48/41/38/34/29/21/15/8/**0**/0 for todos 9-18), and this batch creates the last
+  eight tables, so the global "schema still incomplete" signal is now carried by
+  **two `missing_view` rows** (migrations 77 and 78, todo 18) instead. The test's
+  sibling in `VerifySchemaCommandTest.php` was already fixed for exactly this
+  boundary — its docblock at lines 26-32 explains that views must be derived too
+  "or a test that inverted on that signal alone would go red at todo 17" — and this
+  second file was not. **This is a pre-existing latent defect that todo 17 is the
+  first commit to expose, not a migration defect**, and it was deliberately **not**
+  edited here: the test file is outside this commit's authorised paths, and editing
+  a test to make a suite green is the failure mode this project has spent ten
+  batches fighting. The fix is one assertion, and it belongs with todo 18.
+- **A comment can break the derived unit suite, and only the unit suite can see
+  it.** This batch's own `000069` docblock originally spelled the method name with
+  its argument list in prose. `VerifySchemaCommandTest.php` derives its
+  expectations by counting the raw text `Schema::create` across every migration
+  file and then re-counting only the occurrences followed by a quoted literal; a
+  mention in a comment raises the first count without raising the second and trips
+  that test's own "refuse rather than under-test" guard, failing **five** tests at
+  once. `php -l`, `migrate:fresh` and `verify-schema` were all green throughout.
+  It is the purest instance yet of A.21's lesson — a defect in a *comment* that no
+  gate except the test suite could find — and it is why the file now says why it
+  avoids the spelling.
+
