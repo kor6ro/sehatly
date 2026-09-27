@@ -299,3 +299,49 @@ fix as drift:
   OTP-only representation**: an OTP-only signup (phone number, no password)
   must still generate a random unusable hash, because the column cannot hold
   "no password yet".
+
+## Batch-C deferred and deliberately unconstrained columns (todo 9)
+
+Batch C (`pasien`, `pasien_anggota_keluarga`, `pasien_alergi`,
+`pasien_riwayat_penyakit`, `pasien_imunisasi`, `pasien_tanda_vital`,
+`master_penjamin`, `pasien_penjamin` — SQL tables 20–27) is at parity, but three
+columns push work onto later todos. Each is recorded here, in prose and **not** in
+the registry table above, for two reasons: the registry table's first column is a
+backticked table name and `ExtraTableRegistry::fromMarkdown()` reads *any* line
+matching that shape, so a new table row here would be parsed as a registered extra
+table and forgive a table that is really drift; and none of these three is an extra
+table at all — they are columns the SQL itself declares, so the registry's
+extra-table mechanism is the wrong instrument.
+
+- `pasien_tanda_vital.rekam_medis_id` (`:315`) — **column present, foreign key
+  deferred to migration `2026_10_01_000076` per the SQL's section `[14]`
+  (`:1161-1163`)**, which adds `CONSTRAINT fk_vital_rm … ON DELETE SET NULL`. The
+  deferral is a dependency ordering, not a choice: `rekam_medis` is SQL table 42
+  (batch G, todo 13) and this column is created at position 25, so declaring the
+  constraint here fails `migrate:fresh` with MySQL 1824. Until todo 18 the column
+  has **no** row in `information_schema.REFERENTIAL_CONSTRAINTS`; that absence is
+  the correct state, and adding the constraint early is drift
+  (`extra_foreign_key`).
+- `pasien_penjamin.faskes_rujukan_id` (`:346`) — **column present as a nullable
+  unsigned `BIGINT`, foreign key deferred** because `faskes` is SQL table 28
+  (`:360`, batch D, todo 10) and therefore does not exist at this point in the
+  migration order. The constraint is added in
+  `2026_10_01_000076_add_deferred_foreign_keys_table.php` (todo 18) alongside
+  `fk_vital_rm`, with a `down()` that drops constraints before any table. **Todo 18
+  owns this**: do not re-declare it in a new migration, and do not widen the column
+  to `foreignId()` semantics.
+- `pasien_riwayat_penyakit.icd10_kode` (`:291`) — a **bare indexed column with no
+  foreign key, by design**: the SQL declares `INDEX idx_icd10 (icd10_kode)` (`:297`)
+  and no `FOREIGN KEY` line, even though `master_icd10` already exists from batch A
+  and the column is exactly the master's `kode` type, so
+  `->constrained('master_icd10', 'kode')` would *work* and still be drift. The same
+  reasoning applies to `pasien_alergi.dicatat_oleh_user_id` (`:281`, no FK) and to
+  `pasien.nomor_rm` / `pasien.nik` semantics. `idx_icd10` is also the **same index
+  name** the SQL reuses on `master_icd10` (`:119`); index names are scoped per table,
+  so both exist and the verifier keys them on `(TABLE_NAME, INDEX_NAME)`.
+
+Recorded in batch A and B this file's registry has seven entries; it still has
+exactly seven after todo 9, because no batch-C migration creates a table outside the
+75-table contract. `tests/Unit/Console/VerifySchemaCommandTest.php` derives that
+seven from the live migration set, so the count is re-proved on every run rather
+than pinned.
