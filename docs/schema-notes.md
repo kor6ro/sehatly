@@ -506,3 +506,100 @@ because each looks like something the schema guarantees and is not. The two mark
 The extra-table registry still has exactly seven entries after todo 11, for the
 same reason as after todos 9 and 10: no batch-E migration creates a table outside
 the 75-table contract. The unit suite re-derives that seven on every run.
+
+## Batch-F schema facts the database cannot enforce (todo 12)
+
+Batch F (`konsultasi`, `konsultasi_chat`, `surat_keterangan`, `rujukan` — SQL
+tables 38–41) is at parity and **owes no deferred constraint**: all ten of its
+foreign keys point at a table that already exists by the time its own migration
+runs (`booking` 37 from batch E, `konsultasi` 38 from inside this batch one
+migration earlier, `pasien` 20 from batch C, `dokter` 31 and `faskes` 28 from
+batch D, `users` 12 from batch B, and `surat_keterangan` 40 from inside this
+batch), so the *Deferred constraints* table above is unchanged and still holds
+exactly one row (`fk_vital_rm`, added by migration 76). Five facts are still
+worth carrying forward, because each looks like something the schema guarantees
+and is not. The three marked **absence is load-bearing** are the ones a later
+reader is most likely to "repair", and every such repair would be reported as
+`extra_foreign_key` drift while `migrate:fresh` stayed green.
+
+- **`surat_keterangan.konsultasi_id` (`:584`) is a bare nullable unsigned
+  `BIGINT` with NO foreign key, and none is owed.** **Absence is
+  load-bearing.** The statement declares exactly two `FOREIGN KEY` clauses
+  (`:595` on `pasien_id`, `:596` on `dokter_id`) and this column is the second
+  entry of the plan's authoritative no-foreign-key list. The ordering argument
+  that once justified adding it is dead: `konsultasi` is table 38, created one
+  migration **before** this one, so `->foreign('konsultasi_id')->references('id')->on('konsultasi')`
+  would succeed and stay green forever while being permanent
+  `extra_foreign_key` drift. **Migration `2026_10_01_000076` must not add it.**
+  The cost is real and is why this is written down rather than left implicit: a
+  medical letter whose `konsultasi_id` points at a deleted consultation is
+  representable, and — because a cascade needs a constraint — it cannot be
+  repaired by cascading either. Referential integrity here is a service-layer
+  invariant owned by todo 34.
+- **`rujukan.faskes_asal_id` (`:602`) is a bare nullable unsigned `BIGINT` with
+  NO foreign key, while `faskes_tujuan_id` on the very next line (`:603`) has
+  one (`:613`).** **Absence is load-bearing, and the asymmetry is the point, not
+  an oversight.** The referring facility is deliberately unconstrained; the
+  receiving one is not. `faskes` is table 28 and exists, so adding a constraint
+  here would be trivially possible and would be drift. A referral that originates
+  outside the platform's own facility directory is a legitimate case, which is
+  the likely reason the DDL leaves the *source* open while constraining the
+  *destination*. The consequence is that a `faskes_asal_id` naming a facility
+  this installation has never heard of is representable, so any consumer that
+  wants the referring facility's name must treat the join as optional. Migration
+  `2026_10_01_000076` must not add it either.
+- **`konsultasi.booking_id` is `NULL UNIQUE` (`:538`), and the `NULL` half is
+  load-bearing.** The `UNIQUE` is what makes "one consultation per booking" a
+  database guarantee (MySQL 1062 on the second row for one booking) rather than
+  a service-layer convention. The nullability is what lets the instant
+  **"Tanya Dokter"** flow (24/7, no slot, no appointment) exist at all: MySQL
+  permits an unlimited number of `NULL`s in a `UNIQUE` index, so the constraint
+  binds exactly the rows it should and none of the rows it must not. Both halves
+  are therefore required — `NOT NULL` would break the instant flow, and dropping
+  the `UNIQUE` would let one booking spawn two consultations. Todo 12 proves the
+  asymmetry live: two rows sharing one non-null `booking_id` raise a
+  `QueryException`, three rows sharing `booking_id = NULL` all insert. The DDL's
+  own comment on the column is `NULL = fitur "Tanya Dokter" instan 24 jam`.
+- **`surat_keterangan.qr_token` (`:592`) is `NOT NULL` but NOT `UNIQUE`.** A QR
+  verification token that two documents share is not a verification token:
+  scanning either QR resolves both letters. The DDL declares no `UNIQUE` and
+  adds no index, so MySQL creates none either. A unique index cannot be added
+  here — that is `extra_index` drift — so the mitigation is application-level and
+  belongs to todo 34: **generate the value with `Str::uuid()` at write time,
+  never a guessable or sequential stored value**, and duplicate-check it at that
+  point, accepting the race. The identical shape exists on `resep.qr_token`
+  (`:758`) in batch H, so the same rule applies there.
+- **A `sistem` chat message has no sender.** `konsultasi_chat.pengirim_user_id`
+  (`:566`) is `BIGINT UNSIGNED NOT NULL` with a real foreign key to `users(id)`
+  (`:577`), yet `pengirim_tipe` (`:567`) includes `'sistem'`. There is no
+  nullable sender and no "no sender" representation, so a `sistem` message must
+  be attributed to a designated service-user account that is created and seeded;
+  the `'sistem'` value records the **role played**, not a different author. A
+  reader that treats `pengirim_tipe = 'sistem'` as "no author" and then loads
+  `pengirim_user_id` as a profile will get the service account. Todo 32 owns the
+  service user; nothing in the schema can supply it.
+
+Two shapes that are correct but that a later reader is likely to mistake for
+mistakes, recorded so they are not "harmonised":
+
+- **`konsultasi_chat` has neither `dibuat_at` nor `diubah_at`; its created-at
+  column is `terkirim_at` (`:575`).** It is one of the 39 tables in the "neither"
+  group of `docs/migration-order.md` rule 4, listed there by column name, so
+  `$table->timestamps()` is wrong (it would emit `created_at`/`updated_at` and
+  produce six drift rows) and so is a nullable `timestamp('terkirim_at')` (it
+  would drop the `NOT NULL` and the `DEFAULT CURRENT_TIMESTAMP`). Todo 19's
+  `KonsultasiChat` model needs `const CREATED_AT = 'terkirim_at';` and **no**
+  `UPDATED_AT` — `$timestamps` stays `true`. That is a different case from
+  `$timestamps = false`, which is what the other 38 tables in the group need.
+- **`konsultasi_chat`'s foreign keys have deliberately mismatched delete rules:**
+  `ON DELETE CASCADE` on `konsultasi_id` (`:576`) and nothing on
+  `pengirim_user_id` (`:577`), which materialises MySQL's implicit `NO ACTION`
+  (`RESTRICT` for DML). The asymmetry is the right way round — chat history is
+  worthless without its consultation and goes with it, while deleting a user
+  account must be blocked while their messages exist, so accounts are soft-deleted
+  via `users.dihapus_at` (`:148`) and never hard-deleted. Do not give both the
+  same rule.
+
+The extra-table registry still has exactly seven entries after todo 12, for the
+same reason as after todos 9, 10 and 11: no batch-F migration creates a table
+outside the 75-table contract. The unit suite re-derives that seven on every run.
