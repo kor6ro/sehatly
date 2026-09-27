@@ -21,7 +21,11 @@ in a migration and record it here. This file *is* that record, and
 - an extra table that is **missing from this table is drift** and the verifier exits
   `1` naming it;
 - a registry entry for a table that no longer exists in the live schema is reported
-  as informational, so this file can be trimmed when a migration is removed.
+  as informational, so this file can be trimmed when a migration is removed;
+- a **deliberately deferred constraint** listed in the *Deferred constraints* table
+  below is informational, the same three rules apply to it in reverse, and a
+  constraint that is listed there but has since been created is **drift** — the
+  deferral is over and the row has to go.
 
 That is what makes the "75 tables, 2 views verified" green at todo 18 possible
 without touching the SQL file: the framework's own tables are present, declared, and
@@ -39,9 +43,11 @@ prose here, unforgivable in code. They are gone because their migration is gone.
 ## Registered extra tables
 
 The verifier parses this table. Keep the first column a single backticked table name
-and every cell on one line. Do not add any other markdown table in this file whose
-first cell is a backticked identifier — the registry parser would read it as a
-registered extra table and forgive a table that is really drift.
+and every cell on one line. Each registry parses **only the rows under its own
+heading** (`ExtraTableRegistry::HEADING` and
+`DeferredConstraintRegistry::HEADING`, both resolved by `SchemaNotesSection`), so
+the two tables below can never read each other's rows — but keeping each table's
+rows inside its own section is still what makes that true.
 
 | Table | Source migration | Justification |
 | --- | --- | --- |
@@ -67,6 +73,38 @@ todo 7 deleted three scaffold migrations and made `php artisan test tests/Unit` 
 migration now fails that test, naming the table, instead of silently going stale** — and a
 `Schema::create($variable)` the walk cannot read fails it loudly rather than passing while
 under-testing. If you add a scaffold table, add its row here in the same commit.
+
+## Deferred constraints
+
+A **deliberately not-yet-created** constraint, registered so the verifier reports it
+as informational instead of drift. The verifier parses this table exactly as it
+parses the extra tables above, and enforces three rules:
+
+- a `missing_foreign_key` listed here is **informational**, not drift — but it is
+  still printed by name, so an outstanding deferral is always visible in the report;
+- a constraint listed here that is **present in the live schema is `DRIFT`**. The
+  deferral has been fulfilled, so the row is stale and has to go in the same commit
+  that adds the constraint. Without this rule a row here could excuse the
+  constraint forever, and the "75 tables, 2 views verified" run would pass with the
+  foreign key still absent;
+- a `missing_foreign_key` **not** listed here stays **drift**, exactly as before. A
+  row forgives one named constraint and nothing else.
+
+Keyed on the **constraint name**, not on table + column: `fk_vital_rm` is the only
+name the DDL itself writes for a foreign key, so it is the only stable handle on
+"this specific constraint is deferred", and a table + column key would forgive
+*any* foreign key on that column. An inline `FOREIGN KEY` is named
+`<table>_ibfk_<n>` by the engine, so an engine-named key can never be registered.
+
+The registry is **mandatory** — a missing or empty one makes the verifier exit `2`
+rather than pass — and `--notes=<path>` points both registries at a different file
+for testing. When the last deferral is resolved, the correct end state is to delete
+this section **and** its `DeferredConstraintRegistry::fromMarkdown()` call
+together; leaving an empty section behind would exit `2` forever.
+
+| Constraint | Table | Added by | Justification |
+| --- | --- | --- | --- |
+| `fk_vital_rm` | `pasien_tanda_vital` | `2026_10_01_000076` | Column `rekam_medis_id` is present; the FK is added by migration 76 per SQL section `[14]` (`:1161-1163`) because `rekam_medis` does not exist until batch G (todo 13). Full reasoning in *Batch-C deferred and deliberately unconstrained columns* below. |
 
 ## Scaffold-migration disposition (decided and executed in todo 7)
 
@@ -226,7 +264,8 @@ as drift. The deliberate folds are:
 - **Foreign keys are compared semantically** (local columns, referenced table and
   columns, `ON DELETE`, `ON UPDATE`), because an inline `FOREIGN KEY` is named
   `<table>_ibfk_<n>` by the engine. The one name the DDL writes — `fk_vital_rm` at
-  `telemedicine_test.sql:1162`, added by `ALTER TABLE` — is compared by name.
+  `telemedicine_test.sql:1162`, added by `ALTER TABLE` — is compared by name, and is
+  the one name the deferred-constraint registry can key on.
   MySQL's implicit `RESTRICT` is materialised on both sides.
 - **CHECK constraints are compared by expression, never by name.** MySQL generates
   `ulasan_dokter_chk_1/_2/_3` from the table name and declaration order
@@ -305,13 +344,9 @@ fix as drift:
 Batch C (`pasien`, `pasien_anggota_keluarga`, `pasien_alergi`,
 `pasien_riwayat_penyakit`, `pasien_imunisasi`, `pasien_tanda_vital`,
 `master_penjamin`, `pasien_penjamin` — SQL tables 20–27) is at parity, but three
-columns push work onto later todos. Each is recorded here, in prose and **not** in
-the registry table above, for two reasons: the registry table's first column is a
-backticked table name and `ExtraTableRegistry::fromMarkdown()` reads *any* line
-matching that shape, so a new table row here would be parsed as a registered extra
-table and forgive a table that is really drift; and none of these three is an extra
-table at all — they are columns the SQL itself declares, so the registry's
-extra-table mechanism is the wrong instrument.
+columns push work onto later todos. **None of them is an extra table**, so the
+extra-table registry is the wrong instrument for all three, and each is recorded
+in the place that fits it.
 
 - `pasien_tanda_vital.rekam_medis_id` (`:315`) — **column present, foreign key
   deferred to migration `2026_10_01_000076` per the SQL's section `[14]`
@@ -321,15 +356,18 @@ extra-table mechanism is the wrong instrument.
   constraint here fails `migrate:fresh` with MySQL 1824. Until todo 18 the column
   has **no** row in `information_schema.REFERENTIAL_CONSTRAINTS`; that absence is
   the correct state, and adding the constraint early is drift
-  (`extra_foreign_key`).
+  (`extra_foreign_key`). **This one is machine-readable**: it is the single row of
+  the *Deferred constraints* table above, which is what makes the verifier report
+  it as informational instead of failing the run.
 - `pasien_penjamin.faskes_rujukan_id` (`:346`) — **column present as a nullable
-  unsigned `BIGINT`, foreign key deferred** because `faskes` is SQL table 28
-  (`:360`, batch D, todo 10) and therefore does not exist at this point in the
-  migration order. The constraint is added in
-  `2026_10_01_000076_add_deferred_foreign_keys_table.php` (todo 18) alongside
-  `fk_vital_rm`, with a `down()` that drops constraints before any table. **Todo 18
-  owns this**: do not re-declare it in a new migration, and do not widen the column
-  to `foreignId()` semantics.
+  unsigned `BIGINT` with NO foreign key, and none is owed.** The plan's
+  authoritative no-foreign-key list (line 152) records `:346` as carrying none, and
+  live measurement agrees: the only constraint this batch defers is `fk_vital_rm`.
+  An earlier revision of this file called it an "FK to `faskes` deferred to
+  migration 76" — **that was wrong**; the prose lost to the authoritative list.
+  So leave it a bare unsigned `BIGINT`, do not widen it to `foreignId()` semantics,
+  and do **not** register it as deferred: registration would be a promise to create
+  a constraint the DDL never declares, and migration 76 must not add one.
 - `pasien_riwayat_penyakit.icd10_kode` (`:291`) — a **bare indexed column with no
   foreign key, by design**: the SQL declares `INDEX idx_icd10 (icd10_kode)` (`:297`)
   and no `FOREIGN KEY` line, even though `master_icd10` already exists from batch A
@@ -338,10 +376,14 @@ extra-table mechanism is the wrong instrument.
   reasoning applies to `pasien_alergi.dicatat_oleh_user_id` (`:281`, no FK) and to
   `pasien.nomor_rm` / `pasien.nik` semantics. `idx_icd10` is also the **same index
   name** the SQL reuses on `master_icd10` (`:119`); index names are scoped per table,
-  so both exist and the verifier keys them on `(TABLE_NAME, INDEX_NAME)`.
+  so both exist and the verifier keys them on `(TABLE_NAME, INDEX_NAME)`. Nothing to
+  defer — the DDL declares no constraint, so there is nothing for a registry to
+  excuse.
 
 Recorded in batch A and B this file's registry has seven entries; it still has
 exactly seven after todo 9, because no batch-C migration creates a table outside the
 75-table contract. `tests/Unit/Console/VerifySchemaCommandTest.php` derives that
 seven from the live migration set, so the count is re-proved on every run rather
-than pinned.
+than pinned. The deferred-constraint registry is derived the same way and re-proved
+on every run by `tests/Unit/Schema/SchemaDifferDeferredConstraintTest.php` and
+`tests/Unit/Console/VerifySchemaDeferredConstraintTest.php`.

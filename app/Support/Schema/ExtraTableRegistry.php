@@ -20,9 +20,20 @@ use RuntimeException;
  *     | Table | Source | Justification |
  *     | --- | --- | --- |
  *     | `cache` | `database/migrations/...` | Laravel's cache store. |
+ *
+ * Only the rows beneath that heading are read, via {@see SchemaNotesSection}, so
+ * the sibling deferred-constraint table in the same file — which is also keyed on
+ * a backticked identifier — can never be mistaken for a registered extra table.
  */
 final class ExtraTableRegistry
 {
+    /**
+     * The heading the rows must sit under. Named here rather than inlined so the
+     * notes file and this parser cannot drift apart silently: renaming the heading
+     * empties the registry, and an empty registry is a hard error, not a pass.
+     */
+    public const HEADING = 'Registered extra tables';
+
     /**
      * @return array<string, string> lower-cased table name => justification
      */
@@ -38,7 +49,7 @@ final class ExtraTableRegistry
         $markdown = (string) file_get_contents($path);
         $entries = [];
 
-        foreach (preg_split("/\r\n|\n|\r/", $markdown) ?: [] as $line) {
+        foreach (SchemaNotesSection::lines($markdown, self::HEADING) as $line) {
             if (preg_match('/^\|\s*`([A-Za-z0-9_]+)`\s*\|(.*)\|\s*$/m', $line, $m) !== 1) {
                 continue;
             }
@@ -56,7 +67,8 @@ final class ExtraTableRegistry
         if ($entries === []) {
             throw new RuntimeException(
                 'No registered extra tables were found in '.$path
-                .'. The registry must be a markdown table whose first column is a backticked table name.',
+                .'. The registry must be a markdown table under "## '.self::HEADING.'"'
+                .' whose first column is a backticked table name.',
             );
         }
 

@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\Schema\DeferredConstraintRegistry;
 use App\Support\Schema\ExtraTableRegistry;
 use App\Support\Schema\LiveSchemaReader;
 use App\Support\Schema\SqlSchemaParser;
@@ -197,7 +198,19 @@ test('the JSON report is machine-readable, and its exit code matches its verdict
     // registry is regenerated whenever database/migrations/ changes, so a pinned
     // number here went stale the moment todo 7 deleted three scaffold
     // migrations - the same defect todo 8 then reintroduced above.
-    expect($json['discrepancy_count'] - $json['drift_count'])->toBe($registeredExtras);
+    //
+    // It is now the sum of BOTH registries, for the same derived reason: a
+    // `missing_foreign_key` listed in the notes file's *Deferred constraints*
+    // table is informational too (plan Appendix A.10 rule 1), so the extras alone
+    // under-count by the number of outstanding deferrals. Deriving the sum keeps
+    // this line a real check at todo 18 as well: once migration 76 lands
+    // `fk_vital_rm`, rule 2 reclassifies the row as DRIFT, so a registry that is
+    // still listed makes `registered_deferred_constraints` disagree with the
+    // informational total and this assertion fails - which is the registry
+    // forcing itself to be updated, with no test edited.
+    $registeredDeferrals = count(DeferredConstraintRegistry::fromMarkdown(base_path('docs/schema-notes.md')));
+    expect($json['notes_registry']['registered_deferred_constraints'])->toBe($registeredDeferrals);
+    expect($json['discrepancy_count'] - $json['drift_count'])->toBe($registeredExtras + $registeredDeferrals);
 
     $rows = array_values(array_filter($json['discrepancies'], fn ($d) => $d['kind'] === 'missing_table'));
     expect(array_column($rows, 'table'))->toEqualCanonicalizing(

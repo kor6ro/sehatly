@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
+use App\Support\Schema\DeferredConstraintRegistry;
 use App\Support\Schema\Discrepancy;
 use App\Support\Schema\ExtraTableRegistry;
 use App\Support\Schema\LiveSchemaReader;
@@ -31,7 +32,7 @@ class VerifySchemaParity extends Command
     protected $signature = 'sehatly:verify-schema
         {--tables= : Comma-separated subset of expected tables to verify (default: all)}
         {--sql= : Path to the reference SQL (default: telemedicine_test.sql at the project root)}
-        {--notes= : Path to the extra-table registry (default: docs/schema-notes.md)}
+        {--notes= : Path to the notes file holding the extra-table and deferred-constraint registries (default: docs/schema-notes.md)}
         {--json : Emit a machine-readable JSON report on stdout}';
 
     protected $description = 'Diff the live information_schema against telemedicine_test.sql (read-only, non-zero on drift)';
@@ -61,10 +62,15 @@ class VerifySchemaParity extends Command
             }
 
             $expected = $parser->parseFile($referencePath);
+
+            // Both registries live in the same notes file and both are mandatory:
+            // a missing or unusable one raises, lands in the catch below, and the
+            // run exits 2. Neither can degrade into an empty allow-list.
             $registry = ExtraTableRegistry::fromMarkdown($notesPath);
+            $deferrals = DeferredConstraintRegistry::fromMarkdown($notesPath);
             $live = $reader->read($database);
             $crossCheck = $this->crossCheck($live['spec'], $live['sourceCounts']);
-            $discrepancies = [...$differ->diff($expected, $live['spec'], $onlyTables, $registry), ...$crossCheck];
+            $discrepancies = [...$differ->diff($expected, $live['spec'], $onlyTables, $registry, $deferrals), ...$crossCheck];
             $drift = array_values(array_filter($discrepancies, static fn (Discrepancy $d): bool => $d->isDrift()));
         } catch (Throwable $e) {
             if ($json) {
@@ -99,6 +105,7 @@ class VerifySchemaParity extends Command
             'notes_registry' => [
                 'path' => $this->relative($notesPath),
                 'registered_extra_tables' => count($registry),
+                'registered_deferred_constraints' => count($deferrals),
             ],
             'scope' => $onlyTables === null ? 'all expected tables' : implode(', ', $onlyTables),
             'expected' => $expected->summary(),
@@ -130,7 +137,10 @@ class VerifySchemaParity extends Command
         $this->newLine();
         $this->row('reference SQL', $report['reference']['path'].'  ('.number_format($report['reference']['bytes']).' bytes, md5 '.substr((string) $report['reference']['md5'], 0, 12).')');
         $this->row('live database', $report['live']['driver'].' / '.$report['live']['database']);
-        $this->row('notes registry', $report['notes_registry']['path'].'  ('.$report['notes_registry']['registered_extra_tables'].' registered extra tables)');
+        $this->row('notes registry', $report['notes_registry']['path'].'  ('
+            .$report['notes_registry']['registered_extra_tables'].' registered extra tables, '
+            .$report['notes_registry']['registered_deferred_constraints'].' deferred constraint'
+            .($report['notes_registry']['registered_deferred_constraints'] === 1 ? '' : 's').')');
         $this->row('scope', (string) $report['scope']);
 
         $this->section('Parsed reference model (proof the parser is not vacuous)');

@@ -18,6 +18,9 @@ namespace App\Support\Schema;
  *     the same constraint. Only a name the DDL actually wrote is compared by name.
  *  2. **CHECK constraints are compared by expression.** MySQL generates the names
  *     (`ulasan_dokter_chk_1`), so only the expression is stable.
+ *  3. **A foreign key may be deferred, but only by its name, and only while it is
+ *     genuinely absent.** See {@see diffForeignKeys()} and
+ *     {@see DeferredConstraintRegistry}.
  *
  * Deliberately not compared:
  *
@@ -35,6 +38,7 @@ final class SchemaDiffer
     /**
      * @param  list<string>|null  $onlyTables  restrict the comparison to these expected tables
      * @param  array<string, string>  $documentedExtras  extra tables registered in `docs/schema-notes.md`
+     * @param  array<string, string>  $deferredConstraints  constraint name => justification, from `docs/schema-notes.md`
      * @return list<Discrepancy>
      */
     public function diff(
@@ -42,8 +46,18 @@ final class SchemaDiffer
         SchemaSpec $live,
         ?array $onlyTables = null,
         array $documentedExtras = [],
+        array $deferredConstraints = [],
     ): array {
         $out = [];
+
+        // The registry arrives lower-cased from `DeferredConstraintRegistry`, but
+        // folding again here means a caller that built the array by hand cannot
+        // accidentally make a named constraint unforgivable by capitalising it.
+        $deferrals = [];
+
+        foreach ($deferredConstraints as $constraint => $justification) {
+            $deferrals[strtolower($constraint)] = $justification;
+        }
 
         if ($onlyTables !== null) {
             foreach ($onlyTables as $name) {
@@ -69,7 +83,7 @@ final class SchemaDiffer
                 continue;
             }
 
-            $this->diffTable($want, $have, $out);
+            $this->diffTable($want, $have, $deferrals, $out);
         }
 
         if ($onlyTables === null) {
@@ -110,9 +124,10 @@ final class SchemaDiffer
     }
 
     /**
+     * @param  array<string, string>  $deferrals
      * @param  list<Discrepancy>  $out
      */
-    private function diffTable(TableSpec $want, TableSpec $have, array &$out): void
+    private function diffTable(TableSpec $want, TableSpec $have, array $deferrals, array &$out): void
     {
         if ($want->engine !== null && $have->engine !== null && $want->engine !== $have->engine) {
             $out[] = new Discrepancy('table_engine', $want->name, null, $want->engine, $have->engine);
@@ -141,7 +156,7 @@ final class SchemaDiffer
         // Foreign keys before indexes: an index that InnoDB created to back a
         // foreign key is only recognisable as such once the key has been matched.
         // The report order does not depend on this — diff() re-sorts by kind.
-        $matchedForeignKeys = $this->diffForeignKeys($want, $have, $out);
+        $matchedForeignKeys = $this->diffForeignKeys($want, $have, $deferrals, $out);
         $this->diffIndexes($want, $have, $matchedForeignKeys, $out);
     }
 
@@ -335,10 +350,20 @@ final class SchemaDiffer
      * DDL wrote one, because an inline `FOREIGN KEY` is named `<table>_ibfk_<n>` by
      * the engine.
      *
+     * A **missing** key that {@see DeferredConstraintRegistry} registers by that
+     * name is reported as `deferred_foreign_key` **informational** instead of as
+     * `missing_foreign_key` drift (rule 1). A registered key that **matched** is
+     * reported as `fulfilled_deferred_foreign_key` **drift** (rule 2) — the
+     * constraint has landed, so the registry row is stale and has to be removed in
+     * the same commit. An unregistered missing key stays drift (rule 3), which is
+     * the only direction that can fail a build, so a registry row can never widen
+     * into a general exemption: it names exactly one constraint.
+     *
+     * @param  array<string, string>  $deferrals  lower-cased constraint name => justification
      * @param  list<Discrepancy>  $out
      * @return list<ForeignKeySpec> the expected keys that matched a live key
      */
-    private function diffForeignKeys(TableSpec $want, TableSpec $have, array &$out): array
+    private function diffForeignKeys(TableSpec $want, TableSpec $have, array $deferrals, array &$out): array
     {
         $remaining = $have->foreignKeys;
         $consumed = [];
@@ -349,13 +374,27 @@ final class SchemaDiffer
                 ? $this->takeForeignKeyByName($remaining, $key->name, $consumed)
                 : $this->takeForeignKeyByTarget($remaining, $key, $consumed);
 
+            $deferral = $this->deferral($key, $deferrals);
+
             if ($match === null) {
-                $out[] = new Discrepancy('missing_foreign_key', $want->name, null, $key->label(), null);
+                $out[] = $deferral === null
+                    ? new Discrepancy('missing_foreign_key', $want->name, null, $key->label(), null)
+                    : new Discrepancy('deferred_foreign_key', $want->name, null, $key->label(), 'absent by design — '.$deferral, false);
 
                 continue;
             }
 
             $matched[] = $key;
+
+            if ($deferral !== null) {
+                $out[] = new Discrepancy(
+                    'fulfilled_deferred_foreign_key',
+                    $want->name,
+                    null,
+                    'still registered as deferred in docs/schema-notes.md — '.$deferral,
+                    $match->label(),
+                );
+            }
 
             if ($match->semanticKey() !== $key->semanticKey()) {
                 $out[] = new Discrepancy('foreign_key_action', $want->name, null, $key->label(), $match->label());
@@ -371,6 +410,27 @@ final class SchemaDiffer
         }
 
         return $matched;
+    }
+
+    /**
+     * The justification this constraint is registered under, or null when it is not
+     * registered.
+     *
+     * Only a key the DDL **itself named** is ever registrable. An inline
+     * `FOREIGN KEY` is named `<table>_ibfk_<n>` by the engine, so its name is not
+     * a stable thing to key a registry on and is refused here — the registry can
+     * forgive `fk_vital_rm` and nothing else in the whole schema, which is what
+     * keeps the exemption to a single, named, intended object.
+     *
+     * @param  array<string, string>  $deferrals  lower-cased constraint name => justification
+     */
+    private function deferral(ForeignKeySpec $key, array $deferrals): ?string
+    {
+        if (! $key->nameIsAuthoritative || $key->name === null) {
+            return null;
+        }
+
+        return $deferrals[strtolower($key->name)] ?? null;
     }
 
     /**
