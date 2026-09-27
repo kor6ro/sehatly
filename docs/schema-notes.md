@@ -603,3 +603,138 @@ mistakes, recorded so they are not "harmonised":
 The extra-table registry still has exactly seven entries after todo 12, for the
 same reason as after todos 9, 10 and 11: no batch-F migration creates a table
 outside the 75-table contract. The unit suite re-derives that seven on every run.
+
+## Batch-G schema limitations the database cannot enforce (todo 13)
+
+Batch G (`rekam_medis`, `rekam_medis_diagnosa`, `rekam_medis_tindakan`,
+`rekam_medis_lampiran`, `rekam_medis_persetujuan` — SQL tables 42–46) is at
+parity and **owes no deferred constraint**: all nine of its foreign keys point at
+a table that already exists by the time its own migration runs (`pasien` 20 from
+batch C, `faskes` 28 and `dokter` 31 from batch D, `konsultasi` 38 from batch F,
+and `rekam_medis` 42 from inside this batch, one row earlier in the same commit),
+so the *Deferred constraints* table above is unchanged and still holds exactly
+one row (`fk_vital_rm`, added by migration 76 per SQL section `[14]`, `:1161-1163`).
+**Batch G defers nothing and registers nothing.**
+
+Four facts are recorded because each looks like something the schema guarantees
+and is not. The two marked **absence is load-bearing** are the ones a later
+reader is most likely to "repair", and every such repair would be reported as
+`extra_foreign_key` drift while `migrate:fresh` stayed green.
+
+- **Amendment linkage is a convention, not a constraint — the chain is
+  reconstructed by grouping, and the grouping key is itself only a convention.**
+  `rekam_medis.versi` (`:646`) is `TINYINT UNSIGNED NOT NULL DEFAULT 1`, the
+  amendment counter. The statement declares four `FOREIGN KEY` clauses
+  (`:650`–`:653`, on `pasien_id`, `faskes_id`, `dokter_id`, `konsultasi_id`) and
+  **none of them is a self-reference**: there is no `parent_id`, no
+  `rekam_medis_id`, no `amends_id`, and no self-referencing `FOREIGN KEY` on
+  `id`. Nothing therefore enforces, in either direction, that
+
+  - two rows are not both `versi = 1`;
+  - two rows are not both `versi = 1, status_dokumen = 'final'`;
+  - a `versi = 5` has a `versi = 4`;
+  - a chain is written in order.
+
+  The chain must be reconstructed by grouping on
+  `(pasien_id, dokter_id, tanggal_periksa)` — the only triple the schema holds
+  constant across versions — and that grouping is **itself** unenforced: a
+  doctor who examines the same patient twice on the same `tanggal_periksa` is
+  representable and would be misread as a second version of the first.
+  `konsultasi_id` (`:627`) is a better thread key when present because a
+  consultation is one encounter, but it is nullable, so it cannot be the only
+  key. **This is a limitation the database cannot enforce in any form**, and it
+  is todo 33's write path that has to own the invariant; todo 19's model
+  docblock repeats it. No index or constraint can be added to fix it, because
+  `telemedicine_test.sql` is read-only law.
+- **`status_dokumen` DEFAULTS TO `'final'` (`:645`), so a create that omits the
+  column lands immutable.** `status_dokumen ENUM('draft','final','diamendemen')
+  NOT NULL DEFAULT 'final'` — three values in that order, and the default is the
+  **second** member, not the first. `draft` sorts first because ENUM order is the
+  sort index, which is what makes the default easy to mis-transcribe.
+  **Todo 33's `RekamMedisService` MUST pass `status_dokumen` explicitly on
+  create.** There is no trigger, no `updated_at`-gated permission and no
+  intermediate state, so a record created without the column is not recoverable
+  by omitting it again — the only way forward is writing `diamendemen`. Anything
+  that bulk-creates records (seeders, importers, todo 32's
+  consultation-completion path) inherits the same trap. Recorded because every
+  automated check in this project is green on a migration that gets this wrong:
+  `migrate:fresh`, `php -l` and `verify-schema` all pass either way.
+- **Four reference-shaped columns are bare by contract, and two of them are not
+  named in the plan's own todo-13 prose.** **Absence is load-bearing.** All four
+  targets exist, so `->foreign()` on any of them would succeed and become
+  permanent `extra_foreign_key` drift:
+
+  | Column | SQL line | Target that exists and would work | Why it is bare |
+  | --- | --- | --- | --- |
+  | `rekam_medis.satusehat_encounter_id` | `:628` | none | SATUSEHAT encounter id — a string minted by a national health system outside this schema. A foreign key would be meaningless even if a lookup table existed. **Not named in the plan's todo-13 text at all.** |
+  | `rekam_medis_diagnosa.icd10_kode` | `:660` | `master_icd10.kode` (table 10) | Bare indexed string, `NOT NULL` with `INDEX idx_diag_icd10 (icd10_kode)` (`:666`) so the index makes lookup fast and validates nothing. An `icd10_kode` absent from `master_icd10` is representable. |
+  | `rekam_medis_tindakan.icd9cm_kode` | `:672` | `master_icd9cm.kode` (table 11) | Same shape, but **nullable** (a procedure may be described in words only via `nama_tindakan`) and with **no index at all**, so a code lookup is a full scan — the one place in this batch where the rule costs a query plan as well as integrity. |
+  | `rekam_medis_lampiran.diunggah_oleh` | `:687` | `users.id` (table 12) | `NOT NULL` yet unconstrained, so an attachment naming a user this installation never had is representable. `users` carries `dihapus_at` (`:148`), so the intended lifecycle is a soft delete that leaves the id resolvable — which is why the constraint is absent rather than deferred. **Not named in the plan's todo-13 text at all.** |
+
+  **Migration `2026_10_01_000076` must not add a constraint to any of the four.**
+  None of them is in the *Deferred constraints* registry and none should be:
+  registration would promise a constraint the DDL never declares.
+- **"Exactly one primary diagnosis per record" is unenforced, and no index can
+  enforce it.** `rekam_medis_diagnosa.jenis` (`:662`) is a four-value ENUM
+  (`utama`, `sekunder`, `diferensial`, `komplikasi`) with **no default**, so
+  the type is required at insert, and there is **no unique index on
+  `(rekam_medis_id, jenis)`** — the only name-bearing key is `idx_diag_icd10`
+  (`:666`). A record may therefore carry zero, one or several `utama` rows, and
+  nothing couples `tipe_kasus` (`:663`, `DEFAULT 'baru'`) to `jenis`, so a
+  `diferensial` diagnosis carrying a "new case" flag is representable. Both
+  invariants belong to todo 33. Related and equally unenforced: the sub-tables
+  have **no `dibuat_at`/`diubah_at`** at all (they are in rule 4's 39-table
+  "neither" group), so "who confirmed this diagnosis and when" is not
+  recordable on this table.
+- **Consent order is carried by one column, and the three `tipe` values are not
+  a lifecycle.** `rekam_medis_persetujuan.tipe` (`:695`) is
+  `('general_consent','persetujuan_tindakan','penolakan_tindakan')` — three
+  values, `NOT NULL`, no default — and the third member is a **refusal**, not a
+  later state of the same consent. There is no
+  `dibatalkan_at`, no supersession column and no unique on
+  `(rekam_medis_id, tipe)`, so a patient can hold both an approval and a refusal
+  for the same procedure and nothing picks a winner. "The most recent row of this
+  `tipe` governs" is therefore a todo-33 application rule, and it is only as
+  trustworthy as `ditandatangani_at` (`:700`, `DATETIME NOT NULL`, no default,
+  no trigger) — which is the **only** ordering column on the table, because
+  `rekam_medis_persetujuan` has no `dibuat_at` either. A wrong value there
+  reorders the patient's own consent history, and nothing anywhere records when
+  the consent row was written. `ditandatangani_oleh` (`:697`) is a
+  `VARCHAR(150)` **name string, not a `users` id**: a patient, guardian or carer
+  may have no `users` row at all, which is also why `hubungan_dengan_pasien`
+  (`:698`) is free text where `NULL` means "the patient signed themselves".
+  This is separate from `persetujuan_pdp` (table 74, `:1134`), which is
+  platform-level PDP consent keyed on `users` with `uq_consent` (`:1144`); the
+  two spellings are easy to confuse and no constraint links them.
+
+Two shapes that are correct but that a later reader is likely to mistake for
+mistakes, recorded so they are not "harmonised":
+
+- **The four sub-table cascades and the five `RESTRICT`s are deliberately
+  mismatched.** `rekam_medis_diagnosa` (`:665`), `rekam_medis_tindakan` (`:677`),
+  `rekam_medis_lampiran` (`:689`) and `rekam_medis_persetujuan` (`:701`) each
+  cascade from `rekam_medis`. Every other foreign key in the batch carries **no**
+  `ON DELETE` clause and so materialises MySQL's implicit `NO ACTION` (`RESTRICT`
+  for DML): all four of `rekam_medis`'s own FKs (`:650`–`:653`) and
+  `rekam_medis_tindakan.dokter_pelaksana_id` (`:678`). The pattern is the same as
+  `konsultasi_chat` in batch F: the record link cascades, the person link
+  restricts, because clinical history is worthless without its record while
+  deleting a doctor must be blocked while their procedure lines exist. Giving
+  them the same rule would be `extra_foreign_key` drift **and** would silently
+  destroy clinical history.
+- **`dibuat_at` is a `TIMESTAMP` on `rekam_medis` (`:648`) and on
+  `rekam_medis_lampiran` (`:688`), while every clinical event time in this batch
+  is a `DATETIME`.** `tanggal_periksa` (`:630`), `ditandatangani_at` (`:647`),
+  `tanggal_tindakan` (`:675`) and `rekam_medis_persetujuan.ditandatangani_at`
+  (`:700`) are all `DATETIME`, and `jadwal_kontrol` (`:644`) is a `DATE`. The
+  `TIMESTAMP` columns are converted by the **server** on write and read using the
+  session time zone, so this duality is `docs/timezone-policy.md`'s to cover and
+  cannot be fixed in the service layer. `rekam_medis` is also one of only 16
+  tables with a `dibuat_at`/`diubah_at` pair, so it is one of the few that needs
+  the raw `ON UPDATE CURRENT_TIMESTAMP` `ALTER` from
+  `docs/migration-order.md` rule 5.
+
+The extra-table registry still has exactly seven entries after todo 13, for the
+same reason as after todos 9, 10, 11 and 12: no batch-G migration creates a
+table outside the 75-table contract. The unit suite re-derives that seven on every
+run.
