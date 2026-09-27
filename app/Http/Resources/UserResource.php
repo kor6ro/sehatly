@@ -22,16 +22,35 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * a property of this file rather than a property of a model attribute a future edit
  * could remove.
  *
- * ## The field set is `users` only, and that is a scope decision
+ * ## The field set is `users`, plus two relations that appear only when loaded
  *
- * No relation is loaded and none is exposed. `GET /api/v1/me` and the patient profile
- * are todo 21's, and its plan text asks for `pasien` and `dokter` eager-loaded with
- * `dokter_spesialisasi` and `dokter_pendidikan`, and for `pasien.nik` to be masked
- * rather than raw. Todo 21 should **extend** this resource with those relations rather
- * than write a second one, so there is exactly one `UserResource` in the tree.
+ * The scalar keys are `users` columns and nothing else; a column added to `users` later
+ * is invisible to the API until somebody adds it here on purpose. The two relation keys
+ * - `pasien` and `dokter` - are emitted by `whenLoaded()`, so:
  *
- * Register and OTP-verify are the only two endpoints that use it today, and both return
- * the caller's own row.
+ * | endpoint | relations loaded | body |
+ * | --- | --- | --- |
+ * | `GET /api/v1/me` | both, eagerly | `pasien` and `dokter` keys present |
+ * | `POST /api/v1/auth/register` | neither | neither key present |
+ * | `POST /api/v1/auth/otp/verify` | neither | neither key present |
+ *
+ * `whenLoaded()` rather than a hard `null` because `POST /auth/register` creates the
+ * `pasien` row in the same transaction and would have to publish `"pasien": null` - a
+ * lie about a row that exists - or eager-load it and pay for a query the response does
+ * not use. Omission is the honest answer in both directions, and it keeps the allow-list
+ * property: a relation the caller did not ask for cannot appear by accident.
+ *
+ * The relations are **not** flattened into this resource. `pasien` and `dokter` are
+ * different tables with their own rules - `pasien.nik` is masked by
+ * {@see PasienResource}, and `dokter.nomor_str` is withheld by
+ * {@see DokterAkunResource} - so each has its own projection and this one delegates.
+ * That is also why the doctor resource is *not* called `DokterResource`: that name is
+ * taken by todo 22's public directory projection, and the collision is documented in
+ * {@see DokterAkunResource}.
+ *
+ * `GET /api/v1/me` is todo 21's and is the reason these two keys exist; register and
+ * OTP-verify are the two Module 1 endpoints that use this resource, and both return the
+ * caller's own row.
  *
  * ## Timestamps
  *
@@ -64,6 +83,13 @@ class UserResource extends JsonResource
             'email_terverifikasi' => (bool) $this->resource->email_terverifikasi,
             'last_login_at' => $this->resource->last_login_at?->toISOString(),
             'dibuat_at' => $this->resource->dibuat_at?->toISOString(),
+
+            // `GET /api/v1/me` eager-loads both; the Module 1 auth endpoints do not, and
+            // `whenLoaded()` is what keeps the two from disagreeing about the shape.
+            'pasien' => $this->whenLoaded('pasien', fn (): PasienResource => new PasienResource($this->pasien)),
+            'dokter' => $this->whenLoaded('dokter', fn (): ?DokterAkunResource => $this->dokter === null
+                ? null
+                : new DokterAkunResource($this->dokter)),
         ];
     }
 }

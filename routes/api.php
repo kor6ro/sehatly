@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\MeController;
+use App\Http\Controllers\Api\V1\PasienController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -96,5 +98,110 @@ Route::prefix('auth')->name('auth.')->group(function (): void {
         // string and the controller answers 404 for one that is not the caller's.
         Route::delete('devices/{deviceId}', [AuthController::class, 'devicesDestroy'])
             ->name('devices.destroy');
+    });
+});
+
+/*
+|--------------------------------------------------------------------------
+| Module 1 -- the caller's own patient records
+|--------------------------------------------------------------------------
+|
+| APPENDED by todo 21. The eight auth routes above are untouched: this todo owns only
+| the block below, and the plan's todo 20 acceptance criterion is a byte-level
+| assertion about the eight it registered.
+|
+| Eleven routes, one ownership rule. Every one of them runs behind `auth:sanctum` and
+| then resolves the caller's own `pasien` row through
+| `App\Services\Pasien\PasienRecordAccess`, which is where the 403-for-the-caller and
+| 404-for-another-patient's-row split is defined and explained.
+|
+| ## No `permission:` and no `tipe:` on any of them, and that is a decision
+|
+| `RbacCatalog::PERMISSIONS` holds 24 codes and none of them names a patient profile, a
+| family member or an allergy, so a `permission:` here would be inventing policy - and
+| `EnsurePermission` turns an unknown code into a 500, not a 403. `tipe:pasien` would
+| resolve and is deliberately not used: it answers "which account type is this" rather
+| than "is this row yours", and a `pasien`-typed account with no `pasien` row passes it and
+| is refused by the service anyway. The full reasoning is in `PasienRecordAccess`'s
+| class docblock, and the tripwire that keeps it honest is in
+| `tests/Feature/Pasien/PasienProfileTest.php`, which re-parses this file and asserts
+| every `permission:`/`tipe:` string resolves against `RbacCatalog`.
+|
+| ## `auth:sanctum` is named on the group, for the same reason it is on the auth group
+|
+| An unauthenticated caller gets the guard's 401 envelope rather than this controller's
+| 403, and a route added to this file in a later todo cannot be unprotected by omission.
+|
+| ## `{id}` is constrained to a number
+|
+| `pasien_anggota_keluarga.id` and `pasien_alergi.id` are `BIGINT UNSIGNED AUTO_INCREMENT`
+| primary keys (`:259`, `:274`). `whereNumber('id')` makes a non-numeric segment a 404
+| from the router, so the controllers take an `int` and no request can arrive with
+| `abc` in a position the API treats as an identifier.
+|
+| ## The plan's "8 routes" is unsatisfiable; 10 are registered here
+|
+| The plan's todo 21 acceptance criterion says
+| `php artisan route:list --path=api/v1/pasien` lists 8 routes. Its own prose names 10:
+| `GET`/`PUT /pasien/profil` (2), `GET`/`POST /pasien/anggota-keluarga` (2),
+| `PUT`/`DELETE /pasien/anggota-keluarga/{id}` (2), `GET`/`POST /pasien/alergi` (2) and
+| `PUT`/`DELETE /pasien/alergi/{id}` (2). All ten ship; the count is not met by dropping
+| endpoints. `GET /api/v1/me` is the eleventh and sits outside the `pasien` path filter.
+| This is the same class of defect as todo 20's "lists all 6 routes" for seven named
+| operations, and it is recorded in `.omo/evidence/task-21-sehatly.md` rather than
+| satisfied by omission.
+*/
+
+Route::middleware('auth:sanctum')->group(function (): void {
+    /*
+    | The account's own identity, with whichever of `pasien` or `dokter` it owns.
+    */
+    Route::get('me', [MeController::class, 'show'])->name('me');
+
+    /*
+    | The patient profile. `PUT` writes `users.nama_lengkap` and a block of `pasien`
+    | columns in one transaction, and cannot write `tipe`, `status`, `no_telepon` or
+    | `nik` - those are not in `UpdatePasienProfileRequest`'s validated keys.
+    */
+    Route::prefix('pasien')->name('pasien.')->group(function (): void {
+        Route::get('profil', [PasienController::class, 'profilShow'])
+            ->name('profil.show');
+        Route::put('profil', [PasienController::class, 'profilUpdate'])
+            ->name('profil.update');
+
+        /*
+        | Family members. `pasien_anggota_keluarga` has no `dihapus_at` (`:269`), so the
+        | DELETE below is a hard delete - the schema allows nothing else.
+        */
+        Route::prefix('anggota-keluarga')->name('anggota-keluarga.')->group(function (): void {
+            Route::get('/', [PasienController::class, 'anggotaKeluargaIndex'])
+                ->name('index');
+            Route::post('/', [PasienController::class, 'anggotaKeluargaStore'])
+                ->name('store');
+            Route::put('{id}', [PasienController::class, 'anggotaKeluargaUpdate'])
+                ->whereNumber('id')
+                ->name('update');
+            Route::delete('{id}', [PasienController::class, 'anggotaKeluargaDestroy'])
+                ->whereNumber('id')
+                ->name('destroy');
+        });
+
+        /*
+        | Allergies. `pasien_alergi` also has no `dihapus_at` (`:282`), so this DELETE is
+        | a hard delete too, and `dicatat_oleh_user_id` (`:281`, no foreign key) is
+        | written from the authenticated account rather than from the request.
+        */
+        Route::prefix('alergi')->name('alergi.')->group(function (): void {
+            Route::get('/', [PasienController::class, 'alergiIndex'])
+                ->name('index');
+            Route::post('/', [PasienController::class, 'alergiStore'])
+                ->name('store');
+            Route::put('{id}', [PasienController::class, 'alergiUpdate'])
+                ->whereNumber('id')
+                ->name('update');
+            Route::delete('{id}', [PasienController::class, 'alergiDestroy'])
+                ->whereNumber('id')
+                ->name('destroy');
+        });
     });
 });

@@ -380,11 +380,22 @@ class AuthController extends Controller
      * query rather than filtered in PHP, so a row belonging to another account is never
      * loaded and then discarded.
      *
-     * The response carries a `total` rather than the project-wide `meta` block
-     * (`{current_page, last_page, total}`) that todo 21's list endpoints use: a user has
-     * a handful of devices, so there is nothing to page, and
-     * {@see ApiResponse} has no `meta` key. Todo 21 is where that shape is introduced and
-     * it has to widen `ApiResponse` to do it.
+     * ## The count moved from `data.total` to the project-wide `meta` block
+     *
+     * This response used to answer `data: {devices: [...], total: N}` because
+     * {@see ApiResponse} had no `meta` key. Todo 21 widened it, so the count now lives
+     * in `meta` where every other list endpoint puts it:
+     *
+     * ```
+     * data: {devices: [...]}
+     * meta: {current_page: 1, last_page: 1, per_page: N, total: N, from: 1, to: N}
+     * ```
+     *
+     * The list is still **not** paginated - an account has a handful of devices, so
+     * there is nothing to page - but it is reported as the degenerate single page it is
+     * rather than as a special case, so a client parses one list envelope for every
+     * list endpoint in this API. `AuthFlowTest` asserts both the migrated `meta.total`
+     * and the absence of the old `data.total`.
      */
     public function devicesIndex(Request $request): JsonResponse
     {
@@ -394,10 +405,14 @@ class AuthController extends Controller
             ->orderBy('id')
             ->get();
 
-        return ApiResponse::success([
-            'devices' => UserDeviceResource::collection($devices),
-            'total' => $devices->count(),
-        ], 'Daftar perangkat berhasil dimuat.');
+        $total = $devices->count();
+
+        return ApiResponse::success(
+            ['devices' => UserDeviceResource::collection($devices)],
+            'Daftar perangkat berhasil dimuat.',
+            Response::HTTP_OK,
+            ApiResponse::singlePageMeta($total),
+        );
     }
 
     /**

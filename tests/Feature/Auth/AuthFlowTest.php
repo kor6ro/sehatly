@@ -1130,7 +1130,19 @@ test('the device list contains only the caller devices', function (): void {
     $response = authAsUser($verified['user'])->getJson('/api/v1/auth/devices');
 
     $response->assertOk();
-    $response->assertJsonPath('data.total', 2);
+    $response->assertJsonStructure([
+        'success',
+        'data' => ['devices'],
+        'message',
+        'meta' => ['current_page', 'last_page', 'per_page', 'total', 'from', 'to'],
+    ]);
+    // The count moved from `data.total` to the project-wide `meta` block in todo 21, which
+    // widened `ApiResponse` to have one. The list is still a single unpaginated page, so
+    // `current_page` and `last_page` are both 1 and `per_page` is the row count.
+    $response->assertJsonPath('meta.total', 2);
+    $response->assertJsonPath('meta.current_page', 1);
+    $response->assertJsonPath('meta.last_page', 1);
+    expect($response->json('data'))->not->toHaveKey('total');
     $response->assertJsonCount(2, 'data.devices');
 
     $ids = collect($response->json('data.devices'))->pluck('device_id')->all();
