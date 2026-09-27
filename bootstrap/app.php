@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Middleware\EnsurePermission;
+use App\Http\Middleware\EnsureUserType;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Support\ApiResponse;
@@ -56,6 +58,34 @@ return Application::configure(basePath: dirname(__DIR__))
             HandleAppearance::class,
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
+        ]);
+
+        /*
+        |--------------------------------------------------------------------
+        | RBAC aliases
+        |--------------------------------------------------------------------
+        |
+        | `permission:<kode>` gates on a grant held through
+        | `user_roles -> role_permissions -> permissions`, and `tipe:<values>`
+        | gates on the `users.tipe` ENUM at telemedicine_test.sql:139. The two
+        | answer different questions - a grant versus an account type - and the
+        | plan's module todos use both, so both are registered here.
+        |
+        | Registered as aliases rather than appended to a group because neither
+        | belongs in a group: they are opt-in per route, and `auth:sanctum` must
+        | be named explicitly on the route so that "unauthenticated" is answered
+        | by the guard (401) rather than by these two. Both still return 401 on
+        | their own if a route forgets it, so the ordering mistake is safe.
+        |
+        | Both middlewares build their own failure bodies from `ApiResponse`,
+        | which is why `bootstrap/app.php` is the only place in the kernel that
+        | needs to know the error shape.
+        |
+        */
+
+        $middleware->alias([
+            'permission' => EnsurePermission::class,
+            'tipe' => EnsureUserType::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -2,6 +2,8 @@
 
 namespace Database\Seeders;
 
+use App\Support\Rbac\RbacCatalog;
+use App\Support\Rbac\RoleAssigner;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
@@ -73,7 +75,7 @@ use Illuminate\Support\Facades\DB;
  * | # | Seeder | Read back by the fixture? | Referenced by |
  * | --- | --- | --- | --- |
  * | 1 | {@see MasterWilayahSeeder} | yes - `kode` `31` | `faskes.provinsi_id` (FK `:381`) |
- * | 2 | {@see MasterUmumSeeder} | yes - 4 tables by `nama`/`kode` | `pasien.agama_id`, `golongan_darah_id`, `pendidikan_id`, `status_pernikahan_id` (FKs `:251`-`:254`); `pasien_anggota_keluarga.hubungan_keluarga_id`; `dokter_pendidikan` |
+ * | 2 | {@see MasterUmumSeeder} | yes - 4 tables by `nama`/`kode` | `pasien.agama_id`, `golongan_darah_id`, `pendidikan_id`, `status_pernikahan_id` (FKs `:251`-`:254`); `pasien_anggota_keluarga.hubungan_id` (`:262`); `dokter_pendidikan` |
  * | 3 | {@see SpesialisasiSeeder} | yes - 4 codes | `dokter_spesialisasi.spesialisasi_id` (FK `:443`) |
  * | 4 | {@see PenjaminSeeder} | no | `pasien_penjamin.penjamin_id` (FK `:352`) |
  * | 5 | {@see MetodePembayaranSeeder} | no | `pembayaran.metode_id` (FK `:971`) |
@@ -81,33 +83,88 @@ use Illuminate\Support\Facades\DB;
  * | 7 | {@see ObatSeeder} | yes - 4 codes | `obat_interaksi.obat_a_id`/`obat_b_id` (FKs `:737`-`:738`) |
  * | 8 | {@see LabSeeder} | yes - 6 codes, 3 names | `lab_paket_item.tindakan_id`/`paket_id` (FKs `:872`-`:873`) |
  * | 9 | {@see ArtikelKategoriSeeder} | no | `artikel.kategori_id` (FK `:1089`); `artikel` is never seeded |
- * | **10** | **{@see DevFixtureSeeder}** | - | **must be last**: it reads 2, 3, 7 and 8 back and writes `users`, `pasien`, `faskes`, `dokter`, `dokter_spesialisasi`, `lab_paket_item`, `obat_interaksi` |
+ * | 10 | {@see RbacSeeder} | no | `role_permissions` (FKs `:167`-`:168`), `user_roles` (FK `:176`) |
+ * | **11** | **{@see DevFixtureSeeder}** | - | **must be last**: it reads 2, 3, 7 and 8 back and writes `users`, `pasien`, `faskes`, `dokter`, `dokter_spesialisasi`, `lab_paket_item`, `obat_interaksi` |
+ *
+ * `RbacSeeder` sits between the two groups because it has no dependency on either:
+ * it writes only `roles`, `permissions` and `role_permissions` and resolves every id
+ * by natural key, so it reads nothing. Its position is for readability.
  *
  * ## Row totals
  *
  * | Source | Tables | Rows |
  * | --- | --- | --- |
  * | `telemedicine_test.sql` section `[16]` (9 seeders) | 15 | **151** |
- * | {@see DevFixtureSeeder} (no DDL source) | 7 | **21** |
- * | **total** | **22** | **172** |
+ * | {@see RbacSeeder} (no DDL source) | 3 | **98** |
+ * | {@see DevFixtureSeeder} (no DDL source) | 7 | **25** |
+ * | **total written** | **25** | **274** |
+ *
+ * **The 26th owned table, `user_roles`, is written by nobody in this tree.** It is
+ * listed in `SEEDED_TABLES` so a re-seed clears a developer's manual grants, and
+ * {@see RbacSeeder} deliberately creates none: assigning a role to a real account is
+ * an application action taken through {@see RoleAssigner}, which
+ * todo 20 wires into registration. "Owned" here means "emptied by this chain", not
+ * "populated by it".
  *
  * The **151** is derived by parsing the DDL's own INSERT tuples - 15 statements,
  * one per table - and every per-table count is recorded in the individual
- * seeder's docblock. The **21** fixture rows are 5 `users` (three doctor accounts
+ * seeder's docblock. The **25** fixture rows are 5 `users` (three doctor accounts
  * and two patient accounts), 2 `pasien`, 2 `faskes`, 3 `dokter`,
- * 4 `dokter_spesialisasi`, 3 `lab_paket_item` and 2 `obat_interaksi` - note the
+ * 4 `dokter_spesialisasi`, **7** `lab_paket_item` and 2 `obat_interaksi` - note the
  * `users` count is **5, not 3**, because `dokter.user_id` is `NOT NULL UNIQUE`
  * with a real foreign key to `users(id)` (`:411`, `:433`) and a doctor is not a
- * patient.
+ * patient. The **98** RBAC rows are 5 `roles`, 24 `permissions` and 69
+ * `role_permissions`; the 24 and the 69 are the counts of
+ * {@see RbacCatalog::PERMISSIONS} and of the sum of
+ * {@see RbacCatalog::ROLE_PERMISSIONS}.
  *
- * **Those two figures are arithmetic, not measurements.** The authoritative
+ * ### Corrected while adding `RbacSeeder`: the fixture total was 21, and 3 `lab_paket_item` was wrong
+ *
+ * This table previously read 7 fixture tables / 21 rows / 22 tables / 172 total, and
+ * attributed 3 rows to `lab_paket_item`. **`DevFixtureSeeder`'s package map links
+ * seven kode** - three to `Medical Check Up Dasar`, two to `Cek Gula & Kolesterol`
+ * and two to `Fungsi Hati Lengkap` - so the measured `COUNT(*)` is 7, and
+ * 151 + 25 + 98 = 274. The stale "3" also survives in
+ * {@see LabSeeder}'s docblock and in {@see DevFixtureSeeder}'s; both are left alone
+ * here because they are not this todo's files, and both are recorded in
+ * `.omo/evidence/task-4-sehatly.md`. Nothing in the **code** was wrong: only the
+ * prose was, which is plan appendix A.15's defect class exactly - a comment that
+ * nobody executes, so nothing fails when it drifts.
+ *
+ * **Those figures are arithmetic, not measurements.** The authoritative
  * numbers are the `COUNT(*)` values read back after seeding, recorded in
- * `.omo/evidence/task-18-sehatly.md`.
+ * `.omo/evidence/task-18-sehatly.md` and `.omo/evidence/task-4-sehatly.md`.
+ *
+ * ### Second correction: `pasien_anggota_keluarga.hubungan_id`, not `..._keluarga_id`
+ *
+ * The same table previously named the column
+ * `pasien_anggota_keluarga.hubungan_id` + `_keluarga_id` - the referenced table's
+ * suffix pasted onto the column name. The DDL calls it **`hubungan_id`**
+ * (`:262`, `TINYINT UNSIGNED NOT NULL`, `FOREIGN KEY (hubungan_id) REFERENCES
+ * master_hubungan_keluarga(id)` at `:271`) - the `_keluarga` belongs to the *table* it
+ * references, not to the column name. Found by this todo's A.26 token audit, which
+ * extracts every `snake_case` token from a file and checks it against the DDL: a
+ * corrupted-ASCII identifier is invisible to an encoding scan and to the parity
+ * verifier, which only compares columns it can see. The same wrong name is still in
+ * `database/seeders/MasterUmumSeeder.php:62`; that file is not this todo's, so it is
+ * reported rather than edited, per A.15's rule that a stale claim is only fixed in
+ * the places you happen to look.
+ *
+ * **The wrong spelling is deliberately not reproduced in full anywhere in this
+ * file.** A correction that quotes the error puts the corrupt token back into the
+ * very file a token audit reads, so the next run reports it again and the next
+ * reader greps for it. The heading above carries the truncated form, which is
+ * enough to identify the mistake and not enough to be a false positive.
  */
 class DatabaseSeeder extends Seeder
 {
     /**
-     * Every table this seeder tree writes, parents before children.
+     * Every table this seeder tree owns, parents before children.
+     *
+     * "Owns" means "empties on every seed run", which is a superset of "writes": the
+     * 26th entry, `user_roles`, is listed so a developer's manual grants do not
+     * survive a re-seed, but no seeder in this tree creates a row in it. See
+     * {@see RbacSeeder}, which explains why.
      *
      * The order is a convenience, not a requirement: `TRUNCATE` with foreign key
      * checking disabled does not care. It is parents-first so that a reader
@@ -132,6 +189,10 @@ class DatabaseSeeder extends Seeder
         'master_lab_tindakan',
         'master_lab_paket',
         'artikel_kategori',
+        // 3 RBAC tables (todo 4)
+        'roles',
+        'permissions',
+        'role_permissions',
         // 7 fixture tables
         'lab_paket_item',
         'obat_interaksi',
@@ -140,6 +201,8 @@ class DatabaseSeeder extends Seeder
         'dokter',
         'pasien',
         'users',
+        // Owned by the seed tree but written by nobody in it (todo 4)
+        'user_roles',
     ];
 
     /**
@@ -165,6 +228,14 @@ class DatabaseSeeder extends Seeder
             LabSeeder::class,                 // 8
             ArtikelKategoriSeeder::class,     // 9
         ]);
+
+        // --- No DDL source: the RBAC kernel (todo 4) --------------------------
+        //
+        // Between the DDL seeders and the fixtures because it has no dependency on
+        // either: it writes only `roles`, `permissions` and `role_permissions`,
+        // resolves every id by natural key, and reads nothing. The order is a
+        // readability choice, not a constraint - see the call table above.
+        $this->call(RbacSeeder::class);
 
         // --- NOT from the DDL: development fixtures, and they must be last -----
         $this->call(DevFixtureSeeder::class);
