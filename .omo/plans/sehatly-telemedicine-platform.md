@@ -149,9 +149,20 @@ Round-2 citation sweep re-read `telemedicine_test.sql` (**1349 lines**, 75 `CREA
 | `konsultasi` | `catatan_subjektif`, `catatan_objektif`, **`catatan_asessment`** (one `s`), `catatan_plan` | 548-551 |
 | `rekam_medis` | `subjektif`, `objektif`, `asesmen`, `plan` | 637-640 |
 
-**Six columns that look like references but carry NO foreign key** — using `constrained()` on any of them adds a constraint the SQL lacks and breaks parity: `pasien_penjamin.faskes_rujukan_id` (`:346`), `surat_keterangan.kons点多ultasi_id` (`:584`), `rujukan.faskes_asal_id` (`:602`), `rekam_medis_diagnosa.icd10_kode` (`:660`), `rekam_medis_tindakan.icd9cm_kode` (`:672`), `rekam_medis_lampiran.diunggah_oleh` (`:687`), `artikel.reviewer_user_id` (`:1078`), `audit_log.user_id` (`:1120`).
+**28 columns carry a reference-shaped name but NO foreign key** 
 
-**Multi-line ENUMs — treat as single units, not single lines:** `booking.status` (515-516), `konsultasi.status` (542-543), `konsultasi_chat.tipe_pesan` (568-569), `master_obat.bentuk_sediaan` (713-714), `resep.status` (751-752), `persetujuan_pdp.jenis` (1137-1138).
+Using \`constrained()\` on any of these adds a constraint the SQL lacks and breaks parity. This list is **generated from \`telemedicine_test.sql\`**, not hand-maintained, because the previous hand-written version said "Six" while listing eight and omitted at least \`rujukan.icd10_kode\` and \`pasien_riwayat_penyakit.icd10_kode\` ΓÇö both of which had already been correctly implemented as bare columns by an earlier batch, so the omission was survivable only by luck. **Re-derive it if the SQL ever changes; never extend it by hand.**
+
+Bare columns that genuinely reference a table in this schema (25): `artikel.reviewer_user_id`, `audit_log.record_id`, `audit_log.user_id`, `invoice.referensi_id`, `klaim_bpjs.booking_id`, `klaim_bpjs.rekam_medis_id`, `lab_permintaan.konsultasi_id`, `lab_permintaan.rekam_medis_id`, `pasien.kabupaten_kota_id`, `pasien.kecamatan_id`, `pasien.kelurahan_id`, `pasien.provinsi_id`, `pasien_alergi.dicatat_oleh_user_id`, `pasien_penjamin.faskes_rujukan_id`, `pasien_riwayat_penyakit.icd10_kode`, `pasien_tanda_vital.rekam_medis_id`, `rekam_medis_diagnosa.icd10_kode`, `rekam_medis_tindakan.icd9cm_kode`, `resep.konsultasi_id`, `resep.rekam_medis_id`, `rujukan.faskes_asal_id`, `rujukan.icd10_kode`, `surat_keterangan.konsultasi_id`, `ulasan_dokter.konsultasi_id`, `user_devices.device_id`.
+
+Bare columns that are *external* identifiers and must never gain an FK even by accident (3): `faskes.satusehat_org_id`, `konsultasi.room_id`, `rekam_medis.satusehat_encounter_id`. \`konsultasi.room_id\` is a video-SDK room name, \`faskes.satusehat_org_id\` and \`rekam_medis.satusehat_encounter_id\` are SATUSEHAT identifiers ΓÇö all three are strings from systems outside this schema, so a foreign key would be meaningless even though a \`master_*\`-style lookup table might one day exist.
+
+**One exception, and it is the only one:** `pasien_tanda_vital.rekam_medis_id` appears in the list above because the SQL's `CREATE TABLE` omits its constraint — but SQL section `[14]` (`:1161-1163`) adds it as `fk_vital_rm` in migration 76. It is therefore **deferred, not bare**, and it is the sole entry in the *Deferred constraints* registry in `docs/schema-notes.md`. Every other column listed above must stay bare forever. See appendix A.10 and A.11.
+
+
+**Multi-line ENUMs — treat as single units, not single lines.** Exactly **five** ENUM declarations in the whole contract have a value list that continues onto the following physical line, and reading only the first line yields a **truncated** value list plus a column that looks nullable with no default. Verified by locating every `ENUM(` whose own line lacks its closing paren: `booking.status` (`:515-516`), `master_obat.bentuk_sediaan` (`:713-714`), `resep.status` (`:751-752`), `invoice.status` (`:947-948`), `persetujuan_pdp.jenis` (`:1137-1138`).
+
+**This list was wrong and is now measured rather than asserted. It previously named six entries, of which **two were not wrapped at all** — `konsultasi.status` (`:542`) and `konsultasi_chat.tipe_pesan` (`:568`) each close their own `ENUM(...)` on the same line — while **omitting `invoice.status` (`:947-948`)**, which is genuinely wrapped and belongs to todo 16. An executor reported the true count as **eleven**, naming `lab_permintaan.status` (`:884-885`), `klaim_bpjs.status` (`:1022-1023`), `home_care_pesanan.status` (`:1104-1105`) and `pesanan_obat.status` (`:810-811`) among the rest. **All four of those close their own `ENUM(...)` on the same line**; the following line carries only `NOT NULL DEFAULT ...`. The count is **five**, confirmed by inspecting each candidate line directly. See A.20.
 
 **Confirmed negative:** the file contains **no** `INSERT INTO lab_paket_item` and **no** `INSERT INTO obat_interaksi`. Both tables are created but never seeded, which is why todo 18 reclassifies their rows as unsourced `DevFixtureSeeder` data outside the 1:1 fidelity claim.
 
@@ -167,7 +178,7 @@ Every item below was confirmed by direct read of `telemedicine_test.sql` after t
 **Non-auto-increment primary keys (task 7, 10, 16).** `master_agama`, `master_golongan_darah`, `master_pendidikan`, `master_status_pernikahan`, `master_hubungan_keluarga` declare `TINYINT UNSIGNED PRIMARY KEY` with **no** `AUTO_INCREMENT`, and the SQL's seed inserts explicit ids. Their migrations must not add auto-increment, their models need `public $incrementing = false`, and their seeders must use `DB::table()->insert()` with explicit ids — Eloquent `create()` would emit a NULL id and fail with MySQL 1366. These five tables also have **no** `dibuat_at`/`diubah_at`.
 **Composite and non-incrementing keys (task 19).** `role_permissions`, `user_roles`, `dokter_faskes`, `lab_paket_item` are `(a,b)` composite-PK join tables with no `id` — models need `$incrementing = false` and `protected $primaryKey = ['a','b']`. Seven more tables have a UNIQUE but a surrogate `id`: `user_devices`, `pasien_penjamin`, `dokter_spesialisasi`, `apotek_stok`, `persetujuan_pdp`, `obat_interaksi`, `resep_verifikasi`.
 **Timestamp columns are wildly inconsistent (task 19).** Laravel's `$table->timestamps()` must **not** be blanket-applied. Tables with **neither** `dibuat_at` nor `diubah_at`: `master_agama`, `master_golongan_darah`, `master_pendidikan`, `master_status_pernikahan`, `master_hubungan_keluarga`, `master_icd10`, `master_icd9cm`, `roles`, `permissions`, `role_permissions`, `user_roles`, `dokter_spesialisasi`, `dokter_faskes`, `dokter_pendidikan`, `dokter_libur`, `faskes_layanan`, `rekam_medis_diagnosa`, `rekam_medis_tindakan`, `rekam_medis_persetujuan`, `obat_interaksi`, `resep_item`, `resep_verifikasi`, `pesanan_obat_tracking`, `apotek_stok`, `master_lab_tindakan`, `master_lab_paket`, `lab_paket_item`, `lab_permintaan_detail`, `lab_hasil`. Tables with `dibuat_at` only (no `diubah_at`): `user_otp`, `user_devices`, `user_refresh_tokens`, `pasien_anggota_keluarga`, `pasien_alergi`, `pasien_riwayat_penyakit`, `pasien_imunisasi`, `pasien_tanda_vital`, `pasien_penjamin`, `surat_keterangan`, `rujukan`, `rekam_medis_lampiran`, `pembayaran`, `refund`, `notifikasi`, `ulasan_dokter`, `promo_redemption`, `akses_rekam_medis_log`. `konsultasi_chat` has **neither** — its created-at column is `terkirim_at` (`:575`), so its model needs `const CREATED_AT = 'terkirim_at'`. `pesanan_obat_tracking` likewise has only `waktu DATETIME NOT NULL` (`:825`) and no `dibuat_at`. `apotek_stok` has only `diubah_at` (`:837`) and no `dibuat_at`.
-**Columns that look like references but have NO foreign key — do not add one (tasks 9, 10, 11, 13, 16, 17).** `surat_keterangan.konsultasi_id` (`:584`), `rujukan.faskes_asal_id` (`:602`), `rekam_medis_lampiran.diunggah_oleh` (`:687`), `lab_hasil.diperiksa_oleh` (`:914`), `pasien_alergi.dicatat_oleh_user_id` (`:281`), `artikel.reviewer_user_id` (`:1078`), `pasien_penjamin.faskes_rujukan_id` (`:346`), and `audit_log.user_id` (`:1120`, deliberately unconstrained so the log survives user deletion). Using `$table->foreignId(...)->constrained(...)` on any of these **adds a constraint the SQL does not have** and is a parity break. `rekam_medis_diagnosa.icd10_kode` (`:660`) and `rekam_medis_tindakan.icd9cm_kode` (`:671`) are likewise bare indexed strings validated only in the application layer.
+**Columns that look like references but have NO foreign key — do not add one (tasks 9, 10, 11, 13, 16, 17).** `surat_keterangan.konsultasi_id` (`:584`), `rujukan.faskes_asal_id` (`:602`), `rekam_medis_lampiran.diunggah_oleh` (`:687`), `lab_hasil.diperiksa_oleh` (`:914`), `pasien_alergi.dicatat_oleh_user_id` (`:281`), `artikel.reviewer_user_id` (`:1078`), `pasien_penjamin.faskes_rujukan_id` (`:346`), and `audit_log.user_id` (`:1120`, deliberately unconstrained so the log survives user deletion). Using `$table->foreignId(...)->constrained(...)` on any of these **adds a constraint the SQL does not have** and is a parity break. `rekam_medis_diagnosa.icd10_kode` (`:660`) and `rekam_medis_tindakan.icd9cm_kode` (`:672`) are likewise bare indexed strings validated only in the application layer.
 **Inline `UNIQUE` produces different index names than Laravel (task 6).** MySQL auto-names an inline `UNIQUE` after its column (`users.email` -> index `email`), whereas Laravel's `$table->unique('email')` generates `users_email_unique`. This affects ~25 columns. The parity verifier must therefore compare **uniqueness semantics** (`NON_UNIQUE` flag + ordered column list) and **not** index names, except for the explicitly named keys (`idx_jadwal`, `idx_booking_dokter`, `uq_interaksi`, `uq_stok`, `uq_consent`, `idx_faskes_geo`, `idx_icd10`, `idx_diag_icd10`, `idx_vital_pasien`, `idx_pasien_lahir`, `idx_spesialisasi` etc.), which must match by name. Also note `idx_icd10` is reused as a name on two different tables (`:119` and `:291`), which is legal in MySQL — key the comparison on `(TABLE_NAME, INDEX_NAME)`.
 **`CHECK` constraint names are engine-generated (task 17).** `ulasan_dokter` has three inline `CHECK`s (`:1055-1057`) that MySQL names `ulasan_dokter_chk_1/_2/_3` in declaration order. The raw `ALTER TABLE` statements must be issued in the same order to reproduce the same names, and the verifier should compare check *expressions* rather than names.
 
@@ -247,7 +258,7 @@ Every item below was confirmed by direct read of `telemedicine_test.sql` after t
 > Implementation + Test = ONE todo. Never separate.
 <!-- APPEND TASK BATCHES BELOW THIS LINE WITH edit/apply_patch - never rewrite the headers above. -->
 
-- [ ] 1. Baseline the dirty worktree and repair the `laravel/passkeys` composer drift
+- [x] 1. Baseline the dirty worktree and repair the `laravel/passkeys` composer drift
   What to do / Must NOT do: **Part 0 — establish the toolchain before anything else, because three prerequisites were unmet on this machine and were found by Oracle.** `composer.json:12` requires `php: ^8.3` and the **owner has confirmed `php -v` inside the project folder reports 8.4.17, which satisfies it** — so do **not** touch `composer.json:12`, and do not lower the constraint. Re-confirm with the **project-local** PHP rather than whatever is first on `PATH` (the global `php` was 8.2.29, which is why this was flagged), e.g. run the project-local binary explicitly or `php -v` from the project root, and record the confirmed version in `docs/pre-existing-defects.md`. Two prerequisites remain genuinely unverified: the **Dart SDK is not installed** (`dart` is not on `PATH`, and no Flutter SDK was found), yet todos 24, 29, 42, 53 and 54 all hard-require `dart pub get` / `dart analyze` / `dart test` / `dart format`; and **`jq` is not installed**, yet todos 49 and 53 use `php artisan route:list --json | jq length` in their acceptance criteria. Therefore: (1) run `dart --version`; if absent, install the standalone Dart SDK and record the install command and version in `docs/pre-existing-defects.md`, and **if it cannot be installed, todos 24, 29, 42, 53, 54 and success criteria 6-9 are BLOCKED — report that rather than stubbing the package**; (2) every `jq` usage in this plan's acceptance criteria must use the portable equivalent `php artisan route:list --path=api/v1 --json | php -r 'echo count(json_decode(stream_get_contents(STDIN), true));'`, since the target is Windows; (3) add `playwright` as a `web/` devDependency and commit a `web/playwright.config.ts` in this todo, because todos 23, 28, 35, 41, 48 and 54 name Playwright as their QA driver and nothing in the plan installs it. Then do the baseline: create a baseline commit of the current dirty state **on a new branch `feat/sehatly-telemedicine`** so nothing uncommitted can be lost, then fix the manifest/lock drift. `composer.json:12-17` requires only `php`, `inertiajs/inertia-laravel`, `laravel/fortify`, `laravel/framework`, `laravel/tinker`, `laravel/wayfinder` — but `laravel/passkeys` is present in `composer.lock` and `vendor/laravel/passkeys/`, and `app/Models/User.php:13,14,35` imports `Laravel\Fortify\Contracts\PasskeyUser` and uses `PasskeyAuthenticatable` / `TwoFactorAuthenticatable`, while `package.json:16` has `@laravel/passkeys ^0.2.0`. Add `laravel/passkeys` to `composer.json` require, run `composer validate` until it reports the lock is in sync, and record the pre-existing state in `docs/pre-existing-defects.md`. Change the package name/description in `composer.json:3-6` from the scaffold defaults to `sehatly/telemedicine-api`. **The baseline must use `git add -A` and the acceptance criteria must assert that no untracked file remains** (Momus finding: the original criterion `git status --porcelain` showing zero *modified tracked* files is satisfied by `git commit -am`, which would leave the 75 untracked files — including the migrations todos 8 and 18 later need to delete — untracked, making the todo-30 deletion guard fire spuriously and inviting an executor under pressure to delete uncommitted user work). Must NOT delete any untracked file, must NOT run `git checkout .`, `git restore .`, `git clean`, or `git stash`, must NOT lower or touch the PHP constraint, and must not proceed past a missing Dart SDK.
   Parallelization: Wave 0 | Blocked by: — | Blocks: 2, 3, 4, 5, 6
   References (executor has NO interview context - be exhaustive): `composer.json:3-6,14-18`; `package.json:16`; `app/Models/User.php:26,32,34`; `database/migrations/2024_01_01_000000_create_passkeys_table.php`; `.git/HEAD` (`refs/heads/main`); draft F10, F11
@@ -255,7 +266,7 @@ Every item below was confirmed by direct read of `telemedicine_test.sql` after t
   QA scenarios (name the exact tool + invocation): happy - `git checkout -b feat/sehatly-telemedicine && git add -A && git commit -m "chore: baseline dirty worktree before API conversion" && composer validate && php -v && dart --version && php artisan --version`, Evidence `.omo/evidence/task-1-sehatly.md`. failure - (a) run `git commit -am` instead of `git add -A` on a scratch branch and assert `git ls-files --others --exclude-standard | wc -l` is still non-zero, proving the strengthened criterion is the one that actually protects the untracked files; (b) `composer validate` is re-run after deliberately removing `laravel/passkeys` from `require` and MUST report the lock-file mismatch; (c) assert `git diff --stat composer.json` shows **no** change to the `php` constraint line, proving the PHP gate did not silently edit the manifest, Evidence `.omo/evidence/task-1-sehatly.md`.
   Commit: Y | `chore(api): baseline worktree and sync composer manifest with lock`
 
-- [ ] 2. Switch development and test databases to MySQL 8
+- [x] 2. Switch development and test databases to MySQL 8
   What to do / Must NOT do: Replace the SQLite default with MySQL 8. `phpunit.xml:26-27` currently pins `DB_CONNECTION=sqlite` / `DB_DATABASE=:memory:`; the schema is MySQL-8-only (ENUM, JSON, unsigned ints, inline INDEX, CHECK, VIEW, `GROUP_CONCAT`), so a SQLite suite silently degrades types and cannot prove the DoD. Point dev at `telemedisin_db` (the name `telemedicine_test.sql:10-12` creates) and tests at `telemedisin_db_test`. Add both keys to `.env.example` (currently `DB_DATABASE=sehatly` at line 26, which disagrees with the SQL's `telemedisin_db`). In `phpunit.xml` set `DB_CONNECTION=mysql`, `DB_DATABASE=telemedisin_db_test`, and keep `BROADCAST_CONNECTION=null`, `QUEUE_CONNECTION=sync`, `CACHE_STORE=array`, `SESSION_DRIVER=array` (lines 24-31) as-is. Add a `db:create-test-database` artisan command that creates `telemedisin_db_test` with `utf8mb4`/`utf8mb4_unicode_ci`. Must NOT edit `config/database.php:20`'s connection definitions (they are already correct), and must NOT import `telemedicine_test.sql` as the runtime schema — migrations are the runtime source of truth; the SQL file is only the reference the parity verifier diffs against.
   Parallelization: Wave 0 | Blocked by: 1 | Blocks: 3, 6
   References (executor has NO interview context - be exhaustive): `phpunit.xml:20-35`; `.env.example:23-28`; `config/database.php:20,47-65`; `telemedicine_test.sql:7,10-12`; draft F4, F9
@@ -263,7 +274,7 @@ Every item below was confirmed by direct read of `telemedicine_test.sql` after t
   QA scenarios (name the exact tool + invocation): happy - `php artisan db:create-test-database && php artisan test --filter=DatabaseEngineTest` exits 0, Evidence `.omo/evidence/task-2-sehatly.md`. failure - run the same command with `DB_CONNECTION=sqlite` in the environment and the new test MUST fail with a clear "expected mysql, got sqlite" assertion, proving the gate actually bites; Evidence `.omo/evidence/task-2-sehatly.md`.
   Commit: Y | `chore(db): move dev and test databases to MySQL 8`
 
-- [ ] 3. Stand up the `/api/v1` API kernel: Sanctum, envelope, CORS, exception rendering
+- [x] 3. Stand up the `/api/v1` API kernel: Sanctum, envelope, CORS, exception rendering
   What to do / Must NOT do: Run `php artisan install:api` (installs Laravel Sanctum and creates `routes/api.php`). In `bootstrap/app.php:12-16` add `api: __DIR__.'/../routes/api.php'` and `apiPrefix: 'api/v1'`. Remove the now-misleading `Fortify` web auth surface from the API path only — do NOT delete Fortify yet (task 19 replaces the `User` model). Create `App\Support\ApiResponse` with `success(mixed $data, string $message, int $status)` and `error(string $message, array $errors, int $status)` producing exactly `{success:true,data,message}` and `{success:false,message,errors}`. Register a global `Response::macro`/macro-free helper so **every** controller returns through it. In `bootstrap/app.php:26-29` extend `withExceptions` so `ValidationException` renders `422` with `errors`, `AuthenticationException` renders `401`, `AuthorizationException`/`AccessDeniedHttpException` render `403`, `ModelNotFoundException` renders `404`, and `Throwable` renders `500` — all in the same envelope, all JSON for `api/*`. Publish and configure `config/cors.php` with `paths => ['api/*', 'broadcasting/auth', 'sanctum/csrf-cookie']` and `allowed_origins` covering the Vite dev origin. Add `config/sanctum.php` with an **explicit** `expiration` (default 1440 minutes = 24h for web, documented) because the verified Sanctum default is that tokens **never expire**, which would make the spec-mandated refresh flow decorative. Must NOT implement the auth endpoints (task 20), must NOT create Resources (task 19+), must NOT register any business route.
   Parallelization: Wave 0 | Blocked by: 2 | Blocks: 19, 20, 21, 22 | Can parallelize with: 4, 5
   References (executor has NO interview context - be exhaustive): `bootstrap/app.php:11-29`; `routes/web.php:1-11`; `config/database.php`; Laravel 13 docs `routing.md` ("The `/api` URI prefix is automatically applied... customized via `apiPrefix`"; `install:api` "installs Laravel Sanctum"), `sanctum.md` (`'expiration'`, `createToken($name, $abilities, $expiresAt)`, `currentAccessToken()->delete()`, `sanctum:prune-expired`); draft F2, F15
@@ -279,7 +290,7 @@ Every item below was confirmed by direct read of `telemedicine_test.sql` after t
   QA scenarios (name the exact tool + invocation): happy - `php artisan test --filter=RbacMiddlewareTest` covering allow, deny-with-403-envelope, and multi-role allow, Evidence `.omo/evidence/task-4-sehatly.md`. failure - a test asserting that an unauthenticated request to a `permission:`-protected route returns the **401** envelope, not 403 and not a redirect to `/login`, Evidence `.omo/evidence/task-4-sehatly.md`.
   Commit: Y | `feat(api): add permission and user-type middleware with RBAC seeders`
 
-- [ ] 5. Create the `web/` React SPA skeleton and relocate the shadcn UI kit
+- [x] 5. Create the `web/` React SPA skeleton and relocate the shadcn UI kit
   What to do / Must NOT do: **Version policy (per the owner's revision): pin a version only when a specific technical reason is written down; otherwise take the current stable and record what was actually installed.** For every `npm` dependency below, run `npm view <package> version` immediately before installing, install that version, and write the resolved version — major, minor, and patch — into `web/CHANGELOG-VERSIONS.md`. If `npm install` fails on any pin, take the current stable rather than forcing the pinned number, and note the substitution in that changelog. **Pinned majors, each with its written reason:** `vite@^8` — Vite 8 changed the `build.cssMinify` default from `esbuild` to `lightningcss`, which strips vendor prefixes and silently breaks the unprefixed `backdrop-filter` the shadcn sidebar/dialog/dropdown/sheet/sonner components depend on; `react-router@^8` — v8 **removed the `react-router-dom` package**, so all imports come from `react-router` and `createBrowserRouter`; `@daypicker/react@^10` — v10 renamed the package, and importing `react-day-picker` gets a deprecated re-export shim; `typescript@^7` — the repo pins `^5.7` (`package.json:46`), two majors behind, and the mobile/web DTOs generated in todo 53 are typed against a current compiler. **Everything else takes the current stable:** React, Tailwind CSS + `@tailwindcss/vite`, `@tanstack/react-query`, `ky`, `react-hook-form`, `zod`, `@hookform/resolvers`, `laravel-echo`, `pusher-js`, and `@vitejs/plugin-react`. For `laravel-echo` and `pusher-js` there is a *floor* rather than a ceiling: `laravel-echo` must be `>=2.5.0`, because only v2 exposes `broadcaster: 'reverb'` as a first-class value and a `bearerToken` auth option; below that, the plan's Reverb wiring in todo 35 does not exist. Create `web/`: Vite 8 + React (current stable) + TypeScript 7 + Tailwind 4 (current stable) + the packages above, plus `input-otp`, which is already present in the repo's `package.json` (an earlier draft cited line 27; Momus verified the correct line is 37). **Move** (git `mv`, do not copy-and-leave-duplicates) the 26 shadcn/Radix components in `resources/js/components/ui/` (Momus counted the directory: 26 files, not the 33 an earlier draft claimed — the plan's operation is a directory move so the count does not change the action, but the number must not mislead) to `web/src/components/ui/`, plus `resources/js/lib/utils.ts` (`cn`) and `resources/css/app.css`. Set `build.cssMinify: 'esbuild'` in `web/vite.config.ts` — **mandatory**, because Vite 8 changed the default to `lightningcss`, which strips vendor prefixes and silently breaks the unprefixed `backdrop-filter` that the shadcn sidebar/dialog/dropdown/sheet/sonner components depend on. Configure a dev proxy for `/api` -> `http://localhost:8000`. Carry over the repo's existing formatting conventions from `vite.config.ts:59-76` into `web/vite.config.ts` (printWidth 80, tabWidth 4, single quotes, semicolons, Tailwind class sorting with `clsx`/`cn`/`cva`) and the lint ignore list from `:42-57` so the relocated kit is not reformatted by a lint pass. **No Flutter project is created and no `mobile/` directory is touched.** Must NOT scaffold business screens, must NOT invent a mock API layer, must NOT add a `pubspec.yaml`.
   Parallelization: Wave 0 | Blocked by: 1 | Blocks: 23, 28, 35, 41, 48 | Can parallelize with: 3, 4
   References (executor has NO interview context - be exhaustive): `resources/js/components/ui/` (33 files); `resources/js/lib/utils.ts`; `resources/css/app.css`; `components.json` (shadcn `new-york`, `baseColor: neutral`, `iconLibrary: lucide`, alias `@/components`, `@/lib/utils`); `vite.config.ts:11-30` (plugin chain), `:42-57` (lint ignores), `:59-76` (fmt); `package.json:13-55`; draft F16.1, F17, F18, F19
@@ -287,7 +298,7 @@ Every item below was confirmed by direct read of `telemedicine_test.sql` after t
   QA scenarios (name the exact tool + invocation): happy - `cd web && npm run types:check && npm run build`, Evidence `.omo/evidence/task-5-sehatly.md`. failure - (a) temporarily set `build.cssMinify: 'lightningcss'` in `web/vite.config.ts`, rebuild, and assert the emitted CSS no longer contains `-webkit-backdrop-filter` for the sidebar component, proving the Vite 8 pin is load-bearing rather than cargo-culted; restore afterwards; (b) temporarily set `laravel-echo` to `^1.15` and assert `npm run types:check` fails on the `broadcaster: 'reverb'` option in `web/src/lib/echo.ts`, proving the `>=2.5.0` floor is a real API requirement and not a stale number; restore afterwards, Evidence `.omo/evidence/task-5-sehatly.md`.
   Commit: Y | `feat(web): scaffold React SPA and relocate shadcn UI kit`
 
-- [ ] 6. Build the schema-parity verifier and record the schema-notes log
+- [x] 6. Build the schema-parity verifier and record the schema-notes log
   What to do / Must NOT do: Create `app/Console/Commands/VerifySchemaParity.php` (`php artisan sehatly:verify-schema`). It must: (a) parse `telemedicine_test.sql` into a normalised expected model — table name, column name, MySQL type string, unsigned flag, nullability, default, extra, inline `INDEX`/`UNIQUE KEY`/`PRIMARY KEY`, `FOREIGN KEY` target + `ON DELETE` action, and `CHECK` constraints; (b) query live `information_schema.COLUMNS`, `.STATISTICS`, `.REFERENTIAL_CONSTRAINTS`, `.TABLE_CONSTRAINTS`, `.VIEWS` for the configured database; (c) diff the two and print a table of every discrepancy; (d) `exit(1)` if any discrepancy exists, `exit(0)` only on an exact match. Use `SHOW CREATE TABLE` as the authoritative live source and normalise both sides (strip backticks, collapse whitespace, lowercase type names, expand `int(11)`-style display widths) so cosmetic differences are not false positives — but a real type/unsigned/null/default/index/FK/CHECK difference MUST be reported. Also create `docs/schema-notes.md` as the running log of every table or column that exists in the migrations but NOT in `telemedicine_test.sql` (first entries: Sanctum's `personal_access_tokens`, Laravel's `cache`/`cache_locks`/`jobs`/`job_batches`/`failed_jobs`, and the `migrations` table), each with a one-line justification. This is the mechanism that lets the plan add infrastructure without editing the SQL file (spec §4.4). Must NOT auto-create or auto-alter anything — the command is read-only and diagnostic. Must NOT import the SQL file into the database.
   Parallelization: Wave 0 | Blocked by: 1 | Blocks: 7-18, 53 | Can parallelize with: 3, 4, 5
   References (executor has NO interview context - be exhaustive): `telemedicine_test.sql:20-56` (reset block), `:58-1155` (75 tables), `:1146-1163` (section 14 ALTER), `:1165-1196` (both views); `telemedicine_test.sql:1052-1053` (`CHECK (rating BETWEEN 1 AND 5)`); draft F5, F9
@@ -295,7 +306,7 @@ Every item below was confirmed by direct read of `telemedicine_test.sql` after t
   QA scenarios (name the exact tool + invocation): happy - `php artisan migrate:fresh --seed && php artisan sehatly:verify-schema` exits 0, Evidence `.omo/evidence/task-6-sehatly.md`. failure - hand-edit one generated migration to drop `->unsigned()` from a `TINYINT` column, re-run the verifier, assert it exits 1 naming that exact column, then restore — proving the verifier detects a real class of parity break rather than always passing, Evidence `.omo/evidence/task-6-sehatly.md`.
   Commit: Y | `feat(dev): add information_schema parity verifier and schema-notes log`
 
-- [ ] 7. Create the migration filename/table-order contract and migration batch A (master data, SQL tables 1-11)
+- [x] 7. Create the migration filename/table-order contract and migration batch A (master data, SQL tables 1-11)
   What to do / Must NOT do: First write `docs/migration-order.md` containing the authoritative 75-row table-order table (SQL line number -> migration filename `2026_10_01_NNNNNN_<table>_table.php` -> module -> whether it gets a Model/Resource/Controller). This file is the single source of truth for the whole schema effort and **must land before any other batch is written**, because it is what makes parallel batch authoring collision-free. The order is: 1 `master_provinsi`(:58) 2 `master_kabupaten_kota`(:64) 3 `master_kecamatan`(:72) 4 `master_kelurahan`(:80) 5 `master_agama`(:89) 6 `master_golongan_darah`(:94) 7 `master_pendidikan`(:99) 8 `master_status_pernikahan`(:104) 9 `master_hubungan_keluarga`(:109) 10 `master_icd10`(:115) 11 `master_icd9cm`(:122). Then author those 11 migrations. Parity rules that apply to every migration in the plan: `id` uses the exact unsigned width from the SQL (`TINYINT UNSIGNED`, `SMALLINT UNSIGNED`, `MEDIUMINT UNSIGNED`, `BIGINT UNSIGNED`) — **never** `$table->id()`, which emits `BIGINT UNSIGNED` and breaks `master_provinsi`/`master_agama`/etc.; `$table->enum('nama', [...])` with values in the SQL's exact order; `$table->json()` for JSON columns; `->index(['col'])` / `->unique([...])` declared explicitly rather than relying on `constrained()` shorthand, because several SQL FKs have **no** matching index (`users.email` UNIQUE yes, but `faskes.kode_faskes` UNIQUE nullable at `:363`); `$table->year('tahun_terdiagnosis')`; and for every `dibuat_at`/`diubah_at`, declare `->useCurrent()` and issue a follow-up raw `DB::statement('ALTER TABLE x MODIFY diubah_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP')` inside the same migration, because Laravel 13 has **no Blueprint helper for `ON UPDATE CURRENT_TIMESTAMP`**. Note `master_icd10` has a redundant `INDEX idx_icd10 (kode)` alongside `UNIQUE (kode)` (`:119`) — reproduce both. Must NOT create a Model for any of these 11 (master data needs models only from task 19, and only where a module reads it).
   Parallelization: Wave 1 | Blocked by: 6 | Blocks: 8
   References (executor has NO interview context - be exhaustive): `telemedicine_test.sql:58-130`; draft F5 (the full 75-table line list), F8, F15 (no `ON UPDATE` helper)
@@ -303,7 +314,7 @@ Every item below was confirmed by direct read of `telemedicine_test.sql` after t
   QA scenarios (name the exact tool + invocation): happy - `php artisan migrate:fresh && php artisan migrate:rollback --step=11 && php artisan migrate && php artisan sehatly:verify-schema --tables=master_provinsi,master_kabupaten_kota,master_kecamatan,master_kelurahan,master_agama,master_golongan_darah,master_pendidikan,master_status_pernikahan,master_hubungan_keluarga,master_icd10,master_icd9cm`, Evidence `.omo/evidence/task-7-sehatly.md`. failure - assert the verifier catches a deliberately widened `master_provinsi.kode` from `CHAR(2)` to `CHAR(3)`, Evidence `.omo/evidence/task-7-sehatly.md`.
   Commit: Y | `feat(db): add migration order contract and master data migrations`
 
-- [ ] 8. Migration batch B (users, RBAC, OTP, devices, refresh tokens — SQL tables 12-19)
+- [x] 8. Migration batch B (users, RBAC, OTP, devices, refresh tokens — SQL tables 12-19)
   What to do / Must NOT do: Author migrations 12-19: `users`(:132) `roles`(:151) `permissions`(:157) `role_permissions`(:163) `user_roles`(:171) `user_otp`(:179) `user_devices`(:190) `user_refresh_tokens`(:204). `users` parity is the critical one and differs from the current scaffold migration in almost every column: `uuid CHAR(36) NOT NULL UNIQUE`, `nama_lengkap VARCHAR(150) NOT NULL`, `email VARCHAR(255) NULL UNIQUE` (nullable — MySQL permits many NULLs in a UNIQUE index, which is what lets a patient register with phone only), `no_telepon VARCHAR(20) NOT NULL UNIQUE`, `kata_sandi_hash VARCHAR(255) NOT NULL`, `tipe ENUM('pasien','dokter','perawat','apoteker','kurir','admin','superadmin') DEFAULT 'pasien'`, `status ENUM('pending_verifikasi','aktif','nonaktif','ditangguhkan') DEFAULT 'pending_verifikasi'`, `foto_profil VARCHAR(500) NULL`, `bahasa ENUM('id','en') DEFAULT 'id'`, `telepon_terverifikasi TINYINT(1) DEFAULT 0`, `email_terverifikasi TINYINT(1) DEFAULT 0`, `last_login_at DATETIME NULL`, `dibuat_at`/`diubah_at` TIMESTAMP with `ON UPDATE`, `dihapus_at TIMESTAMP NULL DEFAULT NULL` — declare it with **`$table->softDeletes('dihapus_at')`**, which emits exactly `timestamp NULL` and therefore matches the SQL; do **not** substitute a hand-rolled `dateTime('dihapus_at')`, which would introduce the parity break. The scaffold's `name`/`email`/`email_verified_at`/`password`/`remember_token` columns must be **absent**. `role_permissions` and `user_roles` are pure composite-PK join tables with **no** `id` column and `PRIMARY KEY (a,b)` — do not add an id. `user_otp.kode_hash VARCHAR(255)` stores a **hash**, never the plaintext OTP; note that the schema has **no** attempt-counter column, so OTP brute-force protection is application-only and lives entirely in the task-20 rate limiter. `user_refresh_tokens` has **no** unique on `token_hash` (`:207`) and no `device_id` column, so (a) every refresh is a full table scan and (b) per-device token revocation is impossible — implement rotation with an application-level existence check and record both limitations in `docs/schema-notes.md`. Drop the scaffold-only migrations `2024_01_01_000000_create_passkeys_table.php` and `2025_08_14_170933_add_two_factor_columns_to_users_table.php`, and the `password_reset_tokens` and `sessions` tables created by `0001_01_01_000000_create_users_table.php:24-37` (neither is in the SQL, and password reset goes through `user_otp.tujuan = 'reset_kata_sandi'` at `:182`) — but only after task 1's baseline commit exists. Finally, `users.kata_sandi_hash` is `NOT NULL` with no nullable or OTP-only representation, so an OTP-only signup must still generate a random unusable hash; document that. Must NOT yet rewrite `app/Models/User.php` (task 19) — but DO delete the old `create_users_table` migration once the new `users` migration is in place, in the same commit, so the tree is never in a state with two conflicting `users` migrations.
   Parallelization: Wave 1 | Blocked by: 7 | Blocks: 9
   References (executor has NO interview context - be exhaustive): `telemedicine_test.sql:132-216`; `database/migrations/0001_01_01_000000_create_users_table.php:14-37`; `database/migrations/2024_01_01_000000_create_passkeys_table.php`; `database/migrations/2025_08_14_170933_add_two_factor_columns_to_users_table.php`; `app/Models/User.php:30-37`; draft F3, F10
@@ -311,71 +322,71 @@ Every item below was confirmed by direct read of `telemedicine_test.sql` after t
   QA scenarios (name the exact tool + invocation): happy - `php artisan migrate:fresh && php artisan sehatly:verify-schema --tables=users,roles,permissions,role_permissions,user_roles,user_otp,user_devices,user_refresh_tokens`, Evidence `.omo/evidence/task-8-sehatly.md`. failure - a feature test asserts inserting a second user with a duplicate `no_telepon` raises a `QueryException` and that `users` has no column named `name` and none named `password`, Evidence `.omo/evidence/task-8-sehatly.md`.
   Commit: Y | `feat(db): migrate users, RBAC, OTP, device and refresh-token tables`
 
-- [ ] 9. Migration batch C (patient and clinical sub-tables — SQL tables 20-27)
-  What to do / Must NOT do: Author migrations 20-27: `pasien`(:218) `pasien_anggota_keluarga`(:259) `pasien_alergi`(:274) `pasien_riwayat_penyakit`(:286) `pasien_imunisasi`(:300) `pasien_tanda_vital`(:312) `master_penjamin`(:333) `pasien_penjamin`(:340). `pasien` is the widest table: `nomor_rm VARCHAR(20) NULL UNIQUE` (format `RM-YYYYMM-XXXXXX` per the column comment at `:221`), `nik CHAR(16) NULL UNIQUE` (encrypted at rest from task 53 — the column stays `CHAR(16)` and the UNIQUE index stays, because task 53 uses deterministic encryption precisely so this index keeps working), `nomor_kk CHAR(16) NULL`, `nomor_ihs_satusehat VARCHAR(50) NULL UNIQUE`, `jenis_kelamin ENUM('L','P')`, `tanggal_lahir DATE`, `rhesus ENUM('positif','negatif','tidak_diketahui') DEFAULT 'tidak_diketahui'`, the four nullable master FKs, the address block, `tinggi_badan_cm DECIMAL(5,1)`, `berat_badan_kg DECIMAL(5,2)`, `is_meninggal TINYINT(1) DEFAULT 0`, `tanggal_meninggal DATE NULL`, `dibuat_at`/`diubah_at`/`dihapus_at TIMESTAMP NULL` — declare `dihapus_at` with **`$table->softDeletes('dihapus_at')`**, which emits exactly `timestamp NULL` and therefore matches `:249`; do **not** substitute `dateTime('dihapus_at')`. `pasien_tanda_vital` is created here **without** its `rekam_medis_id` foreign key — that FK is added by migration 76 per the SQL's section `[14]` (`:1161-1163`) because `rekam_medis` does not exist yet. Reproduce `INDEX idx_pasien_lahir (tanggal_lahir)` (:257) and `INDEX idx_vital_pasien (pasien_id, diukur_at)` (:331). `pasien_penjamin` has `UNIQUE KEY uq_peserta (penjamin_id, nomor_peserta)` (:357) and a nullable `faskes_rujukan_id` FK to `faskes` — which does **not exist yet** at this point in the order, so create it as a plain unsigned BIGINT column here and add the FK in a later migration alongside the other deferred constraints, recording it in `docs/schema-notes.md`. `pasien_riwayat_penyakit` has `INDEX idx_icd10 (icd10_kode)` (:291) and `icd10_kode VARCHAR(8)` with **no FK** to `master_icd10` — reproduce as a bare indexed column. Must NOT create Models yet.
+- [x] 9. Migration batch C (patient and clinical sub-tables — SQL tables 20-27)
+  What to do / Must NOT do: Author migrations 20-27: `pasien`(:218) `pasien_anggota_keluarga`(:259) `pasien_alergi`(:274) `pasien_riwayat_penyakit`(:286) `pasien_imunisasi`(:300) `pasien_tanda_vital`(:312) `master_penjamin`(:333) `pasien_penjamin`(:340). `pasien` is the widest table: `nomor_rm VARCHAR(20) NULL UNIQUE` (format `RM-YYYYMM-XXXXXX` per the column comment at `:221`), `nik CHAR(16) NULL UNIQUE` (encrypted at rest from task 53 — the column stays `CHAR(16)` and the UNIQUE index stays, because task 53 uses deterministic encryption precisely so this index keeps working), `nomor_kk CHAR(16) NULL`, `nomor_ihs_satusehat VARCHAR(50) NULL UNIQUE`, `jenis_kelamin ENUM('L','P')`, `tanggal_lahir DATE`, `rhesus ENUM('positif','negatif','tidak_diketahui') DEFAULT 'tidak_diketahui'`, the four nullable master FKs, the address block, `tinggi_badan_cm DECIMAL(5,1)`, `berat_badan_kg DECIMAL(5,2)`, `is_meninggal TINYINT(1) DEFAULT 0`, `tanggal_meninggal DATE NULL`, `dibuat_at`/`diubah_at`/`dihapus_at TIMESTAMP NULL` — declare `dihapus_at` with **`$table->softDeletes('dihapus_at')`**, which emits exactly `timestamp NULL` and therefore matches `:249`; do **not** substitute `dateTime('dihapus_at')`. `pasien_tanda_vital` is created here **without** its `rekam_medis_id` foreign key — that FK is added by migration 76 per the SQL's section `[14]` (`:1161-1163`) because `rekam_medis` does not exist yet. Reproduce `INDEX idx_pasien_lahir (tanggal_lahir)` (:257) and `INDEX idx_vital_pasien (pasien_id, diukur_at)` (:331). `pasien_penjamin` has `UNIQUE KEY uq_peserta (penjamin_id, nomor_peserta)` (:357) and a nullable `faskes_rujukan_id` FK to `faskes` — which does **not exist yet** at this point in the order, so create it as a plain unsigned BIGINT column here. **Correction (A.10/A.11, applied after todo 9 executed and its verifier measured the result): this column is bare by contract, not by ordering.** The SQL declares no `FOREIGN KEY` for it (`:346`), so **no** constraint is owed and none may be added by any later migration. `faskes` arriving in batch D removes the ordering argument entirely, so the original reasoning here is doubly dead. The project's only genuinely deferred constraint is `fk_vital_rm` on `pasien_tanda_vital.rekam_medis_id` (`:315`, SQL section `[14]` at `:1161-1163`), added by migration 76. Do **not** register this column in `docs/schema-notes.md`'s deferred-constraints table. `pasien_riwayat_penyakit` has `INDEX idx_icd10 (icd10_kode)` (:291) and `icd10_kode VARCHAR(8)` with **no FK** to `master_icd10` — reproduce as a bare indexed column. Must NOT create Models yet.
   Parallelization: Wave 1 | Blocked by: 8 | Blocks: 10
   References (executor has NO interview context - be exhaustive): `telemedicine_test.sql:218-358`; `:1146-1163`; draft F5, F8
   Acceptance criteria (agent-executable): `php artisan migrate:fresh` exits 0; `php artisan sehatly:verify-schema --tables=pasien,pasien_anggota_keluarga,pasien_alergi,pasien_riwayat_penyakit,pasien_imunisasi,pasien_tanda_vital,master_penjamin,pasien_penjamin` exits 0; `SHOW CREATE TABLE pasien_tanda_vital` shows `rekam_medis_id` present with **no** FK constraint yet; `SHOW CREATE TABLE pasien` shows `dihapus_at timestamp NULL` and `INDEX idx_pasien_lahir`.
   QA scenarios (name the exact tool + invocation): happy - `php artisan migrate:fresh && php artisan sehatly:verify-schema --tables=pasien,pasien_anggota_keluarga,pasien_alergi,pasien_riwayat_penyakit,pasien_imunisasi,pasien_tanda_vital,master_penjamin,pasien_penjamin`, Evidence `.omo/evidence/task-9-sehatly.md`. failure - assert the verifier flags `pasien.tinggi_badan_cm` if its decimal precision is written as `DECIMAL(5,2)` instead of `DECIMAL(5,1)`, Evidence `.omo/evidence/task-9-sehatly.md`.
   Commit: Y | `feat(db): migrate patient, allergy, history, immunisation, vital and insurer tables`
 
-- [ ] 10. Migration batch D (facilities and medical staff — SQL tables 28-34)
-  What to do / Must NOT do: Author migrations 28-34: `faskes`(:360) `faskes_layanan`(:388) `master_spesialisasi`(:402) `dokter`(:409) `dokter_spesialisasi`(:437) `dokter_faskes`(:447) `dokter_pendidikan`(:457). `faskes` needs `tipe ENUM('rumah_sakit','klinik','puskesmas','apotek','laboratorium')`, `kelas_rs VARCHAR(50) NULL`, `akreditasi ENUM('belum','dasar','utama','maju','paripurna') NULL`, `jam_operasional JSON NULL` (cast to `array`), `latitude DECIMAL(10,8)`, `longitude DECIMAL(11,8)`, plus the two composite indexes `idx_faskes_tipe (tipe, status_aktif)` and `idx_faskes_geo (latitude, longitude)` (:385-386) and `kode_faskes VARCHAR(20) NULL UNIQUE`. `dokter` is the second-widest: `tipe ENUM('dokter_umum','dokter_spesialis','dokter_gigi','psikolog','bidan','perawat','apoteker')`, `nomor_str VARCHAR(30) NOT NULL UNIQUE`, `str_berlaku_sampai DATE NOT NULL`, `pengalaman_tahun SMALLINT UNSIGNED DEFAULT 0`, `biaya_konsultasi_online DECIMAL(12,2) NOT NULL DEFAULT 0`, `durasi_default_menit SMALLINT UNSIGNED DEFAULT 15`, `rating_rata_rata DECIMAL(3,2) NOT NULL DEFAULT 0.00`, `jumlah_ulasan INT UNSIGNED DEFAULT 0`, `jumlah_konsultasi INT UNSIGNED DEFAULT 0`, `tersedia_telemedisin TINYINT(1) DEFAULT 1`, `status_verifikasi ENUM('pending','terverifikasi','ditolak') DEFAULT 'pending'`, plus `INDEX idx_dokter_tipe (tipe, status_aktif, tersedia_telemedisin)` (:435). `dokter_spesialisasi` has `is_utama TINYINT(1) DEFAULT 0` and `UNIQUE KEY uq_dokter_ses (dokter_id, spesialisasi_id)` (:445). `dokter_faskes` is a composite-PK join table with **no** `id`. `dokter_pendidikan.jenjang ENUM('s1_kedokteran','profesi','sp1','sp2','s2','s3','lainnya')` — this table IS in scope for M1 because `GET /dokter/{id}` must return education history per the spec. Must NOT create Models yet.
+- [x] 10. Migration batch D (facilities and medical staff — SQL tables 28-34)
+  What to do / Must NOT do: Author migrations 28-34: `faskes`(:360) `faskes_layanan`(:388) `master_spesialisasi`(:402) `dokter`(:409) `dokter_spesialisasi`(:437) `dokter_faskes`(:447) `dokter_pendidikan`(:457). `faskes` needs `tipe ENUM('rumah_sakit','klinik','puskesmas','apotek','laboratorium')`, `kelas_rs VARCHAR(50) NULL`, `akreditasi ENUM('belum','dasar','utama','maju','paripurna') NULL`, `jam_operasional JSON NULL` (cast to `array`), `latitude DECIMAL(10,8)`, `longitude DECIMAL(11,8)`, plus the two composite indexes `idx_faskes_tipe (tipe, status_aktif)` and `idx_faskes_geo (latitude, longitude)` (:384-385) and `kode_faskes VARCHAR(20) NULL UNIQUE`. `dokter` is the third-widest (23 columns, behind `pasien` 31 and `rekam_medis` 28): `tipe ENUM('dokter_umum','dokter_spesialis','dokter_gigi','psikolog','bidan','perawat','apoteker')`, `nomor_str VARCHAR(30) NOT NULL UNIQUE`, `str_berlaku_sampai DATE NOT NULL`, `pengalaman_tahun SMALLINT UNSIGNED DEFAULT 0`, `biaya_konsultasi_online DECIMAL(12,2) NOT NULL DEFAULT 0`, `durasi_default_menit SMALLINT UNSIGNED DEFAULT 15`, `rating_rata_rata DECIMAL(3,2) NOT NULL DEFAULT 0.00`, `jumlah_ulasan INT UNSIGNED DEFAULT 0`, `jumlah_konsultasi INT UNSIGNED DEFAULT 0`, `tersedia_telemedisin TINYINT(1) DEFAULT 1`, `status_verifikasi ENUM('pending','terverifikasi','ditolak') DEFAULT 'pending'`, plus `INDEX idx_dokter_tipe (tipe, status_aktif, tersedia_telemedisin)` (:434). `dokter_spesialisasi` has `is_utama TINYINT(1) DEFAULT 0` and `UNIQUE KEY uq_dokter_spes (dokter_id, spesialisasi_id)` (:444). `dokter_faskes` is a composite-PK join table with **no** `id`. `dokter_pendidikan.jenjang ENUM('s1_kedokteran','profesi','sp1','sp2','s2','s3','lainnya')` — this table IS in scope for M1 because `GET /dokter/{id}` must return education history per the spec. Must NOT create Models yet.
   Parallelization: Wave 1 | Blocked by: 9 | Blocks: 11
   References (executor has NO interview context - be exhaustive): `telemedicine_test.sql:360-469`; draft F5, F6
   Acceptance criteria (agent-executable): `php artisan migrate:fresh` exits 0; `php artisan sehatly:verify-schema --tables=faskes,faskes_layanan,master_spesialisasi,dokter,dokter_spesialisasi,dokter_faskes,dokter_pendidikan` exits 0; `SHOW CREATE TABLE dokter_faskes` has no `id` column; `SHOW CREATE TABLE faskes` shows both composite indexes.
   QA scenarios (name the exact tool + invocation): happy - `php artisan migrate:fresh && php artisan sehatly:verify-schema --tables=faskes,faskes_layanan,master_spesialisasi,dokter,dokter_spesialisasi,dokter_faskes,dokter_pendidikan`, Evidence `.omo/evidence/task-10-sehatly.md`. failure - assert the verifier flags `dokter.durasi_default_menit` if emitted as a signed `SMALLINT` rather than `SMALLINT UNSIGNED`, Evidence `.omo/evidence/task-10-sehatly.md`.
   Commit: Y | `feat(db): migrate facility, specialisation and doctor tables`
 
-- [ ] 11. Migration batch E (schedule, holiday and booking — SQL tables 35-37)
-  What to do / Must NOT do: Author migrations 35-37: `dokter_jadwal`(:470) `dokter_libur`(:490) `booking`(:498). `dokter_jadwal.hari TINYINT UNSIGNED NOT NULL` with the column comment `0=Minggu s.d. 6=Sabtu` (:474) — this maps 1:1 onto PHP's `date('w')`, so add that mapping as a named constant in the model in task 19 and record it in `docs/timezone-policy.md`. `durasi_slot_menit SMALLINT UNSIGNED DEFAULT 15`, `kuota_per_sesi SMALLINT UNSIGNED NULL`, `berlaku_mulai DATE NOT NULL`, `berlaku_sampai DATE NULL`, `tipe_layanan ENUM('online','klinik','home_visit') DEFAULT 'online'`, `INDEX idx_jadwal (dokter_id, hari, status_aktif)` (:479). `dokter_libur` needs **no** unique index on `(dokter_id, tanggal)` — the SQL has none, so do not invent one; instead add a documented application-level duplicate guard. `booking` is where three spec rules collide with the schema, so encode the resolutions as code comments in the migration: (a) there is **no** unique index on `(dokter_id, tanggal_kunjungan, slot_mulai)`, only `idx_booking_dokter (dokter_id, tanggal_kunjungan)` and `idx_booking_pasien (pasien_id, status)` (:527-528), so double-booking prevention MUST use `DB::transaction` + `lockForUpdate()` on the **`dokter`** row (task 27) — do not add the unique index, the SQL is read-only law; (b) `tipe_layanan ENUM('chat','video_call','kunjungan_klinik','home_visit')`; (c) `status ENUM('menunggu_pembayaran','terjadwal','check_in','berlangsung','selesai','dibatalkan','no_show','kadaluarsa') DEFAULT 'menunggu_pembayaran'` — that is **eight** values (Momus verified the earlier "seven-value" claim was wrong); the exclusion set used by availability and cancellation is `('dibatalkan','kadaluarsa')`, and the live states are the other six; (d) `is_rujukan`/`is_konsultasi_lanjutan TINYINT(1) DEFAULT 0` with the spec's default of **no** automatic discount; (e) `lampiran_keluhan JSON NULL` cast to `array`; (f) `dibuat_oleh_user_id` FK to `users`. Must NOT create Models yet.
+- [x] 11. Migration batch E (schedule, holiday and booking — SQL tables 35-37)
+  What to do / Must NOT do: Author migrations 35-37: `dokter_jadwal`(:470) `dokter_libur`(:490) `booking`(:498). `dokter_jadwal.hari TINYINT UNSIGNED NOT NULL` with the column comment `0=Minggu s.d. 6=Sabtu` (:475) — this maps 1:1 onto PHP's `date('w')`, so add that mapping as a named constant in the model in task 19 and record it in `docs/timezone-policy.md`. `durasi_slot_menit SMALLINT UNSIGNED DEFAULT 15`, `kuota_per_sesi SMALLINT UNSIGNED NULL`, `berlaku_mulai DATE NOT NULL`, `berlaku_sampai DATE NULL`, `tipe_layanan ENUM('online','klinik','home_visit') DEFAULT 'online'`, `INDEX idx_jadwal (dokter_id, hari, status_aktif)` (:487). `dokter_libur` needs **no** unique index on `(dokter_id, tanggal)` — the SQL has none, so do not invent one; instead add a documented application-level duplicate guard. `booking` is where three spec rules collide with the schema, so encode the resolutions as code comments in the migration: (a) there is **no** unique index on `(dokter_id, tanggal_kunjungan, slot_mulai)`, only `idx_booking_dokter (dokter_id, tanggal_kunjungan)` (:528) and `idx_booking_pasien (pasien_id, status)` (:529), so double-booking prevention MUST use `DB::transaction` + `lockForUpdate()` on the **`dokter`** row (task 27) — do not add the unique index, the SQL is read-only law; (b) `tipe_layanan ENUM('chat','video_call','kunjungan_klinik','home_visit')`; (c) `status ENUM('menunggu_pembayaran','terjadwal','check_in','berlangsung','selesai','dibatalkan','no_show','kadaluarsa') DEFAULT 'menunggu_pembayaran'` — that is **eight** values (Momus verified the earlier "seven-value" claim was wrong); the exclusion set used by availability and cancellation is `('dibatalkan','kadaluarsa')`, and the live states are the other six; (d) `is_rujukan`/`is_konsultasi_lanjutan TINYINT(1) DEFAULT 0` with the spec's default of **no** automatic discount; (e) `lampiran_keluhan JSON NULL` cast to `array`; (f) `dibuat_oleh_user_id` FK to `users`. Must NOT create Models yet.
   Parallelization: Wave 1 | Blocked by: 10 | Blocks: 12
   References (executor has NO interview context - be exhaustive): `telemedicine_test.sql:470-534`; draft F8 (double-booking, kuota_per_sesi)
   Acceptance criteria (agent-executable): `php artisan migrate:fresh` exits 0; `php artisan sehatly:verify-schema --tables=dokter_jadwal,dokter_libur,booking` exits 0; `SHOW CREATE TABLE booking` contains **no** unique index spanning `dokter_id, tanggal_kunjungan, slot_mulai` (proving the schema was not silently "improved"); a code comment in the migration names the `lockForUpdate` strategy.
   QA scenarios (name the exact tool + invocation): happy - `php artisan migrate:fresh && php artisan sehatly:verify-schema --tables=dokter_jadwal,dokter_libur,booking`, Evidence `.omo/evidence/task-11-sehatly.md`. failure - assert the verifier flags `dokter_jadwal.hari` if emitted as `TINYINT` (signed) instead of `TINYINT UNSIGNED`, which would silently allow `hari = -1`, Evidence `.omo/evidence/task-11-sehatly.md`.
   Commit: Y | `feat(db): migrate schedule, holiday and booking tables`
 
-- [ ] 12. Migration batch F (consultation, chat, medical letter and referral — SQL tables 38-41)
-  What to do / Must NOT do: Author migrations 38-41: `konsultasi`(:536) `konsultasi_chat`(:563) `surat_keterangan`(:581) `rujukan`(:599). `konsultasi.booking_id BIGINT UNSIGNED NULL UNIQUE` (:539) — reproduce the UNIQUE, and note in a comment that this is what makes "one consultation per booking" a database guarantee and also permits unlimited `NULL` rows for the instant "Tanya Dokter" flow (MySQL allows many NULLs in a UNIQUE index). `tipe ENUM('chat','video_call','telepon')`, `status ENUM('menunggu_dokter','berlangsung','menunggu_resep','selesai','dibatalkan','gagal') DEFAULT 'menunggu_dokter'`, `room_id VARCHAR(100) NULL` (the video-SDK room, stubbed per spec), the four SOAP text columns, `total_durasi_detik INT UNSIGNED NULL`, `biaya_konsultasi DECIMAL(12,2) NOT NULL DEFAULT 0`, `INDEX idx_konsultasi_pasien (pasien_id, status)` (:561). `konsultasi_chat.pengirim_tipe ENUM('pasien','dokter','sistem')`, `tipe_pesan ENUM('teks','gambar','dokumen','audio','video_note','resep','surat_keterangan','sistem') DEFAULT 'teks'`, `file_ukuran_kb INT UNSIGNED NULL`, `terkirim_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP` (created-at-style, **not** a nullable `timestamps()` pair), `INDEX idx_chat (konsultasi_id, terkirim_at)` (:579). `surat_keterangan.nomor_surat VARCHAR(50) NOT NULL UNIQUE`, `tipe ENUM('surat_sakit','surat_sehat','surat_rujukan','surat_kematian')`, `qr_token VARCHAR(100) NOT NULL` (the QR verification token — generate with `Str::uuid()` at write time, never store a guessable value), `jumlah_hari TINYINT UNSIGNED NULL`. `rujukan` has `berlaku_sampai DATE NOT NULL`, `nomor_sep VARCHAR(30) NULL`, `status ENUM('aktif','terpakai','kedaluwarsa') DEFAULT 'aktif'`, and its `faskes_asal_id` is nullable with **no** FK (`:602`) while `faskes_tujuan_id` and `dokter_perujuk_id` do have FKs. Must NOT create Models yet.
+- [x] 12. Migration batch F (consultation, chat, medical letter and referral — SQL tables 38-41)
+  What to do / Must NOT do: Author migrations 38-41: `konsultasi`(:536) `konsultasi_chat`(:563) `surat_keterangan`(:581) `rujukan`(:599). `konsultasi.booking_id BIGINT UNSIGNED NULL UNIQUE` (:538) — reproduce the UNIQUE, and note in a comment that this is what makes "one consultation per booking" a database guarantee and also permits unlimited `NULL` rows for the instant "Tanya Dokter" flow (MySQL allows many NULLs in a UNIQUE index). `tipe ENUM('chat','video_call','telepon')`, `status ENUM('menunggu_dokter','berlangsung','menunggu_resep','selesai','dibatalkan','gagal') DEFAULT 'menunggu_dokter'`, `room_id VARCHAR(100) NULL` (the video-SDK room, stubbed per spec), the four SOAP text columns, `total_durasi_detik INT UNSIGNED NULL`, `biaya_konsultasi DECIMAL(12,2) NOT NULL DEFAULT 0`, `INDEX idx_konsultasi_pasien (pasien_id, status)` (:560). `konsultasi_chat.pengirim_tipe ENUM('pasien','dokter','sistem')`, `tipe_pesan ENUM('teks','gambar','dokumen','audio','video_note','resep','surat_keterangan','sistem') DEFAULT 'teks'`, `file_ukuran_kb INT UNSIGNED NULL`, `terkirim_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP` (created-at-style, **not** a nullable `timestamps()` pair), `INDEX idx_chat (konsultasi_id, terkirim_at)` (:578). `surat_keterangan.nomor_surat VARCHAR(50) NOT NULL UNIQUE`, `tipe ENUM('surat_sakit','surat_sehat','surat_rujukan','surat_kematian')`, `qr_token VARCHAR(100) NOT NULL` (the QR verification token — generate with `Str::uuid()` at write time, never store a guessable value), `jumlah_hari TINYINT UNSIGNED NULL`. `rujukan` has `berlaku_sampai DATE NOT NULL`, `nomor_sep VARCHAR(30) NULL`, `status ENUM('aktif','terpakai','kedaluwarsa') DEFAULT 'aktif'`, and its `faskes_asal_id` is nullable with **no** FK (`:602`) while `faskes_tujuan_id` and `dokter_perujuk_id` do have FKs. Must NOT create Models yet.
   Parallelization: Wave 1 | Blocked by: 11 | Blocks: 13
   References (executor has NO interview context - be exhaustive): `telemedicine_test.sql:536-619`; draft F5, F8
   Acceptance criteria (agent-executable): `php artisan migrate:fresh` exits 0; `php artisan sehatly:verify-schema --tables=konsultasi,konsultasi_chat,surat_keterangan,rujukan` exits 0; inserting two `konsultasi` rows with the same non-null `booking_id` fails while inserting three with `booking_id = NULL` succeeds (proving the UNIQUE-plus-null semantics the instant-consultation flow depends on).
   QA scenarios (name the exact tool + invocation): happy - `php artisan migrate:fresh && php artisan sehatly:verify-schema --tables=konsultasi,konsultasi_chat,surat_keterangan,rujukan`, Evidence `.omo/evidence/task-12-sehatly.md`. failure - the duplicate-`booking_id` test above must fail with a `QueryException`, Evidence `.omo/evidence/task-12-sehatly.md`.
   Commit: Y | `feat(db): migrate consultation, chat, medical letter and referral tables`
 
-- [ ] 13. Migration batch G (medical record and its sub-tables — SQL tables 42-46)
-  What to do / Must NOT do: Author migrations 42-46: `rekam_medis`(:621) `rekam_medis_diagnosa`(:657) `rekam_medis_tindakan`(:669) `rekam_medis_lampiran`(:681) `rekam_medis_persetujuan`(:692). `rekam_medis` carries the Permenkes 24/2022 payload: `uuid CHAR(36) NOT NULL UNIQUE`, `tipe_kunjungan ENUM('telemedisin','rawat_jalan','rawat_inap','igd','home_visit')`, `tanggal_periksa DATETIME NOT NULL`, six `riwayat_*`/`psikososial` text columns, the four SOAP columns (`subjektif`/`objektif`/`asesmen`/`plan` — note the column is `plan`, not `rencana`, and `asesmen`, not `assesmen`), `diagnosis_kerja VARCHAR(255) NULL`, `status_tindak_lanjut ENUM('pulang_dengan_obat','kontrol','rujak','rawat_inap','ke_igd') NULL`, `jadwal_kontrol DATE NULL`, `INDEX idx_rm_pasien (pasien_id, tanggal_periksa)` (:655). Two traps to encode as comments: (a) `status_dokumen ENUM('draft','final','diamendemen') NOT NULL DEFAULT 'final'` (:654) — the default is `final`, so task 33's service MUST pass `status_dokumen` explicitly on create or the record lands immutable; (b) `versi TINYINT UNSIGNED NOT NULL DEFAULT 1` (:655) is the amendment counter, and the schema has **no** parent/amendment linkage column, so the amendment chain must be reconstructed by `(pasien_id, dokter_id, tanggal_periksa)` grouping — record this limitation explicitly in the model docblock and in `docs/schema-notes.md`. `rekam_medis_diagnosa.jenis ENUM('utama','sekunder','diferensial','komplikasi')`, `tipe_kasus ENUM('baru','lama') DEFAULT 'baru'`, `is_terkonfirmasi TINYINT(1) DEFAULT 0`, `icd10_kode VARCHAR(8) NOT NULL` with **no FK** plus `INDEX idx_diag_icd10 (icd10_kode)` (:665). `rekam_medis_tindakan.icd9cm_kode VARCHAR(8) NULL` also has no FK. `rekam_medis_lampiran.tipe ENUM('hasil_lab','radiologi','foto_klinis','dokumen_lain')`. `rekam_medis_persetujuan.tipe ENUM('general_consent','persetujuan_tindakan','penolakan_tindakan')`, `ditandatangani_at DATETIME NOT NULL`. Must NOT create Models yet.
+- [x] 13. Migration batch G (medical record and its sub-tables — SQL tables 42-46)
+  What to do / Must NOT do: Author migrations 42-46: `rekam_medis`(:621) `rekam_medis_diagnosa`(:657) `rekam_medis_tindakan`(:669) `rekam_medis_lampiran`(:681) `rekam_medis_persetujuan`(:692). `rekam_medis` carries the Permenkes 24/2022 payload: `uuid CHAR(36) NOT NULL UNIQUE`, `tipe_kunjungan ENUM('telemedisin','rawat_jalan','rawat_inap','igd','home_visit')`, `tanggal_periksa DATETIME NOT NULL`, a six-column narrative block at `:631`-`:636` (`keluhan_utama`, `riwayat_penyakit_sekarang`, `riwayat_penyakit_dahulu`, `riwayat_keluarga`, `riwayat_psikososial`, `hasil_pemeriksaan_fisik`)— note that only FOUR of the six are named `riwayat_*`, the four SOAP columns (`subjektif`/`objektif`/`asesmen`/`plan` — note the column is `plan`, not `rencana`, and `asesmen`, not `assesmen`), `diagnosis_kerja VARCHAR(255) NULL`, `status_tindak_lanjut ENUM('pulang_dengan_obat','kontrol','rujuk','rawat_inap','ke_igd') NULL`, `jadwal_kontrol DATE NULL`, `INDEX idx_rm_pasien (pasien_id, tanggal_periksa)` (:654). Two traps to encode as comments: (a) `status_dokumen ENUM('draft','final','diamendemen') NOT NULL DEFAULT 'final'` (:645) — the default is `final`, so task 33's service MUST pass `status_dokumen` explicitly on create or the record lands immutable; (b) `versi TINYINT UNSIGNED NOT NULL DEFAULT 1` (:646) is the amendment counter, and the schema has **no** parent/amendment linkage column, so the amendment chain must be reconstructed by `(pasien_id, dokter_id, tanggal_periksa)` grouping — record this limitation explicitly in the model docblock and in `docs/schema-notes.md`. `rekam_medis_diagnosa.jenis ENUM('utama','sekunder','diferensial','komplikasi')`, `tipe_kasus ENUM('baru','lama') DEFAULT 'baru'`, `is_terkonfirmasi TINYINT(1) DEFAULT 0`, `icd10_kode VARCHAR(8) NOT NULL` with **no FK** plus `INDEX idx_diag_icd10 (icd10_kode)` (:666). `rekam_medis_tindakan.icd9cm_kode VARCHAR(8) NULL` also has no FK. `rekam_medis_lampiran.tipe ENUM('hasil_lab','radiologi','foto_klinis','dokumen_lain')`. `rekam_medis_persetujuan.tipe ENUM('general_consent','persetujuan_tindakan','penolakan_tindakan')`, `ditandatangani_at DATETIME NOT NULL`. Must NOT create Models yet.
   Parallelization: Wave 2 | Blocked by: 12 | Blocks: 14, 15, 16, 19
   References (executor has NO interview context - be exhaustive): `telemedicine_test.sql:621-706`; draft F5, F8
   Acceptance criteria (agent-executable): `php artisan migrate:fresh` exits 0; `php artisan sehatly:verify-schema --tables=rekam_medis,rekam_medis_diagnosa,rekam_medis_tindakan,rekam_medis_lampiran,rekam_medis_persetujuan` exits 0; `SHOW CREATE TABLE rekam_medis` shows `plan` (not `rencana`) and `asesmen` (not `assesmen`) and `status_dokumen` default `'final'`.
   QA scenarios (name the exact tool + invocation): happy - `php artisan migrate:fresh && php artisan sehatly:verify-schema --tables=rekam_medis,rekam_medis_diagnosa,rekam_medis_tindakan,rekam_medis_lampiran,rekam_medis_persetujuan`, Evidence `.omo/evidence/task-13-sehatly.md`. failure - assert the verifier flags `rekam_medis.berat_badan_kg`-style decimal-precision drift, e.g. `rekam_medis` has no decimal columns so instead assert it flags a `subjektif` column that is `TEXT NOT NULL` instead of `TEXT NULL`, Evidence `.omo/evidence/task-13-sehatly.md`.
   Commit: Y | `feat(db): migrate medical record and sub-tables`
 
-- [ ] 14. Migration batch H (pharmacy — SQL tables 47-54)
-  What to do / Must NOT do: Author migrations 47-54: `master_obat`(:708) `obat_interaksi`(:731) `resep`(:742) `resep_item`(:767) `resep_verifikasi`(:786) `pesanan_obat`(:797) `pesanan_obat_tracking`(:819) `apotek_stok`(:829). `master_obat.bentuk_sediaan` is a 12-value ENUM, `satuan` an 8-value ENUM, `kelas_obat ENUM('bebas','bebas_terbatas','keras','fitofarmaka','n 谢iktropika','psikotropika')` — transcribe all three value lists character-for-character from `:711-717`, plus `requires_resep TINYINT(1) NOT NULL DEFAULT 1`, `harga_jual DECIMAL(12,2) NOT NULL DEFAULT 0`, and `INDEX idx_obat_nama (nama_generik)` (:727). `obat_interaksi` has `UNIQUE KEY uq_interaksi (obat_a_id, obat_b_id)` (:738) — **one direction only**; add a comment stating that the interaction service MUST query both `(a=X,b=Y)` and `(a=Y,b=X)` or it will miss half of all interactions, and that a data-quality seeder must insert canonical pairs with `obat_a_id < obat_b_id`. `resep` has `tipe ENUM('digital','manual') DEFAULT 'digital'`, the 8-value `status ENUM('aktif','diproses','diverifikasi','dipenuhi','dikirim','selesai','kedaluwarsa','dibatalkan') DEFAULT 'aktif'`, `berlaku_sampai DATE NOT NULL` with the comment "E-resep berlaku 7 hari" (`:761`) — implement as `tanggal_resep + 7 days` in the service, not as a DB default; `qr_token VARCHAR(100) NOT NULL`; `apotek_id BIGINT UNSIGNED NULL` FK to `faskes`; `INDEX idx_resep_pasien (pasien_id, status)` (:765). `resep_item.obat_id` is **nullable** (`:770`, "NULL = racikan / obat non-katalog") with `is_racikan TINYINT(1) DEFAULT 0` and `racikan_nama VARCHAR(100) NULL`, and `nama_obat VARCHAR(255) NOT NULL` is an explicit **snapshot** of the name at prescribing time — so the Resource must return the snapshot, never a live join, and task 38's engine must skip NULL `obat_id` rows and document that racikan are uncheckable. `resep_verifikasi.resep_id` is `NOT NULL UNIQUE` (:788) — one verification per prescription, so a re-verification is an UPDATE, not an INSERT. `pesanan_obat.tipe ENUM('resep_dokter','obat_bebas','produk_kesehatan')`, `kurir ENUM('internal','grab_express','gojek','jne','jnt','sicepat')`, and the 6-value `status ENUM('menunggu_pembayaran','diproses','siap','sedang_dikirim','selesai','dibatalkan')`. `apotek_stok` has `UNIQUE KEY uq_stok (apotek_id, obat_id)` (:845), `jumlah_stok INT NOT NULL DEFAULT 0` (signed — negative stock is representable, which task 46 relies on to detect oversell), `stok_minimum INT NOT NULL DEFAULT 0`, `kedaluwarsa DATE NULL`. Must NOT create Models yet.
+- [x] 14. Migration batch H (pharmacy — SQL tables 47-54)
+  What to do / Must NOT do: Author migrations 47-54: `master_obat`(:708) `obat_interaksi`(:731) `resep`(:742) `resep_item`(:767) `resep_verifikasi`(:786) `pesanan_obat`(:797) `pesanan_obat_tracking`(:819) `apotek_stok`(:829). `master_obat.bentuk_sediaan` is a 12-value ENUM, `satuan` an 8-value ENUM, `kelas_obat ENUM('bebas','bebas_terbatas','keras','fitofarmaka','narkotika','psikotropika')` — transcribe all three value lists character-for-character, noting that `kelas_terapi` at `:718` sits BETWEEN `satuan` and `kelas_obat` and is a column this todo previously failed to mention at all, so the three ENUMs are NOT contiguous - read `:711` through `:720`, plus `requires_resep TINYINT(1) NOT NULL DEFAULT 1`, `harga_jual DECIMAL(12,2) NOT NULL DEFAULT 0`, and `INDEX idx_obat_nama (nama_generik)` (:727). `obat_interaksi` has `UNIQUE KEY uq_interaksi (obat_a_id, obat_b_id)` (:738) — **one direction only**; add a comment stating that the interaction service MUST query both `(a=X,b=Y)` and `(a=Y,b=X)` or it will miss half of all interactions, and that a data-quality seeder must insert canonical pairs with `obat_a_id < obat_b_id`. `resep` has `tipe ENUM('digital','manual') DEFAULT 'digital'`, the 8-value `status ENUM('aktif','diproses','diverifikasi','dipenuhi','dikirim','selesai','kedaluwarsa','dibatalkan') DEFAULT 'aktif'`, `berlaku_sampai DATE NOT NULL` with the comment "E-resep berlaku 7 hari" (`:761`) — implement as `tanggal_resep + 7 days` in the service, not as a DB default; `qr_token VARCHAR(100) NOT NULL`; `apotek_id BIGINT UNSIGNED NULL` FK to `faskes`; `INDEX idx_resep_pasien (pasien_id, status)` (:765). `resep_item.obat_id` is **nullable** (`:770`, "NULL = racikan / obat non-katalog") with `is_racikan TINYINT(1) DEFAULT 0` and `racikan_nama VARCHAR(100) NULL`, and `nama_obat VARCHAR(255) NOT NULL` is an explicit **snapshot** of the name at prescribing time — so the Resource must return the snapshot, never a live join, and task 38's engine must skip NULL `obat_id` rows and document that racikan are uncheckable. `resep_verifikasi.resep_id` is `NOT NULL UNIQUE` (:788) — one verification per prescription, so a re-verification is an UPDATE, not an INSERT. `pesanan_obat.tipe ENUM('resep_dokter','obat_bebas','produk_kesehatan')`, `kurir ENUM('internal','grab_express','gojek','jne','jnt','sicepat')`, and the 6-value `status ENUM('menunggu_pembayaran','diproses','siap','sedang_dikirim','selesai','dibatalkan')`. `apotek_stok` has `UNIQUE KEY uq_stok (apotek_id, obat_id)` (:845), `jumlah_stok INT NOT NULL DEFAULT 0` (signed — negative stock is representable, which task 46 relies on to detect oversell), `stok_minimum INT NOT NULL DEFAULT 0`, `kedaluwarsa DATE NULL`. Must NOT create Models yet.
   Parallelization: Wave 2 | Blocked by: 13 | Blocks: 16, 17
   References (executor has NO interview context - be exhaustive): `telemedicine_test.sql:708-845`; draft F5, F8
   Acceptance criteria (agent-executable): `php artisan migrate:fresh` exits 0; `php artisan sehatly:verify-schema --tables=master_obat,obat_interaksi,resep,resep_item,resep_verifikasi,pesanan_obat,pesanan_obat_tracking,apotek_stok` exits 0; `SHOW CREATE TABLE master_obat` shows `psikotropika` present in `kelas_obat` and the 12-value `bentuk_sediaan`; `SHOW CREATE TABLE resep_verifikasi` shows the UNIQUE on `resep_id`.
   QA scenarios (name the exact tool + invocation): happy - `php artisan migrate:fresh && php artisan sehatly:verify-schema --tables=master_obat,obat_interaksi,resep,resep_item,resep_verifikasi,pesanan_obat,pesanan_obat_tracking,apotek_stok`, Evidence `.omo/evidence/task-14-sehatly.md`. failure - a test inserts the same `obat_interaksi` pair twice and MUST get a `QueryException`, proving the one-directional uniqueness the service design depends on is really enforced, Evidence `.omo/evidence/task-14-sehatly.md`.
   Commit: Y | `feat(db): migrate pharmacy, prescription, order and stock tables`
 
-- [ ] 15. Migration batch I (laboratory — SQL tables 55-60)
-  What to do / Must NOT do: Author migrations 55-60: `master_lab_tindakan`(:847) `master_lab_paket`(:860) `lab_paket_item`(:868) `lab_permintaan`(:876) `lab_permintaan_detail`(:894) `lab_hasil`(:905). **These six tables get migrations and Models only — no endpoints, no controllers, no Resources**, because no module in the spec's scope assigns them one (Q7=A). They must still exist because `invoice.referensi_tipe` includes `'lab_permintaan'` (`telemedicine_test.sql:941`) and `lab_hasil` is referenced by `rekam_medis_lampiran.tipe = 'hasil_lab'` conceptually. Record this in `docs/schema-notes.md` as "migrated for referential completeness; not exercised by Modules 1-5". `master_lab_tindakan.kelompok ENUM('darah','urine','hormon','kimia_darah','serologi','mikrobiologi','lainnya')` with the nullable `nilai_rujukan_laki`/`nilai_rujukan_perempuan VARCHAR(100)` and `kode_loinc VARCHAR(20)`. `lab_paket_item` is a composite-PK join table with **no** `id`. `lab_permintaan.status ENUM('diminta','sampel_diangkat','diproses','hasil_terbit','dibatalkan') DEFAULT 'diminta'`, `nomor_permintaan VARCHAR(30) NOT NULL UNIQUE`. `lab_permintaan_detail.prioritas ENUM('rutin','cepat','cito') DEFAULT 'rutin'` with **both** `tindakan_id` and `paket_id` nullable. `lab_hasil.nilai VARCHAR(100) NOT NULL` (a string, not a decimal — the SQL stores qualitative results), `is_abnormal TINYINT(1) NOT NULL DEFAULT 0`. Must NOT create Models until task 19, and must NOT create any endpoint.
+- [x] 15. Migration batch I (laboratory — SQL tables 55-60)
+  What to do / Must NOT do: Author migrations 55-60: `master_lab_tindakan`(:847) `master_lab_paket`(:860) `lab_paket_item`(:868) `lab_permintaan`(:876) `lab_permintaan_detail`(:894) `lab_hasil`(:905). **These six tables get migrations and Models only — no endpoints, no controllers, no Resources**, because no module in the spec's scope assigns them one (Q7=A). They must still exist because `invoice.referensi_tipe` includes `'lab_permintaan'` (`telemedicine_test.sql:940`) and `lab_hasil` is referenced by `rekam_medis_lampiran.tipe = 'hasil_lab'` conceptually. Record this in `docs/schema-notes.md` as "migrated for referential completeness; not exercised by Modules 1-5". `master_lab_tindakan.kelompok ENUM('darah','urine','hormon','kimia_darah','serologi','mikrobiologi','lainnya')` with the nullable `nilai_rujukan_laki`/`nilai_rujukan_perempuan VARCHAR(100)` and `kode_loinc VARCHAR(20)`. `lab_paket_item` is a composite-PK join table with **no** `id`. `lab_permintaan.status ENUM('diminta','sampel_diangkat','diproses','hasil_terbit','dibatalkan') DEFAULT 'diminta'`, `nomor_permintaan VARCHAR(30) NOT NULL UNIQUE`. `lab_permintaan_detail.prioritas ENUM('rutin','cepat','cito') DEFAULT 'rutin'` with **both** `tindakan_id` and `paket_id` nullable. `lab_hasil.nilai VARCHAR(100) NOT NULL` (a string, not a decimal — the SQL stores qualitative results), `is_abnormal TINYINT(1) NOT NULL DEFAULT 0`. Must NOT create Models until task 19, and must NOT create any endpoint.
   Parallelization: Wave 2 | Blocked by: 13 | Blocks: 16
   References (executor has NO interview context - be exhaustive): `telemedicine_test.sql:847-923`; `:941`; draft F6, Q7
   Acceptance criteria (agent-executable): `php artisan migrate:fresh` exits 0; `php artisan sehatly:verify-schema --tables=master_lab_tindakan,master_lab_paket,lab_paket_item,lab_permintaan,lab_permintaan_detail,lab_hasil` exits 0; `php artisan route:list --path=api/v1` contains **no** route mentioning `lab`; `docs/schema-notes.md` contains the "migrated for referential completeness" entry for all six.
   QA scenarios (name the exact tool + invocation): happy - `php artisan migrate:fresh && php artisan sehatly:verify-schema --tables=master_lab_tindakan,master_lab_paket,lab_paket_item,lab_permintaan,lab_permintaan_detail,lab_hasil && ! php artisan route:list --path=api/v1 | grep -qi lab`, Evidence `.omo/evidence/task-15-sehatly.md`. failure - assert the verifier flags `lab_hasil.nilai` if emitted as a numeric type instead of `VARCHAR(100)`, since the SQL deliberately stores qualitative results as text, Evidence `.omo/evidence/task-15-sehatly.md`.
   Commit: Y | `feat(db): migrate laboratory tables for referential completeness`
 
-- [ ] 16. Migration batch J (invoicing, payment, refund, promo and BPJS claim — SQL tables 61-67)
-  What to do / Must NOT do: Author migrations 61-67: `master_metode_pembayaran`(:925) `invoice`(:936) `pembayaran`(:958) `refund`(:975) `master_promo`(:985) `promo_redemption`(:1000) `klaim_bpjs`(:1012). `master_metode_pembayaran.tipe ENUM('va_bank','e_wallet','qris','kartu_kredit','gerai_retail','cod','tunai','bpjs','asuransi')`, `biaya_admin_flat DECIMAL(12,2)`, `biaya_admin_persen DECIMAL(5,2)`. `invoice` is the polymorphic hub: `referensi_tipe ENUM('booking','konsultasi','resep','pesanan_obat','lab_permintaan','home_care')` and `referensi_id BIGINT UNSIGNED NOT NULL` with the comment "Polimorfik" — **no FK is possible and none exists**; enforce ownership in the service layer instead. `status ENUM('draft','menunggu_pembayaran','lunas','kadaluarsa','dibatalkan','refund_sebagian','refund_penuh') DEFAULT 'menunggu_pembayaran'`, `subtotal`/`diskon`/`biaya_admin`/`biaya_pengirpikan` all `DECIMAL(14,2)`, plus `INDEX idx_invoice (pasien_id, status)` and `INDEX idx_ref (referensi_tipe, referensi_id)` (:953-954) — the latter is what makes polymorphic lookup fast and must be reproduced. Note that only 4 of the 6 `referensi_tipe` values are reachable in Modules 1-5; record that in `docs/schema-notes.md`. `pembayaran.nomor_referensi VARCHAR(100) NULL` needs an index for the webhook idempotency check even though the SQL defines only `idx_bayar_status (status, dibayar_at)` (:970) — do **not** add the index (SQL is read-only law); instead make the idempotency check a `where nomor_referensi = ?` existence query and document the performance trade-off. `webhook_payload JSON NULL`. `master_promo.tipe_diskon ENUM('persen','nominal','gratis_ongkir')`, `kuota_total INT UNSIGNED NULL`, `kuota_per_user TINYINT UNSIGNED NOT NULL DEFAULT 1`, `mulai_at`/`selesai_at DATETIME NOT NULL`. `promo_redemption.invoice_id BIGINT UNSIGNED NOT NULL` — resolve the spec's ambiguity by recording the decision: the redemption row is written when the promo is **applied to an invoice**, not by the pure `POST /promo/validasi` check, because `invoice_id` is `NOT NULL`. `klaim_bpjs` gets a migration only (spec allows V-Claim to be stubbed) and contains `nomor_sep VARCHAR(30) NOT NULL UNIQUE`, `nomor_kartu CHAR(13) NOT NULL`, and the 6-value `status ENUM('draft','diajukan','terkirim','disetujui','ditolak','perlu_perbaikan')`. Must NOT create Models yet.
+- [x] 16. Migration batch J (invoicing, payment, refund, promo and BPJS claim — SQL tables 61-67)
+  What to do / Must NOT do: Author migrations 61-67: `master_metode_pembayaran`(:925) `invoice`(:936) `pembayaran`(:958) `refund`(:975) `master_promo`(:985) `promo_redemption`(:1000) `klaim_bpjs`(:1012). `master_metode_pembayaran.tipe ENUM('va_bank','e_wallet','qris','kartu_kredit','gerai_retail','cod','tunai','bpjs','asuransi')`, `biaya_admin_flat DECIMAL(12,2)`, `biaya_admin_persen DECIMAL(5,2)`. `invoice` is the polymorphic hub: `referensi_tipe ENUM('booking','konsultasi','resep','pesanan_obat','lab_permintaan','home_care')` and `referensi_id BIGINT UNSIGNED NOT NULL` with the comment "Polimorfik" — **no FK is possible and none exists**; enforce ownership in the service layer instead. `status ENUM('draft','menunggu_pembayaran','lunas','kadaluarsa','dibatalkan','refund_sebagian','refund_penuh') DEFAULT 'menunggu_pembayaran'`, `subtotal`/`diskon`/`biaya_admin`/`biaya_pengiriman` all `DECIMAL(14,2)`, plus `INDEX idx_invoice (pasien_id, status)` (:954) and `INDEX idx_ref (referensi_tipe, referensi_id)` (:955) — the latter is what makes polymorphic lookup fast and must be reproduced. Note that only 4 of the 6 `referensi_tipe` values are reachable in Modules 1-5; record that in `docs/schema-notes.md`. `pembayaran.nomor_referensi VARCHAR(100) NULL` needs an index for the webhook idempotency check even though the SQL defines only `idx_bayar_status (status, dibayar_at)` (:972) — do **not** add the index (SQL is read-only law); instead make the idempotency check a `where nomor_referensi = ?` existence query and document the performance trade-off. `webhook_payload JSON NULL`. `master_promo.tipe_diskon ENUM('persen','nominal','gratis_ongkir')`, `kuota_total INT UNSIGNED NULL`, `kuota_per_user TINYINT UNSIGNED NOT NULL DEFAULT 1`, `mulai_at`/`selesai_at DATETIME NOT NULL`. `promo_redemption.invoice_id BIGINT UNSIGNED NOT NULL` — resolve the spec's ambiguity by recording the decision: the redemption row is written when the promo is **applied to an invoice**, not by the pure `POST /promo/validasi` check, because `invoice_id` is `NOT NULL`. `klaim_bpjs` gets a migration only (spec allows V-Claim to be stubbed) and contains `nomor_sep VARCHAR(30) NOT NULL UNIQUE`, `nomor_kartu CHAR(13) NOT NULL`, and the 6-value `status ENUM('draft','diajukan','terkirim','disetujui','ditolak','perlu_perbaikan')`. Must NOT create Models yet.
   Parallelization: Wave 2 | Blocked by: 14, 15 | Blocks: 17
   References (executor has NO interview context - be exhaustive): `telemedicine_test.sql:925-1034`; draft F5, F8
   Acceptance criteria (agent-executable): `php artisan migrate:fresh` exits 0; `php artisan sehatly:verify-schema --tables=master_metode_pembayaran,invoice,pembayaran,refund,master_promo,promo_redemption,klaim_bpjs` exits 0; `SHOW CREATE TABLE invoice` shows `INDEX idx_ref (referensi_tipe, referensi_id)` and **no** foreign key on `referensi_id`; `SHOW CREATE TABLE pembayaran` shows no index on `nomor_referensi`.
   QA scenarios (name the exact tool + invocation): happy - `php artisan migrate:fresh && php artisan sehatly:verify-schema --tables=master_metode_pembayaran,invoice,pembayaran,refund,master_promo,promo_redemption,klaim_bpjs`, Evidence `.omo/evidence/task-16-sehatly.md`. failure - assert the verifier flags `promo_redemption.invoice_id` if emitted as nullable, since the `NOT NULL` is what forces the redemption-write decision recorded in the migration comment, Evidence `.omo/evidence/task-16-sehatly.md`.
   Commit: Y | `feat(db): migrate invoice, payment, refund, promo and BPJS claim tables`
 
-- [ ] 17. Migration batch K (notification, review, content, home care, audit and consent — SQL tables 68-75)
+- [x] 17. Migration batch K (notification, review, content, home care, audit and consent — SQL tables 68-75)
   What to do / Must NOT do: Author migrations 68-75: `notifikasi`(:1036) `ulasan_dokter`(:1050) `artikel_kategori`(:1068) `artikel`(:1074) `home_care_pesanan`(:1093) `audit_log`(:1118) `persetujuan_pdp`(:1134) `akses_rekam_medis_log`(:1147). `notifikasi` has `tipe ENUM('booking','pembayaran','resep','chat','lab','promo','sistem')`, `payload JSON NULL`, `dibaca_at DATETIME NULL`, `INDEX idx_notif (user_id, dibaca_at)` (:1045) — the index that makes the unread-count query cheap. `ulasan_dokter` is the table with the SQL's only `CHECK` constraints: `rating TINYINT UNSIGNED NOT NULL CHECK (rating BETWEEN 1 AND 5)`, `rating_komunikasi TINYINT UNSIGNED NULL CHECK (... BETWEEN 1 AND 5)`, `rating_akurasi TINYINT UNSIGNED NULL CHECK (... BETWEEN 1 AND 5)` (:1052-1054) — Laravel's Blueprint has **no** first-class `CHECK` builder, so after creating the table issue a raw `DB::statement('ALTER TABLE ulasan_dokter ADD CONSTRAINT chk_rating CHECK (rating BETWEEN 1 AND 5)')` (and the two siblings) with matching `DROP` in `down()`. Reproduce `konsultasi_id BIGINT UNSIGNED NOT NULL UNIQUE` (:1052) — 1 consultation = 1 review. Also `is_anonim TINYINT(1) NOT NULL DEFAULT 1`. `artikel.konten LONGTEXT NOT NULL`, `status ENUM('draft','review','terbit','arsip') DEFAULT 'draft'`. `home_care_pesanan.tipe_layanan ENUM('perawat','fisioterapi','dokter','bidan','vaksinasi_rumah')` with a 6-value `status`. `audit_log.aksi ENUM('create','read','update','delete','login','logout','download','export')`, `data_lama JSON NULL`, `data_baru JSON NULL`, `record_id VARCHAR(64) NULL` (a string, not a bigint — it must hold non-numeric identifiers too), plus `INDEX idx_audit_user (user_id, dibuat_at)` and `INDEX idx_audit_tabel (tabel_target, record_id, dibuat_at)` (:1130-1131). `persetujuan_pdp.jenis` is a 5-value ENUM including `'berbagi_data_medis'`, with `disetujui TINYINT(1) NOT NULL`, `disetujui_at DATETIME NOT NULL`, `ip_address VARCHAR(45) NULL`, and `UNIQUE KEY uq_consent (user_id, jenis, versi_dokumen)` (:1144) — the uniqueness is per **version**, so a re-consent after a policy version bump is a new row, which task 47 must handle. `akses_rekam_medis_log.tujuan_akses ENUM('perawatan','klaim','audit','pasien_sendiri','kepentingan_hukum')` with **no** `updated_at` — `dibuat_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP` only. Must NOT create Models yet.
   Parallelization: Wave 2 | Blocked by: 16 | Blocks: 18
   References (executor has NO interview context - be exhaustive): `telemedicine_test.sql:1036-1155`; draft F5, F8
@@ -383,8 +394,8 @@ Every item below was confirmed by direct read of `telemedicine_test.sql` after t
   QA scenarios (name the exact tool + invocation): happy - `php artisan migrate:fresh && php artisan sehatly:verify-schema --tables=notifikasi,ulasan_dokter,artikel_kategori,artikel,home_care_pesanan,audit_log,persetujuan_pdp,akses_rekam_medis_log`, Evidence `.omo/evidence/task-17-sehatly.md`. failure - `rating = 6` and `rating = 0` inserts must both be rejected by the database, and `rating = 5` must succeed, Evidence `.omo/evidence/task-17-sehatly.md`.
   Commit: Y | `feat(db): migrate notification, review, content, audit and consent tables`
 
-- [ ] 18. Deferred foreign keys, both views, section `[16]` seeders, and scaffold-table removal
-  What to do / Must NOT do: Author the three post-table migrations. Migration 76: `ALTER TABLE pasien_tanda_vital ADD CONSTRAINT fk_vital_rm FOREIGN KEY (rekam_medis_id) REFERENCES rekam_medis(id) ON DELETE SET NULL` (`:1161-1163`) — this is why `pasien_tanda_vital` was created without the constraint in task 9. Also add here the deferred `pasien_penjamin.faskes_rujukan_id -> faskes(id)` FK recorded in task 9, plus `down()` that drops constraints before tables. Migration 77: `v_dokter_katalog` via raw `DB::statement('CREATE OR REPLACE VIEW v_dokter_katalog AS ...')` copying `:1170-1187` **verbatim including the `GROUP_CONCAT(s.nama SEPARATOR ', ')`** — this view is MySQL-only and cannot be expressed fluently. Migration 78: `v_pendapatan_bulanan` from `:1190-1196`. **Both `down()` methods must `DROP VIEW IF EXISTS` before any table drop**, mirroring the reset block at `:20-56`; and because `CREATE OR REPLACE VIEW` cannot run inside a transaction on some MySQL configurations, set `public $withinTransaction = false` on migrations 77 and 78. Then write seeders porting SQL section `[16]` in full: `MasterWilayahSeeder` (38 provinces `:1203-1214`), `MasterUmumSeeder` (agama/golongan_darah/pendidikan/status_pernikahan/hubungan_keluarga `:1217-1231`), `SpesialisasiSeeder` (16 rows `:1234-1240`), `PenjaminSeeder` (6 rows), `MetodePembayaranSeeder` (14 rows), `IcdSeeder` (15 ICD-10 rows + 6 ICD-9-CM rows), `ObatSeeder` (the 7 `master_obat` rows, including `OBT-0002` Amoxicillin with `requires_resep = 1` and `kelas_obat = 'keras'` — the fixture the interaction and verification tests need), `LabSeeder` (10 `master_lab_tindakan` + 3 `master_lab_paket` + 3 `lab_paket_item`), `ArtikelKategoriSeeder` (6 rows), and an `ObatInteraksiSeeder`. Rewrite `database/seeders/DatabaseSeeder.php` to call them in FK-safe order. **Two honesty corrections to the seeder list (Momus finding):** SQL section `[16]` contains **no** `INSERT INTO lab_paket_item` and **no** `INSERT INTO obat_interaksi` anywhere — the file ends after `artikel_kategori` at `:1344`. So the "3 `lab_paket_item`" rows and the `ObatInteraksiSeeder` pairs are **new data with no source in the SQL**, not a port. Label both seeders `DevFixtureSeeder` alongside the doctor/patient/faskes fixtures, state in `docs/schema-notes.md` that they are *not* part of the 1:1 fidelity claim (which covers schema, not data), and specify the actual pairs to use so the choice is not left to the executor: Amoxicillin (`OBT-0002`) x Amoxicillin is not valid, so seed at minimum `Amoxicillin` x `Metformin` as `berat` and `Amoxicillin` x `Cetirizine` as `ringan`, with `obat_a_id < obat_b_id`; and map `Medical Check Up Dasar` -> `{LAB-001, LAB-002, LAB-009}`, `Cek Gula & Kolesterol` -> `{LAB-003, LAB-004}`, `Fungsi Hati Lengkap` -> `{LAB-005, LAB-006}` for the three `lab_paket_item` rows. The earlier wording of this todo was self-contradictory ("remove X ... but keep X") and would have broken schema parity — Momus finding, both reviewers confirmed. **Delete:** `0001_01_01_000000_create_users_table.php` (its `users` table is replaced by todo 8; its `password_reset_tokens` and `sessions` tables are absent from the SQL, and password reset goes through `user_otp.tujuan = 'reset_kata_sandi'`), **plus `2024_01_01_000000_create_passkeys_table.php`** (creates a `passkeys` table not in the SQL) **and `2025_08_14_170933_add_two_factor_columns_to_users_table.php`** (adds `two_factor_secret`, `two_factor_recovery_codes`, `two_factor_confirmed_at` to `users`, none of which exist in the SQL — leaving it makes `sehatly:verify-schema` fail on three extra columns and breaks success criterion 1). **Keep:** `0001_01_01_000001_create_cache_table.php` and `0001_01_01_000002_create_jobs_table.php`, because `.env.example:38,40` sets `QUEUE_CONNECTION=database` and `CACHE_STORE=database`; record `cache`, `cache_locks`, `jobs`, `job_batches`, `failed_jobs`, and the `migrations` table in `docs/schema-notes.md` as Laravel infrastructure the SQL does not define. Also run `composer remove laravel/passkeys` here, alongside the Fortify/Inertia removal in todo 30, so manifest, lock, and `vendor/` stay in sync — otherwise the `passkeys` table and its columns survive and break parity. Must NOT delete the cache/jobs migrations, must NOT leave the passkeys or 2FA migrations in place, must NOT edit `telemedicine_test.sql`.`0001_01_01_000000_create_users_table.php`'s `password_reset_tokens` and `sessions` tables, `0001_01_01_000001_create_cache_table.php`, `0001_01_01_000002_create_jobs_table.php`) — but **keep `cache` and `jobs`**, because `.env.example:38,40` uses `QUEUE_CONNECTION=database` and `CACHE_STORE=database`; record them in `docs/schema-notes.md` as Laravel infrastructure the SQL does not define. Delete `config/inertia.php` only in task 30, not here. Must NOT edit `telemedicine_test.sql`.
+- [x] 18. Deferred foreign keys, both views, section `[16]` seeders, and scaffold-table removal
+  What to do / Must NOT do: Author the three post-table migrations. Migration 76: `ALTER TABLE pasien_tanda_vital ADD CONSTRAINT fk_vital_rm FOREIGN KEY (rekam_medis_id) REFERENCES rekam_medis(id) ON DELETE SET NULL` (`:1161-1163`) — this is why `pasien_tanda_vital` was created without the constraint in task 9. **`fk_vital_rm` is the ONLY constraint migration 76 adds. It must NOT add a foreign key on `pasien_penjamin.faskes_rujukan_id`.** The earlier wording of this todo instructed exactly that and was wrong: the SQL declares no `FOREIGN KEY` for that column (`:346`), todo 9's verifier measured it live as a bare `unsignedBigInteger` with no constraint, and plan appendix A.10/A.11 settled it. Adding one would be reported as `extra_foreign_key` drift and would fail success criterion 1 — the very checkpoint this todo exists to satisfy. The stale claim also survived in `docs/migration-order.md`'s row-76 contract entry and in todo 9's own line above; all three are now corrected, and rule 9 of that file carries the prohibition. Keep `down()` that drops constraints before tables. Migration 77: `v_dokter_katalog` via raw `DB::statement('CREATE OR REPLACE VIEW v_dokter_katalog AS ...')` copying `:1170-1187` **verbatim including the `GROUP_CONCAT(s.nama SEPARATOR ', ')`** — this view is MySQL-only and cannot be expressed fluently. Migration 78: `v_pendapatan_bulanan` from `:1190-1196`. **Both `down()` methods must `DROP VIEW IF EXISTS` before any table drop**, mirroring the reset block at `:20-56`; and because `CREATE OR REPLACE VIEW` cannot run inside a transaction on some MySQL configurations, set `public $withinTransaction = false` on migrations 77 and 78. Then write seeders porting SQL section `[16]` in full: `MasterWilayahSeeder` (38 provinces `:1203-1214`), `MasterUmumSeeder` (agama/golongan_darah/pendidikan/status_pernikahan/hubungan_keluarga `:1217-1231`), `SpesialisasiSeeder` (16 rows `:1234-1240`), `PenjaminSeeder` (6 rows), `MetodePembayaranSeeder` (14 rows), `IcdSeeder` (15 ICD-10 rows + 6 ICD-9-CM rows), `ObatSeeder` (the 7 `master_obat` rows, including `OBT-0002` Amoxicillin with `requires_resep = 1` and `kelas_obat = 'keras'` — the fixture the interaction and verification tests need), `LabSeeder` (10 `master_lab_tindakan` + 3 `master_lab_paket` + 3 `lab_paket_item`), `ArtikelKategoriSeeder` (6 rows), and an `ObatInteraksiSeeder`. Rewrite `database/seeders/DatabaseSeeder.php` to call them in FK-safe order. **Two honesty corrections to the seeder list (Momus finding):** SQL section `[16]` contains **no** `INSERT INTO lab_paket_item` and **no** `INSERT INTO obat_interaksi` anywhere — the file ends after `artikel_kategori` at `:1344`. So the "3 `lab_paket_item`" rows and the `ObatInteraksiSeeder` pairs are **new data with no source in the SQL**, not a port. Label both seeders `DevFixtureSeeder` alongside the doctor/patient/faskes fixtures, state in `docs/schema-notes.md` that they are *not* part of the 1:1 fidelity claim (which covers schema, not data), and specify the actual pairs to use so the choice is not left to the executor: Amoxicillin (`OBT-0002`) x Amoxicillin is not valid, so seed at minimum `Amoxicillin` x `Metformin` as `berat` and `Amoxicillin` x `Cetirizine` as `ringan`, with `obat_a_id < obat_b_id`; and map `Medical Check Up Dasar` -> `{LAB-001, LAB-002, LAB-009}`, `Cek Gula & Kolesterol` -> `{LAB-003, LAB-004}`, `Fungsi Hati Lengkap` -> `{LAB-005, LAB-006}` for the three `lab_paket_item` rows. The earlier wording of this todo was self-contradictory ("remove X ... but keep X") and would have broken schema parity — Momus finding, both reviewers confirmed. **Delete:** `0001_01_01_000000_create_users_table.php` (its `users` table is replaced by todo 8; its `password_reset_tokens` and `sessions` tables are absent from the SQL, and password reset goes through `user_otp.tujuan = 'reset_kata_sandi'`), **plus `2024_01_01_000000_create_passkeys_table.php`** (creates a `passkeys` table not in the SQL) **and `2025_08_14_170933_add_two_factor_columns_to_users_table.php`** (adds `two_factor_secret`, `two_factor_recovery_codes`, `two_factor_confirmed_at` to `users`, none of which exist in the SQL — leaving it makes `sehatly:verify-schema` fail on three extra columns and breaks success criterion 1). **Keep:** `0001_01_01_000001_create_cache_table.php` and `0001_01_01_000002_create_jobs_table.php`, because `.env.example:38,40` sets `QUEUE_CONNECTION=database` and `CACHE_STORE=database`; record `cache`, `cache_locks`, `jobs`, `job_batches`, `failed_jobs`, and the `migrations` table in `docs/schema-notes.md` as Laravel infrastructure the SQL does not define. Also run `composer remove laravel/passkeys` here, alongside the Fortify/Inertia removal in todo 30, so manifest, lock, and `vendor/` stay in sync — otherwise the `passkeys` table and its columns survive and break parity. Must NOT delete the cache/jobs migrations, must NOT leave the passkeys or 2FA migrations in place, must NOT edit `telemedicine_test.sql`.`0001_01_01_000000_create_users_table.php`'s `password_reset_tokens` and `sessions` tables, `0001_01_01_000001_create_cache_table.php`, `0001_01_01_000002_create_jobs_table.php`) — but **keep `cache` and `jobs`**, because `.env.example:38,40` uses `QUEUE_CONNECTION=database` and `CACHE_STORE=database`; record them in `docs/schema-notes.md` as Laravel infrastructure the SQL does not define. Delete `config/inertia.php` only in task 30, not here. Must NOT edit `telemedicine_test.sql`.
   Parallelization: Wave 2 | Blocked by: 17 | Blocks: 19, 20, 22, 26, 32, 47 | Can parallelize with: none (terminal schema task)
   References (executor has NO interview context - be exhaustive): `telemedicine_test.sql:1146-1163`, `:1165-1196`, `:1198-1349`; `:20-56` (reset/FK-check ordering); `.env.example:38,40`; `database/seeders/DatabaseSeeder.php`; draft F5, F8, F10
   Acceptance criteria (agent-executable): `php artisan migrate:fresh --seed` exits 0; `php artisan migrate:rollback --step=3 && php artisan migrate --seed` exits 0 (views drop cleanly before tables); `php artisan sehatly:verify-schema` exits 0 reporting "75 tables, 2 views verified"; `select count(*) from master_provinsi` = 38, `master_spesialisasi` = 16, `master_metode_pembayaran` = 14, `master_obat` = 7, `master_icd10` = 15, `master_lab_tindakan` = 10, `artikel_kategori` = 6; `select * from v_dokter_katalog` returns rows with a comma-joined `spesialisasi` column; `select * from v_pendapatan_bulanan` executes without error; `information_schema` shows `fk_vital_rm` present on `pasien_tanda_vital`.
@@ -459,7 +470,7 @@ Every item below was confirmed by direct read of `telemedicine_test.sql` after t
   What to do / Must NOT do: `POST /api/v1/booking` validates `dokter_id`, optional `jadwal_id`, `tipe_layanan ENUM('chat','video_call','kunjungan_klinik','home_visit')`, `tanggal_kunjungan`, `slot_mulai`, `keluhan`, `lampiran_keluhan` (array of `{nama, url}`), optional `anggota_keluarga_id` (validated to belong to the caller), and `is_rujukan`/`is_konsultasi_lanjutan` booleans. **Double-booking prevention — the load-bearing part, and the first design was WRONG (Oracle finding).** The SQL has **no** unique index on `(dokter_id, tanggal_kunjungan, slot_mulai)` (only `idx_booking_dokter` at `:527`), and the SQL is read-only law, so the constraint route is unavailable. **Use ONE serialization point for every booking type: always `lockForUpdate()` the `dokter` row first** (`Dokter::whereKey($dokterId)->lockForUpdate()->firstOrFail()`), acquired as the **first** statement of the transaction. The `dokter` row exists for every doctor regardless of `tipe_layanan`, and it is the narrowest resource that both the scheduled and the instant path contend for. An earlier draft locked `dokter_jadwal` when `jadwal_id` was present and `dokter` otherwise — **that is a double-booking hole**: a scheduled request and an instant request for the same doctor and overlapping time would lock *different rows*, run concurrently, and both observe a count below quota. (`booking.jadwal_id` is `BIGINT UNSIGNED NULL` at `:504` while `slot_mulai`/`slot_selesai` are `NOT NULL` at `:508-509`, so instant bookings are legal and the two paths really do coexist.) If `jadwal_id` is supplied, lock the `dokter_jadwal` row **second**, after `dokter` — never before — so lock ordering is globally consistent and deadlock-free. Then run the overlap count with `lockForUpdate()` on the query itself: `where('dokter_id',…)->where('tanggal_kunjungan',…)->whereNotIn('status', ['dibatalkan','kadaluarsa'])->where('slot_mulai','<',$slotSelesai)->where('slot_selesai','>',$slotMulai)` compared against `kuota_per_sesi ?? 1`, throwing `SlotTakenException` (422) when exhausted, all inside the same `DB::transaction`. **The overlap query MUST itself use `lockForUpdate()`, not a plain `count()`.** Under MySQL's default REPEATABLE READ a plain `SELECT` is a *consistent read* against a snapshot while `SELECT ... FOR UPDATE` is a *current read*; relying on "the parent lock already blocked the competitor" is correct only while no earlier consistent read has fixed the snapshot, which is one `->first()` refactor away from silently breaking. Because the `dokter` row is already locked, no competing transaction can be inserting a conflicting booking, so the extra row locks are uncontended. State this reasoning in a code comment so it is not "simplified" away later. The overlap predicate is strict, so back-to-back bookings do not conflict. All cases then run the same overlap count: `where('dokter_id',…)->where('tanggal_kunjungan',…)->whereNotIn('status', ['dibatalkan','kadaluarsa'])->where('slot_mulai','<',$slotSelesai)->where('slot_selesai','>',$slotMulai)` compared against `kuota_per_sesi ?? 1`, throwing `SlotTakenException` (422) when exhausted — all inside one `DB::transaction`. **The overlap query MUST itself use `lockForUpdate()`, not a plain `count()`.** Reason: MySQL's default isolation is REPEATABLE READ, where a plain `SELECT` is a *consistent read* against a snapshot, while `SELECT ... FOR UPDATE` is a *current read* against the latest committed data. Relying on "the `FOR UPDATE` blocked until the competitor committed, so the later plain count sees it" is correct only if no earlier consistent read already fixed the snapshot in this transaction — a fragile invariant that a future refactor adding a `->first()` lookup would silently break. Making the count a current read too makes the check correct under **any** isolation level. Because the parent row (`dokter_jadwal` or `dokter`) is already locked, no competing transaction can be inserting a conflicting booking at that moment, so the extra row locks are uncontended and deadlock-free. State this reasoning in a code comment so it is not "simplified" away later. The overlap predicate is strict, so back-to-back bookings do not conflict. Set `status = 'menunggu_pembayaran'`, generate `nomor_booking` as `BK` + `Ymd` + a 6-character sequence, **retrying up to 3 times on a `QueryException` for the `nomor_booking` UNIQUE collision before returning 422** (Oracle finding: the column is `VARCHAR(30) NOT NULL UNIQUE`, so a collision under concurrency is otherwise an unhandled 500), and set `dibuat_oleh_user_id`. Per the spec, `is_rujukan`/`is_konsukasi_lanjutan` **do not** apply any automatic discount — encode that as an explicit code comment so it is not "helpfully" changed later. `nomor_antrian` is nullable with no uniqueness and no counter, so leave it `null` rather than inventing a collision-prone sequence, and record that in `docs/schema-notes.md`. Also create the `Invoice` for the booking via task 44's `InvoiceService` (status `menunggu_pembayaran`, `referensi_tipe = 'booking'`). `GET /api/v1/pasien/booking` lists the caller's bookings filtered by `?status=`, paginated, with `dokter` and `jadwal` eager-loaded. `PUT /api/v1/booking/{id}/batalkan` sets `status = 'dibatalkan'`, `dibatalkan_oleh` (from `users.tipe`, so a doctor cancelling yields `'dokter'`), `alasan_pembatalan`, and cancels the linked invoice — and must reject cancelling a booking already in `selesai` or `berlangsung` with 422. `GET /api/v1/dokter/booking` lists bookings for the authenticated doctor's `dokter` row, guarded by `tipe:dokter`, filtered by `?tanggal=&status=`. Also **return an unmasked-NIK prohibition test from every endpoint that eager-loads `pasien`** (Oracle finding): success criterion 4 states no response may contain an unmasked NIK, but the plan only enforced it on `/me`, while `BookingResource`, `KonsultasiResource`, `ResepResource`, `PesananObatResource`, and `RekamMedisResource` all eager-load `pasien`. Add a single data-driven test that iterates every registered `/api/v1` GET route, calls it as a patient and as the owning doctor, and asserts the serialised body contains no key matching `/nik/i` with an unmasked 16-digit value — so a future Resource that forgets `NikMasker` fails the build. Create `App\Http\Requests\{StoreBookingRequest, CancelBookingRequest}` and `App\Http\Resources\BookingResource`. Also add a scheduled command that flips stale `menunggu_pembayaran` bookings to `kadaluarsa` based on `tanggal_kunjungan` + `slot_mulai`, since the schema has no expiry column. Must NOT allow a patient to book for another patient's `pasien_id`, must NOT apply a rujukan discount, must NOT add the missing unique index, must NOT assume `dokter_jadwal` is always lockable.
   Parallelization: Wave 5 | Blocked by: 4, 19, 26, 44 | Blocks: 28, 29 | Can parallelize with: none
   References (executor has NO interview context - be exhaustive): `telemedicine_test.sql:498-534`, `:470-479` (`dokter_jadwal.kuota_per_sesi`), `:936-956` (`invoice`); spec §2 Modul 2 business rules; draft F8
-  Acceptance criteria (agent-executable): `php artisan route:list --path=api/v1` includes all 4 new booking routes; a **concurrency test** fires 5 parallel `POST /booking` for the same slot in separate DB connections and asserts exactly 1 succeeds and 4 return 422 with a `slot` error; a **second** concurrency test fires 5 parallel requests where **2 use a `jadwal_id` and 3 omit it**, for the same doctor and overlapping time, and asserts exactly 1 succeeds — this is the test that proves the single-serialization-point fix, and the earlier two-case design would FAIL it; a **third** sets the session isolation level to `REPEATABLE READ` explicitly and asserts 1-of-5, proving the current-read hardening holds under MySQL's default isolation; a test asserts `SHOW CREATE TABLE booking` still has no unique index on the slot triple; a test asserts `is_rujukan: true` produces a `booking` invoice whose `total` equals the doctor's `biaya_konsウント_online` with **no** discount applied. The expected amount is the doctor's online consultation fee, column `dokter.biaya_konsultasi_online` at `telemedicine_test.sql:420` — read that value from the SQL file. (The identifier immediately before this sentence is a known mojibake defect in this document and must be ignored.) A test asserts cancelling a `selesai` booking returns 422.
+  Acceptance criteria (agent-executable): `php artisan route:list --path=api/v1` includes all 4 new booking routes; a **concurrency test** fires 5 parallel `POST /booking` for the same slot in separate DB connections and asserts exactly 1 succeeds and 4 return 422 with a `slot` error; a **second** concurrency test fires 5 parallel requests where **2 use a `jadwal_id` and 3 omit it**, for the same doctor and overlapping time, and asserts exactly 1 succeeds — this is the test that proves the single-serialization-point fix, and the earlier two-case design would FAIL it; a **third** sets the session isolation level to `REPEATABLE READ` explicitly and asserts 1-of-5, proving the current-read hardening holds under MySQL's default isolation; a test asserts `SHOW CREATE TABLE booking` still has no unique index on the slot triple; a test asserts `is_rujukan: true` produces a `booking` invoice whose `total` equals the doctor's `biaya_konsultasi_online` with **no** discount applied. The expected amount is the doctor's online consultation fee, column `dokter.biaya_konsultasi_online` at `telemedicine_test.sql:420` — read that value from the SQL file. A test asserts cancelling a `selesai` booking returns 422.
   QA scenarios (name the exact tool + invocation): happy - `php artisan test --filter=BookingTest` covering create, list, filter, doctor-side list and cancel, Evidence `.omo/evidence/task-27-sehatly.md`. failure - the parallel-booking test above (1 success, 4 rejections) plus a `selesai`-booking-cancel rejection, Evidence `.omo/evidence/task-27-sehatly.md`.
   Commit: Y | `feat(api): add booking creation with row-lock double-booking prevention`
 
@@ -505,9 +516,9 @@ Every item below was confirmed by direct read of `telemedicine_test.sql` after t
   Commit: Y | `feat(api): add consultation lifecycle and realtime chat endpoints`
 
 - [ ] 33. Implement `RekamMedisService` with versioning, amendment, and mandatory access logging
-  What to do / Must NOT do: **TDD this one.** Create `app/Services/RekamMedis/RekamMedisService.php` and `app/Services/RekamMedis/RekamMedisAccessLogger.php`. `simpan(int $konsultasiId, array $data, User $dokter)` creates the `rekam_medis` row with `uuid = Str::uuid()`, `tipe_kunjungan = 'telemedisin'`, `tanggal_periksa` defaulting to now, and — critically — **explicitly** `status_dokumen = 'draft'` and `versi = 1`, because the column default is `'final'` (`:654`) and omitting it produces an instantly immutable record. `finalisasi(int $rekamMedisId, User $dokter)` stamps `status_dokumen = 'final'` and `ditandatangani_at`. `amandemen(int $rekamMedisId, array $perubahan, User $dokter)` implements the spec's rule that a final record is never overwritten: inside a transaction, lock the record `FOR UPDATE`, assert `status_dokumen === 'final'`, **insert a new row** with `versi = old.versi + 1`, `status_dokumen = 'diamendemen'`, a fresh `uuid`, and the merged changed fields, and return it. Record explicitly in a class docblock that the schema has **no** parent/amendment linkage column, so the chain is reconstructed by grouping on `(pasien_id, dokter_id, tanggal_periksa)` ordered by `versi` — and add that limitation to `docs/schema-notes.md`. `ubah(int $rekamMedisId, array $data, User $dokter)` permits in-place edits **only** while `status_dokumen === 'draft'`; any attempt on a `final`/`diamendemen` record throws and returns 422 directing the caller to the amendment path. `RekamMedisAccessLogger::log(int $rekamMedisId, User $accessor, string $tujuan)` writes `akses_rekam_medis_log` and **must be called from every single read path** — enforce this structurally by funnelling all reads through one `RekamMedisService::findForAccess(int $id, User $user, string $tujuan)` method rather than relying on every controller remembering; add an architecture test that greps `app/` for any direct `RekamMedis::find(` / `::findOrFail(` outside that service and fails if one exists. Map `tujuan_akses` from context: a patient reading their own record -> `pasien_sendiri`, a doctor -> `perawatan`, an admin -> `audit`. The sub-entities `rekam_medis_diagnosa` (with `jenis` enum and `tipe_kasus`), `rekam_medis_tindakan`, `rekam_medis_lampiran`, and `rekam_medis_persetujuan` are written through the same service so they inherit the draft/final gate. Endpoints: `POST /api/v1/konsultasi/{id}/rekam-medis`, `PUT /api/v1/rekam-medis/{id}`, `PUT /api/v1/rekam-medis/{id}/final`, `POST /api/v1/rekam-medis/{id}/amandemen`, `GET /api/v1/rekam-medis/{id}` — the last **always** writing an access-log row, including when the caller is the patient themselves. Create `App\Http\Resources\RekamMedisResource` (with nested diagnosa/tindakan/lampiran/persetujuan). Must NOT overwrite a final record, must NOT skip the access log, must NOT expose another patient's record even to a doctor with no consultation relationship.
+  What to do / Must NOT do: **TDD this one.** Create `app/Services/RekamMedis/RekamMedisService.php` and `app/Services/RekamMedis/RekamMedisAccessLogger.php`. `simpan(int $konsultasiId, array $data, User $dokter)` creates the `rekam_medis` row with `uuid = Str::uuid()`, `tipe_kunjungan = 'telemedisin'`, `tanggal_periksa` defaulting to now, and — critically — **explicitly** `status_dokumen = 'draft'` and `versi = 1`, because the column default is `'final'` (`:645`) and omitting it produces an instantly immutable record. `finalisasi(int $rekamMedisId, User $dokter)` stamps `status_dokumen = 'final'` and `ditandatangani_at`. `amandemen(int $rekamMedisId, array $perubahan, User $dokter)` implements the spec's rule that a final record is never overwritten: inside a transaction, lock the record `FOR UPDATE`, assert `status_dokumen === 'final'`, **insert a new row** with `versi = old.versi + 1`, `status_dokumen = 'diamendemen'`, a fresh `uuid`, and the merged changed fields, and return it. Record explicitly in a class docblock that the schema has **no** parent/amendment linkage column, so the chain is reconstructed by grouping on `(pasien_id, dokter_id, tanggal_periksa)` ordered by `versi` — and add that limitation to `docs/schema-notes.md`. `ubah(int $rekamMedisId, array $data, User $dokter)` permits in-place edits **only** while `status_dokumen === 'draft'`; any attempt on a `final`/`diamendemen` record throws and returns 422 directing the caller to the amendment path. `RekamMedisAccessLogger::log(int $rekamMedisId, User $accessor, string $tujuan)` writes `akses_rekam_medis_log` and **must be called from every single read path** — enforce this structurally by funnelling all reads through one `RekamMedisService::findForAccess(int $id, User $user, string $tujuan)` method rather than relying on every controller remembering; add an architecture test that greps `app/` for any direct `RekamMedis::find(` / `::findOrFail(` outside that service and fails if one exists. Map `tujuan_akses` from context: a patient reading their own record -> `pasien_sendiri`, a doctor -> `perawatan`, an admin -> `audit`. The sub-entities `rekam_medis_diagnosa` (with `jenis` enum and `tipe_kasus`), `rekam_medis_tindakan`, `rekam_medis_lampiran`, and `rekam_medis_persetujuan` are written through the same service so they inherit the draft/final gate. Endpoints: `POST /api/v1/konsultasi/{id}/rekam-medis`, `PUT /api/v1/rekam-medis/{id}`, `PUT /api/v1/rekam-medis/{id}/final`, `POST /api/v1/rekam-medis/{id}/amandemen`, `GET /api/v1/rekam-medis/{id}` — the last **always** writing an access-log row, including when the caller is the patient themselves. Create `App\Http\Resources\RekamMedisResource` (with nested diagnosa/tindakan/lampiran/persetujuan). Must NOT overwrite a final record, must NOT skip the access log, must NOT expose another patient's record even to a doctor with no consultation relationship.
   Parallelization: Wave 6 | Blocked by: 4, 19, 31, 32 | Blocks: 35, 36, 43, 47 | Can parallelize with: 34
-  References (executor has NO interview context - be exhaustive): `telemedicine_test.sql:621-706` (all 5 tables), `:654` (`status_dokumen DEFAULT 'final'`), `:655` (`versi`), `:1147-1155` (`akses_rekam_medis_log`, `tujuan_akses` 5-value ENUM); spec §2 Modul 3 business rules; draft F8
+  References (executor has NO interview context - be exhaustive): `telemedicine_test.sql:621-706` (all 5 tables), `:645` (`status_dokumen DEFAULT 'final'`), `:646` (`versi`), `:1147-1155` (`akses_rekam_medis_log`, `tujuan_akses` 5-value ENUM); spec §2 Modul 3 business rules; draft F8
   Acceptance criteria (agent-executable): `php artisan route:list --path=api/v1/rekam-medis` lists 5 routes; a test asserts a draft record can be edited in place; a test asserts editing a `final` record returns 422 and the row is byte-identical afterwards; a test asserts `amandemen` on a `final` record yields **two** rows with `versi` 1 and 2 and the original unchanged; a test asserts `GET /rekam-medis/{id}` always inserts exactly one `akses_rekam_medis_log` row with the correct `tujuan_akses`; the architecture test greps for stray `RekamMedis::find` and passes.
   QA scenarios (name the exact tool + invocation): happy - `php artisan test --filter=RekamMedisTest` covering create-draft, edit-draft, finalize, amend, and logged read, Evidence `.omo/evidence/task-33-sehatly.md`. failure - (a) `PUT` a `final` record -> 422 with the row unchanged, (b) `amendemen` -> original row unchanged and a new `versi = 2` row present, (c) `GET` a record as an unrelated doctor -> 404 **and** zero access-log rows written, Evidence `.omo/evidence/task-33-sehatly.md`.
   Commit: Y | `feat(api): add medical record service with amendment versioning and access logging`
@@ -714,3 +725,963 @@ Every item below was confirmed by direct read of `telemedicine_test.sql` after t
 14. `docs/` contains the five module summaries, `mobile-integration.md`, `enums.json`, `contract-conformance.md`, `openapi.yaml`, `schema-notes.md` (every schema limitation and unimplementable spec rule), `migration-order.md`, `timezone-policy.md`, `pre-existing-defects.md`, and `verification-report.md`.
 15. The user's pre-existing uncommitted work — including the untracked rebranding assets — is fully intact, verified by diffing against the todo-1 baseline commit, and **no `mobile/` directory or Flutter project was created**.
 
+---
+
+## APPENDIX A — Plan corrections log (appended by start-work; additive, nothing above was rewritten)
+
+> Everything here was discovered by *independent adversarial verification* during execution, not by
+> re-reading the plan. Each entry is a place where the plan text is factually wrong or literally
+> unsatisfiable. **These corrections govern.** Where an entry contradicts the body of the plan, this
+> appendix wins. Do not "fix" a downstream todo to satisfy the superseded text.
+
+### A.1 Todo 5's `web/` pin justifications are false (verified twice, independently)
+
+- **`cssMinify: 'esbuild'` is NOT about vendor prefixes.** Measured on Vite 8.3.1 + Tailwind 4.3.3,
+  3 deterministic runs per minifier on identical inputs:
+  `-webkit-backdrop-filter` = **9 (esbuild) vs 9 (lightningcss)**; `backdrop-filter` = 19 vs 19.
+  On the real app bundle: **1 vs 1**. `lightningcss` is a strict *superset* of prefixes — it adds
+  `-moz-text-size-adjust` and more `-webkit-` rules. It does **not** strip anything. The prefix is
+  emitted by Tailwind's *internal* LightningCSS step inside `@tailwindcss/vite`, which runs **before**
+  `build.cssMinify`. The plan's stated causal chain is wrong twice over: wrong about the mechanism,
+  and void about the subject.
+- **The premise is void: the kit uses no `backdrop-filter` at all.** A repo-wide grep for
+  `backdrop-filter` / `backdrop-blur` across every `.ts/.tsx/.css/.php/.blade.php` returns exactly
+  **one** hit: the explanatory comment at `web/vite.config.ts:41`. The shadcn sidebar / dialog /
+  dropdown / sheet / sonner in this repo use `bg-black/80`-style opacity, not `backdrop-filter`. The
+  real bundle's single `-webkit-backdrop-filter` sits inside Tailwind's own
+  `.transition{transition-property:…,-webkit-backdrop-filter,…}` list.
+- **The real, load-bearing consequence of `vite@^8`:** Vite 8 dropped `esbuild` to an *optional peer
+  dependency* (`vite@8.3.1` deps are exactly `lightningcss, picomatch, postcss, rolldown, tinyglobby`)
+  and performs a runtime `import("esbuild")` gated on `build.cssMinify === 'esbuild'`. Verified
+  empirically: hiding `web/node_modules/esbuild` makes `npm run build` fail with
+  `Error: Cannot find package 'esbuild'`. That is the *only* genuine reason `esbuild` is now an
+  explicit `web/` devDependency. `cssMinify: 'lightningcss'` would need no extra dependency at all.
+- **The `laravel-echo >= 2.5.0` floor is NOT type-enforceable.** `^1.15` resolves to `1.19.0`, whose
+  `dist/echo.d.ts` already declares `reverb` in its `Broadcaster` map **and** carries
+  `[key: string]: any` in `EchoOptions`. A faithful transcription of `web/src/lib/echo.ts` compiles
+  against `1.19.0` with **zero** diagnostics. Even at an exact `1.15.0` pin the only errors are
+  `TS2315: Type 'Echo' is not generic` — never on `broadcaster: 'reverb'`. The floor is a **policy
+  decision**, not a constraint the compiler enforces.
+  **Consequence: the plan's todo-5 negative QA (b) can never pass as written.** Do not attempt to
+  make it fire; record the measurement instead.
+
+### A.2 Three of todo 5's acceptance criteria are literally unsatisfiable
+
+Criteria 4, 5 and 6 use greps of the form `grep -q "^  vite: \"\\^8" web/package.json`. They require
+the byte sequence `vite: "` — which **never appears in a valid `package.json`**, because JSON writes
+the key as `"vite":`. Verified: the literal pattern matches 0 lines even though the file contains
+`        "vite": "^8.3.1"`. **No implementation can satisfy them.** Corrected forms:
+
+```
+grep -qE '^\s+"vite": "\^8'            web/package.json   # or simply: npm ls vite
+grep -qE '^\s+"(react-router|@daypicker/react|typescript)": "\^(8|10|7)' web/package.json
+grep -qE '^\s+"laravel-echo": "\^2\.5'  web/package.json
+```
+
+The substance delivered is correct: `vite ^8.3.1`, `react-router ^8.4.0`, `@daypicker/react ^10.0.1`,
+`typescript ^7.0.2`, `laravel-echo ^2.5.0`.
+
+### A.3 Misc corrections carried into the remaining waves
+
+- **File-count reference.** The plan cites `resources/js/components/ui/` as holding 33 files. It held
+  **26** (23 at the first commit, 3 added by todo 1's `git add -A`). Todo 5 relocated all 26.
+- **CSS measurements are only deterministic after warm-up.** The first probe build emitted 63 820 B;
+  three subsequent runs of *identical* input emitted 77 145 B. Cause: Tailwind emits the entire
+  `backdrop-*` utility family once a `backdrop-filter` token appears anywhere in the scanned source.
+  Warm up before taking any single-shot CSS measurement.
+- **Todo 5 left 44 files under `resources/` plus root `vite.config.ts:13/:69/:74` deliberately
+  broken** (Inertia pages/layouts still importing the relocated kit; `resources/views/app.blade.php:40`
+  still pointing at `resources/css/app.css`). The root `vp dev` / `vite build` for the Laravel side is
+  non-functional until todo 30. That is the plan's intent, not a regression — but do not be surprised
+  by it, and do not "repair" it before todo 30.
+- **On this host, always use the project-local PHP.** `C:\laragon\bin\php\php-8.4.17-nts-Win32-vs17-x64\php.exe`
+  (8.4.17). Bare `php` on `PATH` is 8.2.29 and fails Laravel's `^8.3` platform check. An executor
+  skipped the mandated `vendor/bin/pint` gate in todo 5 by wrongly concluding no usable PHP existed.
+  Working command: `& "C:\laragon\bin\php\php-8.4.17-nts-Win32-vs17-x64\php.exe" "vendor\bin\pint"`.
+- **Reproducibility gaps recorded, not fixed** (recommendations, deliberately out of scope): nothing
+  pins the Node version (no `engines`, no `.nvmrc`); npm 11.17 gates `esbuild`'s postinstall and
+  `web/package.json` declares no `onlyBuiltDependencies` (a fresh `npm ci` + build *does* succeed
+  because `@esbuild/win32-x64` arrives as an optional platform package, but pin it if that changes).
+- **Playwright browsers are not installed.** Todo 1 set `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1`. Todos
+  **23, 28, 35, 41, 48, 54** must run `npx playwright install` in `web/` before their first spec, or
+  their QA driver will fail on a missing browser rather than on a real defect.
+- **`telemedicine_test.sql` line-integrity trap.** The committed BLOB is LF-normalised (`core.autocrlf=true`)
+  while the on-disk file is CRLF (59 604 B, 1 348 CR). Any "prove the SQL is unchanged" check MUST use
+  `git diff --exit-code telemedicine_test.sql` (canonical, exits 0). Never byte-hash
+  `git cat-file -p HEAD:telemedicine_test.sql` against the worktree file — they differ by 1 348 bytes.
+  Todos 6–18 read the **worktree** file, so the parity verifier is unaffected.
+
+### A.4 Scaffold-migration disposition belongs in todo 7, NOT todo 18 (Wave 1 blocker, found by inspection)
+
+The plan defers "scaffold-table removal" to **todo 18** (Wave 2). That is too late, and it is
+load-bearing. Verified by reading both sides:
+
+| Scaffold migration (on disk today) | Creates / does | Fate under the plan |
+|---|---|---|
+| `0001_01_01_000000_create_users_table.php` | `Schema::create('users')` **+** `password_reset_tokens` **+** `sessions` | **COLLIDES.** Todo 8 authors SQL table 12 `users`. Laravel orders by filename, so `0001_…` runs first and todo 8's `2026_10_01_…_users_table.php` then hits `SQLSTATE 42S01 Table 'users' already exists`. |
+| `2025_08_14_170933_add_two_factor_columns_to_users_table.php` | `$table->text('two_factor_secret')->after('password')` | **UNREPRESENTABLE.** `telemedicine_test.sql`'s `users` has **no `password` column** — it has `kata_sandi_hash`. `->after('password')` cannot resolve. TOTP is also not in the 75-table schema; the plan's auth is OTP (`user_otp`) + Sanctum (todo 20). |
+| `0001_01_01_000001_create_cache_table.php` | `cache`, `cache_locks` | Legitimate extra — keep. Todo 6 already documents these. |
+| `0001_01_01_000002_create_jobs_table.php` | `jobs`, `job_batches`, `failed_jobs` | Legitimate extra — keep. |
+| `2024_01_01_000000_create_passkeys_table.php` | `passkeys` | Scaffold extra from `laravel/passkeys`. Not among the 75 tables. Keep and document as an extra, or drop together with Fortify in todo 30 — **decide explicitly in todo 7 and record the decision**; do not leave it implicit. |
+| Sanctum's `personal_access_tokens` (todo 3) | `personal_access_tokens` | Legitimate extra — todo 6 documents it. This is why todo 6 must run AFTER todo 3. |
+
+**Consequence if unaddressed:** todos 8–17 (ten todos) cannot satisfy their own
+`php artisan migrate:fresh` acceptance criterion, and the failure will look like a todo-8 schema
+bug rather than a sequencing bug.
+
+**Mandated resolution — execute in todo 7, in the same commit as `docs/migration-order.md`:**
+1. **Delete** `database/migrations/0001_01_01_000000_create_users_table.php` and
+   `database/migrations/2025_08_14_170933_add_two_factor_columns_to_users_table.php`.
+   Deleting a *migration file* is not a schema change: nothing has been migrated yet, the databases
+   are empty, and todo 8's `users` migration supersedes both. This is squarely inside the plan's
+   guardrail ("Wave 0 task 1 baselines it first" — the rollback point exists).
+2. **Decide and record** the fate of `password_reset_tokens` and `sessions`. They are not among the
+   75 tables and the plan's auth is bearer-token based. Recommended: drop them with the scaffold
+   users migration. Note the sanctioned transient that follows — `config/session.php` and
+   `app/Providers/FortifyServiceProvider.php` reference sessions until todo 30 removes the
+   Inertia/Fortify surface. The plan already accepts transients of exactly this kind (see A.3 on the
+   44 broken `resources/` files), so record it in `docs/schema-notes.md` rather than working around it.
+3. **Regenerate `docs/schema-notes.md`** in the same commit, so the extra-table list reflects the
+   post-disposition reality and is not stale on arrival. Todo 6's first version will list
+   `password_reset_tokens` / `sessions` / `users`; after this step they must not appear as extras
+   unless deliberately kept.
+4. **Do not** run `migrate` against `sehatly`. `.env` now points at `telemedisin_db` (flipped in
+   todo 3). Both `telemedisin_db` and `telemedisin_db_test` are empty and must stay that way until
+   todo 7's own `migrate:fresh`.
+
+**Also note for todo 6's failure QA:** the plan says to "hand-edit one generated migration to drop
+`->unsigned()` from a `TINYINT` column" — but at todo 6 time **no such migration exists** (todos
+7–12 have not run, and none of the five scaffold migrations has a `TINYINT` column). Satisfy the
+spirit via the plan's own acceptance criterion — a unit test feeding the parser a fixture with a
+deliberate `unsigned` mismatch — and additionally prove the end-to-end path by adding a *throwaway*
+  migration containing a `TINYINT` column, running the verifier, confirming it exits 1 naming that
+  exact column, then removing the throwaway. Do not fabricate the edit on a nonexistent file.
+
+### A.5 Todo 3 post-verification: four live hazards, two ratified decisions
+
+Verified `confirmed` (confidence 0.95, 0 blockers) after reconstructing a DoneClaim lost to an
+aborted executor session. Findings that bind later work:
+
+- **NEVER re-run `php artisan install:api` bare.** In a non-interactive shell `ApiInstallCommand`'s
+  `confirm(..., default: true)` resolves **TRUE**, so it calls `migrate` against `telemedisin_db` and
+  creates `personal_access_tokens` there — destroying the 0-table invariant that todos 4, 6 and 7
+  depend on and pre-empting todo 6's schema-notes bookkeeping. Only
+  `php artisan install:api --without-migration-prompt` is safe, and even that re-runs
+  `composer update laravel/sanctum` (rewriting `composer.json`/`composer.lock`, ~186 s network)
+  before it no-ops.
+- **NEVER `install:api --force`.** It takes the `else` branch and overwrites `routes/api.php` with the
+  scaffold, destroying the docblock that records *why* `/user` was removed; then
+  `uncommentApiRoutesFile()` matches `str_contains($content, "web: __DIR__.'/../routes/web.php',")`
+  at `bootstrap/app.php:46` and inserts a **second, duplicate** `api:` line.
+- **`Response::apiSuccess()` / `apiError()` DO NOT EXIST on the factory.** The macros are registered
+  on `Illuminate\Http\Response` **only**, so `response()->apiError(...)` throws
+  `BadMethodCallException` at runtime. This is deliberate hardening — a `ResponseFactory` macro would
+  return a plain `Response`, not a `JsonResponse`, silently breaking `Content-Type` — but it is a
+  landmine. **Todo 4's `permission:`/`tipe:` middleware must return the 403 envelope via
+  `ApiResponse::error(...)` or `(new Response)->apiError(...)`, never `response()->apiError(...)`.**
+  Add a test that pins this, so the trap cannot be re-introduced.
+- **Todo 3's criterion 1 is VACUOUS, not merely green.** `php artisan route:list --path=api/v1` exits
+  0 but prints a styled ` ERROR Your application doesn't have any routes matching the given criteria. `
+  because `routes/api.php` intentionally registers zero routes. The same exit-0-and-no-output would
+  appear if `apiPrefix` were misconfigured, so it has **no discriminating power**. Do not read it as
+  proof the prefix is live. The load-bearing check is `ApiKernelTest`'s "no `api/*` route outside
+  `api/v1`" test, which asserts the prefix positively.
+
+**Ratified — do not "fix" these in later todos:**
+- **The 500 sanitizer is stronger than the plan required, and that is correct.** Any `api/*` 500
+  returns `{"success":false,"message":"Internal server error.","errors":{}}` **regardless of
+  `app.debug`**. `APP_DEBUG=true` in `.env` and `phpunit.xml` does not override it, and
+  `ApiKernelTest` asserts `config('app.debug') === true` *first* so the proof holds in the worst case.
+  Consequence, stated so it is not mistaken for a bug: `api/*` debugging requires reading
+  `storage/logs/laravel.log`; non-`api/*` paths still return Laravel's full debug page.
+- **Envelope `message` is a fixed English string, not `ValidationException::summarize()`.** The
+  diagnosis is right — `summarize()` promotes the first field error, so `message` would have been the
+  untranslatable, data-dependent `'wajib'` — and a stable contract is the correct goal. But the
+  envelope is now English-only with no translation key and no locale plumbing, while the domain is
+  Indonesian. If the spec or the mobile client (todo 45) needs Indonesian copy, change it **once, in
+  the `match` arms in `bootstrap/app.php`** — never per-controller.
+- **`config/cors.php` lists 5173 and 5174.** `web/vite.config.ts` sets neither `server.port` nor
+  `server.origin` and leaves `strictPort` off, so the real dev origin is not verifiable at runtime and
+  nothing is listening on either port. If a later todo pins `server.port`, update `config/cors.php` in
+  the same commit or the SPA's preflights get refused. `CORS_ALLOWED_ORIGINS` overrides the whole list,
+  so production must set it or it inherits the dev list.
+
+**Scope note, not a defect:** the FULL suite was deliberately not run — `tests/Pest.php` binds
+`RefreshDatabase` to the `Feature` directory, so an unfiltered `php artisan test` would
+`migrate:fresh` `telemedisin_db_test`, which this todo is forbidden to do and pointless before todos
+7–18 create the schema. **Todo 3's green is not a whole-suite signal.** Nothing in this repo has yet
+proven the full suite green, and the pre-existing Feature tests are known-broken against a 0-table
+database. That debt belongs to todo 7/18.
+
+**Owed to todo 6:** `docs/schema-notes.md` must record `personal_access_tokens` (the first
+infrastructure table to land, ahead of the 75-table contract) alongside the pre-existing `migrations`,
+`cache`, `cache_locks`, `jobs`, `job_batches`, `failed_jobs` and the passkeys / two-factor tables.
+
+**Environment note for all later lanes:** a linked git worktree exists at
+`.kilo/worktrees/spectacular-melon` (registered 2026-09-25), so `.git/worktrees/*/index` coexists with
+the main `.git/index`. A naive "there must be exactly one `.git/index`" check is **wrong** for this
+repo — check `.git/index` specifically, and confirm `$env:GIT_INDEX_FILE` is unset.
+
+### A.6 Two todos are structurally unsatisfiable at their scheduled position (found by dry-run)
+
+Both were scheduled in Wave 0 but depend on artefacts that later waves create. Dispatching them as
+written would have produced two guaranteed-fail lanes.
+
+**TODO 4 (RBAC kernel) depends on todo 8, not merely on todo 2.** Its `EnsurePermission` middleware
+reads `roles` / `permissions` / `role_permissions` / `user_roles` (`telemedicine_test.sql:151-177`),
+and its acceptance criteria demand `php artisan db:seed --class=RbacSeeder` exits 0 and
+`select count(*) from permissions` returns >= 22, plus feature tests that exercise real role rows.
+**None of those four tables exists until todo 8 (batch B) authors them.** The test suite cannot
+create them either: `tests/Pest.php` binds `RefreshDatabase` to the `Feature` directory, and the
+scaffold migration set contains no RBAC tables — and writing a test-only migration is forbidden by
+this plan.
+→ **Resequenced: todo 4 executes immediately after todo 8, in parallel with todos 9-12** (its files —
+`app/Http/Middleware/**`, `database/seeders/RbacSeeder.php`, the `bootstrap/app.php` alias block, and
+its test — are disjoint from the migration batches). This still precedes Wave 3, which is all todo 4
+blocks (todos 20, 21, 22, 41). Its per-todo `Blocked by: 2` line is therefore superseded.
+
+**TODO 6 (parity verifier) is 3 of 4 criteria achievable now; criterion 1 defers to todo 18.**
+- Criterion 2 (`verify-schema` exits 1 and names the offending table/column when run before
+  migrations exist) — achievable now, and it is the *current* state of the database.
+- Criterion 3 (`docs/schema-notes.md` lists every extra table with a justification) — achievable now.
+- Criterion 4 (unit test feeding the parser a deliberate `unsigned` mismatch) — achievable now, via
+  A.4's fixture-plus-throwaway-migration redirect.
+- **Criterion 1 (exits 0 printing "75 tables, 2 views verified" on a fully-migrated database) is
+  IMPOSSIBLE until todo 18**, which is the last todo to create schema. So is the plan's happy-path QA
+  (`php artisan migrate:fresh --seed && php artisan sehatly:verify-schema` exits 0).
+→ **Rescoped: todo 6 is DONE when criteria 2, 3 and 4 pass plus the end-to-end drift proof.
+Criterion 1 is explicitly DEFERRED to todo 18 and must be recorded as deferred, not as failed.** The
+same deferral applies to todo 18, which owns the 75-tables-2-views green and the mandatory manual
+checkpoint.
+
+**Do not let a verifier fail either todo for a criterion that its position makes impossible.** That is
+a plan-sequencing defect, not an executor defect.
+
+### A.7 Todo 6 post-verification: four findings that bind todos 7-18
+
+Verified `confirmed` (confidence 0.93, 0 blockers). The verifier independently re-derived the
+parser's coverage with its own arithmetic rather than trusting the tool: a naive line-walk yields 683
+column lines, and `683 − 11` wrapped ENUM lines = **672 columns**; indexes decompose as
+`75 PRIMARY + 30 explicitly named + 37 inline` = **142**; and the 106th `FOREIGN KEY` token in the
+file is a **comment** at `:1158` that the parser correctly ignored, giving `104 + 1` = **105 FKs**.
+
+- **HARD DEPENDENCY — todo 7 MUST delete the two-factor migration, or todo 18 can never reach exit 0.**
+  `docs/schema-notes.md` forgives documented extra **TABLES** (informational, not drift), but there is
+  **no column-level forgiveness** — `SchemaDiffer` has no parsed column registry, and the three
+  `users.two_factor_*` columns are documented in prose only. They are therefore reported as
+  `extra_column` **DRIFT**, permanently. That is self-consistent *only* because A.4 step 1 deletes
+  `2025_08_14_170933_add_two_factor_columns_to_users_table.php`. Skipping A.4 step 1 makes todo 18's
+  green unreachable. This is a real coupling, not a stylistic note.
+- **`--tables=` prints a misleading PASS banner (todos 7-17 all use it).** In filtered mode
+  `VerifySchemaParity` formats the banner from `$expected->summary()` — the **full** reference model —
+  so `--tables=master_provinsi` prints "PASS — 75 tables, 2 views verified" after verifying **one**
+  table. The adjacent `Discrepancies: 0` line and the exit code are both truthful, so it **cannot**
+  produce a false green; it can only mislead whoever reads the output. Treat the **discrepancy count
+  and the exit code** as authoritative in todos 7-17, never the banner's table count.
+- **Never pass `bootstrap` or `.` as an explicit pint path.** Pint's default *excludes*
+  `bootstrap/cache`, but naming that path explicitly overrides the exclude and pint will try to
+  reformat `bootstrap/cache/packages.php` and `services.php` (`pint --test bootstrap` → exit 1, 2
+  files). They are gitignored so they cannot reach a commit, but bare `vendor/bin/pint` — which is
+  what plan line 697 mandates — is both safe and correct. **Use bare pint, never a path argument.**
+  (Todo 6's own "pint fixed 13 files" turned out to be a false alarm: all 19 committed paths were
+  status `A` with 0 deletions, so pint reformatted 13 of the executor's own *new* files before
+  staging. No pre-existing file was touched.)
+- **A registered-but-absent extra table is reported as informational, not drift.** Convenient for
+  trimming the log, but it means a table dropped from the live schema while still listed in
+  `schema-notes.md` is **never flagged**. Re-verify the registry against the live schema at todo 18 —
+  doing so is how the registry's completeness was independently confirmed here (9
+  `documented_extra_table`, 0 `undocumented_extra_table` against the real `sehatly` database).
+
+**Two confirmed non-defects, recorded so they are not "fixed" later:**
+- A backtick-quoted **table** identifier containing whitespace is silently dropped from the model.
+  Synthetic only — the real `telemedicine_test.sql` contains **zero** backticks, and
+  `SHOW CREATE TABLE` only backticks identifiers, so no such name can arise here. It fails **loud**
+  (exit 1, the table shows as `missing_table`), never green. Backticked names *without* whitespace —
+  the load-bearing `SHOW CREATE TABLE` case — and backticked *column* names with spaces both parse
+  correctly.
+- Malformed reference SQL correctly yields **exit 2 with a clear message**, never a silent pass:
+  truncated DDL → "Unbalanced parentheses"; empty file → "Reference SQL file is empty"; duplicate
+  table → "Table t1 is defined twice"; views-only file → "Parsed 0 CREATE TABLE statements; refusing
+  to report parity"; missing file → error. A semicolon inside a string literal, a `--` inside a
+  quoted `COMMENT`, and a double-quote inside a single-quoted string are all handled correctly — in
+  the `--`-inside-`COMMENT` case a fake table planted after the `--` was correctly **not** created.
+
+### A.8 Todo 7 post-verification: plan DATA errors corrected, and two `verify-schema` false-green traps
+
+Batch A's schema work was verified **correct in every respect**: all 11 PK widths match the SQL exactly
+(`tinyint`/`smallint`/`mediumint`/`int` unsigned, no `bigint unsigned` anywhere), AUTO_INCREMENT present
+on exactly the 6 tables that declare it and absent from the 5 that do not, no `dibuat_at`/`diubah_at`
+on any of the 11, both ENUM value lists in the SQL's exact order, `master_icd10` carrying **both** the
+redundant `INDEX idx_icd10 (kode)` and the `UNIQUE (kode)`, and the order contract at **75 data rows
++ 3 post-table rows with 0 positional diffs** against a `^CREATE TABLE` grep. The passkeys deletion was
+proved **forced** from git: the migration contained `foreignId('user_id')->constrained()`, it sorts at
+`2024_01_01_000000` (before every `2026_10_01_*`), and `users` is not created until todo 8 — so
+`migrate:fresh` would hard-fail. The decision was correct.
+
+- **PLAN DATA ERROR — timestamps. Use 39, not 28.** The plan's "Tables with **neither** `dibuat_at`
+  nor `diubah_at`" is stated as **28** and its list has **29** entries which wrongly include
+  `apotek_stok` (it has `diubah_at` only). Measured from the SQL: the true figure is **39**. Ten tables
+  are missing from the plan's list entirely — `master_provinsi`, `master_kabupaten_kota`,
+  `master_kecamatan`, `master_kelurahan`, `master_penjamin`, `master_spesialisasi`, `konsultasi_chat`,
+  `master_metode_pembayaran`, `master_promo`, `artikel_kategori`, `persetujuan_pdp`.
+  `29 − 1 (apotek_stok) + 11 = 39`. "dibuat_at only" is **19**, not 18 — `audit_log` is omitted from the
+  plan's list (it has `dibuat_at` at `:1129` and no `diubah_at`).
+  **Todo 19 must not assert `$timestamps === false` for "all 28"** — that assertion passes while
+  silently under-testing 11 tables. Use the per-table facts in `docs/migration-order.md` instead.
+- **The FK-support-index defect is ALREADY FIXED — do not re-derive it.** A.7 described it as open and
+  assigned it to todo 18. It was fixed in commit `27c6ca8` (`SchemaDiffer::diffIndexes` now ignores an
+  `extra_index` whose ordered column list exactly equals a matched FK's local columns). Measured with
+  the project's own `SqlSchemaParser`: **105 FKs, 80 with no covering index**. Todo 18 must not
+  re-apply it. Two calibration notes for anyone re-measuring the 80/105 figure: use
+  `App\Support\Schema\SqlSchemaParser` (which returns exactly 105/80), or you will strip `FOREIGN KEY`
+  clauses before hunting for indexes — a naive index regex matches the `KEY (...)` tail of
+  `FOREIGN KEY (...) REFERENCES ...` and reports 0 uncovered.
+- **TWO `verify-schema` FALSE-GREEN TRAPS. Todos 8-17 all use `--tables=`, so both apply to you:**
+  1. **The PASS banner lies about scope.** It is formatted from the **full** reference model, so
+     `--tables=master_provinsi` prints "PASS — 75 tables, 2 views verified" after verifying **one**
+     table. *(plan A.7)*
+  2. **A typo'd table name exits 0.** `--tables=nosuchtable` yields exit **0** with an informational
+     `unknown_requested_table` row, because a table the DDL does not define is treated as a caller
+     mistake, not drift. A misspelled name in a batch author's list therefore produces a green exit
+     code. **Always read the `Discrepancies:` line and the echoed `scope` line, never the exit code
+     alone, and never the banner.**
+- **`php artisan test` is the per-wave gate and it was not run.** Todo 7's commit left the Unit suite
+  red (73 tests, 72 passed) because it regenerated `docs/schema-notes.md` to 7 registry entries while
+  `tests/Unit/Console/VerifySchemaCommandTest.php:204-207` still pinned the old 10. **Every executor
+  must run the affected suite before committing**, not only its own new tests.
+
+### A.9 MANDATORY PRE-TODO-9 FIX — a hardcoded test count is now a tripwire (todo 8 verified, advisory HIGH)
+
+Todo 8 was verified `confirmed` (0 blockers, confidence 0.94). `users` matches the SQL **column for
+column** — 16 columns, `dihapus_at` is `timestamp NULL DEFAULT NULL` and **not** `datetime`,
+`email` nullable with a UNIQUE index, both ENUMs in exact order, `diubah_at` carrying
+`ON UPDATE CURRENT_TIMESTAMP` via the raw `ALTER`, and no `name`/`email_verified_at`/`password`/
+`remember_token` surviving. The nullable-UNIQUE semantics were **proven live**: two NULL-`email` users
+insert successfully, a duplicate `no_telepon` raises `QueryException` / MySQL 1062, zero stray rows.
+All 8 tables verified in `information_schema` including both composite PKs via `KEY_COLUMN_USAGE`.
+
+**But todo 8 reintroduced, in the very file where A.8's fix lives, the exact defect class A.8 charged
+todo 7 with.** `tests/Unit/Console/VerifySchemaCommandTest.php` now hardcodes the batch-B state at
+lines 33, 37, 68 and 82. Projected from `docs/migration-order.md`, the pinned **`56` missing tables** is
+correct at exactly one point in the project's history:
+
+| todo | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| real `missing_table` | 48 | 41 | 38 | 34 | 29 | 21 | 15 | 8 | 0 | 0 |
+
+At **todo 18** — where `verify-schema` must reach **exit 0** — the `expect($exitCode)->toBe(1)`
+assertions, both `missing_view` regexes and the whole narrow-scope test **invert**. The named-offender
+list breaks even sooner: it includes `pasien`, a **todo-9** table, so it fails on the very next commit.
+
+**Required before todo 9 executes:** lift the derivation the sibling test
+`the extra-table registry is parsed from docs/schema-notes.md` already uses (same file, ~180 lines
+below) — glob `database/migrations/*.php`, extract every `Schema::create('<literal>')`, **assert the
+extracted count equals the call count so an unresolvable call fails loudly**, subtract the 75 contract
+tables from `SqlSchemaParser`, and use that derived set for the missing count, the named-offender list
+and the narrow-scope anchor. Also replace the literal `7` with
+`count(ExtraTableRegistry::fromMarkdown(base_path('docs/schema-notes.md')))` — the class is already
+imported in that file. The derived form also makes todo 18's exit-0 assertions fall out naturally
+instead of needing a second manual rewrite.
+
+**Also recorded from todo 8:**
+- **`users` has no `created_at`/`updated_at` and `dihapus_at` is `TIMESTAMP`. Todo 19's `User` model
+  must** set `const CREATED_AT = 'dibuat_at'`, `const UPDATED_AT = 'diubah_at'`,
+  `const DELETED_AT = 'dihapus_at'` and use `SoftDeletes`. Until then any `Model::save()` with the
+  default `$timestamps = true` targets non-existent columns. Deliberate for now; todo 19 owns it.
+- `tests/Feature/UsersTableSchemaTest.php:23` declares a **global function `usersBatchBPayload()` at
+  file scope**. A future test file declaring the same name fatals the whole run at include time rather
+  than failing one test. Localise it.
+- `user_refresh_tokens` has **no UNIQUE on `token_hash`** and **no `device_id`**; `user_otp` has **no
+  attempt-counter column**; `users.kata_sandi_hash` is `NOT NULL` with no OTP-only representation. All
+  three are now recorded in `docs/schema-notes.md` with one-line justifications — **todos 20 and 45
+  must honour them rather than rediscover them.**
+- Brief-arithmetic corrections for the record: the plan holds **six** `- [x]` (todos 1, 2, 3, 5, 6, 7)
+  out of 54 — todo 4 is legitimately still open per A.6 — and commit `9fc235a` is **10 A + 2 M = 12**
+  paths, not 9 A + 2 M.
+
+### A.10 Todo 9: the verifier cannot yet express a DELIBERATELY DEFERRED constraint
+
+Todo 9 is the first point where the **reference** model contains an object the **live** schema
+cannot legally hold, and it exposed a real gap in the verifier's design.
+
+`pasien_tanda_vital.rekam_medis_id` must have **no** foreign key at this position, because
+`rekam_medis` does not exist until batch G. The plan itself mandates deferring it to migration 76
+per SQL section `[14]` (`:1161-1163`). But `SqlSchemaParser` folds the section-`[14]`
+`ALTER TABLE … ADD CONSTRAINT` into the table it targets, so the **expected** model requires
+`fk_vital_rm` while the live schema correctly cannot have it. The differ therefore reports
+`missing_foreign_key fk_vital_rm … ON DELETE SET NULL ON UPDATE RESTRICT` as **drift, exit 1** —
+so todo 9's acceptance criterion 2 (`verify-schema --tables=pasien,…` exits 0, `Discrepancies: 0`)
+is **structurally unsatisfiable at this position**, the same class A.6 describes.
+
+**This is a plan-sequencing defect, not a migration bug.** Todo 9's migrations are correct; the
+verifier lacks a way to say "this constraint is intentionally not here yet".
+
+**Required design — a deferred-constraint registry, exactly parallel to the extra-table registry.**
+Source it from `docs/schema-notes.md` so the registry already lives next to the extras it parallels:
+1. A `missing_foreign_key` that is **registered as deferred** is reported as **informational**, not
+   drift. Todo 9's criterion 2 then passes with `Discrepancies: 0` and its single informational row.
+2. **A deferred constraint that is PRESENT in the live schema but still registered is `DRIFT`.**
+   This closes the loophole: without it, a registry entry could excuse a missing FK forever and
+   todo 18's "75 tables, 2 views verified" would pass with `fk_vital_rm` still absent. With it, the
+   moment migration 76 adds the constraint, the stale registry entry becomes an error that forces
+   the registry to be updated — so todo 18 is self-enforcing rather than relying on memory.
+3. A `missing_foreign_key` that is **not** registered remains **drift**, exactly as today. The
+   registry can only ever excuse one specific named constraint, so the failure direction is safe.
+
+**Also settled by measurement, contradicting todo 9's own prose:** the todo-9 text calls
+`pasien_penjamin.faskes_rujukan_id` an "FK to `faskes`", but this plan's own authoritative
+no-foreign-key list (line 152) records `:346` as carrying **no** FK, and the live measurement agrees —
+the only drift reported is `fk_vital_rm`. **The SQL has no FK on `faskes_rujukan_id`**, so there is
+nothing to defer and nothing to add later. The todo-9 prose is wrong; the authoritative list wins.
+
+### A.11 Todo 9 verified — three things todo 18 MUST know before it runs
+
+Batch C verified `confirmed` (0 blockers, confidence 0.93). `pasien` matches the SQL **column for
+column** (31 columns): all four master FKs **TINYINT UNSIGNED** (not BIGINT), `tinggi_badan_cm
+DECIMAL(5,1)` vs `berat_badan_kg DECIMAL(5,2)`, `dihapus_at` **timestamp** and not `datetime`, and
+`idx_pasien_lahir` present by name. Across the 8 tables there are **exactly 13 foreign keys** —
+5+2+1+1+1+1+0+2 — which reconciles precisely with the SQL, so **no FK was invented anywhere**.
+`rekam_medis_id`, `dicatat_oleh_user_id`, `icd10_kode` and `faskes_rujukan_id` all confirmed
+FK-free via `information_schema.REFERENTIAL_CONSTRAINTS`, not just `SHOW CREATE TABLE`.
+
+- **TODO 18 MUST NOT ADD A FK ON `pasien_penjamin.faskes_rujukan_id`.** A.10 settled it and the
+  measurement agrees: the SQL declares none. Adding one would be reported as `extra_foreign_key`
+  drift. A stale docblock in `2026_10_01_000027_pasien_penjamin_table.php` still claims the constraint
+  is "deferred to migration 76" — **that claim is false and is being corrected.** `docs/schema-notes.md`
+  was already corrected and a regression test added to stop it returning; the migration file's comment
+  was the one that got missed.
+-   **Resolving the last deferral needs THREE edits, not one.** `DeferredConstraintRegistry::fromMarkdown()`
+  raises on an empty registry and `VerifySchemaParity` calls it unconditionally, so todo 18 cannot simply
+  delete the registry row. The end state requires removing **all three** of: the
+  `## Deferred constraints` section from `docs/schema-notes.md`, the `DeferredConstraintRegistry::fromMarkdown()`
+  call from `VerifySchemaParity`, and the `$registeredDeferrals` line from
+  `VerifySchemaCommandTest.php`. The registry docblock and `schema-notes.md` both record this honestly,
+  but the rule-2 discrepancy message itself does not mention the code edit. **Plan it as three edits.**
+  **AND A FOURTH, discovered at todo 17 — see A.24: the whole test file
+  `tests/Unit/Console/VerifySchemaDeferredConstraintTest.php` is premised on a pending deferral making the
+  full run fail, so todo 18 must retire or re-scope it, not merely leave it green.**
+- **Why the self-enforcing property is real.** Once `fk_vital_rm` lands, rule 2 reclassifies the row as
+  drift, so the informational count drops while `registered_deferred_constraints` stays 1 and the
+  assertion fails — the registry forces its own update with **no test edit**. Verified by trace: with
+  the stale row present the run exits 1 on `fulfilled_deferred_foreign_key`, so the suite goes red
+  before the sum assertion is even reached. Either way the outcome holds.
+
+### A.12 CORRECTION — todo 4 is NOT safe to run in parallel with todos 9-17 (overrides A.6)
+
+A.6 resequenced todo 4 (RBAC) to "run immediately after todo 8, in parallel with todos 9-12." **That
+guidance is wrong and is hereby withdrawn.** Todo 4's acceptance criterion is
+`php artisan db:seed --class=RbacSeeder` exiting 0 with `count(*) FROM permissions >= 22` — it verifies
+**seeded rows**, not schema. Every remaining schema todo (10-17) runs `migrate:fresh`, which **drops
+and recreates every table and therefore destroys todo 4's seed rows mid-flight.** The seed would
+verify green during todo 4, then silently vanish before todo 20 needs it. A green that evaporates is
+worse than a red: todo 20's middleware tests would fail on missing `roles`/`permissions` rows with an
+error pointing nowhere near the cause.
+
+**Also unsafe: running two migration todos concurrently at all.** Batches D through K are a strict
+FK chain — batch E's FKs point at batch D's tables — so they must migrate the *same* database
+*serially*. Splitting them across `telemedisin_db` and `telemedisin_db_test` does not help, because
+each database would then be missing its predecessor batch and `migrate:fresh` would fail on MySQL 1824.
+The filename contract makes *authoring* parallel-safe; it does not make *migrating* parallel-safe.
+
+**Corrected placement: run todo 4 AFTER todo 18**, the last migration batch — either immediately after
+it, or in parallel with todo 19 (models, which needs no seeded rows). This still lands before todos
+20, 21 and 22, which are the todos that actually consume roles and permissions, so nothing is blocked
+and the Wave-1 critical path is unaffected. Todo 4 remains unstarted.
+
+**Revised order for the rest of Wave 1 and Wave 2:**
+`10 -> 11 -> 12 -> 13 -> 14 -> 15 -> 16 -> 17 -> 18 -> {4 ∥ 19} -> 20 -> 21 -> 22`
+The mandatory manual checkpoint still sits immediately after todo 18 and before any Wave 3 work.
+
+### A.13 The plan's own per-todo `Parallelization:` lines still invite 14 ∥ 15 — override them
+
+A.12's serial chain above covers the hazard, but the todo lines themselves still say otherwise, and a
+dispatcher reading a single todo would follow the todo line. **The per-todo line wins nowhere.**
+
+Todo 14 reads `Blocked by: 13 | Blocks: 16, 17` and todo 15 reads `Blocked by: 13 | Blocks: 16`. On the
+graph alone that authorises running them **in parallel** — they are independent of each other and only
+converge at 16. Do not. Both are migration batches, so both would run `php artisan migrate:fresh` against
+the same `telemedisin_db`, and `migrate:fresh` drops and recreates *every* table. Two concurrent runs on
+one database contend for metadata locks and, worse, each one's parity verifier can read the other's
+half-migrated schema — producing a drift report against a state that never legitimately existed. The
+verifier would then be *right about the schema it saw* and *wrong about the contract*, and the evidence
+file would record a phantom defect. **Serialize them: 13 -> 14 -> 15 -> 16.** Cost is one todo of
+wall-clock; the alternative is a false defect report that costs an entire verification cycle to disprove.
+
+**This is the last such hazard — the rest of the plan is genuinely parallel-safe.** I checked all 54
+`Parallelization:` lines rather than assuming. Every other `Can parallelize with` pairing names only
+post-migration feature todos (Wave 4 onward: 23∥24, 28∥29, 35∥36, 41∥42, 47∥48, 50∥51∥52), and the
+foundation is fully serial by design — `19 -> 20 -> 21 -> 22`, which is correct because each layer
+genuinely consumes the one beneath it. Once todo 18 lands, no `migrate:fresh` runs for the remainder
+of the project, so no seed or schema state can be destroyed by a later todo. That is also why todo 4's
+relocation to just after 18 is sufficient and needs no further deferral: `4 ∥ 19` is safe precisely
+because 19 is a model-authoring task that needs no seeded rows, and both still complete before todo 20,
+the first todo that consumes roles and permissions.
+
+**General rule for the rest of execution: parallelise freely across todos 19+, and serialise strictly
+across todos 7-18.** The boundary is `migrate:fresh`, not the wave labels.
+
+### A.14 The todo-10 line carries two transcription errors — the SQL is authoritative
+
+Todo 10's own line 323 mis-transcribes the `dokter_spesialisasi` unique key. Batch D's executor caught
+it mid-flight, and the live schema now follows the SQL, but the plan text was never corrected and will
+mislead anyone who re-derives the key from it:
+
+| | plan line 323 says | `telemedicine_test.sql` actually says |
+|---|---|---|
+| key name | `uq_dokter_ses` | **`uq_dokter_spes`** (trailing `es`) |
+| line number | `:445` | **`:444`** |
+
+`telemedicine_test.sql` is read-only law, so `uq_dokter_spes` at `:444` wins, and that is what
+migration `2026_10_01_000032_dokter_spesialisasi_table.php` declares. **A named unique key is part of
+the contract** — the verifier compares it by name, so `uq_dokter_ses` would be reported as index drift
+even though the *columns* are right. Anyone re-authoring or re-checking this key must use the SQL's
+spelling, not this line's.
+
+**RESOLVED IN PLACE, not merely annotated.** All four transcription errors on todo 10's line are now
+corrected at the source: `uq_dokter_ses` -> `uq_dokter_spes`, `:445` -> `:444`, `idx_dokter_tipe`
+`:435` -> `:434`, `idx_faskes_*` `:385-386` -> `:384-385`, and `second-widest` -> `third-widest`
+(23 columns, behind `pasien` 31 and `rekam_medis` 28). **Fixing the source is strictly better than
+documenting the drift in an appendix**, because todo 10 proved the drift is not inert: the executor
+copied this line's `second-widest` superlative verbatim into
+`2026_10_01_000031_dokter_table.php:11`, and only the independent verifier caught it. An appendix note
+about a known-wrong literal does not stop the next executor from reading the wrong literal. When a
+measured plan error is found, **correct the plan itself.**
+
+**A correction to the orchestrator's own record, recorded because it is the kind of error that
+propagates.** The plan spells the `faskes.akreditasi` enum correctly — `paripurna` — so the plan was
+*right* and the orchestrator's dispatch brief was *wrong* when it told the executor "copy the exact
+spelling from the SQL, do not trust my transcription" while itself transcribing `parnirvana`. The
+executor obeyed the instruction and read the SQL, which is the only reason the defect never reached a
+migration. **The general lesson, and the standing rule for every remaining dispatch: never transcribe a
+literal from the SQL into a brief by hand.** Quote the SQL line and require the executor to read it, so
+the SQL is the single source and the brief cannot become a second, drifting one. Every prior batch was
+unaffected because each executor read `telemedicine_test.sql` directly for its ENUM lists and index
+names rather than trusting the brief — which is the behaviour to keep requiring, not the exception.
+
+**The corruption class is not confined to subagents.** While writing the paragraph above, the
+orchestrator's own edit introduced two of the very artifacts it was describing — a corrupted enum value
+and a corrupted column name — and caught them only on re-reading the diff immediately after writing. The
+same failure mode that put `par-Georgievna` into a migration docblock put garbage into the plan file that
+documents how to avoid it. **Therefore: every plan edit gets read back before it is relied upon, exactly
+as every migration gets read back before it is committed.** The mitigation is not "trust the writer" —
+it is the same read-back discipline applied uniformly, orchestrator included.
+
+For the record, `dokter` has **four** unsigned integer columns, not five: `pengalaman_tahun` and
+`durasi_default_menit` are `SMALLINT UNSIGNED`, and `jumlah_ulasan` and `jumlah_konsultasi` are
+`INT UNSIGNED`. The fifth was a miscount in the brief. Verified live.
+
+### A.15 Todo 10 verified `needs-fix` — and the defect class is *comment accuracy*, not schema
+
+Independent verification (`bg_4a53b0a9`, confidence 0.9) returned **`needs-fix` with 1 blocker**. The
+**schema work is flawless** and every structural claim reproduced: 66 columns compared with 0
+mismatches, 6 ENUM lists in exact SQL order, 4 DECIMAL scales kept distinct, `jam_operasional` really
+`json`, `dokter_faskes` with no `id` and PK `(dokter_id, faskes_id)`, all four named keys present with
+the right unique/non-unique distinction, **10 live FKs identical to the 10 `FOREIGN KEY` clauses in the
+SQL with none invented and none missing**, both A.10/A.11 invariants holding, `telemedisin_db` and
+`telemedisin_db_test` fingerprint-identical at 41 tables each, `sehatly` untouched at 10 tables and its
+original 5 migration rows, rollback and `migrate` both exit 0, and convergence proven by identical
+schema fingerprints. The suite is 93/93 with 473 assertions and the test file unedited, derived missing
+moving 48 -> 41.
+
+**The deliverable failed only on comments, and that is the whole lesson of this todo.** Six prose
+defects, one of them a blocker:
+
+- **BLOCKER — `2026_10_01_000033_dokter_faskes_table.php:33`.** The docblock claimed "Both `is_utama`
+  and `status_aktif` default to `0`, so an inserted affiliation is inactive and not primary." The code
+  beneath it is `->default(false)` and `->default(true)`, SQL `:451` is `DEFAULT 1`, and live
+  `COLUMN_DEFAULT` is `'1'`. **A comment that inverts live behaviour**: the default row is ACTIVE and
+  not primary. Todo 19 or 22 trusting that sentence would encode the exact opposite of the contract.
+- `2026_10_01_000031:11` "second-widest" — false, `dokter` is third. **Copied verbatim from this plan's
+  own erroneous line 323**, which is why A.14 now corrects the source.
+- `2026_10_01_000032:43-44` transposed the ordinals `dokter`/`master_spesialisasi` as "30 and 31",
+  contradicting line 10 of the same file.
+- `2026_10_01_000034:25-27` claimed `dokter_faskes` lacks single-column FKs; it has two, at `:453-454`.
+- `2026_10_01_000030:20` cited the seeder rows as `:1234-1240`; truth is `:1236-1252`.
+- **`docs/migration-order.md:221-223` rule 9 still carried the stale `pasien_penjamin.faskes_rujukan_id`
+  "is deferred to migration 76" claim** — the very claim A.11 killed in `schema-notes.md` and `36cfa77`
+  killed in the `000027` docblock. **It survived in a third file nobody re-read.** A stale claim is only
+  fixed in the places you happen to look; enumerate every file that mentions the subject before
+  declaring it resolved.
+
+- **THE WORST INSTANCE WAS IN THIS PLAN, NOT IN A DOCS FILE.** A fourth and fifth copy existed in
+  *this file's own todo text*, which no amount of grepping `docs/` would ever find:
+  - **todo 9's line was the claim's ORIGIN.** It instructed todo 9's executor to "create it as a plain
+    unsigned BIGINT column here and add the FK in a later migration alongside the other deferred
+    constraints, recording it in `docs/schema-notes.md`." That is precisely how the `000027` docblock
+    and the registry entry came to exist. The instruction was followed faithfully; the instruction was
+    wrong. Corrected in place.
+  - **todo 18's line was a live landmine.** It read "Also add here the deferred
+    `pasien_penjamin.faskes_rujukan_id -> faskes(id)` FK recorded in task 9." Todo 18 *is* the
+    migration-76 executor's brief, so it explicitly instructed adding the one constraint that must not
+    exist. Acting on it would have produced `extra_foreign_key` drift **and failed todo 18's own
+    success criterion 1 — the mandatory manual checkpoint this whole project is sequenced around.**
+    Corrected in place, and the correction names why, so the reasoning survives.
+
+  **The generalised rule, and it is the most important one in this appendix: when a stale claim is
+  found, enumerate every place it appears — and weight the search toward the text an executor will
+  actually FOLLOW, not the text that merely DESCRIBES the system.** A wrong comment in a design
+  document misleads a reader; a wrong instruction inside the task brief misleads the person who writes
+  the migration, and it does so at the exact moment the wrong thing gets built. Grepping the docs and
+  declaring victory would have left the landmine armed. Fixing the docs while leaving the instruction
+  intact is the worst outcome, because it looks like the problem was handled.
+
+**Two standing rules this todo earned.**
+
+1. **A green build says nothing about a comment, and an executor's claim that it "fixed" its own
+   corruption is not evidence that the files are clean.** The executor disclosed that it had written
+   non-English artifacts into a docblock, claimed they were fixed, and never mentioned these six
+   accuracy defects — its report left the impression the files were clean. Grepping for the *named*
+   artifacts proved only that the named ones were gone. **The only sufficient check on prose is a
+   character-by-character read by a party that did not write it**, and it must be told to compare every
+   comment against the code beneath it, because "accurate" and "present" are different properties.
+2. **A comment that contradicts the code beneath it is a defect of the same severity as a code defect,
+     and more insidious, because nothing executes it.** Comments here are load-bearing: they are how the
+     ordering, deferral and default decisions get carried into todos 19-54 without re-deriving them. A
+     wrong comment propagates further than wrong code, because code gets executed and fails loudly while a
+     comment is believed. **Every future batch: read the comments against the schema before committing,
+     and have an independent party do the same after.**
+
+### A.16 This plan's inline `:NNN` citations are UNRELIABLE — its line-index table is authoritative
+
+Todo 11's executor found **three** wrong SQL line citations in todo 11's own prose, all confirmed by
+reading `telemedicine_test.sql` directly. That is the **second consecutive batch** where prose
+citations in this plan were wrong (todo 10 had four), so it is a property of the document, not bad luck:
+
+| what the prose claimed | what it was citing | truth |
+|---|---|---|
+| `INDEX idx_jadwal …` at `:479` | `idx_jadwal` | **`:487`** (`:479` is `kuota_per_sesi`) |
+| the `hari` comment at `:474` | the `0=Minggu s.d. 6=Sabtu` comment | **`:475`** (`:474` is `tipe_layanan`) |
+| both `booking` indexes at `:527-528` | the two named indexes | **`:528`** and **`:529`** (`:527` is the `users` FK) |
+
+In all three cases the plan's **authoritative line-index table** carried the **correct** line and only
+the prose was off. **Rule for every remaining executor: treat an inline `:NNN` here as a hint and
+resolve the real line by searching `telemedicine_test.sql` for the column, index or constraint name.**
+Reading the SQL beats both sources and costs one grep. The executor reported all three rather than
+silently correcting them, which is what made the pattern visible — the same disclosure habit that
+surfaced todo 10's five hidden comment defects.
+
+**The same distrust applies to this plan's quantitative claims, and a fourth defect class emerged while
+repairing unrelated mojibake (see A.17).** Todo 14's line claimed all three of `master_obat`'s ENUM
+columns sit in `:711-717`. They do not: `kelas_obat` is at **`:719`**, and **`:718` is
+`kelas_terapi` — a real column the todo never mentioned at all**, so an executor trusting the range
+would have shipped `missing_column` drift on a table four todos ahead. Treat every number and every
+range in this plan as unverified. **This plan is a specification of intent, not a transcript of the
+DDL. The DDL is the only transcript.**
+
+### A.17 This plan file carried CJK mojibake inside three identifiers — all now repaired
+
+Repairing an unrelated encoding failure (described at the end of this appendix) revealed **six CJK
+characters embedded in identifier names** in this plan, each standing in for ASCII that a later todo
+must reproduce verbatim:
+
+- `surat_keterangan.kons<CJK><CJK>ultasi_id` -> `konsultasi_id` (SQL `:584`)
+- the fifth value of the `kelas_obat` ENUM, corrupted to `'n <CJK>iktropika'` -> **the SQL's own value
+  at `:719`**; the plan's value list and the SQL's are now byte-identical, proven by direct string
+  comparison rather than by eye, since hand-typing the word is precisely how the corruption happened
+- `biaya_kons<CJK><CJK><CJK>_online` -> `biaya_konsultasi_online` (SQL `:420`)
+
+The plan had already half-noticed the third, with a parenthetical in todo 20 telling the reader it is
+a known mojibake defect that must be ignored. **That instruction is obsolete and has been removed —
+the defect is fixed, not documented.** Leaving a corrupted column name in a document that later todos
+copy identifiers out of is how `biaya_konsultasi_online` turns into `biaya_kons`+mojibake in a
+migration, and the parity verifier cannot catch it, because it compares column names it never sees.
+
+**Lesson one: a corruption scan must cover the full Unicode range, not a hand-picked list of the
+strings you remember.** Earlier scans of this file grepped for specific artefacts and reported it clean
+three separate times while six CJK characters sat in three identifiers, because nobody ever ran a scan
+for CJK. This check belongs in every future audit of any file in this project:
+
+```
+[regex]::Matches($text, '[\u3000-\u9FFF\uFF00-\uFFEF]').Count   # must be 0
+```
+
+**Lesson two, and it is the one that cost the most: never round-trip a UTF-8 file through PowerShell
+5.1 `Get-Content` / `Set-Content`.** `Get-Content` without `-Encoding` decodes as ANSI, and
+`Set-Content -Encoding UTF8` adds a BOM *and* rewrites LF to CRLF. One such round-trip, performed here
+while reordering these appendices, turned all 391 em-dashes into three-character mojibake and inflated
+this file's diff from 626/13 to 780/167. It was fully repaired by the exact inverse transform and
+re-verified — 391 em-dashes restored, 0 `U+FFFD`, no BOM, LF preserved, CJK 0 — but the repair was
+luck: the file is uncommitted, so had the transform not been provably lossless the accumulated work
+would have been gone. **Use the file-edit tools, or `[System.IO.File]::ReadAllText` / `WriteAllText`
+with an explicit `UTF8Encoding($false)`, and then run `git diff --numstat` and actually read the
+number.** 780/167 against an expected ~626/13 is not a subtle signal, and checking it took one command.
+
+### A.18 Todo 13: the FIRST FABRICATED FINDING — an executor "correcting" an appendix that was right
+
+Todo 13's schema work is sound: 57 columns with 0 mismatches, 7 ENUM lists identical in value and
+order, 9 live FKs against 9 DDL clauses, 4 bare columns proven FK-free, and 53 tables per database.
+It also found **eleven** genuine errors in my briefs and in this plan's prose, all now corrected here.
+
+**The eleventh is the one worth remembering, because it is the opposite of the others.** The executor
+reported:
+
+> "A.14's own corrected note is still wrong: it calls `rekam_medis` 'third-widest' and attributes 23
+> columns to `booking`."
+
+**That finding is false.** A.14 says *"`dokter` is the third-widest (23 columns, behind `pasien` 31 and
+`rekam_medis` 28)"* — which is exactly right, and independently confirmed by measurement: `pasien` 31,
+`rekam_medis` 28, `dokter` 23, `booking` 22. A.14 never claims `rekam_medis` is third-widest, and never
+attributes 23 columns to `booking`. The executor's *measurements* were correct; its *attribution* of a
+defect to a document it had not read closely was invented. **Nothing was changed, because the appendix
+was read before the "fix" was applied.**
+
+**Why this is recorded rather than dismissed: the executor's own account of its discipline contains
+the moral.** It wrote that "a parity auditor that cries wolf is worse than none, and I nearly reported
+the false positive as a finding" — describing its first ENUM comparator, which reported a MISMATCH on
+two byte-identical lists because a bare `sort()` on an array-of-arrays is not a total order. Having
+just written that sentence, it shipped a fabricated document defect. **The failure mode is identical: a
+confident finding produced by a check that was never actually run against the thing it names.**
+
+**The standing rule, generalising A.14 and A.16: before "correcting" any claim, open the file and read
+the claim in place, with its subject attached.** A correction not verified against the original text is
+indistinguishable from one that is invented — and one of the two corrupts a correct document. Twice in
+this project a "fix" was one paragraph away from being wrong: once when `pasien`'s four `master_*` FKs
+were about to be "corrected" from a garbled recollection, and now here. Both were caught by reading
+first. That is the highest-value habit in this loop and it is nearly free.
+
+### A.19 Todo 13's other corrections, and what the plan still gets wrong
+
+- **An ENUM value was wrong in both the plan and my brief — the worst place for a transcription error,
+  because ENUM spelling and order are both compared.** `rekam_medis.status_tindak_lanjut`'s third value
+  is **`rujuk`**, not `rujak` (`:643`). Corrected. Fifth consecutive batch to find a plan transcription
+  error, and the first where the error sits inside an ENUM value list.
+- **"six `riwayat_*`/`psikososial` text columns" describes nothing that exists.** Only **four** columns
+  are named `riwayat_*`. The real six-column narrative block is `:631`-`:636`: `keluhan_utama`,
+  `riwayat_penyakit_sekarang`, `riwayat_penyakit_dahulu`, `riwayat_keluarga`, `riwayat_psikososial`,
+  `hasil_pemeriksaan_fisik`. The plan now names all six and warns that only four carry the `riwayat_`
+  prefix. This is the second time a plan sentence gives a *count* without naming its members, after
+  todo 12's column list that omitted four columns outright. **A count in this plan is not evidence; the
+  names are.**
+- **Six wrong line citations corrected** across three places: `status_dokumen` `:654` -> `:645` (twice,
+  including todo 33's brief), `versi` `:655` -> `:646` (twice), `idx_rm_pasien` `:655` -> `:654`,
+  `idx_diag_icd10` `:665` -> `:666`, `rekam_medis_tindakan.icd9cm_kode` `:671` -> `:672`. Fourth
+  consecutive batch with wrong prose citations, and the second where the line-index table is right and
+  the prose is not. A.16 is a settled property of this document, not a run of coincidences.
+- **One pre-existing defect remains, correctly left in place.** `000041_rujukan_table.php:93-96` claims
+  `diagnosis_kerja` is repeated on `konsultasi` and on `surat_keterangan`, but **`surat_keterangan` has
+  no such column** — the label appears at exactly three lines (`:552`, `:605`, `:641`). The executor
+  declined to edit it because its brief scoped the commit to its own paths and widening the scope would
+  have broken the "only your paths" assertion. That reasoning is exactly right; the fix is dispatched
+  separately.
+
+### A.20 Todo 15: the SECOND fabricated finding — and it was dressed as a measurement
+
+Todo 15's schema work is sound: 44 columns with 0 mismatches, all six expected shapes confirmed
+(`lab_permintaan` 11/2/3, `lab_permintaan_detail` 5/1/3, `lab_paket_item` 2/1/2, `master_lab_paket` 5/1/0,
+`master_lab_tindakan` 10/2/0, `lab_hasil` 11/1/2), 23 signedness flags audited, 18 batch A–H regression
+spot-checks green, and 67 tables per database. It also caught and disclosed ten identifier corruptions of
+its own — including three separate manglings of `master_lab_tindakan` inside the very evidence file
+reporting on the batch.
+
+**But its central prose finding was wrong, and wrong in the most expensive direction: it over-reported.**
+
+It stated the plan's multi-line-ENUM list is "five entries short (eleven exist)", named four further
+declarations, and offered a corroboration: *"The verifier's own derived `wrapped decls 11` list agrees, so
+the tooling is right and the prose is wrong."*
+
+**The true count is five.** I measured it by locating every `ENUM(` whose own line lacks its closing paren:
+`booking.status` (`:515-516`), `master_obat.bentuk_sediaan` (`:713-714`), `resep.status` (`:751-752`),
+`invoice.status` (`:947-948`), `persetujuan_pdp.jenis` (`:1137-1138`). All four lines the executor added —
+`lab_permintaan.status` (`:884`), `klaim_bpjs.status` (`:1022`), `home_care_pesanan.status` (`:1104`) and
+`pesanan_obat.status` (`:810`) — **close their own `ENUM(...)` on the same line**; the following line carries
+only `NOT NULL DEFAULT ...`. So the plan's list was wrong too, but in the *opposite* direction from what was
+reported: it named **two entries that are not wrapped** (`konsultasi.status` `:542`, `konsultasi_chat.tipe_pesan`
+`:568`) and **omitted one that is** (`invoice.status` `:947-948`, owned by todo 16). The list is now measured
+rather than asserted.
+
+**The corroboration is the part worth studying.** A count reported by a *different tool* was cited as
+agreement, which is the shape of evidence that stops a reader from checking. But "the verifier derives 11"
+and "11 ENUMs are wrapped" are different claims: the verifier's figure was never inspected to establish what
+it counted. **Naming a second source is not corroboration unless the second source was asked the same
+question and its answer read.** This is A.18's failure mode recurring in a subtler dress — not an invented
+document claim this time, but an unexamined number adopted as proof, and it was found only because the
+orchestrator re-derived the count instead of accepting it. The executor invoked A.18 correctly on five of its
+*own* auditors in the same report, so it clearly had the lesson available and did not apply it to this claim.
+
+**The standing rule, added to A.18's: when a finding is corroborated by "tool X agrees", verify what tool X
+actually computed before repeating it.** Two of this project's three fabricated or false findings have
+involved borrowed authority rather than a wrong measurement — a document nobody read (A.18) and a tool output
+nobody asked. A wrong count you computed yourself is recoverable; a wrong count wearing another tool's name
+is not, because it disables the reader's reason to doubt.
+
+### A.21 The most valuable measurement in the project so far: what actually catches a missing column
+
+Todo 15 ran the probe that Rule 1b was written for, and the result should govern how this project treats
+green output. A column declaration was swallowed into a `//` comment in `2026_10_01_000060_lab_hasil_table.php`,
+producing a schema that was wrong in a way nothing else noticed:
+
+| check | result on a schema missing a column |
+|---|---|
+| `php -l` | **exit 0** — it is a valid PHP file |
+| `php artisan migrate:fresh` | **exit 0** — the DDL is valid; it just omits a column |
+| `php artisan test tests/Unit` | **93/93 green, 473 assertions** |
+| `verify-schema` | **exit 1**, naming `missing_column lab_hasil.file_pdf_url` |
+| a comment-stripping static statement count | **10 vs the SQL's 11** — mismatch |
+
+**The three checks this project has been treating as gates catch a missing column zero percent of the time,
+together.** The unit suite is structurally incapable of it, by design: per **A.9** it derives its expectations
+from the migration *files*, not by diffing the live schema, so deleting a declaration makes the test agree
+with the deletion. That is the right trade for a test that must not hand-maintain 75 tables, and it means the
+parity verifier is the *only* thing standing between a swallowed statement and a shipped schema.
+
+Two consequences, both now standing practice. First, **`verify-schema` is not one check among several — for
+schema truth it is the check**, and a green `migrate:fresh` plus a green suite is not evidence about the schema
+at all. Second, the cheap static count is worth keeping as a *second* opinion specifically because it needs no
+database: count executable statements with `token_get_all` discarding `T_COMMENT`/`T_DOC_COMMENT` and compare
+against the DDL's column count. Todo 15 built that check and validated it two independent ways, agreeing
+exactly on all six files.
+
+### A.22 The todo 15 fabrication is now EXPLAINED, and the culprit is our own tooling output
+
+A.20 recorded that todo 15's executor reported the wrapped-ENUM count as eleven when it is five, and
+offered "the verifier's own derived `wrapped decls 11` list agrees" as corroboration. **Todo 16's executor
+inspected what that number actually counts, and the mystery resolves: the verifier is not wrong, it is
+answering a different question.**
+
+`SchemaSpec::multiLineColumns()` reports declarations whose **end line exceeds the start line**. That is
+true for **eleven** columns. It is also true for `konsultasi.status` (`:542-543`) and
+`konsultasi_chat.tipe_pesan` (`:568-569`), which **each close their own `ENUM(...)` on their own line** -
+their *declaration* wraps because of a trailing `NOT NULL DEFAULT ...`, not their *value list*. So:
+
+- **"the column declaration spans two lines" = 11.** Correct answer to the question the tool asks.
+- **"the ENUM value list continues onto the next line" = 5.** The only question that matters for parity,
+  because reading `:947` alone gives a truncated value list.
+
+Both numbers are right. The tool prints `wrapped decls 11` **on every run**, in a field that reads like it
+answers the second question. Todo 15's executor read that field, assumed it answered the ENUM question, and
+reported 11 as fact *and* as corroboration. **A.18's failure mode, triggered not by a document nobody read
+but by a tool output nobody asked.**
+
+Two standing consequences:
+
+1. **The output field is a live hazard and should be renamed or removed.** `wrapped decls` is the kind of
+   name that gets trusted. If `multiLineColumns()` is what it is, the honest label is
+   `multiline declarations`, and the ENUM-value-list question needs its own predicate. Fixing this is a
+   one-line change in `app/Support/Schema/` and is worth doing before it misleads a third executor.
+2. **This is the strongest possible vindication of A.20's rule, and of ignoring "X agrees".** Had todo 16's
+   executor taken the same shortcut, it would have reported 11 too - and this time the shortcut would have
+   looked *better* justified, because an earlier todo had "confirmed" it. **A number that has been agreed
+   with before is more dangerous than one that has not**, because agreement suppresses the check that would
+   have caught it. Derive it, show the derivation, and treat a prior agreement as a reason for more
+   suspicion rather than less.
+
+**also resolved by todo 16, and worth stating because it is the same shape of error:** the plan's own
+commit line for todo 16 read `feat(db): migrate invoice, payment, refund, promo and BPJS claim tables`
+while the dispatched brief mandated `feat(db): migrate invoicing, payment, refund, promo and BPJS tables`. The executor used the brief's message, as instructed, and **recorded the divergence instead of
+quietly picking one.** Two texts in this project disagreeing about a commit message is trivial; an
+executor silently reconciling them is not, because the next reader cannot tell which text is
+authoritative.
+
+### A.23 While correcting A.20 I introduced the same class of error I was correcting
+
+Worth recording rather than quietly fixing, because it is the third instance of one shape and the first
+one **mine**. A.20 established that a finding must be verified against the thing it names, not against a
+recollection of it. Correcting the wrapped-ENUM list, I wrote that `:1137-1138` belonged to
+`artikel_kategori.jenis` **without checking which table owns line 1137.** It does not own it:
+
+- `artikel_kategori` is `CREATE TABLE` at `:1068` and is **three columns wide** - `id`, `nama`, `slug` -
+  with **no ENUM of any kind**.
+- `:1137-1138` is inside `persetujuan_pdp` (`CREATE TABLE` at `:1134`) and is
+  `jenis ENUM('syarat_ketentuan','kebijakan_privasi','berbagi_data_medis','pemasaran','komunikasi_tindak_lanjut')`.
+
+So the corrected list named a **table that does not exist in that form** and a column it does not have,
+while getting the line numbers right. A future executor resolving `:1137` by searching for
+`artikel_kategori.jenis` would have found nothing, and the one fact in the entry that mattered - *this ENUM
+wraps, read both lines* - would have arrived attached to the wrong table. **Correct, verified in
+isolation, and still wrong: the line number was measured and the table name was guessed.**
+
+The generalisation is the one A.20 was reaching for and did not quite say. **A citation has two halves and
+they must be measured separately.** Resolving `:1137` correctly is worthless if the name attached to it was
+recalled rather than looked up, and the failure is *silent* - the entry still looks like a citation, still
+parses, still contains real line numbers, and contains no internal contradiction to warn a reader. This is
+the same failure as A.18's invented document claim and A.20's borrowed tool output, from a third direction:
+not a document nobody read, not a tool nobody asked, but **a line number nobody checked against its
+owning statement.**
+
+The check that catches it costs one grep and is now part of verifying any citation in this project: after
+resolving `:NNN`, confirm the enclosing `CREATE TABLE` is the table you think it is. Todo 17 is about to
+author `persetujuan_pdp.jenis` and `artikel_kategori` in the same batch, so this correction had to land
+first - an executor following the old text would have been told that a three-column table has a wrapping
+ENUM, and would have had to choose between the plan and the SQL.
+
+### A.24 Todo 17: all 75 tables exist, the suite went RED on a TRUE statement, and todo 18 inherits a fourth edit
+
+Todo 17 authored the last eight migrations. **Every one of the contract's 75 tables now exists** - 82 per
+database, being 75 contract plus 7 registered extras - and the full unfiltered verifier reports
+`Discrepancies: 10 (2 drift, 8 informational)`: the two views still owed to todo 18, plus the 7 extras and
+the single deferral, with **zero `missing_table` and zero `missing_column` rows**.
+
+**The unit suite went red on it, and it was right to.** `tests/Unit/Console/VerifySchemaDeferredConstraintTest.php:249`
+read:
+
+```php
+expect($byKind['missing_table'] ?? 0)->toBeGreaterThan(0);
+```
+
+failing with *"Failed asserting that 0 is greater than 0."* A.9 had predicted exactly this transition -
+the derived missing count moving 8 -> 0 at todo 17 - and flagged it as a tripwire. The tripwire fired. The
+executor found it, **declined to edit the file because it was outside its commit pathspec, and handed todo
+18 a clearly-labelled red rather than a suite it had made green** (*"I would rather hand todo 18 a
+clearly-labelled red than a suite I made green"*). That is precisely right, and it is the fifth time the
+disclosure habit has surfaced something a green report would have hidden.
+
+**The fix, and what it reveals about that assertion.** The comment above the line says *"Every
+genuinely-missing object is still drift. The registry forgives a missing FOREIGN KEY and nothing else."*
+**That invariant never mentions tables.** The `missing_table` count was only ever a *proxy* for "at least
+one genuinely-missing object exists", and todo 17 made the proxy false for the best possible reason: the
+schema is complete. Replacing it with a table-specific assertion would have been treating the symptom.
+
+The naive repair - "assert `missing_view > 0` instead" - would also have been wrong, because **the 7
+documented extras are non-drift too**, so a rule of the form "everything not deferred is drift" is false at
+every position. The invariant is now asserted directly and **position-independently**: the drift set is
+non-empty, and **no row in it comes from either registry** (`deferred_foreign_key` or
+`documented_extra_table`). That is strictly stronger than the old proxy, which never examined the extras at
+all, and it holds at any migration position because it constrains *kinds* rather than counting one of them.
+Suite green: 93/93, 472 assertions.
+
+**The obligation this creates for todo 18 is the important output.** A.11 already requires **three** edits
+to resolve the last deferral. There is now a **fourth, and it is larger than the other three**: the whole
+premise of `VerifySchemaDeferredConstraintTest.php` is that *a pending deferral keeps the full run failing*.
+Todo 18 resolves that deferral, adds both views, and is expected to leave the verifier **completely clean
+- exit 0, zero drift**. Every test in that file asserting "the full run still fails" is therefore void at
+todo 18, not merely redundant. **Todo 18 must retire or re-scope that file deliberately, and must not
+discover this by watching the suite go red for a fourth time.** The mechanical edits are small; recognising
+that a test's *premise* has expired is not, and that is the part worth writing down in advance.
+
+### A.25 Checkpoint reached, and the FOURTH false finding â€” this time a STALE one
+
+**Wave 2 is complete. `0705b89`, 21 paths. Verifier exits 0 with `Discrepancies: 7 (0 drift, 7 informational)`.** All 75 contract tables, both views, 105/105 foreign keys, 3/3 CHECK constraints, and 151/151 DDL-sourced seed rows are in place; the unit suite is 90/90 with 481 assertions. The orchestrator independently re-ran the verifier, the suite, the view existence and row counts, and `fk_vital_rm`'s `ON DELETE SET NULL` before presenting the mandatory checkpoint.
+
+**The orchestrator briefed `Discrepancies: 0` and that expectation was WRONG.** It conflated *discrepancies* with *drift*. The 7 remaining rows are the **registered extra tables**, reported as informational *by design* â€” suppressing them would mean deleting the registry rows, which turns all seven into `undocumented_extra_table` **drift** and breaks exit 0 outright. **Zero drift is the invariant; it is achieved.** The executor reported the measured 7, explained why 0 is arithmetically unreachable, and explicitly declined to chase the number the brief asked for. That is the correct response to a wrong instruction, and it is the second time in this project an executor has refused to satisfy a bad acceptance criterion rather than satisfy it by breaking something (the first was the `v_pendapatan_bulanan` 0-row case, where inventing financial data would have "passed" criterion 4).
+
+**The fourth false finding, and a new variant: a STALE one.** Todo 18's executor reported:
+
+> "docs/migration-order.md rule 6's wrapped-ENUM list is STALE and still armed: it names six entries, two of
+> which are not wrapped ... and omits one that is (`invoice.status :947-948`)."
+
+**This is false. Rule 6 is correct** and was verified by direct read: it names exactly five, contains zero occurrences of the two non-wrapped ranges, names `invoice.status` and `persetujuan_pdp.jenis` correctly, and carries a paragraph explaining that its own earlier list was wrong. The orchestrator had rewritten it *before* dispatching todo 18, and told the executor in the brief that the file arrived already modified.
+
+So the executor repeated todo 16's finding **without re-reading the file it had been told was already changed**. That is the A.18 / A.20 / A.23 shape for the fourth time â€” a claim about the state of a specific file, asserted without reading that file's current state â€” and it is the cheapest of the four to catch, because the brief *told it the file was modified*. **A brief that describes pre-existing state is a claim to verify too, not a fact to inherit.**
+
+The four, for the record: a **document** nobody read (todo 13, fabricated an A.14 defect), a **tool output** nobody asked (todo 15, `wrapped decls 11`), a **line number** nobody checked against its owning statement (A.23, the orchestrator's own), and now a **file state** nobody re-read (todo 18). Every one was a specific, confident, checkable claim about a thing that existed and could simply have been opened.
+
+### A.26 A.17's corruption regex is too narrow â€” widen it before the next batch
+
+Todo 18's executor injected **U+00E1 (a Latin-1 acute) + 3 CJK + 8 Cyrillic** into one migration docblock, and observed that A.17's gate
+
+```
+[\u3000-\u9FFF\uFF00-\uFFEF]
+```
+
+**would have caught only the 3 CJK characters and missed the Latin-1 acute and all 8 Cyrillic.** That is a real gap: the range covers CJK and fullwidth forms but not Cyrillic (U+0400â€“U+04FF), Greek (U+0370â€“U+03FF), Latin-1 Supplement (U+00A0â€“U+00FF) or Latin Extended-A (U+0100â€“U+017F).
+
+**This project has now seen corruption in Latin, Indonesian, Cyrillic and CJK** across eleven batches, so the gate should cover all of it. The check to use from now on:
+
+```
+# any codepoint outside ASCII and the typographic set we actually use
+[^\x00-\x7F\u2013\u2014\u2022\u2026\u2192\u2212\u00A7\u2225]
+```
+
+That permits only the em/en dash, bullet, ellipsis, arrow, minus, section sign and parallel-to bars the repository genuinely uses, and flags **everything** else â€” Cyrillic, Greek, Latin-1 accented letters, and CJK alike. The executor's own ad-hoc instrument was stricter still ("U+2014 is the only permitted non-ASCII codepoint"), which is the right instinct for a *new* file but wrong for `docs/schema-notes.md`, whose pre-existing typography it correctly diagnosed rather than "fixed" â€” thirty legitimate characters, none of them corruption.
+
+**And the second half of that instrument matters as much as the first.** The executor's token audit â€” extract every `snake_case` token from a file and check it against the DDL â€” found **four ASCII misspellings no encoding scan can ever see**, including `doker_umum` for `dokter_umum` inside an ENUM value list, which would have been `MySQL 1264` at insert time. **An encoding gate finds non-ASCII corruption; only a token audit finds corrupted ASCII identifiers.** Both are required, and both are cheap.
