@@ -9,20 +9,48 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Event;
 
 /**
- * The central registrar for the audit observer.
+ * The single place that installs the audit observer on every sensitive model.
  *
- * There is exactly one place that calls `observe()` for every person-scoped
- * model: this class's `registerAll()` method, invoked from
- * `AppServiceProvider::boot()`. No per-model `#[ObservedBy]` attribute exists
- * anywhere in the codebase — all coverage is policy-driven from one spot.
+ * There is exactly one call site: {@see registerAll()}, invoked once from
+ * `AppServiceProvider::boot()`. No model carries an `#[ObservedBy]` attribute,
+ * so coverage is a policy in one spot rather than a habit repeated on each of
+ * the audited classes.
  *
- * The derived scope (44 tables, 44 model classes) is computed by
- * `AuditScope` from the foreign-key closure in `telemedicine_test.sql`; the
- * registrar iterates that list and registers one observer per class.
+ * ## Why this does not call `Model::observe()`
  *
- * Direction 3 from the test suite is closed by this mechanism: a new model
- * added to the closure is automatically covered the day it is written, without
- * any edit to the model itself.
+ * `Model::observe()` is the obvious call and it is the wrong one here. It is a
+ * STATIC method whose body is `(new static)->registerObserver(...)`, so asking
+ * it to register an observer INSTANTIATES the model - which boots it, and does
+ * so from inside the service provider that is itself booting. That is not
+ * hypothetical: the first version of this class did exactly that, and
+ * `RefusesHardDelete::bootRefusesHardDelete()` re-entered
+ * `Model::bootIfNotBooted()` while `static::$booting` was still set, so every
+ * `artisan` command in the application died at boot.
+ *
+ * So the listener is registered directly, on the class-scoped event name the
+ * framework itself uses: `eloquent.created: App\Models\Pasien`. The listener is
+ * the STRING `App\Observers\AuditObserver@created`, which is exactly what
+ * `registerModelEvent()` would have registered, and which
+ * `Dispatcher::makeListener()` resolves to the observer method at dispatch
+ * time. Same effect, zero models booted.
+ *
+ * ## Why a class-scoped name and not a wildcard
+ *
+ * The wildcard form `Model@created` is one character shorter and registers a
+ * listener for EVERY model event in the process. The version of this class that
+ * used it also passed a fourth `$class` argument to `Event::listen()`, which
+ * `Dispatcher::listen($events, $listener, $priority)` silently discards - so the
+ * closure fired for every model in the application, `faskes` and
+ * `apotek_stok` included, with nothing filtering it. A wildcard would have been
+ * undetectable by reading the call, which is why the class name is in the event
+ * name and the test asserts the wildcard set is empty.
+ *
+ * ## Coverage is DERIVED, so it cannot be forgotten
+ *
+ * The class list comes from {@see AuditScope}, which follows the foreign-key
+ * closure outward from `pasien` and `users` in the reference SQL. A new
+ * sensitive model is audited the day it is written, because a new table with a
+ * foreign key to a person is in the closure with no edit to any list.
  *
  * @see \App\Services\Audit\AuditScope
  * @see \App\Observers\AuditObserver
@@ -30,9 +58,25 @@ use Illuminate\Support\Facades\Event;
 final class AuditObserverRegistrar
 {
     /**
-     * The list of model classes that fall within the person-scope closure.
+     * Events the observer subscribes to.
+     *
+     * `deleted` covers the force-delete path too: `Model::forceDelete()` on a
+     * model using `SoftDeletes` fires `deleting`, `deleted` AND `forceDeleted`,
+     * and the observer has no `forceDeleted` handler, so there is nothing extra
+     * to learn from subscribing to it.
      *
      * @return list<string>
+     */
+    public static function events(): array
+    {
+        return array_keys(AuditLogWriter::EVENT_AKSI);
+    }
+
+    /**
+     * The model classes in the person-scope closure, minus the two declared
+     * credential-table exclusions and minus any closure table with no model.
+     *
+     * @return list<class-string<\Illuminate\Database\Eloquent\Model>>
      */
     public static function auditedModels(): array
     {
@@ -40,21 +84,19 @@ final class AuditObserverRegistrar
     }
 
     /**
-     * Query the event dispatcher to discover whether a given model class has
-     * an `eloquent.created/updated/deleted/forceDeleted: <class>` listener
-     * that points at `App\Observers\AuditObserver@`.
+     * Whether `$class` carries an `AuditObserver` listener for `$event`.
      *
-     * @return bool true when the class is audited
+     * Reads Eloquent's OWN listener table rather than asking the observer, so
+     * this answers "is the registration installed", not "is the class on a
+     * list somewhere".
      */
-    public static function isAudited(string $class): bool
+    public static function isAudited(string $class, ?string $event = null): bool
     {
-        $dispatcher = Model::getEventDispatcher();
+        $raw = Model::getEventDispatcher()->getRawListeners();
 
-        foreach (['created', 'updated', 'deleted', 'forceDeleted'] as $event) {
-            $listeners = $dispatcher->getRawListeners()['eloquent.'.$event.': '.$class] ?? [];
-
-            foreach ($listeners as $listener) {
-                if (is_string($listener) && str_starts_with($listener, AuditObserver::class.'@')) {
+        foreach ($event === null ? self::events() : [$event] as $one) {
+            foreach ($raw['eloquent.'.$one.': '.$class] ?? [] as $listener) {
+                if ($listener === AuditObserver::class.'@'.$one) {
                     return true;
                 }
             }
@@ -64,32 +106,32 @@ final class AuditObserverRegistrar
     }
 
     /**
-     * Register the observer for a single model class by wiring an Eloquent
-     * event listener.
+     * Register the observer on one model class.
      *
-     * @param string $class Fully-qualified model class name
+     * Idempotent: the dispatcher appends, so calling this twice for the same
+     * class and event would write TWO audit rows for one model write. The
+     * check is {@see isAudited()}, not a private static flag, because the
+     * flag cannot see a registration somebody else made.
+     *
+     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $class
      */
     public static function observe(string $class): void
     {
-        $dispatcher = Model::getEventDispatcher();
+        foreach (self::events() as $event) {
+            if (self::isAudited($class, $event)) {
+                continue;
+            }
 
-        foreach (['created', 'updated', 'deleted', 'forceDeleted'] as $event) {
             Event::listen(
-                Model::class.'@'.$event,
-                fn ($model) => app(AuditObserver::class)->{$event}($model),
-                0,
-                $class
+                'eloquent.'.$event.': '.$class,
+                AuditObserver::class.'@'.$event,
             );
         }
     }
 
     /**
-     * Register the observer for every model in the derived person-scope.
-     * This is called once from `AppServiceProvider::boot()`.
-     *
-     * @see auditedModels()
-     * @see observe()
-     * @see isAudited()
+     * Register the observer over the whole derived scope. Called once, from
+     * `AppServiceProvider::boot()`.
      */
     public static function registerAll(): void
     {

@@ -75,11 +75,24 @@ test('the guard is on the record root and all four children', function () {
 });
 
 test('forceDelete throws on the record root and all four children', function () {
-    foreach ([RekamMedis::class, RekamMedisDiagnosa::class, RekamMedisLampiran::class, RekamMedisPersetujuan::class, RekamMedisTindakan::class] as $class) {
+    $classes = [RekamMedis::class, RekamMedisDiagnosa::class, RekamMedisLampiran::class, RekamMedisPersetujuan::class, RekamMedisTindakan::class];
+
+    foreach ($classes as $class) {
         $model = new $class;
 
-        expect(fn () => $model->forceDelete())
-            ->toThrow(LogicException::class, $class.'::forceDelete() must throw');
+        // `toThrow($class, $message)` compares $message EXACTLY, so it cannot
+        // carry a per-class explanatory string. Assert the type here and the
+        // text separately below, where a partial match is what is wanted.
+        try {
+            $model->forceDelete();
+
+            expect(false)->toBeTrue($class.'::forceDelete() returned without throwing');
+        } catch (LogicException $exception) {
+            expect($exception->getMessage())->toContain($class);
+            expect($exception->getMessage())->toContain('forceDelete()');
+            expect($exception->getMessage())->toContain((new $class)->getTable());
+            expect($exception->getMessage())->toContain('RefusesHardDelete');
+        }
     }
 });
 
@@ -88,14 +101,20 @@ test('delete throws too, because rekam_medis has no soft-delete column to fall b
     // `diubah_at` (:649) and NO `dihapus_at`, so `delete()` on this model is a
     // HARD delete. Allowing `delete()` while blocking `forceDelete()` would be
     // blocking the labelled door and leaving the window open.
-    $record = new RekamMedis;
+    //
+    // The fixture is a PERSISTED row, not `new RekamMedis`. `Model::delete()`
+    // returns early when `exists` is false, before any `deleting` event fires,
+    // so a phantom instance proves nothing about the guard - it would pass
+    // whether or not the listener were registered.
+    $record = audRecord(audPasien(), audDokter());
 
     expect(audSpec()->table('rekam_medis')->columns)->not->toHaveKey('dihapus_at');
     expect(in_array(Illuminate\Database\Eloquent\SoftDeletes::class, class_uses_recursive($record), true))
         ->toBeFalse('rekam_medis is not a soft-deleting model, so delete() is destructive');
+    expect($record->exists)->toBeTrue();
 
     expect(fn () => $record->delete())
-        ->toThrow(LogicException::class, 'delete() must throw on a non-soft-deleting medical record');
+        ->toThrow(LogicException::class);
 });
 
 test('a refused hard delete leaves the row, its children, and no audit trail of a delete', function () {

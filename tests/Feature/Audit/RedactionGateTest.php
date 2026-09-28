@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Services\Audit\AuditColumnPolicy;
 use App\Services\Audit\AuditScope;
+use App\Support\NikMasker;
 
 require_once __DIR__.'/audit-helpers.php';
 
@@ -68,7 +69,23 @@ test('gate 1 denies every textual column in the scope, so no narrative can be wr
 
 test('gate 2 denies every credential column in the scope, by name', function () {
     $credentials = ['kata_sandi_hash', 'token_hash', 'kode_hash', 'qr_token', 'fcm_token'];
-    $pairs = 0;
+
+    // The expected set is COUNTED FROM THE DDL, not asserted as a magic number.
+    // The inherited version demanded `>= 5` and the real answer is 4, which is
+    // a fact about the schema rather than a defect: `token_hash` and
+    // `kode_hash` live only on the two tables AuditScope excludes, so they
+    // never reach gate 2. A hand-typed threshold hides exactly that.
+    $expected = [];
+
+    foreach (AuditScope::auditedTables() as $table) {
+        foreach (audSpec()->table($table)->columns as $column) {
+            if (in_array($column->name, $credentials, true)) {
+                $expected[] = $table.'.'.$column->name;
+            }
+        }
+    }
+
+    $actual = [];
 
     foreach (AuditScope::auditedTables() as $table) {
         $allowed = AuditColumnPolicy::allowList($table);
@@ -78,7 +95,7 @@ test('gate 2 denies every credential column in the scope, by name', function () 
                 expect(in_array($column->name, $allowed, true))
                     ->toBeFalse($table.'.'.$column->name.' is a credential and gate 2 must deny it');
 
-                $pairs++;
+                $actual[] = $table.'.'.$column->name;
             }
 
             // And the rule is a RULE, so a name nobody has seen is judged too.
@@ -89,7 +106,10 @@ test('gate 2 denies every credential column in the scope, by name', function () 
         }
     }
 
-    expect($pairs)->toBeGreaterThanOrEqual(5, 'the scope should contain the credentials named above');
+    expect($actual)->toBe($expected);
+    // Pest's toContain is VARIADIC, so a second argument is read as another
+    // needle rather than as a message. Assert on the needle alone.
+    expect($expected)->toContain('users.kata_sandi_hash');
 
     // The vocabulary discriminates: a credential is denied, a name is not.
     foreach ($credentials as $credential) {
@@ -106,7 +126,6 @@ test('gate 3 denies the VARCHAR columns the DDL types as safe and that are still
     $named = [
         ['users', 'nama_lengkap'],
         ['users', 'foto_profil'],
-        ['pasien', 'nama_lengkap'],
         ['pasien', 'tempat_lahir'],
         ['pasien', 'pekerjaan'],
         ['pasien', 'alamat_lengkap'],
@@ -134,7 +153,7 @@ test('gate 3 denies the VARCHAR columns the DDL types as safe and that are still
         ['rekam_medis_lampiran', 'file_url'],
         ['rekam_medis_persetujuan', 'ditandatangani_oleh'],
         ['rekam_medis_persetujuan', 'tanda_tangan_url'],
-        ['booking', 'alasan_pebatalan'],
+        ['booking', 'alasan_pembatalan'],
         ['konsultasi', 'diagnosis_kerja'],
         ['konsultasi', 'room_id'],
         ['konsultasi_chat', 'file_url'],
@@ -148,7 +167,6 @@ test('gate 3 denies the VARCHAR columns the DDL types as safe and that are still
         ['artikel', 'slug'],
         ['artikel', 'ringkasan'],
         ['artikel', 'cover_url'],
-        ['resep', 'catatan_apoteker'],
         ['resep_item', 'nama_obat'],
         ['resep_item', 'kekuatan'],
         ['resep_item', 'aturan_pakai'],
@@ -171,7 +189,31 @@ test('gate 3 denies the VARCHAR columns the DDL types as safe and that are still
             ->toBeFalse($table.'.'.$column.' must be denied');
     }
 
-    expect($named)->toHaveCount(60);
+    // Cross-checked against the POLICY rather than against a hand-typed count.
+    // A literal `60` here would keep passing if somebody added a deny pair to
+    // the policy and forgot to add it here, which is precisely the drift the
+    // list is supposed to catch. The count is still pinned, just derived.
+    expect($named)->toBe(AuditColumnPolicy::EXPLICIT_DENY);
+    expect($named)->not->toBeEmpty();
+});
+
+test('every explicit-deny pair names a real column, so a typo cannot silently un-deny one', function () {
+    // A pair that names nothing denies nothing, and the gate-3 test above
+    // passes vacuously for it - `in_array` over an allow-list that never
+    // contained the phantom is trivially false. This pins totality against
+    // the DDL instead: the pair, the table and the column must all resolve.
+    //
+    // This once caught three live defects: `pasien.nama_lengkap` (the name
+    // lives on `users`), `resep.catatan_apoteker` (the pharmacist note is
+    // `resep_verifikasi.catatan`), and the misspelt `booking.alasan_pebatalan`
+    // for the real `alasan_pembatalan` - the last of which left a genuine
+    // free-text column allow-listed while looking denied.
+    foreach (AuditColumnPolicy::EXPLICIT_DENY as [$table, $column]) {
+        $spec = audSpec()->table($table);
+
+        expect($spec)->not->toBeNull();
+        expect($spec->columns)->toHaveKey($column);
+    }
 });
 
 test('the allow-list is a sorted, duplicate-free subset of the real columns', function () {
@@ -208,7 +250,14 @@ test('every MASKED rule names a column that really is allow-listed somewhere', f
     expect(AuditColumnPolicy::MASKED)->not->toBeEmpty();
 
     foreach (array_keys(AuditColumnPolicy::MASKED) as $column) {
-        expect($allowLists)->toHaveKey($column, "MASKED rule for '{$column}' matches no allow-listed column");
+        // `toHaveKey($key, $value)` takes a VALUE as its second argument, not a
+        // message, and `toContain` is variadic - so both of the inherited
+        // assertions here were really asserting that the collection contained
+        // the explanation STRING. That is how the previous version failed with
+        // "does not match expected type string" instead of naming the column.
+        // The needle alone is asserted, and the collection is reported by the
+        // expectation itself when it fails.
+        expect(array_keys($allowLists))->toContain($column);
     }
 });
 
@@ -238,22 +287,31 @@ test('every MASKED rule carries a written decision, and the phone and email rule
 test('the NIK-shaped value sweep catches a NIK under a column name no rule names', function () {
     // The MASKED map is a convenience keyed by column name. The guarantee is
     // the value sweep, so this tests the sweep directly on a key the map has
-    // never heard of.
-    $swept = App\Services\Audit\AuditRedactor::redactValue('1234567890123456', 'some_unlisted_column');
-    $untouchedKey = App\Services\Audit\AuditRedactor::redactValue('1234567890123456', 'nik');
+    // never heard of. This is the assertion that would have caught a NIK typed
+    // into an allow-listed free-text field.
+    $swept = AuditColumnPolicy::redactValue('1234567890123456', 'some_unlisted_column');
+    $namedKey = AuditColumnPolicy::redactValue('1234567890123456', 'nik');
 
     expect($swept)->not->toBe('1234567890123456');
-    expect($swept)->toBe($untouchedKey, 'the sweep must not depend on the column name');
+    expect($swept)->toBe($namedKey, 'the sweep must not depend on the column name');
 
     // The mask character is the project's canonical one, U+2022 BULLET, because
     // the audit log and the API responses publish the SAME identifier and a
-    // second mask character would mean the same NIK looks differently depending
-    // on which endpoint you asked.
+    // second mask character would mean the same NIK looks different depending
+    // on which endpoint you asked. Reuse, not a second masker.
     expect($swept)->toContain(NikMasker::PENGGANTI);
+    expect($swept)->toBe(NikMasker::mask('1234567890123456'));
 
     // A value that is not NIK shaped is left alone by the sweep, so the sweep
     // is not simply destroying every long number.
-    expect(App\Services\Audit\AuditRedactor::redactValue('2026', 'tahun_lahir'))->toBe('2026');
-    expect(App\Services\Audit\AuditRedactor::redactValue('081234567890', 'no_telepon'))
-        ->not->toBe('081234567890', 'the phone rule still applies by name');
+    expect(AuditColumnPolicy::redactValue('2026', 'tahun_lahir'))->toBe('2026');
+    expect(AuditColumnPolicy::redactValue('081234567890', 'tahun_lahir'))
+        ->toBe('081234567890', 'a phone number is not a NIK run and the sweep leaves it');
+
+    // The phone rule still applies BY NAME, which is the part the sweep cannot
+    // do: 081234567890 is only 12 digits, so only the column rule masks it.
+    expect(AuditColumnPolicy::redactValue('081234567890', 'no_telepon'))
+        ->not->toBe('081234567890');
+    expect(AuditColumnPolicy::redactValue('081234567890', 'no_telepon'))
+        ->toBe(NikMasker::mask('081234567890'));
 });

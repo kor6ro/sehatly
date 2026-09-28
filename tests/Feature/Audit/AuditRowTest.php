@@ -2,8 +2,10 @@
 
 declare(strict_types=1);
 
+use App\Services\Audit\AuditLogWriter;
 use App\Services\Audit\AuditObserverRegistrar;
 use App\Services\Audit\AuditScope;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 
@@ -90,15 +92,30 @@ test('a delete writes data_lama and leaves data_baru null', function () {
     $pasienId = audPasien();
     $dokterId = audDokter();
 
-    $booking = audBooking($pasienId, $dokterId, audUserRow());
+    // `status` is assigned EXPLICITLY. The column is
+    // `ENUM(...) NOT NULL DEFAULT 'menunggu_pembayaran'` (:515), so MySQL fills
+    // it - but Eloquent's in-memory `$attributes` after an insert hold only what
+    // was ASSIGNED, and `getAttributes()` is what the before-image is built
+    // from. Leaving it to the default therefore produced a row with no `status`
+    // at all, which looks like a redaction failure and is really a fixture that
+    // never held the value.
+    $booking = audBooking($pasienId, $dokterId, audUserRow(), ['status' => 'terjadwal']);
     $booking->delete();
 
     $row = audOne('booking', (int) $booking->getKey(), 'delete');
 
     expect($row->aksi)->toBe('delete');
     expect($row->data_baru)->toBeNull('a delete has no after');
-    expect(audPayload($row, 'data_lama'))->toHaveKey('status');
-    expect(audPayload($row, 'data_lama'))->toHaveKey('pasien_id');
+
+    $lama = audPayload($row, 'data_lama');
+    expect($lama)->toHaveKey('status');
+    expect($lama)->toHaveKey('pasien_id');
+    expect($lama['status'])->toBe('terjadwal');
+
+    // And the denied narrative is not in the before-image either, even though a
+    // delete captures the WHOLE row rather than a delta.
+    expect($lama)->not->toHaveKey('keluhan');
+    expect($lama)->not->toHaveKey('alasan_pebatalan');
 });
 
 test('a soft delete is still a delete, and it is logged as one', function () {
@@ -141,27 +158,49 @@ test('every audited table produces a create, an update and a delete row', functi
     // be reachable for all three verbs. It builds no rows, so it cannot prove
     // redaction, but it does catch a table that was added to the scope and then
     // never wired for one of the three events.
-    $verbs = ['created', 'updated', 'deleted', 'forceDeleted'];
+    //
+    // The event list is DERIVED from the writer's own event=>aksi map rather
+    // than typed here. The inherited version listed `forceDeleted` too, which
+    // the observer has no handler for: `Model::observe()` only registers a
+    // method that exists, and `deleted` already fires on the force-delete path,
+    // so a `forceDeleted` listener would have been an assertion for a listener
+    // the design deliberately does not install.
+    $verbs = AuditObserverRegistrar::events();
     $missing = [];
+    $wrong = [];
 
     foreach (AuditObserverRegistrar::auditedModels() as $class) {
-        $raw = Illuminate\Database\Eloquent\Model::getEventDispatcher()->getRawListeners();
+        $raw = Model::getEventDispatcher()->getRawListeners();
 
         foreach ($verbs as $verb) {
             $listeners = $raw['eloquent.'.$verb.': '.$class] ?? [];
 
-            $covered = collect($listeners)->contains(
-                fn ($listener) => is_string($listener)
-                    && $listener === App\Observers\AuditObserver::class.'@'.$verb
-            );
-
-            if (! $covered) {
+            if (! in_array(App\Observers\AuditObserver::class.'@'.$verb, $listeners, true)) {
                 $missing[] = $class.'@'.$verb;
+            }
+        }
+
+        // And nothing beyond the three: a stray fourth listener on one class
+        // would be a path nobody is testing.
+        foreach (array_keys($raw) as $key) {
+            if (! str_starts_with((string) $key, 'eloquent.') || ! str_ends_with((string) $key, ': '.$class)) {
+                continue;
+            }
+
+            $verb = substr((string) $key, strlen('eloquent.'), -strlen(': '.$class));
+
+            if (! in_array($verb, $verbs, true)) {
+                $wrong[] = $class.'@'.$verb;
             }
         }
     }
 
     expect($missing)->toBe([]);
+    expect($wrong)->toBe([]);
+    expect(AuditLogWriter::EVENT_AKSI)->toBe(array_combine(
+        $verbs,
+        array_map(static fn (string $verb): string => AuditLogWriter::EVENT_AKSI[$verb], $verbs),
+    ));
 });
 
 test('the row names the table and the key, so it can be found without the model', function () {

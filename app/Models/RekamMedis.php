@@ -13,12 +13,16 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
-use LogicException;
 
 /**
  * Eloquent model for the `rekam_medis` table.
  *
  * Source: telemedicine_test.sql:621.
+ *
+ * `delete()` and `forceDelete()` both throw, by {@see RefusesHardDelete}:
+ * `akses_rekam_medis_log.rekam_medis_id` carries `ON DELETE CASCADE`
+ * (`telemedicine_test.sql:1153`), so a hard delete would destroy the very
+ * evidence that this record was ever accessed.
  *
  * @property int|null $id
  * @property string|null $uuid
@@ -178,34 +182,6 @@ class RekamMedis extends Model
     public function rekamMedisTindakan(): HasMany
     {
         return $this->hasMany(RekamMedisTindakan::class, 'rekam_medis_id');
-    }
-
-    /**
-     * A medical record must never be hard-deleted, only left in place.
-     *
-     * `akses_rekam_medis_log.rekam_medis_id` carries `ON DELETE CASCADE`
-     * (`telemedicine_test.sql:1153`), so a hard delete destroys the very
-     * evidence that the record was accessed. The model has no soft-delete
-     * column, so "do not hard-delete" has to be a thrown refusal rather
-     * than a flag.
-     *
-     * The refusal must be EXPLICIT because the framework would otherwise
-     * allow it silently: `SoftDeletes` registers `forceDelete` as a GLOBAL
-     * Eloquent builder macro, so once any soft-deleting model boots in the
-     * process the call resolves instead of throwing `BadMethodCallException`
-     * and performs a real DELETE. A declared method wins over `__call`
-     * forwarding, which is what makes this refusal unconditional.
-     *
-     * Note the boundary: this guards the MODEL call. A builder-level mass
-     * `RekamMedis::query()->...->forceDelete()` bypasses the model and
-     * reaches the macro directly; no code path in this repository issues
-     * one, and the audit observer records every `delete()` that does run.
-     */
-    public function forceDelete(): never
-    {
-        throw new LogicException(
-            'RekamMedis must never be hard-deleted: the access log cascades with it.'
-        );
     }
 
     /**

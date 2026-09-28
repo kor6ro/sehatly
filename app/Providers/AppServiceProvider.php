@@ -2,8 +2,7 @@
 
 namespace App\Providers;
 
-use App\Observers\AuditObserver;
-use App\Services\Audit\AuditedModels;
+use App\Services\Audit\AuditObserverRegistrar;
 use App\Services\Auth\LogOtpSender;
 use App\Services\Auth\OtpSender;
 use App\Services\SuratKeterangan\QrTokenGenerator;
@@ -139,18 +138,28 @@ class AppServiceProvider extends ServiceProvider
     /**
      * Register the global audit observer over every sensitive model.
      *
-     * Central registration is the policy: the loop covers exactly
-     * {@see AuditedModels::classes()}, so a new sensitive model is audited
-     * by adding one line to the registry rather than by remembering an
-     * attribute on the model. The registration test asserts the dispatcher
-     * holds created/updated/deleted listeners for each entry, which is what
-     * stops the registry and the registrations drifting apart.
+     * Central registration is the policy, and the SCOPE is derived rather than
+     * typed: {@see AuditObserverRegistrar} walks the foreign-key closure
+     * outward from `pasien` and `users` in the reference SQL, so a new
+     * sensitive model is audited the day it is written, with no line to add
+     * here and no `#[ObservedBy]` attribute to remember on the model.
+     *
+     * The listener is registered on the class-scoped event name the framework
+     * itself uses, which is why this does NOT go through `Model::observe()`:
+     * that method is `(new static)->registerObserver(...)` and would boot every
+     * audited model from inside the provider that is booting.
+     *
+     * The registration test reads Eloquent's own listener table and asserts
+     * every class in the closure carries the observer, and that the wildcard
+     * listener set is empty - which is what stops the registration and the
+     * closure from drifting apart in either direction.
+     *
+     * @see \App\Services\Audit\AuditObserverRegistrar
+     * @see \App\Services\Audit\AuditScope
      */
     private function configureAuditObservers(): void
     {
-        foreach (AuditedModels::classes() as $model) {
-            $model::observe(AuditObserver::class);
-        }
+        AuditObserverRegistrar::registerAll();
     }
 
     /**

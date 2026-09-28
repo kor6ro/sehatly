@@ -29,7 +29,7 @@ require_once __DIR__.'/audit-helpers.php';
 | copies a column nobody thought of is invisible to a per-column assertion and
 | visible to this one.
 |
-| @see \App\Services\Audit\AuditRedactor
+| @see \App\Services\Audit\AuditColumnPolicy
 | @see \App\Support\NikMasker
 */
 
@@ -39,12 +39,40 @@ test('CONTROL: the row scanner finds a NIK and a hash when they really are there
     $nik = '3201234567890123';
     $hash = password_hash('known', PASSWORD_BCRYPT);
 
-    $planted = (object) ['data_baru' => json_encode(['nik' => $nik, 'kata_sandi_hash' => $hash])];
+    // Encoded with the SAME flags AuditLogWriter uses. That detail is the
+    // whole test: `json_encode` escapes `/` to `\/` by default, and a bcrypt
+    // hash can contain `/`, so a control planted with the default flags
+    // sometimes searches for a string the writer never produces. The inherited
+    // version did exactly that, and FAILED to find the full hash it had just
+    // planted - which looked like a scanner defect and was really an encoding
+    // mismatch. A control has to model the real artifact or it proves nothing
+    // either way.
+    $planted = (object) ['data_baru' => json_encode(
+        ['nik' => $nik, 'kata_sandi_hash' => $hash],
+        JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
+    )];
 
     expect(audFindInRow($planted, $nik))->toBe(['value:data_baru']);
     expect(audFindInRow($planted, $hash))->toBe(['value:data_baru']);
-    expect(audFindInRow($planted, substr($hash, 0, 8)))->toBe(['value:data_baru'], 'a hash prefix must be findable');
-    expect(audFindInRow($planted, '320123'))->toBe(['value:data_baru'], 'any substring must be findable');
+    expect(audFindInRow($planted, substr($hash, 0, 8)))->toBe(['value:data_baru']);
+    expect(audFindInRow($planted, '320123'))->toBe(['value:data_baru']);
+
+    // And the negative half of a control: a needle that is genuinely absent
+    // must NOT be reported. Without this, a scanner that returned every column
+    // unconditionally would pass all four assertions above.
+    expect(audFindInRow($planted, 'not-present-anywhere'))->toBe([]);
+
+    // The encoding point, made deterministic. Asserting that a RANDOM bcrypt
+    // hash happens to contain a solidus would be a coin flip - the base64
+    // alphabet is `./A-Za-z0-9`, so most hashes do not. A fixed value proves
+    // the same thing every run.
+    $withSlash = 'a/b/c';
+
+    $writerStyle = json_encode(['v' => $withSlash], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $defaultStyle = json_encode(['v' => $withSlash]);
+
+    expect($writerStyle)->toContain($withSlash);
+    expect($defaultStyle)->not->toContain($withSlash);
 });
 
 test('a NIK is never stored in an audit row, in any of the three identifier columns', function () {
@@ -56,12 +84,14 @@ test('a NIK is never stored in an audit row, in any of the three identifier colu
     // `pasien` create row, and a query-builder insert fires no model event, so
     // there would be no row to inspect. `rhesus` is set explicitly rather than
     // left to the column default, because Eloquent's attributes after an insert
-    // are what was assigned, not what MySQL filled in.
+    // are what was assigned, not what MySQL filled in - and the value must be a
+    // real member of the DDL ENUM at :229, or MySQL truncates it and the
+    // assertion below would be checking a value the row never held.
     $pasien = audPasienModel([
         'nik' => $nik,
         'nomor_kk' => $kk,
         'nomor_ihs_satusehat' => $ihs,
-        'rhesus' => 'O',
+        'rhesus' => 'negatif',
     ]);
 
     $row = audOne('pasien', (int) $pasien->getKey());
@@ -221,20 +251,32 @@ test('no_telepon and email are masked rather than dropped, and the decision is a
     $payload = audPayload($row, 'data_baru');
 
     // The whole address is gone, including the local part and the domain.
-    expect(audFindInRow($row, $phone))->toBe([], 'phone');
-    expect(audFindInRow($row, $email))->toBe([], 'email');
-    expect(audFindInRow($row, 'dewi.santoso'))->toBe([], 'email local part');
-    expect(audFindInRow($row, 'example.test'))->toBe([], 'email domain');
-    expect($whole)->not->toContain('Dewi Santoso', 'a name is denied');
+    expect(audFindInRow($row, $phone))->toBe([]);
+    expect(audFindInRow($row, $email))->toBe([]);
+    expect(audFindInRow($row, 'dewi.santoso'))->toBe([]);
+    expect(audFindInRow($row, 'example.test'))->toBe([]);
+    expect($whole)->not->toContain('Dewi Santoso');
 
     // Kept, not dropped: a masked phone still answers "which of my two numbers
     // was on file", and a masked email still answers "was this address the
     // verified one", which is the question the row exists to answer.
     expect($payload['no_telepon'])->toBeString()->not->toBe('');
     expect($payload['email'])->toBeString()->not->toBe('');
-    expect($payload['email'])->toContain('@', 'the @ survives so the field is still recognisable as an email');
+    // Pest's `toContain` is VARIADIC, so a second argument is read as another
+    // needle rather than as a message. Every containment assertion below
+    // therefore names ONE needle. The inherited version passed explanations in
+    // the second slot, which turned an explanation into a required substring
+    // and - where the assertion was negated - a silent false pass.
+    expect($payload['email'])->toContain('@');
     expect($payload['email'])->not->toContain('example');
-    expect($payload['no_telepon'])->toContain(NikMasker::PENGGANTI, 'the phone rule uses the project\'s canonical mask character');
+    expect($payload['no_telepon'])->toContain(NikMasker::PENGGANTI);
+
+    // Not merely present: MASKED, and different from the raw value. A null, or
+    // the value itself, would both be the failure this decision exists to
+    // avoid.
+    expect($payload['no_telepon'])->not->toBe($phone);
+    expect($payload['email'])->not->toBe($email);
+    expect($payload['no_telepon'])->toBe(NikMasker::mask($phone));
 
     // The reasoning is in the code, and this stops it being deleted as
     // "unused documentation" the first time somebody asks why email is not

@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 use App\Models\AksesRekamMedisLog;
 use App\Models\AuditLog;
-use App\Services\Audit\AuditedModels;
 use App\Services\Audit\AuditLogWriter;
+use App\Services\Audit\AuditObserverRegistrar;
+use App\Services\Audit\AuditScope;
 use Illuminate\Database\Eloquent\Model;
 
 /*
@@ -96,18 +97,29 @@ test('every sensitive model carries created, updated and deleted listeners from 
     $dispatcher = Model::getEventDispatcher();
     expect($dispatcher)->not->toBeNull();
 
-    $classes = AuditedModels::classes();
+    // The list is DERIVED, from the foreign-key closure outward from `pasien`
+    // and `users` in the reference SQL. The inherited version hand-typed twenty
+    // class names here and pinned `toHaveCount(20)`, which is precisely the
+    // "list asserted against itself" the brief rules out: it could only ever
+    // prove the list and the registry agreed, never that coverage was a
+    // mechanism. `AuditScope` derives the set, and the assertions below read
+    // Eloquent's own listener table.
+    $classes = AuditScope::auditedModels();
 
-    // Pinned count, deliberately: adding or dropping a sensitive model must
-    // be a conscious edit of the registry AND of this number, not a silent
-    // drift of one from the other.
-    expect($classes)->toHaveCount(20);
+    expect($classes)->not->toBe([], 'the derived scope is empty, so nothing is covered');
+
+    // Every plan-named sensitive model is in the DERIVED set. Generated from
+    // the DDL rather than typed as a count, so a model that lost its foreign
+    // key fails here by name.
+    foreach (['users', 'pasien', 'pasien_alergi', 'pasien_anggota_keluarga'] as $table) {
+        expect(AuditScope::personClosure())->toContain($table);
+    }
 
     foreach ($classes as $class) {
         expect(class_exists($class))->toBeTrue($class.' does not exist');
         expect(is_subclass_of($class, Model::class))->toBeTrue($class.' is not an Eloquent model');
 
-        foreach (['created', 'updated', 'deleted'] as $event) {
+        foreach (AuditObserverRegistrar::events() as $event) {
             expect($dispatcher->hasListeners("eloquent.{$event}: {$class}"))
                 ->toBeTrue("no {$event} listener registered for {$class}");
         }
@@ -118,9 +130,9 @@ test('the log tables themselves are never observed: no recursion, no log-of-log'
     $dispatcher = Model::getEventDispatcher();
 
     foreach ([AuditLog::class, AksesRekamMedisLog::class] as $class) {
-        expect(AuditedModels::classes())->not->toContain($class);
+        expect(AuditScope::auditedModels())->not->toContain($class);
 
-        foreach (['created', 'updated', 'deleted'] as $event) {
+        foreach (AuditObserverRegistrar::events() as $event) {
             expect($dispatcher->hasListeners("eloquent.{$event}: {$class}"))
                 ->toBeFalse("{$class} must not have an {$event} listener");
         }
@@ -143,32 +155,47 @@ test('no controller writes an audit row: the observer is the only producer', fun
     expect($offenders)->toBe([]);
 });
 
-test('this task owns exactly one table write: the writer, not the observer or the models', function (): void {
-    // Explicit owned paths, not a directory sweep: a second todo-43 attempt
-    // is writing a parallel stack into app/Services/Audit/ and
-    // tests/Feature/Audit/ in the same tree at the same time (its files are
-    // untracked, not mine, and must be left alone). A sweep would assert on
-    // files outside this task's jurisdiction; this pins what this task owns
-    // and guarantees. The controllers sweep above stays a filesystem
-    // generation, and the no-direct-writes test below still scans broadly.
-    $owned = [
-        'app/Observers/AuditObserver.php',
-        'app/Services/Audit/AuditedModels.php',
-        'app/Services/Audit/AuditLogWriter.php',
-        'app/Providers/AppServiceProvider.php',
-        'app/Models/RekamMedis.php',
-        'app/Http/Controllers/Api/V1/AuthController.php',
-    ];
-
+test('exactly one file in app/ names the audit table, apart from the model that declares it', function (): void {
+    // This is a full sweep of app/, not a hand-typed list of "owned" files.
+    //
+    // The inherited version swept nothing: it named six paths by hand, and one
+    // of them (`AuditedModels.php`) has since been deleted as part of merging
+    // the two parallel audit stacks, so the scan was reading a file that did
+    // not exist and asserting against a list that had stopped describing the
+    // tree. Its own comment explained why - a second todo-43 attempt was
+    // writing a parallel stack - which is no longer true, so the exemption has
+    // no reason to exist.
     $naming = [];
 
-    foreach ($owned as $relative) {
-        if (str_contains(al43rCode(base_path($relative)), 'audit_log')) {
+    foreach (array_merge(
+        al43rPhpFiles('Http/Controllers'),
+        al43rPhpFiles('Services'),
+        al43rPhpFiles('Observers'),
+        al43rPhpFiles('Models'),
+        al43rPhpFiles('Providers'),
+        al43rPhpFiles('Jobs'),
+        al43rPhpFiles('Console'),
+    ) as $relative) {
+        $code = al43rCode(base_path($relative));
+
+        if (str_contains($code, "'audit_log'") || str_contains($code, '"audit_log"')) {
             $naming[] = $relative;
         }
     }
 
-    expect($naming)->toBe(['app/Services/Audit/AuditLogWriter.php']);
+    // Sorted: each `al43rPhpFiles()` call sorts within its own directory, but
+    // `array_merge` concatenates six already-sorted lists and the result is not
+    // globally ordered. Without this the expectation depended on the order the
+    // directories happened to be listed above.
+    sort($naming);
+
+    // `app/Models/AuditLog.php` names it in `protected $table`; the writer names
+    // it in the single insert. Nothing else - not the observer, not the
+    // registrar, not the policy, not the provider.
+    expect($naming)->toBe([
+        'app/Models/AuditLog.php',
+        'app/Services/Audit/AuditLogWriter.php',
+    ]);
 });
 
 test('no direct AuditLog model writes exist anywhere under app/', function (): void {

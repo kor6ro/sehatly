@@ -14,6 +14,7 @@ use App\Models\RekamMedis;
 use App\Models\Rujukan;
 use App\Models\SuratKeterangan;
 use App\Models\User;
+use App\Services\Audit\AuditColumnPolicy;
 use App\Services\Auth\OtpSender;
 use App\Services\Auth\OtpService;
 use App\Support\NikMasker;
@@ -213,8 +214,14 @@ function al43Chat(int $konsultasiId, int $userId, array $extra = []): Konsultasi
 /**
  * A `User` THROUGH THE MODEL with a KNOWN password hash, so the observer
  * fires and the absence scan has a concrete secret to hunt for.
+ *
+ * `$extra` overrides the defaults BEFORE the save, which is the whole point of
+ * it: the save is what writes the create row, so a test that assigns a column
+ * afterwards is asserting against a row that never held the value.
+ *
+ * @param  array<string, mixed>  $extra
  */
-function al43UserModel(string $hash): User
+function al43UserModel(string $hash, array $extra = []): User
 {
     $row = new User;
     $row->nama_lengkap = 'Al43 Hash '.Str::upper(Str::random(4));
@@ -222,6 +229,11 @@ function al43UserModel(string $hash): User
     $row->kata_sandi_hash = $hash;
     $row->tipe = 'pasien';
     $row->status = 'aktif';
+
+    foreach ($extra as $column => $value) {
+        $row->{$column} = $value;
+    }
+
     $row->save();
 
     return $row;
@@ -521,19 +533,62 @@ test('Booking keluhan and KonsultasiChat isi are absent from the audit payloads'
     }
 });
 
-test('contact identifiers needed for forensics are stored: no_telepon and email', function (): void {
-    $user = al43UserModel(password_hash('kata-sandi-al43-kontak', PASSWORD_BCRYPT));
-    $user->email = 'al43-kontak@example.test';
-    $user->save();
+test('contact identifiers are MASKED, not stored and not dropped: no_telepon and email', function (): void {
+    $phone = '081243000042';
+    $email = 'al43-kontak@example.test';
 
-    // Deliberate, not silent: no_telepon and email are the login identifiers
-    // and OTP targets, so redacting them would destroy the log's
-    // incident-response value. They are changeable contact identifiers, not
-    // immutable national identifiers like the NIK, and audit_log itself is
-    // permission-gated. The NIK and the password hash stay out (above).
+    // The identifiers are passed INTO the fixture, not assigned afterwards.
+    // `al43UserModel()` saves, and the save is what writes the create row, so
+    // assigning afterwards leaves the create row carrying the fixture's RANDOM
+    // number - the assertion then compared my masked phone against a mask of a
+    // different value and failed, which reads as a masking bug and is really a
+    // fixture that wrote before it was configured.
+    $user = al43UserModel(
+        password_hash('kata-sandi-al43-kontak', PASSWORD_BCRYPT),
+        ['no_telepon' => $phone, 'email' => $email],
+    );
+
+    // THE DECISION, and it is a reversal of the one this test previously
+    // asserted. Two inherited test files disagreed: this one required
+    // `no_telepon` to be STORED RAW ("redacting it would destroy the log's
+    // incident-response value"), while RedactionAbsenceTest required it to be
+    // MASKED. Both could not hold, and the raw-storage reading was wrong on the
+    // law rather than merely on taste.
+    //
+    // A phone number and an email address are personal data under UU PDP. The
+    // row does not need them: it already carries `user_id`, `ip_address` and
+    // `user_agent`, so the actor is identified without them. What the row DOES
+    // need to answer is "did the number on file change?", and a masked form
+    // answers that. A hash was rejected because a hash in an append-only table
+    // is a permanent linkable identifier, which is the same reason the NIK is
+    // masked and not hashed.
+    //
+    // So: masked, one masker, and the reasoning lives in
+    // AuditColumnPolicy::DECISIONS where it can be argued with.
     $row = al43One('users', $user->getKey(), 'create');
+    $whole = al43WholeRow($row);
     $baru = al43Payload($row, 'data_baru');
-    expect($baru['no_telepon'] ?? null)->toBe((string) $user->no_telepon);
+
+    // Absent from the whole row, not merely from the key we expected.
+    expect($whole)->not->toContain($phone);
+    expect($whole)->not->toContain($email);
+
+    // Kept, not dropped: a masked phone still says a number was on file, and a
+    // masked email still reads as an email field.
+    expect($baru['no_telepon'])->toBe(NikMasker::mask($phone));
+    expect($baru['no_telepon'])->not->toBe($phone);
+    expect($baru['no_telepon'])->toContain(NikMasker::PENGGANTI);
+
+    expect($baru['email'])->toContain('@');
+    expect($baru['email'])->not->toContain('example');
+    expect($baru['email'])->not->toBe($email);
+
+    // And the decision is written down, so it cannot be quietly reverted.
+    foreach (['no_telepon', 'email'] as $column) {
+        expect(AuditColumnPolicy::DECISIONS)->toHaveKey($column);
+        expect(strlen(AuditColumnPolicy::DECISIONS[$column]))->toBeGreaterThan(40);
+        expect(AuditColumnPolicy::MASKED)->toHaveKey($column);
+    }
 });
 
 // =====================================================================
