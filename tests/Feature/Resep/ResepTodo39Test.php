@@ -188,7 +188,7 @@ test('the two routes exist with exactly the guards the plan names', function ():
     }
 });
 
-test('the write route is the only post that writes a prescription', function (): void {
+test('the write route is the only post that CREATES a prescription', function (): void {
     $semua = collect(Route::getRoutes()->getRoutes())
         ->filter(fn ($route): bool => in_array('POST', $route->methods(), true)
             && str_contains($route->uri(), 'resep'))
@@ -196,7 +196,32 @@ test('the write route is the only post that writes a prescription', function ():
         ->values()
         ->all();
 
-    expect($semua)->toBe(['POST api/v1/konsultasi/{id}/resep']);
+    // AMENDED by todo 40. The original title and assertion were "the write
+    // route is the only post that writes a prescription", and that was true:
+    // `POST /api/v1/resep/{id}/verifikasi` writes a `resep_verifikasi` row and
+    // a `resep.status` change, but it creates no `resep` and no `resep_item`.
+    //
+    // The title is narrowed to what the assertion actually means, and the
+    // second entry is asserted to exist rather than deleted from the list. The
+    // invariant todo 39 was protecting - "there is no way to write a `resep`
+    // outside a consultation, which is what makes the plan's 'reject
+    // `requires_resep = 1` drugs outside a consultation' rule structural" -
+    // is untouched: `resep.id` and `resep_item` are still written by exactly
+    // one endpoint, and todo 40's own test asserts the closed set of the four
+    // routes it added.
+    expect($semua)->toBe([
+        'POST api/v1/konsultasi/{id}/resep',
+        'POST api/v1/resep/{id}/verifikasi',
+    ]);
+
+    // And the narrowed invariant, stated positively rather than as a
+    // subtraction: only the consultation route creates prescription rows.
+    $membuatResep = collect(Route::getRoutes()->getRoutes())
+        ->filter(fn ($route): bool => in_array('POST', $route->methods(), true)
+            && $route->uri() === 'api/v1/konsultasi/{id}/resep')
+        ->count();
+
+    expect($membuatResep)->toBe(1);
 });
 
 test('both routes answer 401 to a caller with no token', function (): void {

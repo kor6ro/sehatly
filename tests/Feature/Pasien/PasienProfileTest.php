@@ -1504,18 +1504,29 @@ test('the route table exposes the eight auth routes and the eleven patient route
         // drift the assertion exists to catch.
         'POST api/v1/konsultasi/{id}/resep',
         'GET api/v1/obat',
+        // Todo 40's FOUR routes, appended after todo 39's block and so listed
+        // LAST here in registration order. Three of them are two-segment paths
+        // the earlier entries do not resemble, and one of the four is a
+        // `pasien` path that a `--path=api/v1/resep` filter cannot see - the
+        // reason this list is keyed by URI rather than by prefix, and the
+        // reason the plan's own "lists 4 routes" for that filter is answered by
+        // 3. `ResepTodo40Test` asserts the same four as their own closed set.
+        'GET api/v1/pasien/resep',
+        'GET api/v1/resep/{id}',
+        'GET api/v1/resep/{id}/cek-interaksi',
+        'POST api/v1/resep/{id}/verifikasi',
     ]);
 
-    // TWELVE under the `pasien` filter: the ten above (profil read + write, two
+    // THIRTEEN under the `pasien` filter: the ten above (profil read + write, two
     // each for the family and allergy lists, and two each for the row-addressed
-    // update and delete) plus the patient booking list and todo 34's letter list.
-    // `GET /api/v1/me` sits outside the `pasien` filter, and the other three
-    // booking routes live outside it too.
+    // update and delete) plus the patient booking list, todo 34's letter list,
+    // and todo 40's patient prescription history. `GET /api/v1/me` sits outside
+    // the `pasien` filter, and the other three booking routes live outside it too.
     $pasienRoutes = collect(array_keys($routes))
         ->filter(fn (string $key): bool => str_contains($key, 'api/v1/pasien'))
         ->all();
 
-    expect($pasienRoutes)->toHaveCount(12);
+    expect($pasienRoutes)->toHaveCount(13);
 
     $middlewareFor = static function (string $key) use ($routes): array {
         return array_values(array_filter(
@@ -1624,6 +1635,16 @@ test('the route table exposes the eight auth routes and the eleven patient route
             // kind of caller rather than as a missing grant.
             'POST api/v1/konsultasi/{id}/resep' => ['tipe:dokter', 'permission:resep.buat'],
             'GET api/v1/obat' => ['tipe:dokter', 'permission:obat.cari'],
+            // Todo 44's one route, carrying NEITHER. `promo.validasi` IS a real
+            // code in `RbacCatalog::PERMISSIONS`, but `ROLE_PERMISSIONS` grants
+            // it to `admin` and `superadmin` and to nobody else - the `pasien`
+            // list above does not contain it - so a `permission:promo.validasi`
+            // gate would 403 the one account type that owns a `pasien` row to
+            // validate against. `tipe:pasien` is refused for the same reason as
+            // everywhere else in this file: it cannot express "is this invoice
+            // yours", which `PromoController` answers through
+            // `PasienRecordAccess::ownPasien()`.
+            'POST api/v1/promo/validasi' => [],
         ];
 
         expect($guards)->toEqualCanonicalizing(
@@ -1657,12 +1678,9 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
     }
 
     // Module 2 (booking) is the first consumer, and Module 3 (consultation, medical
-    // record) added seven more. The list is NINETEEN entries and was GENERATED from
-    // the live `routes/api.php` with the same regex rather than typed, because a
-    // hand-typed literal here that silently became a different string is exactly the
-    // failure this assertion exists to catch - and it has caught three of them in
-    // previous batches. Todo 34's letter create adds TWO more, for TWENTY-ONE, and
-    // each new entry must arrive with its catalogue entry in the same commit.
+    // record) added seven more. Todo 34's letter create adds TWO more, todo 39's two
+    // routes add FOUR, and todo 40's four routes add FIVE, for THIRTY in total. Each
+    // new entry must arrive with its catalogue entry in the same commit.
     expect(array_map(static fn (array $m): string => $m[0], $matches))->toEqualCanonicalizing([
         "'permission:booking.lihat'",
         "'permission:booking.buat'",
@@ -1703,6 +1721,25 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         "'tipe:dokter'",
         "'permission:resep.buat'",
         "'tipe:dokter'",
+        // Todo 40 contributes FIVE strings for FOUR routes, because the regex
+        // captures the `permission:` and the `tipe:` as separate hits and only
+        // the verify write wires both. The three READS carry
+        // `resep.lihat` and NO `tipe:`, which is a decision rather than an
+        // omission: the read audience is a disjunction (the prescriber OR the
+        // patient OR a pharmacist) that a route gate can only express as a
+        // conjunction, so the per-row half lives in `ResepAccess`.
+        // `tipe:apoteker` appears once, on the verify write, and it is what
+        // refuses `superadmin` - which DOES hold `resep.verifikasi` - from
+        // signing a clinical prescription.
+        //
+        // Duplicated deliberately from `AuthFlowTest` over the same regex: a
+        // closed set only one file watches is a closed set one later refactor
+        // can quietly reopen.
+        "'permission:resep.lihat'",
+        "'permission:resep.lihat'",
+        "'permission:resep.lihat'",
+        "'permission:resep.verifikasi'",
+        "'tipe:apoteker'",
     ]);
 });
 

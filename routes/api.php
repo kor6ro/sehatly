@@ -641,6 +641,7 @@ Route::get('pasien/surat-keterangan', [SuratKeteranganController::class, 'daftar
 Route::get('surat-keterangan/{nomor_surat}/verify', [SuratKeteranganController::class, 'verifikasi'])
     ->name('surat-keterangan.verify');
 
+use App\Http\Controllers\Api\V1\PromoController;
 use App\Http\Controllers\Api\V1\ReferensiController;
 use App\Support\Reference\ReferensiEndpoint;
 
@@ -787,6 +788,78 @@ use App\Http\Controllers\Api\V1\ResepController;
 | resource route would publish methods this surface does not have.
 */
 
+/*
+|--------------------------------------------------------------------------
+| Module 5 -- promo validation. One route, and it is a PURE CALCULATION
+|--------------------------------------------------------------------------
+|
+| APPENDED by todo 44. Nothing above this line is touched. This block is last in
+| the file: no route above it can swallow a two-segment `promo` path, and this
+| route cannot swallow a path above it.
+|
+| ## The plan's count is right: ONE route
+|
+| `php artisan route:list --path=api/v1/promo` answers 1. The write that applies
+| a promo is not here either - it is `InvoiceService::buat()`, reached from
+| todo 45's payment and todo 46's checkout, because a promo cannot be applied to
+| an invoice that does not exist yet and no endpoint in Modules 1-5 creates one
+| on demand. Inventing a second route to reach it would be inventing an invoice
+| creation surface the plan does not describe.
+|
+| ## `auth:sanctum` and NOTHING else
+|
+| `promo.validasi` IS a real code in `RbacCatalog::PERMISSIONS` and it is
+| deliberately NOT used as a `permission:` gate. `RbacCatalog::ROLE_PERMISSIONS`
+| grants it to `admin` and `superadmin` and to **nobody else** - the `pasien`
+| role's list (`:221-235`) does not contain it. A `permission:promo.validasi`
+| gate would therefore 403 the ONE account type that owns a `pasien` row to
+| validate against, and the endpoint would be reachable by exactly the callers
+| who cannot use it. `EnsurePermission` also answers an unknown code with a
+| 500, so a gate that could not resolve would be worse than no gate.
+|
+| `tipe:pasien` is refused for the reason `PasienRecordAccess` argues at length:
+| it answers "which account type is this", which cannot express "is this invoice
+| yours", and a `pasien`-typed account with no `pasien` row passes it and is
+| refused by the service anyway - so it would be a second, strictly weaker gate
+| answering one question. `PromoController` resolves the caller's own `pasien`
+| row through `PasienRecordAccess::ownPasien()`, which raises the 403 for an
+| account that owns no profile.
+|
+| `perawat` and `kurir` are real `users.tipe` ENUM values
+| (`telemedicine_test.sql:139`) that hold NO role in `RbacCatalog::ROLES`, so
+| ANY `permission:` would lock those two out permanently. On this route they are
+| refused with a 403 from `ownPasien()` - a fact about rows they do not own
+| rather than a role they lack, which is the honest shape of the refusal.
+|
+| ## It writes NOTHING, and the schema is why
+|
+| `promo_redemption.invoice_id` is `NOT NULL` (`:1004`) and foreign-keyed to
+| `invoice(id)` (`:1009`). A validation call has no invoice to attach a
+| redemption to, and minting one to hold the row is exactly the write the
+| endpoint is defined not to make. So this route READS and the redemption is
+| written by `InvoiceService` at the moment the promo is actually applied. The
+| test asserts zero `promo_redemption` rows AND zero `invoice` rows afterwards.
+|
+| ## It answers 200 with `valid: false`, not 422
+|
+| A caller asking "would this code work for me?" is asking a question, and "no,
+| and here is which of the five rules it breaks" is the answer. The five reasons
+| arrive as `data.alasan` with machine-readable `kode` values, so a client
+| branches on the code and not on Indonesian prose. The APPLY path is the
+| opposite and deliberately so: there the caller asked for something to happen,
+| so `PromoHitungan::tolak()` raises a 422 through the standard envelope.
+|
+| ## No `Route::resource`
+|
+| One operation, one verb, one shape, so a resource route would publish `show`,
+| `update` and `destroy` for a table no endpoint in Modules 1-5 writes.
+*/
+
+Route::middleware('auth:sanctum')->group(function (): void {
+    Route::post('promo/validasi', [PromoController::class, 'validasi'])
+        ->name('promo.validasi');
+});
+
 Route::middleware('auth:sanctum')->group(function (): void {
     Route::get('obat', [ResepController::class, 'search'])
         ->middleware(['tipe:dokter', 'permission:obat.cari'])
@@ -796,4 +869,110 @@ Route::middleware('auth:sanctum')->group(function (): void {
         ->whereNumber('id')
         ->middleware(['tipe:dokter', 'permission:resep.buat'])
         ->name('konsultasi.resep.store');
+});
+
+/*
+|--------------------------------------------------------------------------
+| Module 4 -- prescription detail, pharmacist verification, patient history
+|--------------------------------------------------------------------------
+|
+| APPENDED by todo 40. Nothing above this line is touched. This block is last in
+| the file, which is the only ordering constraint it has: `resep/{id}` is a
+| two-segment path and `pasien/resep` is a two-segment `pasien` path, so no
+| route above can swallow either and neither can swallow a path above.
+|
+| ## Four routes, and `route:list --path=api/v1/resep` answers THREE
+|
+| The plan's acceptance criterion says that filter "lists 4 routes". It answers
+| 3, because `api/v1/pasien/resep` is a `pasien` path and a prefix filter
+| cannot see it. This is the same class of defect todo 32 found for
+| `konsultasi`, todo 33 for `rekam-medis` and todo 34 for `surat_keterangan`;
+| the count is recorded rather than satisfied by deleting an endpoint, and the
+| test asserts the closed set of all four BY URI.
+|
+| `GET /pasien/resep` sits on THIS controller rather than on `PasienController`
+| for the reason todo 34 registered `GET /pasien/surat-keterangan` on
+| `SuratKeteranganController`: the path prefix names the CALLER and the
+| controller names the RESOURCE, and putting a prescription list on the patient
+| profile controller would make that controller the owner of two modules.
+|
+| ## The guards, and why the verify write carries two
+|
+| | route | `permission:` | `tipe:` | who is refused, and why |
+| | --- | --- | --- | --- |
+| | `GET /resep/{id}` | `resep.lihat` | - | `admin` (holds no `resep.lihat`), `perawat`, `kurir`; another patient's row 404 |
+| | `GET /resep/{id}/cek-interaksi` | `resep.lihat` | - | same |
+| | `POST /resep/{id}/verifikasi` | `resep.verifikasi` | `apoteker` | patient, doctor (INCLUDING the prescriber), admin, perawat, kurir, superadmin |
+| | `GET /pasien/resep` | `resep.lihat` | - | a caller with no `pasien` row, 403 from `PasienRecordAccess` |
+|
+| `resep.lihat` and `resep.verifikasi` are both real codes in
+| `RbacCatalog::PERMISSIONS` with Indonesian verbs - "Lihat Resep" and "Verifikasi
+| Resep" - and `EnsurePermission` answers an UNKNOWN code with a 500, not a
+| 403, so a route written as `resep.read` would build-break. The test resolves
+| every `permission:` and `tipe:` string in this block against `RbacCatalog`.
+|
+| ## The three reads carry no `tipe:`, and the write carries no `permission:`
+| alone
+|
+| The read audience is a DISJUNCTION - the prescribing doctor OR the patient OR
+| a pharmacist -- and a route gate can only express a conjunction, so the
+| per-row half of the rule lives in `ResepAccess`, which is where the
+| 404-for-another-patient and 403-for-an-unowned-caller split is decided. The
+| same argument `KonsultasiController` makes for `GET /konsultasi/{id}`.
+|
+| The write needs BOTH gates and the second is not redundant. `tipe:apoteker`
+| is what excludes the prescribing doctor, because `resep.verifikasi` is
+| granted to `apoteker` and `superadmin` and the plan does not want an
+| oversight account signing clinical prescriptions - the asymmetry todo 34
+| applies to `surat_keterangan.buat`. `resepAccess::untukVerifikasi()` then
+| repeats the separation of duties for an account that is BOTH a pharmacist and
+| the prescribing doctor, which `tipe:` cannot express because `dokter.user_id`
+| and `users.tipe` are independent columns.
+|
+| `perawat` and `kurir` are real `users.tipe` values (`telemedicine_test.sql:139`)
+| that hold NO role in `RbacCatalog::ROLES`, so any `permission:` locks them out
+| of all four permanently. Reported as a data change in `app/Support/Rbac/`
+| plus a re-seed, and not this todo's to make.
+|
+| ## `whereNumber('id')` on every `{id}`
+|
+| `resep.id` and `resep_verifikasi.id` are `BIGINT UNSIGNED AUTO_INCREMENT`
+| primary keys (`:743`, `:787`), so a non-numeric segment is a router 404 and
+| no request can arrive with `abc` in a position the API treats as an
+| identifier.
+|
+| ## No `Route::resource` and no `Route::apiResource`
+|
+| The four operations have four distinct verbs and four distinct shapes, and a
+| resource route would publish `create`, `update` and `destroy` for a
+| prescription, which the DDL makes impossible: `resep_verifikasi` holds one row
+| per prescription for ever, and a prescription itself is corrected by writing
+| ANOTHER one, not by editing this one.
+|
+| @see \App\Services\Resep\ResepVerifikasiService
+| @see \App\Services\Resep\ResepStateMachine
+| @see \App\Services\Resep\ResepAccess
+*/
+
+Route::middleware('auth:sanctum')->group(function (): void {
+    Route::get('pasien/resep', [ResepController::class, 'riwayat'])
+        ->middleware('permission:resep.lihat')
+        ->name('pasien.resep.index');
+
+    Route::prefix('resep')->name('resep.')->group(function (): void {
+        Route::get('{id}', [ResepController::class, 'show'])
+            ->whereNumber('id')
+            ->middleware('permission:resep.lihat')
+            ->name('show');
+
+        Route::get('{id}/cek-interaksi', [ResepController::class, 'cekInteraksi'])
+            ->whereNumber('id')
+            ->middleware('permission:resep.lihat')
+            ->name('cek-interaksi');
+
+        Route::post('{id}/verifikasi', [ResepController::class, 'verifikasi'])
+            ->whereNumber('id')
+            ->middleware(['tipe:apoteker', 'permission:resep.verifikasi'])
+            ->name('verifikasi');
+    });
 });

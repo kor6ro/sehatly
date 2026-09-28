@@ -1286,9 +1286,10 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
 
     // Module 2 (booking) is the first consumer and Module 3 (consultation, medical
     // record) added seven more, for NINETEEN strings in total; todo 34's letter
-    // create adds two more, for TWENTY-ONE. Each is proven to resolve against
-    // `RbacCatalog` by the loop above, and a new entry must arrive with its
-    // catalogue entry in the same commit.
+    // create adds two more, for TWENTY-ONE; todo 39's two routes add four, for
+    // TWENTY-FIVE; todo 40's four routes add five, for THIRTY. Each is proven
+    // to resolve against `RbacCatalog` by the loop above, and a new entry must
+    // arrive with its catalogue entry in the same commit.
     //
     // This census is deliberately DUPLICATED over the same regex in
     // `PasienProfileTest`, which asserts the same list. Two files asserting one
@@ -1343,6 +1344,24 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         "'tipe:dokter'",
         "'permission:resep.buat'",
         "'tipe:dokter'",
+        // Todo 40's four routes, in the order `routes/api.php` wires them. The
+        // patient history, the detail and the interaction re-check carry only
+        // `resep.lihat` - a READ code, and no `tipe:`, because the read
+        // audience is a disjunction (the prescriber OR the patient OR a
+        // pharmacist) that a route gate can only express as a conjunction, so
+        // the per-row half of the rule lives in `ResepAccess`. The verify
+        // write is the only route here with BOTH halves, because
+        // `resep.verifikasi` is granted to `apoteker` AND `superadmin` and
+        // `tipe:apoteker` is what refuses the oversight account from signing a
+        // clinical prescription.
+        //
+        // FIVE strings for FOUR routes: three carry only `permission:`, so the
+        // regex counts one hit each, and the verify route wires both.
+        "'permission:resep.lihat'",
+        "'permission:resep.lihat'",
+        "'permission:resep.lihat'",
+        "'permission:resep.verifikasi'",
+        "'tipe:apoteker'",
     ]);
 });
 
