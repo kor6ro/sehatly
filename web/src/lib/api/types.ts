@@ -22,6 +22,8 @@
  * | `Booking` | `BookingResource` |
  * | `IssuedToken` | `AuthTokenResource` (re-declared in `lib/http.ts`) |
  * | `OtpChallenge` | the inline `otp` array in `AuthController` |
+ * | `Konsultasi`, `KonsultasiPesan` | `KonsultasiResource`, `KonsultasiChatResource` |
+ * | `RekamMedis`, `RekamMedisRantai` | `RekamMedisResource` |
  *
  * ## Nullable is spelled honestly
  *
@@ -495,4 +497,387 @@ export type Booking = {
     dibuat_at: Iso;
     /** Present only on the doctor-side list. See {@link BookingPasien}. */
     pasien?: BookingPasien;
+};
+
+// ============================================================================
+// konsultasi
+// ============================================================================
+
+/**
+ * `konsultasi.status`, the **SIX**-value ENUM at `telemedicine_test.sql:542`, in
+ * the DDL's own order.
+ *
+ * The plan's todo 35 says "the 5 consultation statuses". That is wrong, and the
+ * DDL is the authority: the column declares six, `KonsultasiStatus` declares six
+ * cases, and `KonsultasiStatus::STATUS_AKHIR` is `['selesai', 'dibatalkan',
+ * 'gagal']` - so the three terminal states alone would not fit in five either. This
+ * union carries all six; a `Switch` over it is exhaustive by the type checker, and
+ * a seventh value is a compile error rather than a badge that falls through to a
+ * default colour.
+ */
+export type StatusKonsultasi =
+    | 'menunggu_dokter'
+    | 'berlangsung'
+    | 'menunggu_resep'
+    | 'selesai'
+    | 'dibatalkan'
+    | 'gagal';
+
+/** `konsultasi.tipe`, read from `KonsultasiTipe` on the server. */
+export type TipeKonsultasi = 'chat' | 'video_call' | 'telepon';
+
+/**
+ * `konsultasi_chat.pengirim_tipe`, the three-value ENUM at
+ * `telemedicine_test.sql:567`.
+ *
+ * Not `users.tipe`, which is a seven-value ENUM at `:139`: `KonsultasiService::kirim()`
+ * derives this from which PROFILE row the caller owns, so a `superadmin` who is
+ * party to nothing is refused and never reaches a value here.
+ */
+export type PengirimTipe = 'pasien' | 'dokter' | 'sistem';
+
+/**
+ * `konsultasi_chat.tipe_pesan`, the **EIGHT**-value ENUM at
+ * `telemedicine_test.sql:568`-`:569`.
+ *
+ * Three of the eight - `resep`, `surat_keterangan` and `sistem` - are
+ * `KonsultasiService::TIPE_PESAN_SISTEM` and are written by the server when the
+ * corresponding document is created. `KirimPesanRequest` accepts all eight on the
+ * way in and the SERVICE rejects the three system ones with a 422 on `tipe_pesan`,
+ * so a client that only ever offers the other five is refused by nothing it can
+ * reach. That is why {@link TIPE_PESAN_KIRIM} exists beside this union.
+ */
+export type TipePesan =
+    | 'teks'
+    | 'gambar'
+    | 'dokumen'
+    | 'audio'
+    | 'video_note'
+    | 'resep'
+    | 'surat_keterangan'
+    | 'sistem';
+
+/** The four `TIPE_PESAN_BERKAS` members: the types that need an upload. */
+export type TipePesanBerkas = Extract<
+    TipePesan,
+    'gambar' | 'dokumen' | 'audio' | 'video_note'
+>;
+
+/**
+ * One `konsultasi_chat` row, transcribed field by field from
+ * `App\Http\Resources\KonsultasiChatResource`.
+ *
+ * ## `id` is the dedupe key, and that is why it is the first field
+ *
+ * The same row reaches a client by two transports: the REST history page, and the
+ * `chat.pesan` broadcast that `KonsultasiController::siarkan()` dispatches with
+ * `(new KonsultasiChatResource($pesan))->resolve($request)` - the *same array*, so
+ * the two transports carry a byte-identical `id`. A re-subscribe can also make the
+ * broker replay a frame. All three collapse to one render because both transports
+ * resolve to this field and nothing else. See `lib/realtime/dedupe.ts`.
+ *
+ * ## `pengirim_nama` is not published, deliberately
+ *
+ * The resource's docblock is explicit: the sender's name would need an eager load
+ * of `pengirimUser` on the hot path of a chat send, and `pengirim_tipe` already
+ * answers the only question a renderer asks of it. A bubble therefore labels itself
+ * "Anda" or the other side, never a name.
+ */
+export type KonsultasiPesan = {
+    id: number;
+    /**
+     * `konsultasi_chat.konsultasi_id` at `:565`, named after the column because the
+     * column name IS the wire key. A client reading `konsultasi` here would score
+     * every message in the transcript as consultation `0`.
+     */
+    konsultasi_id: number;
+    /**
+     * `NOT NULL` with a real FK to `users` (`:577`), so a `sistem` row carries one
+     * too. Keying "did I write this" off the id alone would claim a system notice
+     * as your own, which is why {@link PengirimTipe} is the first thing a bubble
+     * asks.
+     */
+    pengirim_user_id: number;
+    pengirim_tipe: PengirimTipe;
+    tipe_pesan: TipePesan;
+    /** `TEXT NULL` at `:570`; `null` is a state a bubble has to handle. */
+    isi: string | null;
+    /** Public-disk URL. A descriptor only - no file body is ever inlined. */
+    file_url: string | null;
+    /** The sanitised basename the service truncated to 255 characters. */
+    file_nama: string | null;
+    file_ukuran_kb: number | null;
+    /**
+     * `DATETIME` at `:574` with no offset, read only as "has the other party read
+     * it" - the resource publishes `toISOString()` but the *instant* is never the
+     * question, and a formatted `DATETIME` is off by the reader's offset.
+     */
+    dibaca_at: Iso;
+    /**
+     * `TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP` at `:575`, so `toISOString()`
+     * ends in `Z`. One-second resolution: a burst ties, and the list is therefore
+     * ordered `(terkirim_at, id)`.
+     */
+    terkirim_at: Iso;
+};
+
+/**
+ * The nested `pasien` block, as `KonsultasiResource` publishes it.
+ *
+ * `nik` is masked through `App\Support\NikMasker` before it leaves PHP, so it is
+ * not a NIK and no operation in this client can unmask it - the same rule as
+ * {@link PasienProfile.nik}.
+ */
+export type KonsultasiPasien = {
+    id: number;
+    nik: string | null;
+    nama_lengkap: string | null;
+};
+
+/** The nested `dokter` block. Nothing beyond the name is published. */
+export type KonsultasiDokter = {
+    id: number;
+    nama_lengkap: string | null;
+};
+
+/** The nested `booking` block, or `null` for an instant consultation. */
+export type KonsultasiBooking = {
+    id: number;
+    nomor_booking: string;
+    tipe_layanan: TipeLayanan;
+    tanggal_kunjungan: Tanggal;
+    slot_mulai: string;
+    slot_selesai: string;
+    status: StatusBooking;
+};
+
+/**
+ * One `konsultasi` row, transcribed field by field from
+ * `App\Http\Resources\KonsultasiResource`.
+ *
+ * The four SOAP columns are named `catatan_subjektif`, `catatan_objektif`,
+ * `catatan_asessment` and `catatan_plan` - and `catatan_asessment` is the DDL's
+ * spelling at `telemedicine_test.sql:550`, **one `s` short of the English word**.
+ * It is not a typo in this client: the column, the migration and the live schema
+ * all carry that spelling, and `KonsultasiService::KOLOM_SOAP` publishes it as the
+ * writable list. The spelling is called out here because it is the single most
+ * likely field in this file to be "corrected" by a reader, which would then send a
+ * key the server does not know.
+ *
+ * `pasien`, `dokter` and `booking` are `whenLoaded()`: `KonsultasiAccess::muatan()`
+ * eager-loads them for every `konsultasi` response, but the resource is documented
+ * as safe on a bare row, so they stay optional rather than nullable.
+ */
+export type Konsultasi = {
+    id: number;
+    booking_id: number | null;
+    pasien_id: number;
+    dokter_id: number;
+    tipe: TipeKonsultasi;
+    status: StatusKonsultasi;
+    /** `UUID4`, assigned by the service on every start. */
+    room_id: string;
+    /**
+     * `DATETIME` at `:545`, `toISOString()`. The resource narrows with
+     * `DateTimeInterface` and not `Illuminate\Support\Carbon` because the cast
+     * returns a `Carbon\CarbonImmutable`, a sibling - a naive check publishes
+     * `null` for a real start time. That trap is measured server-side and is not
+     * repeated here.
+     */
+    mulai_at: Iso;
+    selesai_at: Iso;
+    /**
+     * The **stored** `INT UNSIGNED` at `:547`, not a live `now() - mulai_at`. It is
+     * `null` until the doctor completes the session, which is the truthful answer
+     * before there is a duration.
+     */
+    total_durasi_detik: number | null;
+    catatan_subjektif: string | null;
+    catatan_objektif: string | null;
+    catatan_asessment: string | null;
+    catatan_plan: string | null;
+    /** `VARCHAR(255) NULL` at `:552` - the only SOAP field with a DDL length. */
+    diagnosis_kerja: string | null;
+    saran_tindak_lanjut: string | null;
+    /**
+     * `DECIMAL`, so it arrives as a JSON **string** (`"150000.00"`). Read through
+     * `formatRupiah`; typing it `number` is how a screen renders `Rp NaN`.
+     */
+    biaya_konsultasi: Decimal;
+    dibuat_at: Iso;
+    diubah_at: Iso;
+    pasien?: KonsultasiPasien;
+    dokter?: KonsultasiDokter;
+    booking?: KonsultasiBooking | null;
+};
+
+// ============================================================================
+// rekam_medis
+// ============================================================================
+
+/**
+ * `rekam_medis.status_dokumen`, the three-value ENUM at
+ * `telemedicine_test.sql:645`, in the DDL's own order.
+ *
+ * The DDL's DEFAULT is `'final'`, which is the trap this union exists to make
+ * visible: a record born without an explicit status is born SIGNED and immutable.
+ * `RekamMedisService::simpan()` therefore writes `'draft'` explicitly, and a client
+ * that renders the value it was given must be able to tell the three apart.
+ */
+export type StatusDokumen = 'draft' | 'final' | 'diamendemen';
+
+/** `rekam_medis.tipe_kunjungan`, the five-value ENUM at `:629`. */
+export type TipeKunjungan =
+    | 'telemedisin'
+    | 'rawat_jalan'
+    | 'rawat_inap'
+    | 'igd'
+    | 'home_visit';
+
+/** `rekam_medis.status_tindak_lanjut`, the five-value ENUM at `:643`. */
+export type StatusTindakLanjut =
+    | 'pulang_dengan_obat'
+    | 'kontrol'
+    | 'rujuk'
+    | 'rawat_inap'
+    | 'ke_igd';
+
+/** `rekam_medis_diagnosa.jenis`, the four-value ENUM at `:662`. */
+export type JenisDiagnosa = 'utama' | 'sekunder' | 'diferensial' | 'komplikasi';
+
+/** `rekam_medis_diagnosa.tipe_kasus`, the two-value ENUM at `:663`. */
+export type TipeKasus = 'baru' | 'lama';
+
+/** `rekam_medis_lampiran.tipe`, the four-value ENUM at `:686`. */
+export type TipeLampiran = 'hasil_lab' | 'radiologi' | 'foto_klinis' | 'dokumen_lain';
+
+/** `rekam_medis_persetujuan.tipe`, the three-value ENUM at `:695`. */
+export type TipePersetujuan =
+    | 'general_consent'
+    | 'persetujuan_tindakan'
+    | 'penolakan_tindakan';
+
+export type RekamMedisDiagnosa = {
+    id: number;
+    /** A bare indexed string with NO foreign key (`:660`), validated in the app. */
+    icd10_kode: string;
+    deskripsi: string | null;
+    jenis: JenisDiagnosa;
+    tipe_kasus: TipeKasus;
+    is_terkonfirmasi: boolean;
+};
+
+export type RekamMedisTindakan = {
+    id: number;
+    /** A bare indexed string with NO foreign key (`:672`), validated in the app. */
+    icd9cm_kode: string | null;
+    nama_tindakan: string;
+    keterangan: string | null;
+    /** `DATETIME`, a rule-(1) instant, `toISOString()`. */
+    tanggal_tindakan: Iso;
+    dokter_pelaksana_id: number | null;
+};
+
+export type RekamMedisLampiran = {
+    id: number;
+    nama_file: string;
+    file_url: string;
+    tipe: TipeLampiran;
+};
+
+export type RekamMedisPersetujuan = {
+    id: number;
+    tipe: TipePersetujuan;
+    isi_persetujuan: string;
+    ditandatangani_oleh: string;
+    hubungan_dengan_pasien: string | null;
+    tanda_tangan_url: string | null;
+    /** `DATETIME NOT NULL`, a rule-(1) instant, `toISOString()`. */
+    ditandatangani_at: Iso;
+};
+
+/**
+ * One entry of the `ran` block: a **reduced** projection, not a nested record.
+ *
+ * `rekam_medis` has no linkage column, so the amendment chain is reconstructed by
+ * `(pasien_id, dokter_id, tanggal_periksa)` ordered by `versi` - a convention, not
+ * a constraint. The resource publishes every revision ascending, deliberately not
+ * truncated, and this is the only place a client can see the history: there is no
+ * chain endpoint, and addressing a revision's own id is a SEPARATE logged read.
+ */
+export type RekamMedisRantai = {
+    id: number;
+    uuid: string;
+    /** `TINYINT UNSIGNED` at `:646`, cast to `int` by the resource. */
+    versi: number;
+    status_dokumen: StatusDokumen;
+    keluhan_utama: string | null;
+    diagnosis_kerja: string | null;
+    ditandatangani_at: Iso;
+    dibuat_at: Iso;
+};
+
+/**
+ * One `rekam_medis` row, transcribed field by field from
+ * `App\Http\Resources\RekamMedisResource`.
+ *
+ * ## `adalah_versi_terkini` is derived, not stored
+ *
+ * There is no `is_current` column. The resource derives it from the loaded `ran`
+ * collection - `(int) max('versi') === (int) versi` - and says why it does not
+ * re-query: a resource that answered this with its own query would be a read, and a
+ * read that did not log is the one thing this design refuses.
+ *
+ * ## `jadwal_kontrol` is a wall-clock DAY, never an instant
+ *
+ * It is a `DATE` at `:644` and the resource publishes `toDateString()`. Rendering
+ * it through `formatWaktu` would move a next-day appointment to the previous
+ * evening in any negative-offset locale. Use `formatTanggal`.
+ *
+ * The four child collections and `ran` are `whenLoaded()`; `pasien` and `dokter`
+ * likewise. The service sets all six relations on every one of its five entry
+ * points, so they are populated in practice and optional by contract.
+ */
+export type RekamMedis = {
+    id: number;
+    /** `CHAR(36) UNIQUE` at `:623`; a fresh UUID4 per version, which is what makes an amendment a NEW document. */
+    uuid: string;
+    pasien_id: number;
+    faskes_id: number | null;
+    dokter_id: number;
+    /** `NULL` on a record with no consultation - and then there is no chain key. */
+    konsultasi_id: number | null;
+    satusehat_encounter_id: string | null;
+    tipe_kunjungan: TipeKunjungan;
+    /** `DATETIME NOT NULL` at `:630`, a rule-(1) instant, `toISOString()`. */
+    tanggal_periksa: Iso;
+    keluhan_utama: string | null;
+    riwayat_penyakit_sekarang: string | null;
+    riwayat_penyakit_dahulu: string | null;
+    riwayat_keluarga: string | null;
+    riwayat_psikososial: string | null;
+    hasil_pemeriksaan_fisik: string | null;
+    subjektif: string | null;
+    objektif: string | null;
+    asesmen: string | null;
+    plan: string | null;
+    diagnosis_kerja: string | null;
+    instruksi_tindak_lanjut: string | null;
+    status_tindak_lanjut: StatusTindakLanjut | null;
+    /** `Y-m-d`, Asia/Jakarta wall clock. See {@link RekamMedis.jadwal_kontrol}. */
+    jadwal_kontrol: Tanggal;
+    status_dokumen: StatusDokumen;
+    versi: number;
+    ditandatangani_at: Iso;
+    dibuat_at: Iso;
+    diubah_at: Iso;
+    adalah_versi_terkini: boolean;
+    pasien?: KonsultasiPasien;
+    dokter?: KonsultasiDokter;
+    diagnosa?: RekamMedisDiagnosa[];
+    tindakan?: RekamMedisTindakan[];
+    lampiran?: RekamMedisLampiran[];
+    persetujuan?: RekamMedisPersetujuan[];
+    /** Ascending by `versi`, never truncated. See {@link RekamMedisRantai}. */
+    ran?: RekamMedisRantai[];
 };

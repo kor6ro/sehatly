@@ -14,6 +14,8 @@ import { DoctorDetailPage } from '@/pages/doctor-detail-page';
 import { MyBookingsPage } from '@/pages/my-bookings-page';
 import { BookingCreatePage } from '@/pages/booking-create-page';
 import { DoctorBookingsPage } from '@/pages/doctor-bookings-page';
+import { KonsultasiPage } from '@/pages/konsultasi-page';
+import { RekamMedisPage } from '@/pages/rekam-medis-page';
 
 /**
  * The route table.
@@ -101,6 +103,27 @@ export const router = createBrowserRouter([
                             {
                                 path: '/dokter/booking',
                                 element: <DoctorBookingsPage />,
+                            },
+
+                            /**
+                             * Module 3. Both are behind `RequireAuth` because every
+                             * endpoint they read carries `auth:sanctum`, and the chat
+                             * additionally needs a Sanctum bearer on
+                             * `POST /api/broadcasting/auth` - there is no session cookie
+                             * to fall back on, which is why the realtime auth endpoint
+                             * is registered under the API group rather than the web one.
+                             *
+                             * `KonsultasiPage` is the only screen that opens a
+                             * WebSocket, so it is also the only one that pays the
+                             * reconnect cost.
+                             */
+                            {
+                                path: '/konsultasi/:id',
+                                element: <KonsultasiPage />,
+                            },
+                            {
+                                path: '/rekam-medis/:id',
+                                element: <RekamMedisPage />,
                             },
                         ],
                     },

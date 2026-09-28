@@ -3,8 +3,10 @@ import {
     CalendarDays,
     ClipboardCheck,
     ClipboardList,
+    FileHeart,
     HeartPulse,
     LogOut,
+    MessagesSquare,
     ShieldAlert,
     Stethoscope,
 } from 'lucide-react';
@@ -217,6 +219,42 @@ function AppSidebar() {
                                     <ClipboardCheck />
 
                                     Booking masuk
+                                </NavLink>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
+                    </SidebarMenu>
+                </SidebarGroup>
+
+                {/**
+                 * Module 3's two screens. Both are here rather than filtered by
+                 * account type because each one is a real surface for both sides:
+                 * `GET /konsultasi/{id}` and `GET /rekam-medis/{id}` are readable by
+                 * the patient, the doctor, and `admin`/`superadmin`, and the SOAP form
+                 * and the record editor are gated inside the page on `user.tipe`
+                 * rather than here. Hiding a link a signed-in account is entitled to
+                 * follow would be a worse failure than showing one whose content
+                 * explains the refusal.
+                 */}
+                <SidebarGroup>
+                    <SidebarGroupLabel>Konsultasi</SidebarGroupLabel>
+
+                    <SidebarMenu>
+                        <SidebarMenuItem>
+                            <SidebarMenuButton asChild>
+                                <NavLink to="/konsultasi/1">
+                                    <MessagesSquare />
+
+                                    Konsultasi
+                                </NavLink>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
+
+                        <SidebarMenuItem>
+                            <SidebarMenuButton asChild>
+                                <NavLink to="/rekam-medis/1">
+                                    <FileHeart />
+
+                                    Rekam medis
                                 </NavLink>
                             </SidebarMenuButton>
                         </SidebarMenuItem>
