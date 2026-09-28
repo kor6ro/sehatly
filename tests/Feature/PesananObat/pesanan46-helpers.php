@@ -277,6 +277,11 @@ function po46Resep(
 
     $resep->save();
 
+    // Recorded, because the committed-fixture teardown deletes `resep` before
+    // `faskes` and a `resep` this helper created but did not record leaves
+    // `faskes` undeletable with a real MySQL 1451.
+    po46Catat('resep', (int) $resep->getKey());
+
     $nama = DB::table('master_obat')->whereIn('id', $obatIds)->pluck('nama_generik', 'id');
 
     foreach ($obatIds as $obatId) {
@@ -590,7 +595,9 @@ function po46Selesai(): void
     DB::table('pesanan_obat_tracking')->whereIn('pesanan_obat_id', $dibuat['pesanan_obat'] ?? [])->delete();
     DB::table('pesanan_obat')->whereIn('pasien_id', $dibuat['pasien'] ?? [])->delete();
 
-    // Children before parents, in foreign-key order.
+    // Children before parents, in foreign-key order. `master_obat` is here
+    // because `apotek_stok.obat_id` and `resep_item.obat_id` both reference it,
+    // and `resep_verifikasi` before `resep` for the same reason `resep_item` is.
     foreach ([
         'resep_verifikasi',
         'resep_item',
@@ -599,6 +606,7 @@ function po46Selesai(): void
         'faskes',
         'dokter',
         'user_roles',
+        'master_obat',
         'pasien',
         'users',
     ] as $tabel) {
@@ -611,19 +619,18 @@ function po46Selesai(): void
 
     DB::table('user_roles')->whereIn('user_id', $dibuat['users'] ?? [])->delete();
 
+    // The committed RBAC seed goes too, because {@see po46Mulai()} committed the
+    // wrapper transaction and `RbacSeeder`'s inserts are not idempotent: the next
+    // test's `beforeEach` would collide on `roles.roles_nama_unique` with a real
+    // MySQL 1062. The three tables are only ever written by that seeder, so
+    // emptying all three is what lets the next seed run cleanly - and the next
+    // seed DOES run, from the shared `beforeEach` in this file. This is
+    // `inv44Selesai()`'s teardown exactly, and re-seeding here instead would
+    // make the NEXT test's own `beforeEach` collide with it.
     try {
         foreach (['role_permissions', 'permissions', 'roles'] as $tabel) {
             DB::table($tabel)->delete();
         }
-
-        // Re-seed, so the catalogue other test files expect is back in place.
-        // `RbacSeeder` is a pure insert (`DatabaseSeeder` owns the reset), so
-        // deleting the three tables WITHOUT restoring them would leave every
-        // later file that seeds RBAC in its own `beforeEach` fine but would
-        // leave any file that only READS the catalogue looking at an empty
-        // `roles` table. This runs BEFORE the transaction is re-opened below, so
-        // it is durable rather than rolled back with the wrapper.
-        (new RbacSeeder)->run();
     } finally {
         if (DB::connection(PO46_KONEKSI_LAWAN)->transactionLevel() > 0) {
             DB::connection(PO46_KONEKSI_LAWAN)->rollBack();
@@ -705,12 +712,24 @@ function po46Tangkap(callable $aksi, string $tipe): Throwable
     Assert::fail('Expected ['.$tipe.'] but nothing was thrown. Returned: '.var_export($hasil, true));
 }
 
-beforeEach(function (): void {
-    po46Bersihkan();
-    po46KunciJam();
-    $this->seed(RbacSeeder::class);
-});
-
-afterEach(function (): void {
-    po46LepasJam();
-});
+/*
+|--------------------------------------------------------------------------
+| Why the `beforeEach` lives in the TEST FILES and not here
+|--------------------------------------------------------------------------
+|
+| This file is `require_once`d by three test files, so its body runs ONCE per
+| process. A `beforeEach()` declared here is therefore registered for the FIRST
+| file that requires it and for no other: the second and third files run with no
+| hook at all.
+|
+| That is not a hypothetical. It showed up as 35 errors in a full-suite run
+| whose symptom was `RbacCatalog::ROLES names pasien but `roles` holds no such
+| row` in `CheckoutTest`, while the same three files each passed when run alone -
+| because alone, each run had exactly one requiring file and so exactly one
+| hook. The RBAC catalogue is deleted DURABLY by {@see po46Selesai()} (it has
+| to be: the `RefreshDatabase` wrapper was committed), so a second file with no
+| `beforeEach` finds an empty `roles` table.
+|
+| `invoice-helpers.php` avoids it the same way: its only `beforeEach` is scoped
+| to what it owns, and each test file seeds the RBAC catalogue in its OWN.
+*/

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Enums\PesananObatStatus;
+use Database\Seeders\RbacSeeder;
 use App\Models\MasterObat;
 use App\Models\PesananObat;
 use App\Models\Resep;
@@ -17,6 +18,24 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 require_once __DIR__.'/pesanan46-helpers.php';
+
+beforeEach(function (): void {
+    // Declared in THIS file, not in `pesanan46-helpers.php`: that file is
+    // `require_once`d by three test files, so a hook declared in it is
+    // registered for the FIRST one only and the other two run with none. The
+    // symptom is 35 errors of "RbacCatalog::ROLES names pasien but `roles`
+    // holds no such row" in a full-suite run that passes file by file, because
+    // `po46Selesai()` has to delete the RBAC catalogue DURABLY (the
+    // `RefreshDatabase` wrapper was committed) and the next file has nothing to
+    // re-seed it.
+    po46Bersihkan();
+    po46KunciJam();
+    $this->seed(RbacSeeder::class);
+});
+
+afterEach(function (): void {
+    po46LepasJam();
+});
 
 /*
 |--------------------------------------------------------------------------
