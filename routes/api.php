@@ -444,3 +444,105 @@ Route::middleware('auth:sanctum')->group(function (): void {
             ->name('selesai');
     });
 });
+
+use App\Http\Controllers\Api\V1\RekamMedisController;
+
+/*
+|--------------------------------------------------------------------------
+| Module 3 -- the medical record, its amendment chain and its access log
+|--------------------------------------------------------------------------
+|
+| APPENDED by todo 33. Nothing above this line is touched. This block is last in
+| the file for the same reason todo 32's is: no route above it can swallow a two-
+| or three-segment `rekam-medis` path, and no route in it can swallow a path above
+| it. `konsultasi/{id}/rekam-medis` is registered here rather than inside the
+| `konsultasi` group above because `POST api/v1/konsultasi/{id}` is already bound by
+| todo 32's `GET`-style two-segment route and the create hangs a RECORD off a
+| consultation rather than being a lifecycle step of one.
+|
+| ## Five routes, and the plan's count is right
+|
+| `php artisan route:list --path=api/v1/rekam-medis` answers 4 and the create hangs
+| off `konsultasi`, so the FIVE this todo delivers are 4 here plus 1 in the
+| consultation namespace - and the test asserts the closed set of all five by URI
+| rather than by prefix, because a filter on `rekam-medis` alone would answer 4 and
+| read like a missing route.
+|
+| There is deliberately NO list endpoint. The plan names five operations, and a sixth
+| would break its own acceptance criterion; the cost is that a patient cannot page
+| through their own records over HTTP, which is reported in
+| `.omo/evidence/task-33-sehatly.md` rather than papered over.
+|
+| ## The guards, and why the read carries none
+|
+| | route | `permission:` | `tipe:` |
+| | --- | --- | --- |
+| | `POST /konsultasi/{id}/rekam-medis` | `rekam_medis.simpan` | `dokter` |
+| | `PUT /rekam-medis/{id}` | `rekam_medis.simpan` | `dokter` |
+| | `PUT /rekam-medis/{id}/final` | `rekam_medis.final` | `dokter` |
+| | `POST /rekam-medis/{id}/amandemen` | `rekam_medis.final` | `dokter` |
+| | `GET /rekam-medis/{id}` | - | - |
+|
+| `rekam_medis.lihat` IS a real code and is deliberately NOT used. It is granted to
+| `pasien`, `dokter` and `superadmin` and NOT to `admin`
+| (`RbacCatalog::ROLE_PERMISSIONS`), so it would 403 the `admin` the plan names as the
+| `audit` reader. The plan's read audience is a DISJUNCTION - the patient themselves
+| OR their doctor OR an oversight account - and a route gate can only express a
+| conjunction. `KonsultasiController` makes exactly this argument for
+| `GET /konsultasi/{id}`; the disjunction lives in `RekamMedisAccess::sisiUntukBaca()`.
+|
+| `/amandemen` is gated on `rekam_medis.final` and not on `rekam_medis.simpan`,
+| because an amendment carries the same clinical authority as the signed record it
+| supersedes. Both are held by the same two roles, so the choice is semantic rather
+| than behavioural.
+|
+| `perawat` and `kurir` are real `users.tipe` values (`telemedicine_test.sql:139`)
+| that hold no role, so any `permission:` locks them out of all four writes
+| permanently. The DDL gives a nurse a clinical role of its own -
+| `pasien_tanda_vital.sumber` is `ENUM('mandiri','dokter','perawat','iot_device')`
+| at `:325` - so this is a real gap and it is reported: the fix is a data change in
+| `app/Support/Rbac/` plus a re-seed, not a code change here.
+|
+| ## The read writes an access-log row and cannot be made not to
+|
+| The obligation is enforced by `App\Models\Concerns\GuardsMedicalRecordRead`, a model
+| event on `rekam_medis` and its four children: hydrating one of those rows outside a
+| `RekamMedisReadScope` throws, and the only thing that opens the scope is
+| `RekamMedisAccessLogger::baca()`, which has already written the
+| `akses_rekam_medis_log` row in the same transaction. This is why the read needs no
+| `permission:`: a route gate is a CONVENTION, and a model event is a chokepoint.
+|
+| ## `whereNumber` on every `{id}`
+|
+| `rekam_medis.id` and `konsultasi.id` are `BIGINT UNSIGNED AUTO_INCREMENT` primary
+| keys (`:622`, `:537`), so a non-numeric segment is a router 404 and no request can
+| arrive with `abc` in a position the API treats as an identifier.
+*/
+
+Route::middleware('auth:sanctum')->group(function (): void {
+    Route::post('konsultasi/{id}/rekam-medis', [RekamMedisController::class, 'simpan'])
+        ->whereNumber('id')
+        ->middleware(['tipe:dokter', 'permission:rekam_medis.simpan'])
+        ->name('konsultasi.rekam-medis.store');
+
+    Route::prefix('rekam-medis')->name('rekam-medis.')->group(function (): void {
+        Route::get('{id}', [RekamMedisController::class, 'show'])
+            ->whereNumber('id')
+            ->name('show');
+
+        Route::put('{id}', [RekamMedisController::class, 'ubah'])
+            ->whereNumber('id')
+            ->middleware(['tipe:dokter', 'permission:rekam_medis.simpan'])
+            ->name('update');
+
+        Route::put('{id}/final', [RekamMedisController::class, 'finalisasi'])
+            ->whereNumber('id')
+            ->middleware(['tipe:dokter', 'permission:rekam_medis.final'])
+            ->name('final');
+
+        Route::post('{id}/amandemen', [RekamMedisController::class, 'amandemen'])
+            ->whereNumber('id')
+            ->middleware(['tipe:dokter', 'permission:rekam_medis.final'])
+            ->name('amandemen');
+    });
+});

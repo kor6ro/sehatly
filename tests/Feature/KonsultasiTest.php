@@ -185,6 +185,9 @@ test('seven routes are registered under api/v1 with the expected verbs and guard
         'POST api/v1/konsultasi/{id}/chat/baca',
         'PUT api/v1/konsultasi/{id}/terima',
         'PUT api/v1/konsultasi/{id}/selesai',
+        // Todo 33's create, which lives under this prefix because its path is a
+        // consultation path. See the guard map below for the rest of the argument.
+        'POST api/v1/konsultasi/{id}/rekam-medis',
     ]);
 
     $middlewareFor = static function (string $key) use ($routes): array {
@@ -198,6 +201,14 @@ test('seven routes are registered under api/v1 with the expected verbs and guard
     // ACCOUNT TYPE, and both are used: the two doctor-only writes name the account
     // type first, so "a patient completed the session" is refused as the wrong
     // kind of caller rather than as a missing grant.
+    //
+    // APPENDED by todo 33: `POST /konsultasi/{id}/rekam-medis` is a MEDICAL RECORD
+    // route, not a consultation-lifecycle one, and it lives under this prefix because
+    // its path is a consultation path - the create hangs a draft record off that
+    // consultation. It appears in this file's closed set because the filter is the URI
+    // PREFIX, not a judgement about which todo owns the endpoint, and leaving it out
+    // would be exactly the "closed set that quietly forgives a concurrently-wired
+    // route" the assertion exists to catch. It is this file's filter that caught it.
     $expectedGuards = [
         'POST api/v1/konsultasi/mulai' => [],
         'GET api/v1/konsultasi/{id}' => [],
@@ -206,6 +217,7 @@ test('seven routes are registered under api/v1 with the expected verbs and guard
         'POST api/v1/konsultasi/{id}/chat/baca' => ['permission:konsultasi.chat'],
         'PUT api/v1/konsultasi/{id}/terima' => ['tipe:dokter', 'permission:konsultasi.mulai'],
         'PUT api/v1/konsultasi/{id}/selesai' => ['tipe:dokter', 'permission:konsultasi.selesai'],
+        'POST api/v1/konsultasi/{id}/rekam-medis' => ['tipe:dokter', 'permission:rekam_medis.simpan'],
     ];
 
 
@@ -294,6 +306,11 @@ test('an anonymous caller is refused 401 on all seven routes', function (): void
         ['postJson', '/api/v1/konsultasi/'.$id.'/chat/baca', []],
         ['putJson', '/api/v1/konsultasi/'.$id.'/terima', []],
         ['putJson', '/api/v1/konsultasi/'.$id.'/selesai', []],
+        // Todo 33's medical-record create, which shares the `konsultasi` prefix. It is
+        // added here rather than left out because a 401 matrix that silently stops
+        // covering a route is the same failure as a closed set that quietly forgives
+        // one, and the name of the test now says "all seven" for a list of eight.
+        ['postJson', '/api/v1/konsultasi/'.$id.'/rekam-medis', []],
     ];
 
     // `knsAs()` above wrote the caller's bearer token into the test case's DEFAULT

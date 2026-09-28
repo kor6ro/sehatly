@@ -1284,10 +1284,18 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         }
     }
 
-    // Module 2 (booking) is the first consumer: exactly these five strings, each
-    // proven to resolve against `RbacCatalog` by the loop above, and nothing
-    // else. A sixth string here is a policy change that must arrive with its
-    // catalogue entry in the same commit.
+    // Module 2 (booking) is the first consumer and Module 3 (consultation, medical
+    // record) added seven more, for NINETEEN strings in total. Each is proven to
+    // resolve against `RbacCatalog` by the loop above, and a twentieth is a policy
+    // change that must arrive with its catalogue entry in the same commit.
+    //
+    // This census is deliberately DUPLICATED over the same regex in
+    // `PasienProfileTest`, which asserts the same list. Two files asserting one
+    // property is the point: a closed set that only one file watches is a closed set
+    // that one later refactor can quietly reopen. Both lists were regenerated from
+    // the live `routes/api.php` rather than typed - and typing is how three previous
+    // batches shipped a literal that had silently become a different string, once
+    // inside a permission name.
     expect(array_map(static fn (array $m): string => $m[0], $matches))->toEqualCanonicalizing([
         "'permission:booking.lihat'",
         "'permission:booking.buat'",
@@ -1300,6 +1308,14 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         "'permission:konsultasi.chat'",
         "'tipe:dokter'",
         "'permission:konsultasi.selesai'",
+        "'tipe:dokter'",
+        "'permission:rekam_medis.simpan'",
+        "'tipe:dokter'",
+        "'permission:rekam_medis.simpan'",
+        "'tipe:dokter'",
+        "'permission:rekam_medis.final'",
+        "'tipe:dokter'",
+        "'permission:rekam_medis.final'",
     ]);
 });
 

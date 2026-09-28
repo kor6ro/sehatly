@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\Concerns\GuardsMedicalRecordRead;
 use App\Models\Concerns\HasUuid;
+use App\Services\RekamMedis\RekamMedisReadScope;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -57,6 +59,7 @@ use Illuminate\Support\Carbon;
  */
 class RekamMedis extends Model
 {
+    use GuardsMedicalRecordRead;
     use HasUuid;
 
     /**
@@ -75,6 +78,24 @@ class RekamMedis extends Model
      * The name of the "updated at" column.
      */
     public const UPDATED_AT = 'diubah_at';
+
+    /**
+     * The chain group this record belongs to, as a comparable string.
+     *
+     * `rekam_medis` carries NO parent/amendment linkage column, so the group
+     * `(pasien_id, dokter_id, tanggal_periksa)` is the ONLY thing that says two
+     * rows are versions of one document. {@see GuardsMedicalRecordRead} asks for
+     * null here, which is how the trait tells "I am the root record" apart from
+     * "I am one of its four child tables".
+     */
+    public function chainGroup(): string
+    {
+        return implode('|', [
+            (string) $this->pasien_id,
+            (string) $this->dokter_id,
+            RekamMedisReadScope::tanggalAsString($this->tanggal_periksa),
+        ]);
+    }
 
     /**
      * @return HasMany<AksesRekamMedisLog, $this>
@@ -154,6 +175,19 @@ class RekamMedis extends Model
     public function rekamMedisTindakan(): HasMany
     {
         return $this->hasMany(RekamMedisTindakan::class, 'rekam_medis_id');
+    }
+
+    /**
+     * `rekam_medis` IS the record, so it has no parent to point at.
+     *
+     * Overriding the trait's default is what tells {@see GuardsMedicalRecordRead}
+     * to check this row against the chain group rather than against the permitted
+     * id set. A class's own method always wins over the trait's, so the four child
+     * models need no such declaration.
+     */
+    protected function rekamMedisForeignKey(): ?int
+    {
+        return null;
     }
 
     /**

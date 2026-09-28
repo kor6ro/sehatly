@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\Concerns\GuardsMedicalRecordRead;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
@@ -24,6 +25,8 @@ use Illuminate\Support\Carbon;
  */
 class RekamMedisLampiran extends Model
 {
+    use GuardsMedicalRecordRead;
+
     /**
      * The table associated with the model.
      *

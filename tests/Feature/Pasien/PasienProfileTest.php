@@ -1450,6 +1450,24 @@ test('the route table exposes the eight auth routes and the eleven patient route
         'POST api/v1/konsultasi/{id}/chat',
         'POST api/v1/konsultasi/{id}/chat/baca',
         'PUT api/v1/konsultasi/{id}/selesai',
+        // Module 3 (medical record) wires FIVE routes, and the first of them is
+        // listed here under the `konsultasi` prefix rather than under `rekam-medis`
+        // because its PATH is a consultation path: `POST api/v1/konsultasi/{id}/rekam-medis`
+        // creates a draft record hanging off that consultation. It is listed in
+        // registration order like every other entry, and the four `rekam-medis` URIs
+        // follow it, which is the order `routes/api.php` registers them in.
+        //
+        // The whole block was GENERATED from `Route::getRoutes()` and pasted, rather
+        // than typed: three executors this month shipped a hand-typed literal in this
+        // very assertion that had silently become a different string, and the comment
+        // above the directory three is explicit that a closed set must not be widened
+        // by filtering. `RekamMedisTest` asserts the same five by URI as its own
+        // closed set, so the two files cannot disagree about which routes exist.
+        'POST api/v1/konsultasi/{id}/rekam-medis',
+        'GET api/v1/rekam-medis/{id}',
+        'PUT api/v1/rekam-medis/{id}',
+        'PUT api/v1/rekam-medis/{id}/final',
+        'POST api/v1/rekam-medis/{id}/amandemen',
     ]);
 
     // ELEVEN under the `pasien` filter: the ten above (profil read + write, two
@@ -1509,10 +1527,19 @@ test('the route table exposes the eight auth routes and the eleven patient route
             expect(in_array('auth:sanctum', $middleware, true))->toBeTrue("{$key} must carry auth:sanctum");
         }
 
-        // No `permission:` and no `tipe:` anywhere except the four Module 2
-        // booking routes, which are the first consumers - see the class
-        // docblock of `PasienRecordAccess` for why the absence elsewhere is a
-        // decision and not an omission.
+        // No `permission:` and no `tipe:` anywhere except the Module 2 booking routes,
+        // the Module 3 consultation routes and the Module 3 medical-record writes.
+        // See the class docblock of `PasienRecordAccess` for why the absence elsewhere
+        // is a decision and not an omission.
+        //
+        // `GET api/v1/rekam-medis/{id}` is DELIBERATELY in the empty list. Its
+        // audience is a disjunction - the patient themselves OR their doctor OR an
+        // oversight account - and a route gate can only express a conjunction.
+        // `rekam_medis.lihat` is a real code but is granted to `pasien`, `dokter` and
+        // `superadmin` and NOT to `admin` (`RbacCatalog::ROLE_PERMISSIONS`), so it
+        // would 403 the `admin` the plan names as the `audit` reader. The obligation
+        // that route DOES carry - one `akses_rekam_medis_log` row per read - is
+        // enforced by `GuardsMedicalRecordRead`, a model event, not by a middleware.
         $guards = array_values(array_filter(
             $middleware,
             static fn (string $m): bool => str_starts_with($m, 'permission:') || str_starts_with($m, 'tipe:'),
@@ -1527,6 +1554,10 @@ test('the route table exposes the eight auth routes and the eleven patient route
             'POST api/v1/konsultasi/{id}/chat' => ['permission:konsultasi.chat'],
             'POST api/v1/konsultasi/{id}/chat/baca' => ['permission:konsultasi.chat'],
             'PUT api/v1/konsultasi/{id}/selesai' => ['tipe:dokter', 'permission:konsultasi.selesai'],
+            'POST api/v1/konsultasi/{id}/rekam-medis' => ['tipe:dokter', 'permission:rekam_medis.simpan'],
+            'PUT api/v1/rekam-medis/{id}' => ['tipe:dokter', 'permission:rekam_medis.simpan'],
+            'PUT api/v1/rekam-medis/{id}/final' => ['tipe:dokter', 'permission:rekam_medis.final'],
+            'POST api/v1/rekam-medis/{id}/amandemen' => ['tipe:dokter', 'permission:rekam_medis.final'],
         ];
 
         expect($guards)->toEqualCanonicalizing(
@@ -1559,10 +1590,13 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         }
     }
 
-    // Module 2 (booking) is the first consumer: exactly these five strings, each
-    // proven to resolve against `RbacCatalog` by the loop above, and nothing
-    // else. The 24 codes name no patient-profile, family or allergy action,
-    // and adding any other code is a policy change in `app/Support/Rbac/`.
+    // Module 2 (booking) is the first consumer, and Module 3 (consultation, medical
+    // record) added seven more. The list is NINETEEN entries and was GENERATED from
+    // the live `routes/api.php` with the same regex rather than typed, because a
+    // hand-typed literal here that silently became a different string is exactly the
+    // failure this assertion exists to catch - and it has caught three of them in
+    // previous batches. A twentieth entry is a policy change that must arrive with its
+    // catalogue entry in the same commit.
     expect(array_map(static fn (array $m): string => $m[0], $matches))->toEqualCanonicalizing([
         "'permission:booking.lihat'",
         "'permission:booking.buat'",
@@ -1575,6 +1609,18 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         "'permission:konsultasi.chat'",
         "'tipe:dokter'",
         "'permission:konsultasi.selesai'",
+        // The five medical-record routes contribute EIGHT strings: `tipe:dokter` four
+        // times (once per write) and `rekam_medis.simpan` twice plus
+        // `rekam_medis.final` twice. `GET /rekam-medis/{id}` contributes none, by
+        // design - see the guard map above.
+        "'tipe:dokter'",
+        "'permission:rekam_medis.simpan'",
+        "'tipe:dokter'",
+        "'permission:rekam_medis.simpan'",
+        "'tipe:dokter'",
+        "'permission:rekam_medis.final'",
+        "'tipe:dokter'",
+        "'permission:rekam_medis.final'",
     ]);
 });
 

@@ -2058,3 +2058,100 @@ reproduces and both are the kind of token a re-quoting pass mangles.
 
 The two `SHOW CREATE VIEW` outputs, the seven-column and three-column lists, their
 types, and both `COUNT(*)` values are in `.omo/evidence/task-18-sehatly.md`.
+
+## Known schema limitations, todo 33 (the medical record)
+
+**These are ABSENCES, not extra tables.** The registry above is for tables this project
+added; this section is the opposite record - places where `telemedicine_test.sql`
+cannot express something the plan wants, recorded so a later reader does not
+rediscover it from a symptom. Nothing here is drift, and `sehatly:verify-schema` does
+not read this section: `ExtraTableRegistry::HEADING` is resolved by
+`SchemaNotesSection`, so a heading other than the registry's own cannot be mistaken for
+a registry row. (The "Deferred constraints" section that used to live here had to be
+REMOVED rather than left in place, because `DeferredConstraintRegistry::fromMarkdown()`
+is unconditional and raises on an empty registry - do not reintroduce a second parsed
+section without reading that class first.)
+
+### The amendment chain has no linkage column
+
+`rekam_medis` is `telemedicine_test.sql:621-655`. It carries `versi TINYINT UNSIGNED
+NOT NULL DEFAULT 1` at `:646` and `status_dokumen ENUM('draft','final','diamendemen')
+NOT NULL DEFAULT 'final'` at `:645`, and **nothing else** that relates one version of
+a document to another. There is no `parent_id`, no self-referencing `rekam_medis_id`,
+no `parent_uuid`, no `versi_induk`, no `is_current`, no `superseded_by`, no
+`dimodifikasi_at`, no `alasan_amandemen` and no `diamendemen_oleh`; the only declared
+index is `idx_rm_pasien (pasien_id, tanggal_periksa)` at `:654`. The suite asserts the
+absence of all twelve names against the parsed DDL on every run, so a future migration
+adding one cannot pass unnoticed.
+
+Consequences, all of which `App\Services\RekamMedis\RekamMedisService` documents and
+tests rather than papers over:
+
+- **The chain is RECONSTRUCTED, not stored.** It is grouped on
+  `(pasien_id, dokter_id, tanggal_periksa)` and ordered by `versi`. `tanggal_periksa`
+  is a `DATETIME` (`:630`), not a DATE, so the key is a full timestamp: two visits on
+  the same day are two chains unless their seconds match.
+- **"Current" is DEFINED, not recorded.** The current version is the highest `versi`
+  in the group. Nothing in the schema can say so, and a row that is a draft while a
+  sibling in its group says `final` is representable - only `RekamMedisService`'s own
+  write path prevents it.
+- **Two rows may share a version.** There is no unique constraint over
+  `(pasien_id, dokter_id, tanggal_periksa, versi)`, so a duplicate is a MySQL-legal row.
+  The service's only defence is a `FOR UPDATE` current read of `MAX(versi)` over the
+  group inside the amendment transaction; a direct `DB::table()` write bypasses it.
+- **The chain is capped at 255.** `versi` is a TINYINT UNSIGNED, so the 256th amendment
+  would be a MySQL 1264. `amandemen()` refuses it with a 422 naming the limit.
+- **The plan's `old.versi + 1` is not always right.** For a SUPERSEDED row that number
+  is already in the group, and two rows at one version cannot be ordered, so the
+  service takes `MAX(versi) + 1` instead. The deviation is deliberate and is asserted
+  by a test.
+
+### `akses_rekam_medis_log` has no index, no ordering column and a cascading delete
+
+The table is `telemedicine_test.sql:1147-1155`. `dibuat_at` is a `TIMESTAMP` at
+`:1152`, which is ONE SECOND of resolution, so two reads of one record inside the same
+second are indistinguishable by time and an auditor must order by the auto-increment
+`id`. `rekam_medis_id` is `ON DELETE CASCADE` at `:1153`, so deleting a record erases
+the evidence of every access to it - nothing in this application deletes a
+`rekam_medis` row, but the trail is not tamper-evident against a privileged `DELETE`,
+and only `audit_log` (`:1118`, whose `aksi` ENUM carries `read` and `delete`) is
+append-only by construction. `pengakses_user_id` has NO `ON DELETE` clause at `:1154`,
+so the row is RESTRICTed while the account exists - which means an account cannot be
+deleted while anything it read is still in the log. (InnoDB creates an implicit index
+for each foreign key, so the two `*_id` columns are indexed even though the DDL names
+none; that is engine behaviour, not schema design, and it is not something a migration
+should rely on.)
+
+### Two of the five `tujuan_akses` values have no producer
+
+`tujuan_akses` is `enum('perawatan','klaim','audit','pasien_sendiri','kepentingan_hukum')`
+at `:1151`. `RekamMedisService` can produce three of them: `pasien_sendiri` for the
+patient reading their own record, `perawatan` for the record's own doctor, and `audit`
+for an `admin` or `superadmin`. `klaim` and `kepentingan_hukum` have **no producer in
+this application**, and that is a `users.tipe` fact rather than an omission:
+`RbacCatalog::USER_TYPES` holds the seven values of `:139` and not one of them is a
+claims officer or a legal officer, so there is no account this application can
+authenticate that would deserve either value. Adding one is a DDL change.
+
+### `pasien_tanda_vital` is clinical and is NOT covered by the read guard
+
+`pasien_tanda_vital` (`:312-330`) hangs off `rekam_medis` through
+`fk_vital_rm` (`rekam_medis_id BIGINT UNSIGNED NULL`, added at `:1161-1163`), and its
+`sumber` ENUM at `:325` is `('mandiri','dokter','perawat','iot_device')` - so the schema
+gives a NURSE a clinical role here. `App\Models\PasienTandaVital` does **not** use
+`GuardsMedicalRecordRead`, so a read of it is not gated by this todo's access log. That
+is a scope decision, not an oversight: vital signs have their own access surface and
+no endpoint in this plan reads them. It is recorded because the two facts together -
+"a nurse writes clinical data" and "a nurse holds no role at all, so no `permission:`
+can admit her" - are the sharpest available argument that `RbacCatalog` needs a
+`perawat` role, and that is a data change in `app/Support/Rbac/` plus a re-seed rather
+than a code change.
+
+### `rekam_medis_lampiran.diunggah_oleh` has no foreign key
+
+`diunggah_oleh BIGINT UNSIGNED NOT NULL` at `:687` and `:689` declares only the
+`rekam_medis` foreign key, so the column is an unverified `users.id`. The service
+writes it from the authenticated account for the reason
+`booking.dibuat_oleh_user_id` is written the same way (todo 27), and the suite asserts
+the absence of the foreign key so the choice is visible rather than assumed.
+
