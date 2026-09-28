@@ -1681,12 +1681,6 @@ test('the route table exposes the eight auth routes and the eleven patient route
             // so any `permission:` locks them out of this route permanently;
             // they are refused here with a 403 from `ownPasien()` instead, which
             // is a fact about rows they do not own rather than a role they lack.
-              // Todo 40's patient-facing prescription history, which DOES carry a guard.
-              // This is the one patient route that is permission-gated, and it is
-              // correct: a patient reading their OWN prescription history holds
-              // resep.lihat, a real catalogue code, and todo 40 scoped the route to
-              // the caller's own records through ResepAccess.
-              'GET api/v1/pasien/resep' => ['permission:resep.lihat'],
             'POST api/v1/promo/validasi' => [],
         ];
 
