@@ -583,7 +583,21 @@ test('no code outside app/Services/RekamMedis reaches the rekam_medis tables', f
             continue;
         }
 
-        $source = (string) file_get_contents($path);
+        // Scan EXECUTABLE CODE ONLY.
+      //
+      // A docblock that NAMES a query is documentation, not code reaching the
+      // table. `RefusesHardDelete` writes `RekamMedis::query()->where(...)->delete()`
+      // in its own trait note, to record the query-builder delete it deliberately
+      // does NOT perform. Matching raw source made this guard fire on that prose,
+      // which is the A.15 defect class: a comment failing an assertion about code.
+      // Tokenising keeps the guard real - executable calls are still caught.
+      $source = (string) file_get_contents($path);
+      $source = implode('', array_map(
+          static fn (array|string $token): string => is_array($token)
+              ? ($token[0] === T_COMMENT || $token[0] === T_DOC_COMMENT ? '' : $token[1])
+              : $token,
+          token_get_all($source),
+      ));
 
         foreach ($pola as $satu) {
             if (str_contains($source, $satu)) {
