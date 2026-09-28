@@ -1420,6 +1420,19 @@ test('the route table exposes the eight auth routes and the eleven patient route
         'POST api/v1/pasien/alergi',
         'PUT api/v1/pasien/alergi/{id}',
         'DELETE api/v1/pasien/alergi/{id}',
+        // Todo 44's ONE route, wired into this same file. Listed explicitly rather
+        // than dropped: this is a closed set over the WHOLE api/v1 surface, and a
+        // closed set that quietly forgives a new route is the exact drift it
+        // exists to catch.
+        //
+        // It is NOT listed with todo 40's four below, and the reason is worth
+        // stating: it is a two-segment `promo` path that none of the earlier
+        // entries resemble, so it was originally appended here. A closed set
+        // carrying the same URI twice is a set of the wrong cardinality, and
+        // `toEqualCanonicalizing` catches that as loudly as it catches a missing
+        // entry - which is exactly how this line was found to be a duplicate of
+        // `POST api/v1/resep/{id}/verifikasi` rather than a fifth todo-40 route.
+        'POST api/v1/promo/validasi',
         // Module 2 (booking) wires four routes into the same file, in
         // registration order: inside the `auth:sanctum` group, after the
         // patient blocks and before the public directory block.
@@ -1635,6 +1648,25 @@ test('the route table exposes the eight auth routes and the eleven patient route
             // kind of caller rather than as a missing grant.
             'POST api/v1/konsultasi/{id}/resep' => ['tipe:dokter', 'permission:resep.buat'],
             'GET api/v1/obat' => ['tipe:dokter', 'permission:obat.cari'],
+            // Todo 40's FOUR, and the two halves of its decision stated here
+            // rather than only in `routes/api.php`.
+            //
+            // The three reads carry `resep.lihat` and NO `tipe:`, because the read
+            // audience is a DISJUNCTION - the prescribing doctor OR the patient
+            // OR a pharmacist - and a route gate can only express a conjunction.
+            // The per-row half of the rule therefore lives in `ResepAccess`, and
+            // its absence from `tipe:` here is what makes that necessary rather
+            // than sloppy. `GET api/v1/pasien/resep` is the patient half of the
+            // same disjunction, which is why it takes the same `resep.lihat`.
+            //
+            // The verify write is the only one of the four with BOTH halves and
+            // the second is not redundant: `resep.verifikasi` is granted to
+            // `apoteker` AND `superadmin`, so `tipe:apoteker` is what refuses the
+            // oversight account from signing a clinical prescription.
+            'GET api/v1/pasien/resep' => ['permission:resep.lihat'],
+            'GET api/v1/resep/{id}' => ['permission:resep.lihat'],
+            'GET api/v1/resep/{id}/cek-interaksi' => ['permission:resep.lihat'],
+            'POST api/v1/resep/{id}/verifikasi' => ['tipe:apoteker', 'permission:resep.verifikasi'],
             // Todo 44's one route, carrying NEITHER. `promo.validasi` IS a real
             // code in `RbacCatalog::PERMISSIONS`, but `ROLE_PERMISSIONS` grants
             // it to `admin` and `superadmin` and to nobody else - the `pasien`
@@ -1644,6 +1676,17 @@ test('the route table exposes the eight auth routes and the eleven patient route
             // everywhere else in this file: it cannot express "is this invoice
             // yours", which `PromoController` answers through
             // `PasienRecordAccess::ownPasien()`.
+            //
+            // `perawat` and `kurir` hold no role at all in `RbacCatalog::ROLES`,
+            // so any `permission:` locks them out of this route permanently;
+            // they are refused here with a 403 from `ownPasien()` instead, which
+            // is a fact about rows they do not own rather than a role they lack.
+              // Todo 40's patient-facing prescription history, which DOES carry a guard.
+              // This is the one patient route that is permission-gated, and it is
+              // correct: a patient reading their OWN prescription history holds
+              // resep.lihat, a real catalogue code, and todo 40 scoped the route to
+              // the caller's own records through ResepAccess.
+              'GET api/v1/pasien/resep' => ['permission:resep.lihat'],
             'POST api/v1/promo/validasi' => [],
         ];
 
