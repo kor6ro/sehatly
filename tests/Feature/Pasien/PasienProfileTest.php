@@ -1468,18 +1468,44 @@ test('the route table exposes the eight auth routes and the eleven patient route
         'PUT api/v1/rekam-medis/{id}',
         'PUT api/v1/rekam-medis/{id}/final',
         'POST api/v1/rekam-medis/{id}/amandemen',
+        // Todo 34 wires THREE routes into the same file, in registration order:
+        // the letter create under the `konsultasi` prefix, the patient's own list
+        // under `pasien`, and the PUBLIC verifier. The verifier is anonymous by
+        // design - a QR code is scanned by a receptionist who has no account - so
+        // it is added to the `$anonymous` set below, not to the guard map.
+        'POST api/v1/konsultasi/{id}/surat-keterangan',
+        'GET api/v1/pasien/surat-keterangan',
+        'GET api/v1/surat-keterangan/{nomor_surat}/verify',
+        // Todo 42's fourteen public reference routes, registered last in the file
+        // and listed here in registration order. They are anonymous by design - a
+        // patient registering on a phone needs a province list before they hold a
+        // token - so they join the `$anonymous` set below.
+        'GET api/v1/referencia/enums',
+        'GET api/v1/referencia/agama',
+        'GET api/v1/referencia/golongan-darah',
+        'GET api/v1/referencia/hubungan-keluarga',
+        'GET api/v1/referencia/icd10',
+        'GET api/v1/referencia/icd9cm',
+        'GET api/v1/referencia/kabupaten-kota',
+        'GET api/v1/referencia/kecamatan',
+        'GET api/v1/referencia/kelurahan',
+        'GET api/v1/referencia/metode-pembayaran',
+        'GET api/v1/referencia/pendidikan',
+        'GET api/v1/referencia/provinsi',
+        'GET api/v1/referencia/spesialisasi',
+        'GET api/v1/referencia/status-pernikahan',
     ]);
 
-    // ELEVEN under the `pasien` filter: the ten above (profil read + write, two
+    // TWELVE under the `pasien` filter: the ten above (profil read + write, two
     // each for the family and allergy lists, and two each for the row-addressed
-    // update and delete) plus the patient booking list. `GET /api/v1/me` sits
-    // outside the `pasien` filter, and the other three booking routes live
-    // outside it too.
+    // update and delete) plus the patient booking list and todo 34's letter list.
+    // `GET /api/v1/me` sits outside the `pasien` filter, and the other three
+    // booking routes live outside it too.
     $pasienRoutes = collect(array_keys($routes))
         ->filter(fn (string $key): bool => str_contains($key, 'api/v1/pasien'))
         ->all();
 
-    expect($pasienRoutes)->toHaveCount(11);
+    expect($pasienRoutes)->toHaveCount(12);
 
     $middlewareFor = static function (string $key) use ($routes): array {
         return array_values(array_filter(
@@ -1515,6 +1541,25 @@ test('the route table exposes the eight auth routes and the eleven patient route
         'GET api/v1/dokter/{dokter}/jadwal',
         'GET api/v1/dokter/{dokter}/slot',
         'GET api/v1/master-spesialisasi',
+        // Todo 34's verifier: public by design - a QR code is scanned by a
+        // receptionist who has no account. See the routes/api.php block.
+        'GET api/v1/surat-keterangan/{nomor_surat}/verify',
+        // Todo 42's fourteen reference routes: public by design, see the
+        // routes/api.php block.
+        'GET api/v1/referencia/enums',
+        'GET api/v1/referencia/agama',
+        'GET api/v1/referencia/golongan-darah',
+        'GET api/v1/referencia/hubungan-keluarga',
+        'GET api/v1/referencia/icd10',
+        'GET api/v1/referencia/icd9cm',
+        'GET api/v1/referencia/kabupaten-kota',
+        'GET api/v1/referencia/kecamatan',
+        'GET api/v1/referencia/kelurahan',
+        'GET api/v1/referencia/metode-pembayaran',
+        'GET api/v1/referencia/pendidikan',
+        'GET api/v1/referencia/provinsi',
+        'GET api/v1/referencia/spesialisasi',
+        'GET api/v1/referencia/status-pernikahan',
     ];
 
     foreach (array_keys($routes) as $key) {
@@ -1558,6 +1603,7 @@ test('the route table exposes the eight auth routes and the eleven patient route
             'PUT api/v1/rekam-medis/{id}' => ['tipe:dokter', 'permission:rekam_medis.simpan'],
             'PUT api/v1/rekam-medis/{id}/final' => ['tipe:dokter', 'permission:rekam_medis.final'],
             'POST api/v1/rekam-medis/{id}/amandemen' => ['tipe:dokter', 'permission:rekam_medis.final'],
+            'POST api/v1/konsultasi/{id}/surat-keterangan' => ['tipe:dokter', 'permission:surat_keterangan.buat'],
         ];
 
         expect($guards)->toEqualCanonicalizing(
@@ -1595,8 +1641,8 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
     // the live `routes/api.php` with the same regex rather than typed, because a
     // hand-typed literal here that silently became a different string is exactly the
     // failure this assertion exists to catch - and it has caught three of them in
-    // previous batches. A twentieth entry is a policy change that must arrive with its
-    // catalogue entry in the same commit.
+    // previous batches. Todo 34's letter create adds TWO more, for TWENTY-ONE, and
+    // each new entry must arrive with its catalogue entry in the same commit.
     expect(array_map(static fn (array $m): string => $m[0], $matches))->toEqualCanonicalizing([
         "'permission:booking.lihat'",
         "'permission:booking.buat'",
@@ -1621,6 +1667,11 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         "'permission:rekam_medis.final'",
         "'tipe:dokter'",
         "'permission:rekam_medis.final'",
+        // Todo 34's letter create contributes TWO more: `surat_keterangan.buat`
+        // (granted to `dokter` and `superadmin`) and `tipe:dokter` (what excludes
+        // the oversight account from issuing a clinical letter).
+        "'permission:surat_keterangan.buat'",
+        "'tipe:dokter'",
     ]);
 });
 

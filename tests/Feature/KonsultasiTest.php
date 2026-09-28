@@ -188,6 +188,9 @@ test('seven routes are registered under api/v1 with the expected verbs and guard
         // Todo 33's create, which lives under this prefix because its path is a
         // consultation path. See the guard map below for the rest of the argument.
         'POST api/v1/konsultasi/{id}/rekam-medis',
+        // Todo 34's create, under the same prefix for the same reason: the letter
+        // hangs off a consultation. See the guard map below.
+        'POST api/v1/konsultasi/{id}/surat-keterangan',
     ]);
 
     $middlewareFor = static function (string $key) use ($routes): array {
@@ -218,6 +221,7 @@ test('seven routes are registered under api/v1 with the expected verbs and guard
         'PUT api/v1/konsultasi/{id}/terima' => ['tipe:dokter', 'permission:konsultasi.mulai'],
         'PUT api/v1/konsultasi/{id}/selesai' => ['tipe:dokter', 'permission:konsultasi.selesai'],
         'POST api/v1/konsultasi/{id}/rekam-medis' => ['tipe:dokter', 'permission:rekam_medis.simpan'],
+        'POST api/v1/konsultasi/{id}/surat-keterangan' => ['tipe:dokter', 'permission:surat_keterangan.buat'],
     ];
 
 

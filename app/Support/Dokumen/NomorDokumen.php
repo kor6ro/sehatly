@@ -30,6 +30,18 @@ final class NomorDokumen
 
     public const PREFIX_INVOICE = 'INV';
 
+    /**
+     * The medical-letter prefix, so a `SK` number is distinguishable from a `BK` or an
+     * `INV` number by its first two characters alone - which is what a clinic
+     * receptionist reading a number off a fax actually looks at.
+     *
+     * `SK20260311ABCDEF` is 16 characters against `surat_keterangan.nomor_surat`'s
+     * `VARCHAR(50)` (`telemedicine_test.sql:583`), so 34 characters of room remain and
+     * the number cannot be truncated into a second string that collides with a
+     * different one.
+     */
+    public const PREFIX_SURAT = 'SK';
+
     private const ACAK = 6;
 
     private int $percobaan = 0;

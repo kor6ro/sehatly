@@ -1285,9 +1285,10 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
     }
 
     // Module 2 (booking) is the first consumer and Module 3 (consultation, medical
-    // record) added seven more, for NINETEEN strings in total. Each is proven to
-    // resolve against `RbacCatalog` by the loop above, and a twentieth is a policy
-    // change that must arrive with its catalogue entry in the same commit.
+    // record) added seven more, for NINETEEN strings in total; todo 34's letter
+    // create adds two more, for TWENTY-ONE. Each is proven to resolve against
+    // `RbacCatalog` by the loop above, and a new entry must arrive with its
+    // catalogue entry in the same commit.
     //
     // This census is deliberately DUPLICATED over the same regex in
     // `PasienProfileTest`, which asserts the same list. Two files asserting one
@@ -1316,6 +1317,10 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         "'permission:rekam_medis.final'",
         "'tipe:dokter'",
         "'permission:rekam_medis.final'",
+        // Todo 34's letter create: `surat_keterangan.buat` is granted to `dokter`
+        // and `superadmin`, and `tipe:dokter` is what excludes the oversight account.
+        "'permission:surat_keterangan.buat'",
+        "'tipe:dokter'",
     ]);
 });
 

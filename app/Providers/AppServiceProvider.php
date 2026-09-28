@@ -4,6 +4,8 @@ namespace App\Providers;
 
 use App\Services\Auth\LogOtpSender;
 use App\Services\Auth\OtpSender;
+use App\Services\SuratKeterangan\QrTokenGenerator;
+use App\Services\SuratKeterangan\StrQrTokenGenerator;
 use Carbon\CarbonImmutable;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -21,7 +23,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->configureQrTokenSource();
     }
 
     /**
@@ -54,6 +56,22 @@ class AppServiceProvider extends ServiceProvider
                 ->uncompromised()
             : null,
         );
+    }
+
+    /**
+     * Bind the QR verification-token source.
+     *
+     * `SuratKeteranganService` depends on the {@see QrTokenGenerator} INTERFACE so a
+     * test can substitute a stub that returns a value already stored - the only way to
+     * force a genuine `qr_token` collision, since the column has no UNIQUE index
+     * (`telemedicine_test.sql:592`) and the DDL is read-only law. The production
+     * implementation is {@see StrQrTokenGenerator}, a v4 UUID. Binding the interface
+     * here rather than injecting the concrete class is what makes the substitution a
+     * one-line change, exactly as `configureOtpDelivery()` does for `OtpSender`.
+     */
+    private function configureQrTokenSource(): void
+    {
+        $this->app->bind(QrTokenGenerator::class, StrQrTokenGenerator::class);
     }
 
     /**
