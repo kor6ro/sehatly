@@ -212,6 +212,12 @@ test('the write route is the only post that CREATES a prescription', function ()
     expect($semua)->toBe([
         'POST api/v1/konsultasi/{id}/resep',
         'POST api/v1/resep/{id}/verifikasi',
+        // Todo 46's checkout. It READS a `resep` and writes a `pesanan_obat`,
+        // so it is a consumer of a prescription rather than a second way to
+        // author one - which is why the invariant this file protects is still
+        // exactly as todo 39 stated it: `resep.id` and `resep_item` are written
+        // by one endpoint, and `checkout` is not it.
+        'POST api/v1/resep/{id}/checkout',
     ]);
 
     // And the narrowed invariant, stated positively rather than as a

@@ -183,18 +183,25 @@ test('four routes ship, and the prefix filter the plan names answers three', fun
         'GET api/v1/resep/{id}/cek-interaksi',
         'POST api/v1/resep/{id}/verifikasi',
     ]);
+    // The list above is over the four URIs `rx40Routes()` NAMES, not over the
+    // whole `resep` surface - so todo 46's `resep/{id}/checkout` is correctly
+    // absent from it and correctly present in the prefix count below. Adding it
+    // here was a first attempt that failed the run, and the distinction is the
+    // point: one of these two assertions is a closed set over todo 40's own
+    // routes and the other is a count of the live route table.
 
     // The plan's acceptance criterion says `route:list --path=api/v1/resep`
-    // "lists 4 routes". It answers 3, because `api/v1/pasien/resep` is a
-    // `pasien` path and a prefix filter cannot see it. The same defect todo 32
-    // found for `konsultasi`, todo 33 for `rekam-medis` and todo 34 for
-    // `surat_keterangan`; the route ships and the count is recorded rather
-    // than satisfied by deleting an endpoint.
+    // "lists 4 routes". It answered 3 through todo 45, because
+    // `api/v1/pasien/resep` is a `pasien` path and a prefix filter cannot see
+    // it, and it answers 4 from todo 46 because `resep/{id}/checkout` IS under
+    // the prefix. The same defect todo 32 found for `konsultasi`, todo 33 for
+    // `rekam-medis` and todo 34 for `surat_keterangan`; the route ships and the
+    // count is recorded rather than satisfied by deleting an endpoint.
     $terfilter = collect(Route::getRoutes()->getRoutes())
         ->filter(static fn ($route): bool => str_starts_with($route->uri(), 'api/v1/resep'))
         ->count();
 
-    expect($terfilter)->toBe(3);
+    expect($terfilter)->toBe(4);
 
     foreach (array_keys($routes) as $key) {
         // Pest's `toContain` is variadic, so a second argument is read as

@@ -1836,6 +1836,17 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         "'permission:resep.lihat'",
         "'permission:resep.verifikasi'",
         "'tipe:apoteker'",
+        // Todo 46's checkout routes.
+        "'permission:pesanan.buat'",
+        "'permission:pesanan.lihat'",
+        // Todo 45's payment initiation, and the only string either of todo 45's
+        // two routes contributes: `pembayaran.bayar` is granted to `pasien` and
+        // `superadmin` and to nobody else, so the gate refuses `dokter`,
+        // `apoteker` and `admin` without locking out the one account type that
+        // owns the invoice being paid. The webhook takes NEITHER a
+        // `permission:` nor a `tipe:` - it is authenticated by an HMAC over the
+        // raw body - and so adds nothing to this census.
+        "'permission:pembayaran.bayar'",
     ]);
 });
 
