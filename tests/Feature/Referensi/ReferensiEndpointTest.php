@@ -24,8 +24,8 @@ use Illuminate\Support\Facades\Schema;
 | The 14 public reference endpoints
 |--------------------------------------------------------------------------
 |
-| `GET /api/v1/referencia/{slug}` for the 13 master tables the plan's todo 42
-| names, plus `GET /api/v1/referencia/enums`, which serves the generated
+| `GET /api/v1/referensi/{slug}` for the 13 master tables the plan's todo 42
+| names, plus `GET /api/v1/referensi/enums`, which serves the generated
 | `docs/enums.json`.
 |
 | **These are Pest closure tests, not a PHPUnit class, and that is
@@ -171,32 +171,32 @@ beforeEach(function (): void {
 
 it('registers exactly the 14 reference routes the plan names', function (): void {
     $registered = collect(Route::getRoutes()->getRoutes())
-        ->filter(fn ($route): bool => str_starts_with((string) $route->uri(), 'api/v1/referencia'))
+        ->filter(fn ($route): bool => str_starts_with((string) $route->uri(), 'api/v1/referensi'))
         ->map(fn ($route): string => 'GET '.$route->uri())
         ->sort()
         ->values()
         ->all();
 
     expect($registered)->toBe([
-        'GET api/v1/referencia/agama',
-        'GET api/v1/referencia/enums',
-        'GET api/v1/referencia/golongan-darah',
-        'GET api/v1/referencia/hubungan-keluarga',
-        'GET api/v1/referencia/icd10',
-        'GET api/v1/referencia/icd9cm',
-        'GET api/v1/referencia/kabupaten-kota',
-        'GET api/v1/referencia/kecamatan',
-        'GET api/v1/referencia/kelurahan',
-        'GET api/v1/referencia/metode-pembayaran',
-        'GET api/v1/referencia/pendidikan',
-        'GET api/v1/referencia/provinsi',
-        'GET api/v1/referencia/spesialisasi',
-        'GET api/v1/referencia/status-pernikahan',
+        'GET api/v1/referensi/agama',
+        'GET api/v1/referensi/enums',
+        'GET api/v1/referensi/golongan-darah',
+        'GET api/v1/referensi/hubungan-keluarga',
+        'GET api/v1/referensi/icd10',
+        'GET api/v1/referensi/icd9cm',
+        'GET api/v1/referensi/kabupaten-kota',
+        'GET api/v1/referensi/kecamatan',
+        'GET api/v1/referensi/kelurahan',
+        'GET api/v1/referensi/metode-pembayaran',
+        'GET api/v1/referensi/pendidikan',
+        'GET api/v1/referensi/provinsi',
+        'GET api/v1/referensi/spesialisasi',
+        'GET api/v1/referensi/status-pernikahan',
     ]);
 });
 
 it('answers all 14 routes to an unauthenticated caller', function (string $slug): void {
-    $this->getJson('/api/v1/referencia/'.$slug)
+    $this->getJson('/api/v1/referensi/'.$slug)
         ->assertOk()
         ->assertJsonPath('success', true)
         ->assertJsonStructure(['success', 'data', 'message', 'meta']);
@@ -214,7 +214,7 @@ it('answers all 14 routes to an unauthenticated caller', function (string $slug)
 
 it('puts no auth, permission or tipe middleware on any of the 14 routes', function (): void {
     foreach (Route::getRoutes()->getRoutes() as $route) {
-        if (! str_starts_with((string) $route->uri(), 'api/v1/referencia')) {
+        if (! str_starts_with((string) $route->uri(), 'api/v1/referensi')) {
             continue;
         }
 
@@ -231,9 +231,9 @@ it('puts no auth, permission or tipe middleware on any of the 14 routes', functi
 });
 
 it('registers all 14 as GET, so a write is a 405 rather than a 403', function (string $slug): void {
-    $this->postJson('/api/v1/referencia/'.$slug)->assertStatus(405);
-    $this->putJson('/api/v1/referencia/'.$slug)->assertStatus(405);
-    $this->deleteJson('/api/v1/referencia/'.$slug)->assertStatus(405);
+    $this->postJson('/api/v1/referensi/'.$slug)->assertStatus(405);
+    $this->putJson('/api/v1/referensi/'.$slug)->assertStatus(405);
+    $this->deleteJson('/api/v1/referensi/'.$slug)->assertStatus(405);
 })->with([
     'provinsi', 'kabupaten-kota', 'kecamatan', 'kelurahan', 'agama',
     'golongan-darah', 'pendidikan', 'status-pernikahan', 'hubungan-keluarga',
@@ -247,7 +247,7 @@ it('registers all 14 as GET, so a write is a 405 rather than a 403', function (s
 */
 
 it('puts meta at the top level, not inside data', function (): void {
-    $body = $this->getJson('/api/v1/referencia/provinsi')->assertOk()->json();
+    $body = $this->getJson('/api/v1/referensi/provinsi')->assertOk()->json();
 
     // Key ORDER too, because `ApiResponse` documents it as load-bearing.
     expect(array_keys($body))->toBe(['success', 'data', 'message', 'meta'])
@@ -256,7 +256,7 @@ it('puts meta at the top level, not inside data', function (): void {
 });
 
 it('answers a single-page list with the degenerate page block', function (): void {
-    $body = $this->getJson('/api/v1/referencia/provinsi')->assertOk()->json();
+    $body = $this->getJson('/api/v1/referensi/provinsi')->assertOk()->json();
 
     expect($body['meta'])->toBe([
         'current_page' => 1,
@@ -272,7 +272,7 @@ it('answers an empty table with null from and to rather than 0', function (): vo
     // No fixture rows for `master_agama` in this test, so the list is genuinely empty.
     MasterAgama::query()->delete();
 
-    $body = $this->getJson('/api/v1/referencia/agama')->assertOk()->json();
+    $body = $this->getJson('/api/v1/referensi/agama')->assertOk()->json();
 
     expect($body['data']['agama'])->toBe([])
         ->and($body['meta']['total'])->toBe(0)
@@ -287,7 +287,7 @@ it('answers an empty table with null from and to rather than 0', function (): vo
 */
 
 it('sorts on the human label, so an absent ORDER BY is caught', function (): void {
-    $body = $this->getJson('/api/v1/referencia/provinsi')->assertOk()->json();
+    $body = $this->getJson('/api/v1/referensi/provinsi')->assertOk()->json();
 
     // `beforeEach` inserted Aceh, Yogyakarta, Bali, Banten. The response must be
     // the ALPHABETICAL order, which is a different sequence from the insertion
@@ -298,7 +298,7 @@ it('sorts on the human label, so an absent ORDER BY is caught', function (): voi
 
 it('orders the hierarchy levels independently of insertion', function (): void {
     // Kecamatan were inserted Kuta, then Abel - deliberately the wrong order.
-    $body = $this->getJson('/api/v1/referencia/kecamatan')->assertOk()->json();
+    $body = $this->getJson('/api/v1/referensi/kecamatan')->assertOk()->json();
 
     expect(array_column($body['data']['kecamatan'], 'nama'))->toBe(['Abel', 'Kuta']);
 });
@@ -307,7 +307,7 @@ it('orders master_golongan_darah on kode, because it has no nama column', functi
     // Inserted A, O - which is already alphabetical, so insert order cannot be
     // mistaken for a correct ORDER BY. The assertion is that BOTH appear and that
     // the endpoint works against a table with no `nama` at all.
-    $body = $this->getJson('/api/v1/referencia/golongan-darah')->assertOk()->json();
+    $body = $this->getJson('/api/v1/referensi/golongan-darah')->assertOk()->json();
 
     expect($body['data']['golongan_darah'])->toHaveCount(2)
         ->and(array_column($body['data']['golongan_darah'], 'kode'))->toBe(['A', 'O'])
@@ -324,11 +324,11 @@ it('filters kabupaten/kota by its parent province', function (): void {
     $aceh = MasterProvinsi::where('kode', '11')->firstOrFail();
     $bali = MasterProvinsi::where('kode', '51')->firstOrFail();
 
-    $this->getJson('/api/v1/referencia/kabupaten-kota?provinsi_id='.$aceh->id)
+    $this->getJson('/api/v1/referensi/kabupaten-kota?provinsi_id='.$aceh->id)
         ->assertOk()
         ->assertJsonPath('data.kabupaten_kota', []);
 
-    $this->getJson('/api/v1/referencia/kabupaten-kota?provinsi_id='.$bali->id)
+    $this->getJson('/api/v1/referensi/kabupaten-kota?provinsi_id='.$bali->id)
         ->assertOk()
         ->assertJsonCount(2, 'data.kabupaten_kota')
         ->assertJsonPath('meta.total', 2);
@@ -339,11 +339,11 @@ it('walks the whole hierarchy one level at a time', function (): void {
     $badung = MasterKabupatenKota::where('kode', '5102')->firstOrFail();
     $kuta = MasterKecamatan::where('kode', '510201')->firstOrFail();
 
-    $this->getJson('/api/v1/referencia/kecamatan?kabupaten_kota_id='.$badung->id)
+    $this->getJson('/api/v1/referensi/kecamatan?kabupaten_kota_id='.$badung->id)
         ->assertOk()
         ->assertJsonCount(2, 'data.kecamatan');
 
-    $this->getJson('/api/v1/referencia/kelurahan?kecamatan_id='.$kuta->id)
+    $this->getJson('/api/v1/referensi/kelurahan?kecamatan_id='.$kuta->id)
         ->assertOk()
         ->assertJsonCount(1, 'data.kelurahan')
         ->assertJsonPath('data.kelurahan.0.nama', 'Seniren');
@@ -354,20 +354,20 @@ it('publishes the parent key on every hierarchy row', function (): void {
     $badung = MasterKabupatenKota::where('kode', '5102')->firstOrFail();
     $kuta = MasterKecamatan::where('kode', '510201')->firstOrFail();
 
-    $this->getJson('/api/v1/referencia/kabupaten-kota')
+    $this->getJson('/api/v1/referensi/kabupaten-kota')
         ->assertJsonPath('data.kabupaten_kota.0.provinsi_id', $bali->id);
 
-    $this->getJson('/api/v1/referencia/kecamatan')
+    $this->getJson('/api/v1/referensi/kecamatan')
         ->assertJsonPath('data.kecamatan.0.kabupaten_kota_id', $badung->id);
 
-    $this->getJson('/api/v1/referencia/kelurahan')
+    $this->getJson('/api/v1/referensi/kelurahan')
         ->assertJsonPath('data.kelurahan.0.kecamatan_id', $kuta->id);
 });
 
 it('answers an empty list for a parent id that has no children', function (): void {
     // A 422 would be wrong: a client walking the hierarchy should be able to ask
     // for the children of a region that simply has none.
-    $this->getJson('/api/v1/referencia/kabupaten-kota?provinsi_id=999999')
+    $this->getJson('/api/v1/referensi/kabupaten-kota?provinsi_id=999999')
         ->assertOk()
         ->assertJsonPath('data.kabupaten_kota', [])
         ->assertJsonPath('meta.total', 0);
@@ -380,29 +380,29 @@ it('answers an empty list for a parent id that has no children', function (): vo
 */
 
 it('searches the ICD tables on both kode and deskripsi', function (): void {
-    $this->getJson('/api/v1/referencia/icd10?q=tuberkulosis')
+    $this->getJson('/api/v1/referensi/icd10?q=tuberkulosis')
         ->assertOk()
         ->assertJsonCount(1, 'data.icd10')
         ->assertJsonPath('data.icd10.0.kode', 'A15');
 
-    $this->getJson('/api/v1/referencia/icd10?q=E11')
+    $this->getJson('/api/v1/referensi/icd10?q=E11')
         ->assertOk()
         ->assertJsonCount(1, 'data.icd10')
         ->assertJsonPath('data.icd10.0.kode', 'E11');
 });
 
 it('searches spesialisasi and metode pembayaran, and returns nothing for a miss', function (): void {
-    $this->getJson('/api/v1/referencia/spesialisasi?q=anak')
+    $this->getJson('/api/v1/referensi/spesialisasi?q=anak')
         ->assertOk()
         ->assertJsonCount(1, 'data.spesialisasi')
         ->assertJsonPath('data.spesialisasi.0.kode', 'S02');
 
-    $this->getJson('/api/v1/referencia/metode-pembayaran?q=mandiri')
+    $this->getJson('/api/v1/referensi/metode-pembayaran?q=mandiri')
         ->assertOk()
         ->assertJsonCount(1, 'data.metode_pembayaran')
         ->assertJsonPath('data.metode_pembayaran.0.kode', 'mandiri');
 
-    $this->getJson('/api/v1/referencia/icd10?q=zzzznotacode')
+    $this->getJson('/api/v1/referensi/icd10?q=zzzznotacode')
         ->assertOk()
         ->assertJsonPath('data.icd10', [])
         ->assertJsonPath('meta.total', 0);
@@ -411,7 +411,7 @@ it('searches spesialisasi and metode pembayaran, and returns nothing for a miss'
 it('does not offer ?q= on a table with nothing to search', function (): void {
     // A silently ignored `?q=` is worse than a 422: a client that filtered and got
     // the full list back has no way to tell its filter did nothing.
-    $this->getJson('/api/v1/referencia/provinsi?q=aceh')
+    $this->getJson('/api/v1/referensi/provinsi?q=aceh')
         ->assertStatus(422)
         ->assertJsonPath('success', false)
         ->assertJsonStructure(['success', 'message', 'errors' => ['q']]);
@@ -424,15 +424,15 @@ it('does not offer ?q= on a table with nothing to search', function (): void {
 */
 
 it('hides an inactive payment method by default and shows it on request', function (): void {
-    $this->getJson('/api/v1/referencia/metode-pembayaran')
+    $this->getJson('/api/v1/referensi/metode-pembayaran')
         ->assertOk()
         ->assertJsonCount(2, 'data.metode_pembayaran')
         ->assertJsonPath('meta.total', 2);
 
-    $codes = array_column($this->getJson('/api/v1/referencia/metode-pembayaran')->json('data.metode_pembayaran'), 'kode');
+    $codes = array_column($this->getJson('/api/v1/referensi/metode-pembayaran')->json('data.metode_pembayaran'), 'kode');
     expect($codes)->not->toContain('lama');
 
-    $this->getJson('/api/v1/referencia/metode-pembayaran?status_aktif=0')
+    $this->getJson('/api/v1/referensi/metode-pembayaran?status_aktif=0')
         ->assertOk()
         ->assertJsonCount(1, 'data.metode_pembayaran')
         ->assertJsonPath('data.metode_pembayaran.0.kode', 'lama')
@@ -440,7 +440,7 @@ it('hides an inactive payment method by default and shows it on request', functi
 });
 
 it('publishes the fee columns a booking screen needs', function (): void {
-    $this->getJson('/api/v1/referencia/metode-pembayaran')
+    $this->getJson('/api/v1/referensi/metode-pembayaran')
         ->assertOk()
         // A NUMBER, not the `DECIMAL(12,2)` string the driver hands back - the
         // resource casts it, so a client can add it to a total without parsing.
@@ -459,7 +459,7 @@ it('publishes the fee columns a booking screen needs', function (): void {
 */
 
 it('pages the endpoints that declare it, with a real page meta block', function (): void {
-    $body = $this->getJson('/api/v1/referencia/icd9cm?per_page=1&page=2')
+    $body = $this->getJson('/api/v1/referensi/icd9cm?per_page=1&page=2')
         ->assertOk()
         ->assertJsonCount(1, 'data.icd9cm')
         ->assertJsonPath('meta.current_page', 2)
@@ -472,21 +472,21 @@ it('pages the endpoints that declare it, with a real page meta block', function 
 });
 
 it('rejects a per_page above the cap with a 422 naming the field', function (): void {
-    $this->getJson('/api/v1/referencia/icd10?per_page=101')
+    $this->getJson('/api/v1/referensi/icd10?per_page=101')
         ->assertStatus(422)
         ->assertJsonStructure(['success', 'message', 'errors' => ['per_page']]);
 
-    $this->getJson('/api/v1/referencia/icd10?per_page=0')
+    $this->getJson('/api/v1/referensi/icd10?per_page=0')
         ->assertStatus(422)
         ->assertJsonStructure(['errors' => ['per_page']]);
 
-    $this->getJson('/api/v1/referencia/icd10?page=abc')
+    $this->getJson('/api/v1/referensi/icd10?page=abc')
         ->assertStatus(422)
         ->assertJsonStructure(['errors' => ['page']]);
 });
 
 it('does not page the endpoints that do not declare it', function (): void {
-    $body = $this->getJson('/api/v1/referencia/provinsi?page=2&per_page=1')
+    $body = $this->getJson('/api/v1/referensi/provinsi?page=2&per_page=1')
         ->assertOk()
         ->assertJsonCount(4, 'data.provinsi')
         ->assertJsonPath('meta.current_page', 1)
@@ -506,26 +506,26 @@ it('does not page the endpoints that do not declare it', function (): void {
 */
 
 it('rejects a parameter the endpoint does not accept', function (): void {
-    $this->getJson('/api/v1/referencia/provinsi?kode=31')
+    $this->getJson('/api/v1/referensi/provinsi?kode=31')
         ->assertStatus(422)
         ->assertJsonPath('success', false)
         ->assertJsonStructure(['errors' => ['kode']]);
 
     // And a misspelled filter on a paginated endpoint, which is the case a client
     // would otherwise render as "filtered" when it was not.
-    $this->getJson('/api/v1/referencia/icd10?search=diabetes')
+    $this->getJson('/api/v1/referensi/icd10?search=diabetes')
         ->assertStatus(422)
         ->assertJsonStructure(['errors' => ['search']]);
 });
 
 /*
 |--------------------------------------------------------------------------
-| /referencia/enums serves the committed artefact
+| /referensi/enums serves the committed artefact
 |--------------------------------------------------------------------------
 */
 
 it('serves the generated catalogue, and it is the committed file', function (): void {
-    $body = $this->getJson('/api/v1/referencia/enums')
+    $body = $this->getJson('/api/v1/referensi/enums')
         ->assertOk()
         ->assertJsonPath('success', true)
         ->json();
@@ -538,7 +538,7 @@ it('serves the generated catalogue, and it is the committed file', function (): 
 });
 
 it('serves a catalogue whose keys are table.column pairs', function (): void {
-    $enums = $this->getJson('/api/v1/referencia/enums')->assertOk()->json('data.enums');
+    $enums = $this->getJson('/api/v1/referensi/enums')->assertOk()->json('data.enums');
 
     expect($enums)->toBeArray()->not->toBeEmpty()
         ->and(array_keys($enums))->toContain('dokter.tipe', 'users.tipe', 'artikel.status');
@@ -550,7 +550,7 @@ it('serves a catalogue whose keys are table.column pairs', function (): void {
 });
 
 it('excludes the one VIEW-derived ENUM column and says so', function (): void {
-    $enums = $this->getJson('/api/v1/referencia/enums')->assertOk()->json('data.enums');
+    $enums = $this->getJson('/api/v1/referensi/enums')->assertOk()->json('data.enums');
 
     // `v_dokter_katalog.tipe` is a projection of `dokter.tipe`, so the catalogue
     // holds the base column and not the view - a generated client must not emit a
@@ -570,10 +570,10 @@ it('agrees with the live schema, so a client is never handed a stale catalogue',
 */
 
 it('keeps the route set and the definition the same set', function (): void {
-    $defined = collect(ReferensiEndpoint::all())->map(fn ($e): string => 'api/v1/referencia/'.$e->slug)->sort()->values();
+    $defined = collect(ReferensiEndpoint::all())->map(fn ($e): string => 'api/v1/referensi/'.$e->slug)->sort()->values();
     $routed = collect(Route::getRoutes()->getRoutes())
         ->map(fn ($route): string => (string) $route->uri())
-        ->filter(fn (string $uri): bool => str_starts_with($uri, 'api/v1/referencia'))
+        ->filter(fn (string $uri): bool => str_starts_with($uri, 'api/v1/referensi'))
         ->reject(fn (string $uri): bool => str_ends_with($uri, '/enums'))
         ->sort()
         ->values();

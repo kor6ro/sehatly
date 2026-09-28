@@ -652,7 +652,7 @@ use App\Support\Reference\ReferensiEndpoint;
 |
 | APPENDED by todo 42. Nothing above this line is touched. This block is last in
 | the file, and it carries the only ordering constraint that matters: there is
-| no wildcard route under `referencia/`, so no route above can swallow any of
+| no wildcard route under `referensi/`, so no route above can swallow any of
 | these and none of these can swallow a path above. Registration order inside
 | the block is therefore free, which is why the loop below is safe.
 |
@@ -662,7 +662,7 @@ use App\Support\Reference\ReferensiEndpoint;
 | `telemedicine_test.sql` declares 11 of them; `master_spesialisasi` (:402) and
 | `master_metode_pembayaran` are declared OUTSIDE that section and both are
 | named by the plan, so plan and DDL agree once the two strays are counted. The
-| 14th route is `referencia/enums`, which reads no table at all - it serves the
+| 14th route is `referensi/enums`, which reads no table at all - it serves the
 | generated `docs/enums.json` - so it is registered literally rather than from
 | the loop.
 |
@@ -679,7 +679,7 @@ use App\Support\Reference\ReferensiEndpoint;
 |
 | ## The controllers are named, so `/referensi/enums` cannot be shadowed
 |
-| Every route is named `referencia.<slug>` with `<slug>` exactly the definition's
+| Every route is named `referensi.<slug>` with `<slug>` exactly the definition's
 | slug, and `IndexReferensiRequest::endpoint()` reads that name back to find the
 | definition. Naming them is therefore load-bearing, not decoration: it is the
 | only channel through which a generic controller method learns which of the 13
@@ -725,7 +725,7 @@ use App\Support\Reference\ReferensiEndpoint;
 | `.omo/evidence/task-42-sehatly.md`.
 */
 
-Route::get('referencia/enums', [ReferensiController::class, 'enums'])
+Route::get('referensi/enums', [ReferensiController::class, 'enums'])
     ->name('referensi.enums');
 
 foreach (ReferensiEndpoint::all() as $referensiEndpoint) {
