@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Observers\AuditObserver;
+use App\Services\Audit\AuditedModels;
 use App\Services\Auth\LogOtpSender;
 use App\Services\Auth\OtpSender;
 use App\Services\SuratKeterangan\QrTokenGenerator;
@@ -34,6 +36,7 @@ class AppServiceProvider extends ServiceProvider
         $this->configureDefaults();
         $this->configureOtpDelivery();
         $this->configureRateLimiting();
+        $this->configureAuditObservers();
     }
 
     /**
@@ -131,6 +134,23 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('auth-otp-send', function (Request $request): Limit {
             return Limit::perMinute(10)->by($this->throttleKey($request, 'auth-otp-send'));
         });
+    }
+
+    /**
+     * Register the global audit observer over every sensitive model.
+     *
+     * Central registration is the policy: the loop covers exactly
+     * {@see AuditedModels::classes()}, so a new sensitive model is audited
+     * by adding one line to the registry rather than by remembering an
+     * attribute on the model. The registration test asserts the dispatcher
+     * holds created/updated/deleted listeners for each entry, which is what
+     * stops the registry and the registrations drifting apart.
+     */
+    private function configureAuditObservers(): void
+    {
+        foreach (AuditedModels::classes() as $model) {
+            $model::observe(AuditObserver::class);
+        }
     }
 
     /**

@@ -42,6 +42,17 @@ final class NomorDokumen
      */
     public const PREFIX_SURAT = 'SK';
 
+    /**
+     * The e-prescription prefix, so an `RX` number is distinguishable from a
+     * `BK`, `INV` or `SK` number by its first two characters alone.
+     *
+     * `RX20260311ABCDEF` is 16 characters against `resep.nomor_resep`'s
+     * `VARCHAR(30)` (`telemedicine_test.sql:744`), so 14 characters of room
+     * remain and the number cannot be truncated into a second string that
+     * collides with a different one.
+     */
+    public const PREFIX_RESEP = 'RX';
+
     private const ACAK = 6;
 
     private int $percobaan = 0;

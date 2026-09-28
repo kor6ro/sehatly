@@ -17,6 +17,7 @@ use App\Http\Resources\UserResource;
 use App\Models\Pasien;
 use App\Models\User;
 use App\Models\UserDevice;
+use App\Services\Audit\AuditLogWriter;
 use App\Services\Auth\OtpRejected;
 use App\Services\Auth\OtpService;
 use App\Services\Auth\RefreshTokenRejected;
@@ -121,6 +122,7 @@ class AuthController extends Controller
         private readonly OtpService $otp,
         private readonly TokenService $tokens,
         private readonly RoleAssigner $roles,
+        private readonly AuditLogWriter $audit,
     ) {}
 
     /**
@@ -302,6 +304,12 @@ class AuthController extends Controller
 
         $pair = $this->tokens->issue($user, $input['device_id'] ?? null);
 
+        // The session starts here for BOTH flows (registration verify and
+        // login verify): this endpoint is the only token issuer. The write
+        // goes through the audit service, never a direct row write - the
+        // token API has no session event to hook, so the call is explicit.
+        $this->audit->login($user);
+
         return ApiResponse::success([
             'user' => new UserResource($user->refresh()),
             'token' => new AuthTokenResource($pair),
@@ -365,6 +373,11 @@ class AuthController extends Controller
             ->where('user_id', $user->getKey())
             ->where('aktif', true)
             ->update(['aktif' => false]);
+
+        // The session ends here, after the revocation above. Same shape as
+        // the login write: an explicit call into the audit service, which is
+        // the only producer of log rows.
+        $this->audit->logout($user);
 
         return ApiResponse::success([
             'refresh_token' => ['dicabut' => $refreshRevoked],

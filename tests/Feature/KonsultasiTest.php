@@ -164,7 +164,7 @@ beforeEach(function (): void {
 // The route table
 // =====================================================================
 
-test('nine routes are registered under api/v1 with the expected verbs and guards', function (): void {
+test('ten routes are registered under api/v1 with the expected verbs and guards', function (): void {
     $routes = collect(Route::getRoutes()->getRoutes())
         ->filter(fn ($route): bool => str_starts_with($route->uri(), 'api/v1/konsultasi'))
         ->keyBy(fn ($route): string => $route->methods()[0].' '.$route->uri())
@@ -180,9 +180,11 @@ test('nine routes are registered under api/v1 with the expected verbs and guards
     // code.
     //
     // It is NINE now: todo 33 added `rekam-medis` and todo 34 added
-    // `surat-keterangan`, both under this prefix, both noted below. The count in
-    // this test's NAME is the live one, so a name saying "nine" over a list of
-    // eight is itself the drift the closed-set assertion exists to catch.
+    // `surat-keterangan`, both under this prefix, both noted below. It is TEN
+    // with todo 39's `resep` create, noted below for the same reason. The
+    // count in this test's NAME is the live one, so a name saying "ten" over
+    // a list of nine is itself the drift the closed-set assertion exists to
+    // catch.
     expect(array_keys($routes))->toEqualCanonicalizing([
         'POST api/v1/konsultasi/mulai',
         'GET api/v1/konsultasi/{id}',
@@ -197,6 +199,9 @@ test('nine routes are registered under api/v1 with the expected verbs and guards
         // Todo 34's create, under the same prefix for the same reason: the letter
         // hangs off a consultation. See the guard map below.
         'POST api/v1/konsultasi/{id}/surat-keterangan',
+        // Todo 39's create, under the same prefix for the same reason: the
+        // prescription hangs off a consultation. See the guard map below.
+        'POST api/v1/konsultasi/{id}/resep',
     ]);
 
     $middlewareFor = static function (string $key) use ($routes): array {
