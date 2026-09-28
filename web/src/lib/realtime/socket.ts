@@ -1,6 +1,13 @@
 import type Echo from 'laravel-echo';
 import { applyAccessToken } from '@/lib/echo';
+import { PRIVATE_CHANNEL_PREFIX } from '@/lib/realtime/channel';
 import type { KonsultasiPesan } from '@/lib/api/types';
+
+export {
+    PRIVATE_CHANNEL_PREFIX,
+    konsultasiChannel,
+    wireName,
+} from '@/lib/realtime/channel';
 
 type ConnectionStatus =
     | 'connected'
@@ -17,31 +24,12 @@ type ConnectionStatus =
  * stable part and the socket library is not. Narrowing it to a four-verb
  * interface is what makes the resume and dedupe paths in `KonsultasiRealtime`
  * testable against a fake with no port open and no broker running.
- */
-
-/** The prefix the protocol puts in front of a private channel name, on the wire. */
-export const PRIVATE_CHANNEL_PREFIX = 'private-';
-
-/**
- * The LOGICAL channel name for a consultation, with no wire prefix.
  *
- * `routes/channels.php` authorises `konsultasi.{id}` - with the prefix OFF, because
- * `UsePusherChannelConventions::normalizeChannelName()` strips it before the pattern
- * is matched - and `KonsultasiMessageSent::broadcastOn()` returns `new
- * PrivateChannel('konsultasi.' . $id)`, whose constructor adds the prefix itself. So
- * `konsultasi.5` is what both sides pass around and `private-konsultasi.5` is what
- * the broker sees. Code that writes the prefix itself produces
- * `private-private-konsultasi.5`, a channel that was never authorised and a
- * subscription that never confirms.
+ * The channel-naming constants this file used to own now live in `./channel`, a leaf
+ * with no transport import, so `KonsultasiRealtime` can use them without pulling this
+ * module - and therefore `laravel-echo` and `import.meta.env` - into a plain
+ * `node --test` run. They are re-exported above so no other importer changes.
  */
-export function konsultasiChannel(konsultasiId: number): string {
-    return `konsultasi.${konsultasiId}`;
-}
-
-/** The wire name, for a log line or an overlay that must match the broker's. */
-export function wireName(konsultasiId: number): string {
-    return `${PRIVATE_CHANNEL_PREFIX}${konsultasiChannel(konsultasiId)}`;
-}
 
 /** What a transport reports about the connection, as a closed set. */
 export type RealtimeSignal =

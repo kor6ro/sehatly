@@ -166,9 +166,12 @@ const KOLOM_SOAP = [
 const LABEL_SOAP: Record<(typeof KOLOM_SOAP)[number], string> = {
     catatan_subjektif: 'Subjektif (S)',
     catatan_objektif: 'Objektif (O)',
-    // The label is the DDL's spelling too, so the field's name is visible to the
-    // reader rather than hidden behind a "corrected" one.
-    catatan_asessment: 'Asesment (A)',
+    // The DDL's spelling lives in the WIRE KEY, not in this prose: the column is
+    // `catatan_asessment` ("asessment", two `s`) and no Indonesian label spells it
+    // that way. This label must stay byte-identical to the two in
+    // `rekam-medis-view.tsx` and `rekam-medis-edit-form.tsx`; it drifted to
+    // "Asesment" once and a `getByLabel('Asesmen (A)')` matched nothing.
+    catatan_asessment: 'Asesmen (A)',
     catatan_plan: 'Plan (P)',
     diagnosis_kerja: 'Diagnosis kerja',
     saran_tindak_lanjut: 'Saran tindak lanjut',

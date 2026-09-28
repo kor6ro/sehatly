@@ -1,12 +1,12 @@
 import type { KonsultasiPesan } from '@/lib/api/types';
 import { MessageDedupe } from '@/lib/realtime/dedupe';
-import {
-    konsultasiChannel,
-    type RealtimeFrame,
-    type RealtimeSignal,
-    type RealtimeSocket,
-    type RealtimeSocketListener,
-    type SubscriptionState,
+import { konsultasiChannel } from '@/lib/realtime/channel';
+import type {
+    RealtimeFrame,
+    RealtimeSignal,
+    RealtimeSocket,
+    RealtimeSocketListener,
+    SubscriptionState,
 } from '@/lib/realtime/socket';
 
 /** The event name without a leading dot, matching `KonsultasiMessageSent::broadcastAs()`. */

@@ -250,6 +250,18 @@ function RantaiVersi({
         );
     }
 
+    /**
+     * The chain's head, derived the way the resource derives
+     * `adalah_versi_terkini`: the entry with the highest `versi`. `RekamMedisRantai`
+     * is a reduced projection and has no such flag of its own. This compared against
+     * the literal `255` - `TINYINT UNSIGNED`'s ceiling, not a version - so no chain
+     * ever marked its head and the one badge separating the current document from
+     * its superseded ancestors was permanently off.
+     */
+    const versiTerbaru = rantai.reduce((tertinggi, entri) =>
+        entri.versi > tertinggi ? entri.versi : tertinggi,
+    0);
+
     return (
         <section data-slot="rekam-medis-rantai" className="flex flex-col gap-2">
             <h3 className="flex items-center gap-2 text-sm font-semibold">
@@ -267,7 +279,10 @@ function RantaiVersi({
                         className="bg-muted/40 flex flex-col gap-1 rounded-md px-3 py-2"
                     >
                         <div className="flex flex-wrap items-center gap-2">
-                            <VersiBadge versi={entri.versi} terbaru={entri.versi === 255} />
+                            <VersiBadge
+                                versi={entri.versi}
+                                terbaru={entri.versi === versiTerbaru}
+                            />
                             <StatusDokumenBadge status={entri.status_dokumen} />
                             <span className="text-muted-foreground text-xs tabular-nums">
                                 {formatWaktu(entri.dibuat_at)}

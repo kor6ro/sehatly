@@ -142,34 +142,30 @@ function laravelRoot(): string {
 }
 
 /**
- * Start Reverb again, fully detached, and wait until the port answers.
+ * Start Reverb again and wait until the port answers.
  *
- * Two things this has to get right, both found by running it wrong:
+ * Spawned as a detached `php.exe` **directly**, with no `cmd /c start` in between.
+ * The indirection was the bug, and the failure it produced is worth recording: the
+ * broker was started under a wrapper that exits immediately, and on this machine the
+ * grandchild never got far enough to bind 8080, so `tungguReverbHidup` polled a dead
+ * port for its full 30 s and then threw. Measured twice, identically, while Reverb was
+ * demonstrably startable in the same invocation - the runner had started one 40 s
+ * earlier on the same command line.
  *
- * 1. `reverb:start` does not return - it runs a server - so `execSync` blocks the test
- *    forever. It is spawned detached and unref'd.
- * 2. A plain detached spawn is still reaped when the Playwright worker's job object
- *    exits, so the restart is done through `cmd /c start`, which creates a process
- *    outside that tree. Verified by the port: after a `cmd /c start` the broker is
- *    still listening once the suite has finished.
- *
- * And it throws rather than returning quietly. An earlier version polled for 20
- * seconds and then let the test continue against a broker that was still dead, which
- * produced a recovery assertion failing for the wrong reason entirely.
+ * `detached: true` puts the broker in its own process group, so it is not reaped with
+ * the Playwright worker, and `unref()` lets this test's own event loop continue. If a
+ * future run still cannot restart it, that is the harness, and the reconnect property
+ * is covered deterministically by `tests/unit/realtime-reconnect.test.ts` against the
+ * transport seam.
  */
 async function startReverb(): Promise<void> {
     const anak = spawn(
-        'cmd',
+        phpBinary(),
         [
-            '/c',
-            'start',
-            '',
-            '/b',
-            `"${phpBinary()}"`,
             'artisan',
             'reverb:start',
             '--host=127.0.0.1',
-            '--port=8080',
+            `--port=${process.env.SEHATLY_REVERB_PORT ?? '8080'}`,
         ],
         {
             cwd: laravelRoot(),
@@ -357,6 +353,50 @@ async function mulaiKonsultasi(page: Page, dokterId: number): Promise<number> {
     };
 
     return body.data.konsultasi.id;
+}
+
+/**
+ * Accept the consultation, as its doctor, through the real endpoint.
+ *
+ * `POST /konsultasi/mulai` leaves the row in `menunggu_dokter`, and
+ * `KonsultasiService::selesai()` refuses to write a SOAP note onto a consultation
+ * that was never accepted: `ubahStatus()` has no edge from `menunggu_dokter` to
+ * `selesai`, and `mulai_at` is still null because `terima()` is its only writer. Both
+ * guards are collected before either throws, so the server answers ONE 422 carrying
+ * `errors.status` AND `errors.mulai_at` - a correct multi-field refusal that a spec
+ * skipping the accept step reported as "the SOAP form does not save". This call is
+ * therefore load-bearing; deleting it as redundant with `mulaiKonsultasi` brings that
+ * failure back.
+ */
+async function terimaKonsultasi(page: Page, konsultasiId: number): Promise<void> {
+    const [respons] = await Promise.all([
+        page.waitForResponse((r) =>
+            r.url().includes(`/api/v1/konsultasi/${konsultasiId}/terima`),
+        ),
+        page.evaluate(async ([id]) => {
+            const accessToken = globalThis.sessionStorage.getItem(
+                'sehatly.access_token',
+            );
+
+            const response = await fetch(`/api/v1/konsultasi/${id}/terima`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                    ...(accessToken === null
+                        ? {}
+                        : { Authorization: `Bearer ${accessToken}` }),
+                },
+            });
+
+            await response.text();
+        }, [String(konsultasiId)]),
+    ]);
+
+    expect(
+        respons.status(),
+        'PUT /konsultasi/{id}/terima harus 200, kalau tidak SOAP pasti 422',
+    ).toBe(200);
 }
 
 /** The transcript's own element, so every assertion is scoped to it. */
@@ -559,6 +599,20 @@ test.describe('Module 3 realtime consultation', () => {
     test('a Reverb outage degrades to REST and recovers without loss or duplication', async ({
         browser,
     }) => {
+        /**
+         * This test needs a budget larger than Playwright's 30 s default, and the
+         * default made it unwinnable rather than merely slow.
+         *
+         * `tungguReverbHidup()` alone polls 60 x 500 ms - a full 30 seconds - so on the
+         * worst legal path the restart alone consumes the entire default budget before
+         * the recovery assertions have even started. On top of that the spec waits
+         * 60 s for `data-connected="false"`, 60 s for the resync counter, and 2.5 s of
+         * settle twice. `mode: 'serial'` then skipped the two tests after it, so a
+         * budget problem was reported as "the SOAP and medical-record tests did not
+         * run" - a failure that looks like missing coverage rather than a timeout.
+         */
+        test.setTimeout(240_000);
+
         const pasienCtx: BrowserContext = await browser.newContext();
         const dokterCtx: BrowserContext = await browser.newContext();
 
@@ -690,6 +744,9 @@ test.describe('Module 3 realtime consultation', () => {
 
         const dokterId = await dokterIdDokter(dokterPage);
         const konsultasiId = await mulaiKonsultasi(patientPage, dokterId);
+
+        // Without this the note cannot be written at all: see terimaKonsultasi.
+        await terimaKonsultasi(dokterPage, konsultasiId);
 
         // --- a patient is not offered the form at all ---------------------------
         await patientPage.goto(`/konsultasi/${konsultasiId}`);
@@ -839,16 +896,25 @@ test.describe('Module 3 realtime consultation', () => {
         // --- the patient reads it: one version, and it is readable by them --------
         await patientPage.goto(`/rekam-medis/${rekamId}`);
 
+        /**
+         * `.first()` throughout this test, and it is not a convenience.
+         *
+         * A status badge appears TWICE for a single-version record: once in the card
+         * header for the record itself and once inside the chain entry, which is the
+         * same row. Playwright's strict mode rejects a locator that resolves to two
+         * elements, so an un-`.first()`ed assertion fails on the app rendering a chain
+         * at all - which is a feature, and the very thing the test checks next.
+         */
         await expect(
-            patientPage.locator(
-                '[data-slot="status-dokumen-badge"][data-status="draft"]',
-            ),
+            patientPage
+                .locator('[data-slot="status-dokumen-badge"][data-status="draft"]')
+                .first(),
         ).toBeVisible({ timeout: 20_000 });
         await expect(
             patientPage.locator('[data-slot="rekam-medis-rantai-entri"]'),
         ).toHaveCount(1);
         await expect(
-            patientPage.locator('[data-slot="versi-badge"][data-versi="1"]'),
+            patientPage.locator('[data-slot="versi-badge"][data-versi="1"]').first(),
         ).toBeVisible();
 
         // A patient is offered no editor.
@@ -872,9 +938,9 @@ test.describe('Module 3 realtime consultation', () => {
             .click();
 
         await expect(
-            dokterPage.locator(
-                '[data-slot="status-dokumen-badge"][data-status="final"]',
-            ),
+            dokterPage
+                .locator('[data-slot="status-dokumen-badge"][data-status="final"]')
+                .first(),
         ).toBeVisible({ timeout: 20_000 });
 
         await expect(
@@ -914,9 +980,11 @@ test.describe('Module 3 realtime consultation', () => {
             ),
         ).toHaveCount(1);
         await expect(
-            dokterPage.locator(
-                '[data-slot="status-dokumen-badge"][data-status="diamendemen"]',
-            ),
+            dokterPage
+                .locator(
+                    '[data-slot="status-dokumen-badge"][data-status="diamendemen"]',
+                )
+                .first(),
         ).toBeVisible();
 
         await patientScreenshot(

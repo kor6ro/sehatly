@@ -148,7 +148,20 @@ export function RekamMedisEditForm({ rekam }: { rekam: RekamMedis }) {
                  * inputs for a signed note would suggest the doctor can change it; the
                  * only action a signed record has is an amendment.
                  */}
-                {!draft ? (
+                {/**
+                 * `mode !== 'amandemen'` is load-bearing, and dropping it made the
+                 * amendment flow unusable.
+                 *
+                 * An amendment is only ever offered on a SIGNED record, so `draft` is
+                 * false by definition whenever `mode` is `'amandemen'`. Gating on
+                 * `!draft` alone therefore replaced the fields with the read-only
+                 * paragraph at the exact moment the doctor asked for them, leaving
+                 * "Ajukan amandemen" and "Konfirmasi kirim sebagai amandemen" wired to
+                 * a form that was not on screen - and the confirm would have sent the
+                 * unchanged defaults, which `periksaAmandemen()` refuses anyway
+                 * because nothing differs.
+                 */}
+                {!draft && mode !== 'amandemen' ? (
                     <p className="text-muted-foreground text-sm">
                         Isi catatan tidak dapat disunting. Gunakan tombol "Ajukan
                         amandemen" di bawah untuk membuat versi baru.

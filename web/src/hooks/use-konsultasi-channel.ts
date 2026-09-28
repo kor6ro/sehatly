@@ -6,6 +6,7 @@ import {
     KonsultasiRealtime,
     type RealtimeStats,
 } from '@/lib/realtime/konsultasi-realtime';
+import { gabungTranscript } from '@/lib/realtime/transcript';
 
 /**
  * The one realtime client, created once for the tab.
@@ -64,14 +65,6 @@ export type KonsultasiChannel = {
     /** The caller-driven half of recovery, mirroring the Dart `resubscribe()`. */
     resubscribe: () => Promise<void>;
 };
-
-function urutkan(pesan: KonsultasiPesan[]): KonsultasiPesan[] {
-    return [...pesan].sort((a, b) => {
-        const waktu = (a.terkirim_at ?? '').localeCompare(b.terkirim_at ?? '');
-
-        return waktu === 0 ? a.id - b.id : waktu;
-    });
-}
 
 /**
  * Bind a component to the realtime client for one consultation.
@@ -168,37 +161,10 @@ export function useKonsultasiChannel(
         await client.resubscribe();
     }, [client]);
 
-    /**
-     * The transcript the page renders: the history page and the live frames, MERGED BY
-     * `id`.
-     *
-     * This merge is the half of the dedupe `MessageDedupe` cannot do. The dedupe set
-     * gates what the realtime layer *delivers*; it cannot gate a row that arrived over
-     * REST, because a REST page is not a delivery. So the two lists are folded through
-     * a `Map` keyed on `konsultasi_chat.id` and the second arrival of a row is simply
-     * not inserted.
-     *
-     * Without this, the sender's own message renders twice whenever the socket frame
-     * beats the refetch that follows the POST - and renders once when the refetch
-     * wins. That is the worst shape of defect: it looks correct on the runs it happens
-     * not to occur on, while the counter this module already publishes reads zero with
-     * the duplicate on screen.
-     */
-    const gabung = useMemo(() => {
-        const peta = new Map<number, KonsultasiPesan>();
-
-        for (const row of initial) {
-            peta.set(row.id, row);
-        }
-
-        for (const row of live) {
-            if (!peta.has(row.id)) {
-                peta.set(row.id, row);
-            }
-        }
-
-        return urutkan([...peta.values()]);
-    }, [initial, live]);
+    const gabung = useMemo(
+        () => gabungTranscript(initial, live),
+        [initial, live],
+    );
 
     const stats = useSyncExternalStore(
         (listener) => client.onChange(listener),
