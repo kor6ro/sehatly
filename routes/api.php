@@ -976,3 +976,201 @@ Route::middleware('auth:sanctum')->group(function (): void {
             ->name('verifikasi');
     });
 });
+
+use App\Http\Controllers\Api\V1\PesananObatController;
+
+/*
+|--------------------------------------------------------------------------
+| Module 5 -- prescription checkout, pharmacy stock and order tracking
+|--------------------------------------------------------------------------
+|
+| APPENDED by todo 46. Nothing above this line is touched. This block is last
+| in the file, which is the only ordering constraint it has: `resep/{id}/checkout`
+| is a three-segment path under a prefix that already has `resep/{id}` and
+| `resep/{id}/verifikasi`, and a two-segment wildcard cannot swallow a
+| three-segment path - so `checkout` is registered OUTSIDE the `resep` group
+| above rather than inside it, and the reason is the same one todo 34 gives for
+| putting `konsultasi/{id}/surat-keterangan` first.
+|
+| ## Three routes, and the plan's "both routes" is two
+|
+| The plan's acceptance criterion says this filter "includes both routes". It
+| names THREE operations in its own prose - `POST /resep/{id}/checkout`,
+| `GET /obat/{id}/stok?apotek_id=` and `GET /pesanan-obat/{id}` - so all three
+| ship and the count is recorded rather than satisfied by deleting an endpoint.
+| This is the same class of defect todo 32 found for `konsultasi`, todo 33 for
+| `rekam-medis`, todo 34 for `surat_keterangan` and todo 40 for `resep`; the
+| test asserts the closed set of all three BY URI.
+|
+| ## The guards, and why the checkout carries exactly one
+|
+| | route | `permission:` | `tipe:` | who is refused, and why |
+| | --- | --- | --- | --- |
+| | `POST /resep/{id}/checkout` | `pesanan.buat` | - | `dokter`, `apoteker`, `admin`, `perawat`, `kurir` |
+| | `GET /obat/{id}/stok` | - | - | NOTHING: any signed-in account may read a shelf |
+| | `GET /pesanan-obat/{id}` | `pesanan.lihat` | - | `dokter` (holds no `pesanan.lihat`), `perawat`, `kurir`; another patient's order 404 |
+|
+| **`pesanan.buat` IS a real code** in `RbacCatalog::PERMISSIONS` and
+| `ROLE_PERMISSIONS` grants it to `pasien` and `superadmin` - the two account
+| types that legitimately place an order. Both are READ against the catalogue
+| here, because `EnsurePermission` answers an UNKNOWN code with a 500, not a
+| 403, so a route written as `permission:pesanan.create` would be a
+| build-breaking mistake.
+|
+| **No `tipe:` on the checkout, deliberately.** `tipe:pasien` would exclude
+| `superadmin`, which HOLDS `pesanan.buat`, and it answers "which account type
+| is this" rather than "is this order yours" - the argument
+| `PasienRecordAccess` makes at length and that the whole `pasien` block in this
+| file already follows. `PesananObatController::checkout()` resolves the
+| caller's own `pasien` row through `PasienRecordAccess::ownPasien()`, which
+| raises the 403 for an account that owns no profile.
+|
+| **The stock read is UNGATED, and that is a decision rather than an omission.**
+| A shelf is not private data: it is a catalogue-adjacent fact about a drug at
+| a facility, and no code in `RbacCatalog::PERMISSIONS` names reading one.
+| `obat.cari` IS a real code but it is granted to `dokter` alone, so gating this
+| on it would 403 the PATIENT - the one account type that has to be able to ask
+| "is my prescription in stock before I pay for it", which is the entire
+| purpose of the endpoint and of the spec's `cek stok` rule. `tipe:` is worse
+| than absent here for the reason it is everywhere else in this file: `perawat`
+| and `kurir` are real `users.tipe` values (`:139`) that hold NO role in
+| `RbacCatalog::ROLES` and therefore no grant at all, so ANY gate would lock
+| those two account types out of a read that concerns neither of them. The route
+| DOES name `auth:sanctum`, because a stock figure for an arbitrary drug at an
+| arbitrary facility is a query, not a public catalogue entry, and the
+| alternatives list is a per-caller answer.
+|
+| **`GET /pesanan-obat/{id}` takes `pesanan.lihat` and no `tipe:`.** The read
+| audience is a DISJUNCTION - the owning patient OR a pharmacist OR an oversight
+| account - and a route gate can only express a conjunction, so the per-row half
+| of the rule lives in `PesananObatService::untukBaca()`. `dokter` holds NO
+| `pesanan.lihat` at all, so a prescriber is refused the parcel they prescribed;
+| that follows `ROLE_PERMISSIONS` rather than this file's opinion, and it is why
+| no `tipe:` is needed to exclude anyone.
+|
+| ## `whereNumber` on every `{id}`
+|
+| `resep.id` (`:743`), `master_obat.id` (`:709`) and `pesanan_obat.id` (`:798`)
+| are all `BIGINT UNSIGNED AUTO_INCREMENT` primary keys, so `whereNumber` makes a
+| non-numeric segment a router 404 and no request can arrive with `abc` in a
+| position the API treats as an identifier.
+|
+| ## No `Route::resource` and no `Route::apiResource`
+|
+| The three operations are three distinct verbs and three distinct shapes - a
+| POST with a body, a query-string read, and a row-addressed read - so a resource
+| route would publish `create`, `update` and `destroy` for an order the DDL
+| makes immutable in the ways that matter: there is no `pesanan_obat_item` table
+| to update, and a cancelled order is a `dibatalkan` STATUS rather than a
+| deletion.
+|
+| @see \App\Services\PesananObat\PesananObatService
+| @see \App\Services\PesananObat\ApotekStokService
+| @see \App\Services\PesananObat\PesananObatStateMachine
+*/
+
+Route::middleware('auth:sanctum')->group(function (): void {
+    // Registered BEFORE the `GET obat` route above could shadow it? It cannot:
+    // `obat/{id}/stok` is a three-segment path and `obat` is one, so the
+    // ordering is free. Said here because the alternative reads as a
+    // consideration that was made rather than one that was not.
+    Route::get('obat/{id}/stok', [PesananObatController::class, 'stok'])
+        ->whereNumber('id')
+        ->name('obat.stok');
+
+    Route::post('resep/{id}/checkout', [PesananObatController::class, 'checkout'])
+        ->whereNumber('id')
+        ->middleware('permission:pesanan.buat')
+        ->name('resep.checkout');
+
+    Route::get('pesanan-obat/{id}', [PesananObatController::class, 'show'])
+        ->whereNumber('id')
+        ->middleware('permission:pesanan.lihat')
+        ->name('pesanan-obat.show');
+});
+
+use App\Http\Controllers\Api\V1\PembayaranController;
+use App\Enums\PembayaranGateway;
+
+/*
+|--------------------------------------------------------------------------
+| Module 5 -- payment initiation and the provider webhook
+|--------------------------------------------------------------------------
+|
+| APPENDED by todo 45. Two routes, and the gap between them is the design:
+| the first is a patient paying their own invoice, the second is a payment
+| provider telling us the money arrived.
+|
+| | route | auth | guard |
+| | --- | --- | --- |
+| | `POST invoice/{id}/bayar` | `auth:sanctum` | `permission:pembayaran.bayar` |
+| | `POST webhook/payment/{gateway}` | **NONE** | HMAC-SHA256, verified in the service |
+|
+| ## The webhook is unauthenticated, and that is not an omission
+|
+| A payment provider is not a user of this system. It holds no Sanctum token
+| and cannot be given one, so `auth:sanctum` on this route would 401 every real
+| delivery. What stands in for it is the HMAC over the raw body, keyed by the
+| named gateway's secret in `config/services.php`, compared with
+| `hash_equals`.
+|
+| The consequence is an ORDERING constraint, and it is why the two routes are
+| in one file rather than the webhook being an afterthought: the route
+| constrains `{gateway}` to the four `pembayaran.gateway` ENUM members
+| (telemedicine_test.sql:965) so the code that reads a secret is unreachable
+| for a segment outside them, and the controller verifies the signature before
+| it issues any query against `pembayaran` or `invoice`. The test asserts that
+| ordering by listening on `QueryExecuted` and requiring zero statements
+| naming those tables on a forged delivery.
+|
+| ## `{gateway}` is CLIENT-SUPPLIED, which is why the constraint is on the ROUTE
+|
+| `pembayaran.gateway` is `ENUM('midtrans','xendit','doku','flip') NULL` and the
+| segment arrives in a URL. Without the constraint, an attacker picks which
+| secret gets used. With it, a segment outside the ENUM is a ROUTER 404 that
+| never reaches the controller - proved by naming `midtrans2` and `MIDTRANS`,
+| both of which 404, and each of the four legal values, none of which does.
+|
+| ## The initiation gate is `pembayaran.bayar`, and it is granted to `pasien`
+|
+| `RbacCatalog::PERMISSIONS` holds `pembayaran.bayar` and `ROLE_PERMISSIONS`
+| grants it to `pasien` and `superadmin` and to nobody else. So the gate
+| refuses `dokter`, `apoteker` and `admin` - none of whom may pay for a
+| patient's invoice - without locking out the one account type that owns it.
+| `tipe:pasien` is deliberately absent: it answers "which account type is
+| this", which cannot express "is this invoice yours", and that is the question
+| `PasienRecordAccess::ownPasien()` plus the tenant-scoped lookup answer.
+|
+| ## `whereNumber` on `{id}`
+|
+| `invoice.id` is a `BIGINT UNSIGNED AUTO_INCREMENT` primary key (:937), so a
+| non-numeric segment is a router 404 rather than an id the API has to defend.
+|
+| ## No `Route::resource` and no `Route::apiResource`
+|
+| One initiation and one notification, two distinct shapes, and neither
+| operation is CRUD - a payment row is never updated through a resource route
+| and is never deleted at all (`pembayaran` has no `dihapus_at`).
+|
+| @see \App\Services\Payment\PaymentGatewayService the provider contract
+| @see \App\Services\Payment\PaymentService the dedupe
+*/
+
+Route::post('invoice/{id}/bayar', [PembayaranController::class, 'bayar'])
+    ->whereNumber('id')
+    ->middleware(['auth:sanctum', 'permission:pembayaran.bayar'])
+    ->name('invoice.bayar');
+
+/*
+| The webhook is registered OUTSIDE every middleware group on purpose.
+|
+| It carries no `auth:sanctum` and no `permission:` and no `tipe:`, and the
+| `AuthFlowTest` / `PasienProfileTest` route census names it in their
+| `$anonymous` set for that reason. Its authentication is the HMAC, and the
+| `whereIn` below is compiled by the router into a regex over the four
+| `pembayaran.gateway` ENUM values - read from the enum rather than typed, so
+| the constraint and the schema cannot drift.
+*/
+Route::post('webhook/payment/{gateway}', [PembayaranController::class, 'webhook'])
+    ->whereIn('gateway', PembayaranGateway::untukRute())
+    ->name('webhook.pembayaran');

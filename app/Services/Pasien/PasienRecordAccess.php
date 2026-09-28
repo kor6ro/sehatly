@@ -9,6 +9,7 @@ use App\Models\Dokter;
 use App\Models\Pasien;
 use App\Models\PasienAlergi;
 use App\Models\PasienAnggotaKeluarga;
+use App\Models\PesananObat;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -244,6 +245,23 @@ final class PasienRecordAccess
     public function bookingQuery(Pasien $pasien): Builder
     {
         return Booking::query()->whereBelongsTo($pasien);
+    }
+
+    /**
+     * Every medicine order of this patient, as a scope.
+     *
+     * The same rule as every other child row: the tenant filter IS the query,
+     * so somebody else's order is simply not found rather than refused.
+     *
+     * `pesanan_obat.pasien_id` is `BIGINT UNSIGNED NOT NULL` (`:801`) with a
+     * real foreign key to `pasien(id)` (`:815`), so the scope is total - there is
+     * no order that names no patient and therefore escapes it.
+     *
+     * @return Builder<PesananObat>
+     */
+    public function pesananObatQuery(Pasien $pasien): Builder
+    {
+        return PesananObat::query()->whereBelongsTo($pasien);
     }
 
     /**

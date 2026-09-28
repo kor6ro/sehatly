@@ -53,6 +53,17 @@ final class NomorDokumen
      */
     public const PREFIX_RESEP = 'RX';
 
+    /**
+     * The medicine-order prefix, so a `PO` number is distinguishable from a
+     * `BK`, `INV`, `SK` or `RX` number by its first two characters alone.
+     *
+     * `PO20260311ABCDEF` is 16 characters against `pesanan_obat.nomor_pesanan`'s
+     * `VARCHAR(30)` (`telemedicine_test.sql:799`), so 14 characters of room
+     * remain and the number cannot be truncated into a second string that
+     * collides with a different one.
+     */
+    public const PREFIX_PESANAN = 'PO';
+
     private const ACAK = 6;
 
     private int $percobaan = 0;
