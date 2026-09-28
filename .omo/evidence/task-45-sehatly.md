@@ -532,13 +532,22 @@ it is written.
 
 **Byte-level non-ASCII gate**, raw-byte reads, no `mb_*` and no encoding
 normalisation: every byte checked individually against printable ASCII plus
-tab/LF/CR, plus a BOM check. Over the **16 files this todo authored or edited,
-260,844 bytes**:
+tab/LF/CR, plus a BOM check. Over the **17 files this todo authored or edited,
+271,560 bytes**:
 
 ```
-scanned files=16 bytes=260844
+scanned files=17 bytes=271560
 non-ascii/control violations=0
 ```
+
+**The count is 17 and the first report of it said 16, and the correction is
+recorded here rather than quietly applied.** The earlier run of this gate listed
+16 files and 260,844 bytes because it ran before `PaymentConcurrencyTest.php`
+existed (commit `5cd0b12`) and because `AppServiceProvider.php` was omitted from
+the file list by an oversight. A byte gate that silently covers fewer files than
+the commit does is worse than no gate, because it reports "0 violations" for a
+subset and reads as a whole-tree result. The 17-file figure is the one that
+matches the diff, and it is the figure above.
 
 No BOM, no control bytes, no non-ASCII. This is the gate that matters here
 because of the failure mode this project has already been bitten by - `referencia`
@@ -546,15 +555,15 @@ written for `referensi` is pure ASCII and an encoding scan cannot see it, which 
 why the token audit below exists at all.
 
 **Token audit** against `telemedicine_test.sql` through the project's own
-`App\Support\Schema\SqlSchemaParser`, over the same 16 files, with **comments
+`App\Support\Schema\SqlSchemaParser`, over the same 17 files, with **comments
 stripped** so a citation in prose is not counted as an identifier. Two buckets:
 exact resolution, and a **NEAR** bucket at edit distance 1-2 from a DDL table or
 column name that is not equal to any of them - which is the bucket that catches a
 dropped or doubled character.
 
 ```
-files=16
-exact DDL identifiers resolved=100
+files=17
+exact DDL identifiers resolved=101
 near-miss DDL identifiers=2
   NEAR  kadaluwarsa_at -> kedaluwarsa_at in app/Http/Resources/PembayaranResource.php
   NEAR  nama_bank      -> nama_brand      in app/Services/Payment/MockPaymentGatewayService.php
