@@ -1494,6 +1494,16 @@ test('the route table exposes the eight auth routes and the eleven patient route
         'GET api/v1/referencia/provinsi',
         'GET api/v1/referencia/spesialisasi',
         'GET api/v1/referencia/status-pernikahan',
+        // Todo 39's two routes, appended to `routes/api.php` after todo 42's
+        // reference block, so they are listed LAST here in registration order
+        // rather than grouped with the consultation routes they resemble. The
+        // prescription create has a `konsultasi` path, and the catalogue search
+        // has none, so neither belongs in an earlier group; both are named
+        // explicitly because this is a closed set over the whole `api/v1`
+        // surface and a set that forgives a concurrently-wired route is the
+        // drift the assertion exists to catch.
+        'POST api/v1/konsultasi/{id}/resep',
+        'GET api/v1/obat',
     ]);
 
     // TWELVE under the `pasien` filter: the ten above (profil read + write, two
@@ -1604,6 +1614,16 @@ test('the route table exposes the eight auth routes and the eleven patient route
             'PUT api/v1/rekam-medis/{id}/final' => ['tipe:dokter', 'permission:rekam_medis.final'],
             'POST api/v1/rekam-medis/{id}/amandemen' => ['tipe:dokter', 'permission:rekam_medis.final'],
             'POST api/v1/konsultasi/{id}/surat-keterangan' => ['tipe:dokter', 'permission:surat_keterangan.buat'],
+            // Todo 39's two, both doctor-only. `obat.cari` is a READ grant and
+            // `resep.buat` a WRITE one, and neither is on `pasien`, which is the
+            // point of listing them: the catalogue and the prescription are
+            // clinical surfaces, not patient self-service ones, so the absence
+            // of a guard here would mean a patient could read the whole drug
+            // catalogue. `tipe:dokter` comes first on both, matching the three
+            // doctor-only writes above, so a patient is refused as the wrong
+            // kind of caller rather than as a missing grant.
+            'POST api/v1/konsultasi/{id}/resep' => ['tipe:dokter', 'permission:resep.buat'],
+            'GET api/v1/obat' => ['tipe:dokter', 'permission:obat.cari'],
         ];
 
         expect($guards)->toEqualCanonicalizing(
@@ -1671,6 +1691,17 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         // (granted to `dokter` and `superadmin`) and `tipe:dokter` (what excludes
         // the oversight account from issuing a clinical letter).
         "'permission:surat_keterangan.buat'",
+        "'tipe:dokter'",
+        // Todo 39 contributes FOUR strings for TWO routes, because the regex
+        // captures the `permission:` and the `tipe:` as separate hits: each of
+        // the two routes wires both, so two routes are four entries. Writing
+        // three leaves the census one short, which is exactly what the run
+        // reported. Duplicated deliberately from `AuthFlowTest` over the same
+        // regex: a closed set only one file watches is a closed set one later
+        // refactor can quietly reopen.
+        "'permission:obat.cari'",
+        "'tipe:dokter'",
+        "'permission:resep.buat'",
         "'tipe:dokter'",
     ]);
 });

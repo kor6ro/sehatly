@@ -227,3 +227,94 @@ violations, no BOMs**. Token audit via the project's own `SqlSchemaParser`:
 - `telemedicine_test.sql` SHA-256 assumed `AEFE2247E00F...` (file never
   written by me; not re-hashed after sibling activity - orchestrator to
   confirm).
+
+## Post-commit verification (2026-09-28)
+
+This block was appended after the commit above and corrects two claims in
+"Not finished" that later measurement superseded. Every route path, test class
+name, and file name below is extracted from the repository at write time rather
+than transcribed, because transcribing them corrupted them three times; the
+append is gated on a byte scan that reverts the file if anything is non-ASCII.
+
+### Correction 1 - the hash is re-verified, not assumed
+
+`telemedicine_test.sql` SHA-256 re-computed as
+`AEFE2247E00F09ACB02235168AC289CDFA74F762D604ADA71F68E328574B27F5`, and
+`git status --porcelain -- telemedicine_test.sql` is empty, so the file is
+byte-identical to HEAD. `sehatly:verify-schema` exits 0: 75 tables, 2 views,
+**0 drift**, 7 informational entries all of them documented framework tables
+(`cache`, `jobs`, `migrations`, `personal_access_tokens`, and so on). The
+parser is shown non-vacuous by the command itself: 75 tables / 2 views / 672
+columns / 142 indexes / 105 foreign keys, 11 wrapped declarations read as one
+unit each, 30 explicitly named keys compared by name.
+
+### Correction 2 - KonsultasiTest is NOT a full-suite failure
+
+The section above lists `KonsultasiTest`'s undefined `knsUser()`/`knsSpec()`
+among the full-suite failures. It is not. It contributes **0** failures to a
+full run and only errors when that one file is run alone, because `knsUser` is
+*referenced* by `KonsultasiTest.php` and `KonsultasiSchemaTest.php` but *defined* in a
+third file that the full run loads and the isolated run does not. A filtered run
+is therefore not evidence about it, and this todo made no change to that helper.
+
+### Full suite, measured, with every failure attributed
+
+**872 tests, 823 passed, 49 failed, 14,063 assertions.** Baseline at the
+preceding commit was 864 / 812 / 52, so: +8 tests (the contract file), +11
+passing, and **3 fewer failures** - the three repaired closed route-set
+censuses. Zero regressions, and three pre-existing failures fixed.
+
+All 49 failures are attributed, none to todo 39:
+
+| count | file | cause | why not todo 39 |
+| --- | --- | --- | --- |
+| 47 | `ReferensiEndpointTest` | `referencia` vs `referensi` rename mid-flight (todo 42) | neither `routes/api.php` nor this test is in todo 39's diff - `git status` shows both clean |
+| 1 | `PasienProfileTest` | same spelling drift in the closed route set | 28 `referencia` occurrences exist identically in pristine HEAD and in the working copy; todo 39's diff to this file adds only the two new routes |
+| 1 | `RekamMedisTest` | architecture guard vs `RefusesHardDelete.php` | that file is not in todo 39's diff |
+
+### Route chains confirmed from `route:list --json`
+
+- `GET api/v1/obat` -> `EnsureUserType:dokter`, then `EnsurePermission:obat.cari`
+- `POST api/v1/konsultasi/{id}/resep` -> `EnsureUserType:dokter`, then `EnsurePermission:resep.buat`
+
+`tipe` precedes `permission` on both, so a patient is refused as the wrong
+kind of caller rather than as a caller missing a grant. Registered at
+`routes/api.php:795`.
+
+### Token audit: three design defects found in the audit itself
+
+A first pass reported 4 findings. All 4 were the audit's fault, and fixing
+them is the useful part of the result:
+
+1. **Namespace collision.** `resep.buat` scored as "table `resep`, missing
+   column `buat`" because `resep` is both a table and an RBAC resource prefix.
+   The audit now reads the RBAC namespace out of `routes/api.php` with the same
+   regex `AuthFlowTest` uses and resolves those first, before any table lookup.
+2. **Negative controls scored as findings.** `obat.create` and `resep.mulai`
+   are deliberately-unknown codes fed to `EnsurePermission` by the contract
+   test to prove an unknown code raises `LogicException` rather than answering
+   403 to everyone. An audit that flagged them was auditing its own fixture.
+3. **Enum probes had one polarity where they needed two.** Corrupted probes
+   were listed among the must-exist values, so the bucket was guaranteed to
+   fail and its ability to see a typo was never actually demonstrated. Probes
+   are now split: positive ones must resolve, negative ones must NOT, and a
+   negative probe that resolves is treated as the real finding - it would mean
+   the bucket is blind.
+
+Final: **0 unknown columns, 0 missing enum values, 0 bad citations.** Six
+qualified references resolve to real columns (`resep.status`,
+`resep.berlaku_sampai`, `resep_item.obat_id`, `resep.catatan_dokter`,
+`master_obat.kelas_obat`, `pasien_alergi.nama_alergen`); both negative enum
+probes correctly failed to resolve, which is what proves the bucket works.
+All four `telemedicine_test.sql:NNN` citations were re-read from the file and
+each printed line is recorded above.
+
+**Do not transcribe literals out of terminal output, and do not trust the
+terminal to render them.** One enum probe in this audit was written by copying
+what the console displayed and was therefore wrong. The DDL is the only
+authority: that member is 9 ASCII bytes, `6e61726b6f74696b61`, and this block
+cites it by line and byte count rather than re-typing it. The lesson then
+repeated in this very file - a hand-written route segment here was corrupted
+into Cyrillic bytes on three separate attempts - so the path above is now
+extracted from `routes/api.php` and the write is reverted unless the whole
+file still scans as pure ASCII.

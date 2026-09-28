@@ -233,6 +233,14 @@ test('ten routes are registered under api/v1 with the expected verbs and guards'
         'PUT api/v1/konsultasi/{id}/selesai' => ['tipe:dokter', 'permission:konsultasi.selesai'],
         'POST api/v1/konsultasi/{id}/rekam-medis' => ['tipe:dokter', 'permission:rekam_medis.simpan'],
         'POST api/v1/konsultasi/{id}/surat-keterangan' => ['tipe:dokter', 'permission:surat_keterangan.buat'],
+        // Todo 39's create, the THIRD doctor-only write hanging off a
+        // consultation, and the reason the two guards are named in this order:
+        // `tipe:dokter` first so a patient is refused as the wrong kind of
+        // caller rather than as a missing grant, matching `terima` and `selesai`.
+        // It needs an entry rather than relying on the `?? []` fallback below,
+        // because that fallback is a FORGIVING default: a route wired with
+        // guards it never declared reads as "expected to have none".
+        'POST api/v1/konsultasi/{id}/resep' => ['tipe:dokter', 'permission:resep.buat'],
     ];
 
 

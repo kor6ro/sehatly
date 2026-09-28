@@ -1321,6 +1321,28 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         // and `superadmin`, and `tipe:dokter` is what excludes the oversight account.
         "'permission:surat_keterangan.buat'",
         "'tipe:dokter'",
+        // Todo 39's two routes, in the order `routes/api.php` wires them. The
+        // catalogue search and the prescription create are the first two
+        // routes whose guard is a READ-side `obat.cari` rather than a
+        // lifecycle code, which is why the two new permissions sit here at all:
+        // `obat.cari` is what a doctor needs to look a drug up, and
+        // `resep.buat` is what they need to prescribe it. Both are granted to
+        // `dokter` and `superadmin` and to nobody else - `apoteker` holds
+        // `resep.verifikasi`, which is deliberately NOT `resep.buat`, so
+        // verifying a prescription and writing one stay separate grants.
+        //
+        // The list above is regenerated from the live `routes/api.php` with the
+        // same `preg_match_all` the assertion uses, never typed, so this
+        // paragraph records intent while the array records fact.
+        //
+        // FOUR strings for TWO routes, because the regex captures the
+        // `permission:` and the `tipe:` as separate hits: each route wires
+        // both, so two routes are four entries, and writing three would leave
+        // the census one short - which is the failure the run reported.
+        "'permission:obat.cari'",
+        "'tipe:dokter'",
+        "'permission:resep.buat'",
+        "'tipe:dokter'",
     ]);
 });
 

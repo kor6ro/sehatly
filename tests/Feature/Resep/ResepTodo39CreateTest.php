@@ -15,10 +15,12 @@ use Illuminate\Support\Facades\DB;
 |--------------------------------------------------------------------------
 */
 
+require_once __DIR__.'/resep-helpers.php';
+
 beforeEach(function (): void {
     $this->seed(RbacSeeder::class);
 
-    Carbon::setTestNow(Carbon::parse(RX39_JAM, 'UTC'));
+    Carbon::setTestNow(rx39Jam());
 });
 
 afterEach(function (): void {

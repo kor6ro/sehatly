@@ -12,10 +12,27 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * One `master_obat` row, as the doctor-only search publishes it.
  *
  * Allow-list, never `toArray()`: a column added to `master_obat` must not
- * reach the wire by accident. The sixteen keys are every column the DDL
- * declares (`telemedicine_test.sql:708-729`), timestamps included, because
- * the plan names the catalogue fields for this response and the test pins
- * the count.
+ * reach the wire by accident.
+ *
+ * ## The sixteen keys, and the two columns deliberately left out
+ *
+ * `master_obat` (`telemedicine_test.sql:708`-`:729`) declares EIGHTEEN columns.
+ * This publishes sixteen of them and omits `dibuat_at` (`:726`) and
+ * `diubah_at` (`:727`), the pair of `TIMESTAMP` columns Eloquent maintains.
+ * The omission is a decision, not an oversight:
+ *
+ * - a catalogue row is reference data, not a record of an event, and neither
+ *   timestamp says anything a prescribing doctor acts on;
+ * - `diubah_at` moves on any catalogue edit, so publishing it would make two
+ *   prescriptions of the same drug look like they were composed against
+ *   different catalogues when they were not;
+ * - the plan names the fields this response carries (`:567`) and neither
+ *   timestamp is among them.
+ *
+ * `ResepTodo39ContractTest` asserts the published key set against the PARSED
+ * DDL rather than against a transcription of it, so a column added to
+ * `master_obat` fails the suite instead of being published by accident, and a
+ * timestamp added to this list fails it too.
  *
  * @property-read MasterObat $resource
  */
