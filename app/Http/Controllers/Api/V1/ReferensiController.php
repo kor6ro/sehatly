@@ -6,12 +6,12 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Referensi\IndexReferensiRequest;
-use App\Http\Resources\Json\AnonymousResourceCollection;
 use App\Support\ApiResponse;
 use App\Support\Reference\ReferensiEndpoint;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;

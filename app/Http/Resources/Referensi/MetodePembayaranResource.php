@@ -45,8 +45,8 @@ class MetodePembayaranResource extends JsonResource
             'nama' => $this->resource->nama,
             'tipe' => $this->resource->tipe,
             'penyedia' => $this->resource->penyedia,
-            'biaya_admin_flat' => $this->resource->biaya_admin_flat,
-            'biaya_admin_persen' => $this->resource->biaya_admin_persen,
+            'biaya_admin_flat' => (float) $this->resource->biaya_admin_flat,
+            'biaya_admin_persen' => (float) $this->resource->biaya_admin_persen,
             'status_aktif' => (bool) $this->resource->status_aktif,
         ];
     }

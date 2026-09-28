@@ -164,19 +164,25 @@ beforeEach(function (): void {
 // The route table
 // =====================================================================
 
-test('seven routes are registered under api/v1 with the expected verbs and guards', function (): void {
+test('nine routes are registered under api/v1 with the expected verbs and guards', function (): void {
     $routes = collect(Route::getRoutes()->getRoutes())
         ->filter(fn ($route): bool => str_starts_with($route->uri(), 'api/v1/konsultasi'))
         ->keyBy(fn ($route): string => $route->methods()[0].' '.$route->uri())
         ->all();
 
-    // The plan's acceptance criterion says six. It is seven, and the seventh is
-    // `PUT /{id}/terima`, which the plan needs and does not have: `PUT /selesai`
-    // is required to compute `total_durasi_detik` from `mulai_at` and to answer 422
-    // while that column is NULL, and nothing in the plan's six writes it - so
-    // `berlangsung` is unreachable and the completion endpoint can only ever answer
-    // 422. `RbacCatalog` grants `konsultasi.mulai` to `dokter` and to nobody else, and
-    // before this route no endpoint consumed that code.
+    // The plan's acceptance criterion says six. It was seven when this test was
+    // written, and the seventh is `PUT /{id}/terima`, which the plan needs and does
+    // not have: `PUT /selesai` is required to compute `total_durasi_detik` from
+    // `mulai_at` and to answer 422 while that column is NULL, and nothing in the
+    // plan's six writes it - so `berlangsung` is unreachable and the completion
+    // endpoint can only ever answer 422. `RbacCatalog` grants `konsultasi.mulai` to
+    // `dokter` and to nobody else, and before this route no endpoint consumed that
+    // code.
+    //
+    // It is NINE now: todo 33 added `rekam-medis` and todo 34 added
+    // `surat-keterangan`, both under this prefix, both noted below. The count in
+    // this test's NAME is the live one, so a name saying "nine" over a list of
+    // eight is itself the drift the closed-set assertion exists to catch.
     expect(array_keys($routes))->toEqualCanonicalizing([
         'POST api/v1/konsultasi/mulai',
         'GET api/v1/konsultasi/{id}',
@@ -297,7 +303,7 @@ test('a non-numeric consultation id is a router 404 and never a TypeError', func
     knsAs($account['user'])->getJson('/api/v1/konsultasi/0')->assertNotFound();
 });
 
-test('an anonymous caller is refused 401 on all seven routes', function (): void {
+test('an anonymous caller is refused 401 on all nine routes', function (): void {
     $account = knsPatientAccount();
     $id = knsMulaiViaHttp($account['user'], $account['dokter']);
     $account['dokter'] ??= $account['dokter'];
@@ -313,8 +319,12 @@ test('an anonymous caller is refused 401 on all seven routes', function (): void
         // Todo 33's medical-record create, which shares the `konsultasi` prefix. It is
         // added here rather than left out because a 401 matrix that silently stops
         // covering a route is the same failure as a closed set that quietly forgives
-        // one, and the name of the test now says "all seven" for a list of eight.
+        // one.
         ['postJson', '/api/v1/konsultasi/'.$id.'/rekam-medis', []],
+        // Todo 34's letter create, for the same reason: same prefix, same rule. Its
+        // 401 comes from `auth:sanctum` on the route - the `tipe:` and `permission:`
+        // guards run AFTER authentication, so an anonymous caller never reaches them.
+        ['postJson', '/api/v1/konsultasi/'.$id.'/surat-keterangan', []],
     ];
 
     // `knsAs()` above wrote the caller's bearer token into the test case's DEFAULT
@@ -326,7 +336,7 @@ test('an anonymous caller is refused 401 on all seven routes', function (): void
 
     // `flushHeaders()` clears the request's default headers but NOT the resolved
     // principal `Illuminate\Auth\RequestGuard` cached, so the guard is dropped too.
-    // Without both, the seven requests below are answered as the caller who created
+    // Without both, the nine requests below are answered as the caller who created
     // the session one line earlier and every 401 assertion is measuring the harness.
     app('auth')->forgetGuards();
 

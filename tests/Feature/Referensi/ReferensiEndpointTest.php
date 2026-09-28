@@ -101,12 +101,24 @@ beforeEach(function (): void {
 
     $make(MasterKelurahan::class, ['kecamatan_id' => $kuta->id, 'kode' => '51020101', 'nama' => 'Seniren']);
 
-    $make(MasterAgama::class, ['nama' => 'Islam']);
-    $make(MasterAgama::class, ['nama' => 'Kristen']);
-    $make(MasterPendidikan::class, ['nama' => 'S1']);
-    $make(MasterPendidikan::class, ['nama' => 'S2']);
-    $make(MasterStatusPernikahan::class, ['nama' => 'Belum Kawin']);
-    $make(MasterHubunganKeluarga::class, ['nama' => 'Ibu']);
+    /*
+    | The five `master_*` tables in 1.2 (agama, golongan_darah, pendidikan,
+    | status_pernikahan, hubungan_keluarga) declare `id TINYINT UNSIGNED PRIMARY
+    | KEY` with NO `AUTO_INCREMENT` - they are a CLOSED, hand-numbered set that
+    | `telemedicine_test.sql` seeds explicitly at 1217-1233. So a fixture insert
+    | that omits `id` dies with SQLSTATE 1364 "Field 'id' doesn't have a default
+    | value". Every other master_* table the fixture touches DOES carry
+    | `AUTO_INCREMENT` and is written without an id on purpose. The ids below are
+    | the ones the seeder uses for these tables, so a fixture row is
+    | indistinguishable from a seeded row.
+    */
+    $make(MasterAgama::class, ['id' => 1, 'nama' => 'Islam']);
+    $make(MasterAgama::class, ['id' => 2, 'nama' => 'Kristen Protestan']);
+    $make(MasterPendidikan::class, ['id' => 1, 'nama' => 'Tidak Sekolah']);
+    $make(MasterPendidikan::class, ['id' => 6, 'nama' => 'Sarjana (S1)']);
+    // `nama` is an ENUM, not free text: (belum_menikah, menikah, cerai_hidup, cerai_mati).
+    $make(MasterStatusPernikahan::class, ['id' => 1, 'nama' => 'belum_menikah']);
+    $make(MasterHubunganKeluarga::class, ['id' => 1, 'nama' => 'Pasangan']);
 
     // "Penyakit Dalam" before "Anak" - the reverse of alphabetical - so the
     // spesialisasi `?q=` test cannot pass on an unfiltered full list.
@@ -116,29 +128,37 @@ beforeEach(function (): void {
     // `master_golongan_darah` has NO `nama` column - the schema is `(id, kode)`.
     // That is the one resource shaped differently, and this row proves the endpoint
     // can serve it at all.
-    $make(MasterGolonganDarah::class, ['kode' => 'A']);
-    $make(MasterGolonganDarah::class, ['kode' => 'O']);
+    // `master_golongan_darah` is in the same hand-numbered 1.2 block as
+    // `master_agama` - `id TINYINT UNSIGNED PRIMARY KEY`, no AUTO_INCREMENT -
+    // so the explicit ids here are required, not decorative.
+    $make(MasterGolonganDarah::class, ['id' => 1, 'kode' => 'A']);
+    $make(MasterGolonganDarah::class, ['id' => 4, 'kode' => 'O']);
 
-    // `tipe` discriminates which fee column applies; the inactive row is what the
-    // default `status_aktif` filter has to hide.
+    // `tipe` is an ENUM - (va_bank, e_wallet, qris, kartu_kredit, gerai_retail,
+    // cod, tunai, bpjs, asuransi) - so a virtual account row is 'va_bank'. The
+    // inactive row is what the default `status_aktif` filter has to hide.
+    // `biaya_admin_persen` is `NOT NULL DEFAULT 0`, so an explicit 0, never null.
     $make(MasterMetodePembayaran::class, [
-        'kode' => 'bca', 'nama' => 'BCA Virtual Account', 'tipe' => 'transfer',
-        'penyedia' => 'BCA', 'biaya_admin_flat' => 2500, 'biaya_admin_persen' => null,
+        'kode' => 'bca', 'nama' => 'BCA Virtual Account', 'tipe' => 'va_bank',
+        'penyedia' => 'BCA', 'biaya_admin_flat' => 2500, 'biaya_admin_persen' => 0,
         'status_aktif' => 1,
     ]);
     $make(MasterMetodePembayaran::class, [
-        'kode' => 'mandiri', 'nama' => 'Mandiri VA', 'tipe' => 'transfer',
-        'penyedia' => 'Mandiri', 'biaya_admin_flat' => 2500, 'biaya_admin_persen' => null,
+        'kode' => 'mandiri', 'nama' => 'Mandiri VA', 'tipe' => 'va_bank',
+        'penyedia' => 'Mandiri', 'biaya_admin_flat' => 2500, 'biaya_admin_persen' => 0,
         'status_aktif' => 1,
     ]);
     $make(MasterMetodePembayaran::class, [
-        'kode' => 'lama', 'nama' => 'Retired Method', 'tipe' => 'transfer',
-        'penyedia' => 'Old Bank', 'biaya_admin_flat' => 1000, 'biaya_admin_persen' => null,
+        'kode' => 'lama', 'nama' => 'Retired Method', 'tipe' => 'va_bank',
+        'penyedia' => 'Old Bank', 'biaya_admin_flat' => 1000, 'biaya_admin_persen' => 0,
         'status_aktif' => 0,
     ]);
 
     $make(MasterIcd10::class, ['kode' => 'E11', 'deskripsi' => 'Diabetes mellitus tipe 2']);
-    $make(MasterIcd10::class, ['kode' => 'A15', 'deskripsi' => 'Tuberculosis paru']);
+    // Indonesian wording, like the seeded ICD-10 vocabulary at line 1286. The needle
+    // this row has to answer is `?q=tuberkulosis`, so an English "Tuberculosis"
+    // would leave the deskripsi search in `searches the ICD tables` unfalsifiable.
+    $make(MasterIcd10::class, ['kode' => 'A15', 'deskripsi' => 'Tuberkulosis paru']);
     $make(MasterIcd9cm::class, ['kode' => '9300', 'deskripsi' => 'Electroencephalogram']);
     $make(MasterIcd9cm::class, ['kode' => '36400', 'deskripsi' => 'Transfusi darah']);
 });
@@ -198,10 +218,15 @@ it('puts no auth, permission or tipe middleware on any of the 14 routes', functi
             continue;
         }
 
-        $middleware = $route->gatherMiddleware();
-
-        expect($middleware)->not->toContain('auth:sanctum', 'web')
-            ->and($middleware)->toBe([]);
+        // Laravel attaches the `api` group to every route under `apiPrefix` itself, so
+        // this list is never empty - `toBe([])` would be asserting a framework detail.
+        // What must be absent is a GUARD: no `auth*`, no `permission:*`, no `tipe:*`.
+        // Same shape as the public `/dokter` assertion in DokterDirectoryTest.
+        foreach ($route->gatherMiddleware() as $middleware) {
+            expect($middleware)->not->toStartWith('auth')
+                ->and($middleware)->not->toStartWith('permission')
+                ->and($middleware)->not->toStartWith('tipe');
+        }
     }
 });
 
@@ -417,8 +442,14 @@ it('hides an inactive payment method by default and shows it on request', functi
 it('publishes the fee columns a booking screen needs', function (): void {
     $this->getJson('/api/v1/referencia/metode-pembayaran')
         ->assertOk()
+        // A NUMBER, not the `DECIMAL(12,2)` string the driver hands back - the
+        // resource casts it, so a client can add it to a total without parsing.
+        // Asserted as int because `json_encode(2500.0)` emits `2500`: a whole
+        // float has no fractional part to print, and it decodes back as int.
         ->assertJsonPath('data.metode_pembayaran.0.biaya_admin_flat', 2500)
-        ->assertJsonPath('data.metode_pembayaran.0.tipe', 'transfer');
+        // `va_bank` is the ENUM member a virtual account row carries; there is no
+        // `transfer` member in `master_metode_pembayaran.tipe`.
+        ->assertJsonPath('data.metode_pembayaran.0.tipe', 'va_bank');
 });
 
 /*
