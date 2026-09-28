@@ -23,6 +23,46 @@ class SearchObatRequest extends FormRequest
     }
 
     /**
+     * Normalise the `requires_resep` query flag before the `boolean` rule
+     * sees it.
+     *
+     * A query string carries only text, so `?requires_resep=true` arrives as
+     * the STRING `"true"` - and Laravel's `boolean` rule accepts only
+     * `true, false, 1, 0, "1", "0"`, answering 422 on `"true"`/`"false"`.
+     * `filter_var(..., FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE)`
+     * folds every recognised spelling onto a real boolean, while an
+     * unrecognised string is left untouched so the `boolean` rule still
+     * refuses it by name. Absent stays absent: no filter must narrow the
+     * catalogue.
+     *
+     * The 422 is the LUCKY half of the problem. The dangerous half is
+     * downstream: `(bool) "false"` is TRUE, because the string is not empty,
+     * so a filter built on that cast hands a caller who asked to exclude the
+     * prescription-only drugs exactly the prescription-only drugs, with no
+     * error anywhere to notice it by. Normalising here means the value that
+     * leaves `validated()` is a real `bool`, and `ObatSearchService` applies
+     * the same `filter_var` for callers that do not come through a request.
+     */
+    protected function prepareForValidation(): void
+    {
+        if (! $this->has('requires_resep')) {
+            return;
+        }
+
+        $mentah = $this->input('requires_resep');
+
+        if (is_bool($mentah) || $mentah === null || $mentah === '') {
+            return;
+        }
+
+        $baca = filter_var($mentah, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+
+        if ($baca !== null) {
+            $this->merge(['requires_resep' => $baca]);
+        }
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function rules(): array

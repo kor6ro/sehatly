@@ -19,6 +19,7 @@ use App\Support\Dokumen\NomorDokumen;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -167,6 +168,21 @@ final class ResepService
         foreach (array_values($items) as $i => $item) {
             $obatId = $item['obat_id'] ?? null;
 
+            // `is_racikan` is a DECLARATION and is checked against the shape it
+            // describes, because the two are the same statement: `obat_id` NULL
+            // *means* racikan (`:770`), so a catalogue drug that also claims to
+            // be a racikan, and a racikan that denies being one, are both
+            // contradictions. Deriving the column silently would turn both
+            // into a 201 whose stored rows disagree with the request, which is
+            // the worst available answer - the caller is told it succeeded and
+            // gets something it did not ask for.
+            $galatRacikan = $this->cekRacikan($obatId, $item['is_racikan'] ?? null);
+
+            if ($galatRacikan !== null) {
+                $galat['items'][$i]['is_racikan'][] = $galatRacikan;
+                continue;
+            }
+
             if ($obatId !== null) {
                 $obat = $katalog[(int) $obatId] ?? null;
 
@@ -201,7 +217,11 @@ final class ResepService
             $nama = trim((string) ($item['nama_obat'] ?? ''));
 
             if ($nama === '') {
-                $galat['items'][$i]['obat_id'][] = 'Item resep wajib menunjuk obat katalog atau berisi racikan.';
+                // `is_racikan` is already true (the `cekRacikan` gate above
+                // guaranteed it), so the item DID declare its shape and only
+                // left the name out. Filed on the field that is actually
+                // empty, which is the one the doctor can fill in.
+                $galat['items'][$i]['nama_obat'][] = 'Nama racikan wajib diisi.';
                 continue;
             }
 
@@ -222,10 +242,71 @@ final class ResepService
         }
 
         if ($galat !== []) {
-            throw ValidationException::withMessages($galat);
+            $this->gagal($galat);
         }
 
         return $siap;
+    }
+
+    /**
+     * Throw the collected item errors WITHOUT losing the item indexes.
+     *
+     * `ValidationException::withMessages()` cannot be used here: it iterates
+     * `Arr::wrap($value)` per top-level key and `MessageBag::add()`s each
+     * element, which DISCARDS the inner numeric keys - an error filed for
+     * `items[1]` renders at `errors.items.0`, pointing the doctor at the wrong
+     * row (proven by a live dump: `{"items":[{"is_racikan":[...]}]}` for a
+     * second-item error). Merging the nested map into the bag keeps every
+     * index, so `errors.items.{i}.{field}` names the row that actually failed.
+     *
+     * @param array<string, mixed> $galat
+     * @return never
+     */
+    private function gagal(array $galat): never
+    {
+        $validator = Validator::make([], []);
+
+        $validator->errors()->merge($galat);
+
+        throw new ValidationException($validator);
+    }
+
+    /**
+     * Is `is_racikan` consistent with the rest of the item, and if not, why.
+     *
+     * Two shapes, one declaration each. The plan writes the racikan as
+     * `{nama_obat, ..., is_racikan: true, racikan_nama}` and the catalogued one
+     * as `{obat_id, ...}`, so the flag is part of the racikan's shape and is
+     * optional on the catalogued one. An ABSENT flag on a racikan is refused
+     * rather than inferred, for the same reason `obat_id` is not inferred: the
+     * caller that omitted it is a caller that is not reading this contract,
+     * and guessing for it produces a row nobody can explain.
+     *
+     * `false` on a catalogued item is accepted, because "not a racikan" is the
+     * true statement about a catalogue drug and the column is derived anyway.
+     * It is `true` on a catalogued item, or `false` on a racikan, that is a
+     * contradiction - and an absent flag on a racikan is refused rather than
+     * inferred. Every shape complaint is filed on `is_racikan`, the field
+     * that failed to express the shape, so the envelope's `errors` map is
+     * directly fillable.
+     *
+     * @return ?string the message, or null when the declaration is coherent
+     */
+    private function cekRacikan(mixed $obatId, mixed $diklaim): ?string
+    {
+        $ada = $obatId !== null;
+
+        if ($ada && $diklaim === true) {
+            return 'Obat katalog bukan racikan; racikan memakai nama_obat tanpa obat_id.';
+        }
+
+        if (! $ada && $diklaim !== true) {
+            return $diklaim === null
+                ? 'Item resep wajib menunjuk obat katalog atau berisi racikan.'
+                : 'Racikan wajib dinyatakan is_racikan: true.';
+        }
+
+        return null;
     }
 
     /**

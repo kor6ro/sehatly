@@ -36,7 +36,7 @@ final class ObatSearchService
     /**
      * Search the active catalogue.
      *
-     * @param array{search?: ?string, kelas_obat?: ?string, requires_resep?: bool|int|null, page?: int, per_page?: int} $filter
+     * @param array{search?: ?string, kelas_obat?: ?string, requires_resep?: bool|int|string|null, page?: int, per_page?: int} $filter
      */
     public function cari(array $filter): LengthAwarePaginator
     {
@@ -50,7 +50,18 @@ final class ObatSearchService
         }
 
         if (($filter['requires_resep'] ?? null) !== null && $filter['requires_resep'] !== '') {
-            $query->where('requires_resep', (int) ((bool) $filter['requires_resep']));
+            // `filter_var(..., FILTER_VALIDATE_BOOLEAN)` rather than `(bool)`,
+            // because this is PUBLIC API: a caller that hands over the query
+            // string's own `"false"` would otherwise get a filter for `= 1`,
+            // which is the opposite of what it asked and raises nothing. A
+            // string cast is only safe once a `bool` has been proven, and this
+            // method is where that proof has to be made for anyone but the
+            // request. `SearchObatRequest::prepareForValidation()` normalises
+            // the same way at the HTTP boundary, so the two agree.
+            $query->where('requires_resep', (int) filter_var(
+                $filter['requires_resep'],
+                FILTER_VALIDATE_BOOLEAN,
+            ));
         }
 
         $search = trim((string) ($filter['search'] ?? ''));

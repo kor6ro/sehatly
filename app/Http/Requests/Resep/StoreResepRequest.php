@@ -56,6 +56,15 @@ class StoreResepRequest extends FormRequest
         return array_merge([
             'catatan_dodio' => ['nullable', 'string', 'max:16000'],
             'items' => ['required', 'array', 'min:1'],
+            // `obat_id` stays nullable-without-`required_without` on purpose:
+            // the declaration check lives in ONE place,
+            // `ResepService::siapkanItem()` via `cekRacikan()`, which owns the
+            // catalogue and files every shape contradiction - a catalogue drug
+            // claiming racikan, a racikan denying it, AND a racikan that
+            // declares neither shape - on `items.{i}.is_racikan` with one
+            // message each. A request-level `required_without` would preempt
+            // the third case with an `obat_id` error and split the contract
+            // across two layers answering the same question differently.
             'items.*.obat_id' => ['nullable', 'integer', 'min:1'],
             'items.*.nama_obat' => ['nullable', 'string', 'max:255'],
             'items.*.kekuatan' => ['nullable', 'string', 'max:50'],
