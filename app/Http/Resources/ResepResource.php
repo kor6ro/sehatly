@@ -5,11 +5,12 @@ declare(strict_types=1);
 namespace App\Http\Resources;
 
 use App\Models\Resep;
+use App\Services\Resep\ResepStateMachine;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
- * One `resep` row with its stored items, as the issuing doctor reads it.
+ * One `resep` row with its stored items, as any of the three readers sees it.
  *
  * `tanggal_resep` is a `DATETIME` (`:754`) published as an ISO-8601 instant;
  * `berlaku_sampai` is a `DATE` (`:755`) published as a wall-clock day,
@@ -19,6 +20,25 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * No patient identifier beyond the surrogate `pasien_id`: no NIK, no allergy
  * note, nothing the pharmacist reading this prescription needs a national
  * identifier for.
+ *
+ * ## `is_kedaluwarsa` and `terminal` are on EVERY surface
+ *
+ * Both are published here rather than added by the detail and history
+ * controllers, and the reason is laravel/framework 13 itself:
+ * `JsonResource::additional()` writes to a property that
+ * `ConditionallyLoadsAttributes::filter()` no longer merges - in 13 the merge
+ * that used to happen in `filter()` is gone, so `additional()` on a NESTED
+ * resource is a silent no-op. An earlier draft of this todo used it and every
+ * `is_kedaluwarsa` assertion read `null` from a 200 response, which is the
+ * worst available failure: a client that believes a lapsed prescription is
+ * live.
+ *
+ * So the flags are computed on the model by
+ * {@see ResepStateMachine::kedaluwarsa()} and {@see ResepStateMachine::terminal()}
+ * - the same two rules `ResepAccess` publishes beside them - and the create
+ * response, the detail, the verification response and the history therefore all
+ * carry an identical shape. A client renders one component and a "can I still
+ * act on this" affordance cannot depend on which endpoint answered.
  *
  * @property-read Resep $resource
  */
@@ -42,6 +62,8 @@ class ResepResource extends JsonResource
             'catatan_dokter' => $this->resource->catatan_dokter,
             'tanggal_resep' => $this->resource->tanggal_resep?->toISOString(),
             'berlaku_sampai' => $this->resource->berlaku_sampai?->toDateString(),
+            'is_kedaluwarsa' => ResepStateMachine::kedaluwarsa($this->resource),
+            'terminal' => ResepStateMachine::terminal($this->resource),
             'is_iter' => (bool) $this->resource->is_iter,
             'jumlah_iter' => (int) $this->resource->jumlah_iter,
             'qr_token' => (string) $this->resource->qr_token,
