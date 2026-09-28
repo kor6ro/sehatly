@@ -819,11 +819,21 @@ Three cross-checks the audit runs explicitly:
 ### Part 3 - this evidence file, audited by the same three checks
 
 ```
-evidence bytes=48270 non-ascii-violations=0
-snake_case candidates=56 table=8 column=22 enum-value=1 prose=25 unknown=0
-DDL `:NNN` citations=51 out-of-range=0 (file has 1349 lines)
-spot-check mismatches=0
+non-ascii violations      : 0
+token audit problems      : 0
+out-of-range citations    : 0
+spot-check mismatches     : 0
 ```
+
+**The self-measuring totals are deliberately NOT recorded here.** An earlier
+draft of this block did record them - `evidence bytes=48270`,
+`snake_case candidates=56`, `DDL citations=51` - and all three were wrong by the
+time the file was committed, because writing the block that reports the file's
+own size changes the file's size. A self-referential measurement is only
+consistent if it is not stored in the thing it measures, so the four **invariant**
+results above are what this file claims and the sizes live in the harness output
+alone. The three source files' totals *are* recorded in Part 1, because editing
+this file does not change them.
 
 Three sub-checks beyond the source scan, and **all three caught a defect in the
 audit or the file on the first pass**:
@@ -833,7 +843,9 @@ audit or the file on the first pass**:
    false positive: `"duration_ms":390431` is a duration, and `:2281-2293` is a
    `vendor/laravel/framework` path. The regex now only matches a citation written
    the way this project writes one (backticked, or attributed to the SQL file).
-   51 real citations, **0 out of range**.
+   **0 out of range**, and the one foreign citation is verified against the vendor
+   source it names (`:2281` `whereRowValues`, `:2284` the count guard, `:2291`
+   `cleanBindings`) rather than skipped.
 2. **Every cited line still says what this file claims** - 47 spot-checks with
    `str_contains` against the line read from the file. The first pass used `===`
    and reported **18 mismatches**; all 18 were the *audit's own* expectation
