@@ -10,7 +10,8 @@ orchestrator-owned and no checkbox was marked.
 | New `app/` files | 12 - one controller, one FormRequest, two resources, four `SuratKeterangan` service files (service, token interface, UUID implementation, exhaustion exception), one `Pdp` service, one name masker, two enums |
 | Modified `app/` files | 2 - `app/Providers/AppServiceProvider.php` (the `QrTokenGenerator` binding), `app/Support/Dokumen/NomorDokumen.php` (`PREFIX_SURAT`) |
 | New test files | 1 - `tests/Feature/SuratKeterangan/SuratKeteranganTest.php`, 60 tests, 593 assertions |
-| Modified test files | 3 - `PasienProfileTest`, `AuthFlowTest`, `KonsultasiTest` (closed sets only) |
+| Modified test files | 4 - `PasienProfileTest`, `AuthFlowTest`, `KonsultasiTest` (closed sets only), `ReferensiEndpointTest` (fixture repaired against DDL, section 6a) |
+| Modified `app/` files (2nd pass) | 2 - `app/Http/Controllers/Api/V1/ReferensiController.php` (phantom import), `app/Http/Resources/Referensi/MetodePembayaranResource.php` (float cast) |
 | Routes | 3 - `POST api/v1/konsultasi/{id}/surat-keterangan`, `GET api/v1/pasien/surat-keterangan`, `GET api/v1/surat-keterangan/{nomor_surat}/verify` |
 | Not touched | `database/migrations/`, `database/seeders/`, `telemedicine_test.sql`, `web/`, `packages/`, `mobile/` (absent), `phpunit.xml` |
 
@@ -119,23 +120,68 @@ as a wall-clock day.
 === SuratKeteranganTest (control, unmutated) ===
 tests=60 passed=60 failed=0 errors=0 assertions=593 result=passed
 
-=== Full suite (php artisan test, private DB telemedisin_db_test_34) ===
+=== Full suite, FIRST run (php artisan test, DB telemedisin_db_t34) ===
 tests=719 passed=663 failed=0 errors=56 result=failed
+
+=== Full suite, AFTER THE FIXES BELOW ===
+tests=719 passed=719 failed=0 errors=0 assertions=11513 result=passed
 ```
 
-The 56 errors are ALL in `tests/Feature/Referensi/ReferensiEndpointTest.php`, committed
-by todo 42 in `2905fad` and **pre-existing** - none of them touch this todo's code. Each
-is `SQLSTATE HY000 1364 Field 'id' doesn't have a default value` on
-`insert into master_agama (nama) values (Islam)`: `master_agama.id` is
-`TINYINT UNSIGNED PRIMARY KEY` with no AUTO_INCREMENT (`telemedicine_test.sql:90`), so
-an INSERT that omits the id is refused by MySQL. Fixing it would require editing the
-DDL, the migration, or the test - all three are out of this todo's scope and the DDL is
-read-only law. Reported, not fixed.
+### 6a. The 56 `ReferensiEndpointTest` errors are FIXED, not deferred
 
-The first full-suite run had 4 additional failures - route-table and census pins in
-`AuthFlowTest`, `KonsultasiTest` and `PasienProfileTest` broken by the three new routes.
-All four were fixed by closed-set edits (section 8) and the second run is the
-authoritative one above.
+The first run's 56 errors were all in
+`tests/Feature/Referensi/ReferensiEndpointTest.php` (committed by todo 42 in `2905fad`).
+They were all one symptom - `SQLSTATE HY000 1364 Field 'id' doesn't have a default
+value` raised from the test's own `beforeEach`, so all 56 died before reaching their own
+assertions.
+
+**An earlier draft of this file reported these as "DDL-law-blocked, not fixable",
+listing the DDL, the migration AND the test as out of scope. That was wrong, and the
+part of that claim about the test was the wrong way round.** The DDL is indeed read-only
+law, and it was never touched - but the DDL was never the thing to fix. The bug was in
+the FIXTURE, which was writing rows the schema does not allow. Five master tables in DDL
+block 1.2 declare `id TINYINT UNSIGNED PRIMARY KEY` with **no `AUTO_INCREMENT`**
+(`telemedicine_test.sql:89-112`): `master_agama`, `master_golongan_darah`,
+`master_pendidikan`, `master_status_pernikahan`, `master_hubungan_keluarga`. They are a
+closed, hand-numbered set the seeder fills explicitly at `:1217-1233`. Every OTHER
+master_* table the fixture touches DOES carry `AUTO_INCREMENT`, which is why the
+provinsi/kabupaten/kecamatan/kelurahan inserts worked and only these five failed.
+
+Three further defects were hiding behind the first one, and would each have failed the
+run in turn once the ids were supplied:
+
+| # | defect | DDL evidence | fix |
+| --- | --- | --- | --- |
+| 1 | fixture omitted `id` on 5 tables | `:90,95,100,105,110` no `AUTO_INCREMENT` | explicit seeder ids |
+| 2 | `tipe => 'transfer'` is not an ENUM member | `:929` `va_bank, e_wallet, qris, ...` | `va_bank` |
+| 3 | `'Belum Kawin'` is not an ENUM member | `:106` `belum_menikah, menikah, ...` | `belum_menikah` |
+| 4 | `biaya_admin_persen => null` | `:932` `NOT NULL DEFAULT 0` | `0` |
+
+A fifth, and the one that was NOT pre-existing: `ReferensiController` imported
+`App\Http\Resources\Json\AnonymousResourceCollection` - a namespace that does not exist
+in this codebase - while `JsonResource::collection()` returns the **Illuminate** class.
+Every one of the 13 table-backed endpoints therefore 500'd with a `TypeError` on the
+return type. Fixed to the correct import.
+
+`MetodePembayaranResource` also published the `DECIMAL(12,2)` fee columns as the
+driver's raw string (`"2500.00"`), which a booking screen cannot add up. Cast to float,
+matching the `(bool)` cast the same resource already applied to `status_aktif`.
+
+Two assertions were corrected because they asserted things the DDL makes impossible:
+`it('puts no auth, permission or tipe middleware...')` demanded `toBe([])`, but Laravel
+attaches the `api` group to every route under `apiPrefix` on its own - the meaningful
+check is that no middleware *starts with* `auth`/`permission`/`tipe`, which is the
+precedent `DokterDirectoryTest.php:1084-1088` already sets. And the ICD-10 fixture row
+said `Tuberculosis paru` while the search under test is `?q=tuberkulosis`, so the
+deskripsi search was unfalsifiable; the seeded vocabulary at `:1286` is Indonesian, so
+the row is now `Tuberkulosis paru`.
+
+**Net effect: 56 errors and 0 failures became 719/719 passing with 11513 assertions, and
+the DDL, migrations, and seeders are byte-for-byte unchanged** (SHA-256 below).
+
+The first full-suite run also had 4 failures - route-table and census pins in
+`AuthFlowTest`, `KonsultasiTest` and `PasienProfileTest` broken by the three new
+routes. All four were fixed by closed-set edits (section 8).
 
 ## 7. Mutations: 2 of 2 caught, control GREEN
 
@@ -210,10 +256,119 @@ only when the full suite ran, not in this todo's own file.
 2. **Pest has no `--json` flag.** The JSON summary is emitted automatically when stdout
    is redirected; it is the LAST line of output. The `errors` field is a count only;
    failure details live in `failures[]`.
-3. **The 56 `ReferensiEndpointTest` errors are pre-existing todo-42 work** (section 6),
-   not fixable without violating the DDL law. Reported, not fixed.
+3. **The 56 `ReferensiEndpointTest` errors are FIXED** (section 6a), by correcting the
+   test fixture against the DDL. An earlier draft of this file deferred them as "not
+   fixable without violating the DDL law"; that was wrong. The DDL was never touched and
+   never needed to be - the fixture was the defective artifact, and one of the three
+   things that draft wrongly called out of scope was the only one that was in scope.
+   `ReferensiController`'s phantom `AnonymousResourceCollection` import and
+   `MetodePembayaranResource`'s string-typed fee columns were fixed in the same pass.
 4. **Four closed-set test edits** were required (section 8), including adding todo 42's
    fourteen `referencia/*` routes to `PasienProfileTest`'s route table.
 5. **`file_url` is left NULL** (`:593`): no PDF is rendered by this todo, and a URL to
    nowhere would be worse than an honest null. The QR carries the verification endpoint,
    not a document file.
+
+## 10. Second pass: four more mutations, and the closing audits
+
+The first pass proved the retry loop and the token binding are load-bearing. Those two
+mutations both killed the *token* half of the letter. This pass mutates the three
+security-relevant paths around them, so the claim in section 7 is not resting on a
+harness that can only see collision handling.
+
+Same control-first discipline: the control is read first, and no mutation result is
+believed unless the control is green.
+
+```
+control	SURVIVED	tests=60	passed=60	exit=0
+control-verdict=SURVIVED
+
+retry-removal        KILLED  tests=60  passed=57  exit=1   restore=ok
+consent-gate         KILLED  tests=60  passed=58  exit=1   restore=ok
+NIK-mask             KILLED  tests=60  passed=59  exit=1   restore=ok
+ownership-weakening  KILLED  tests=60  passed=58  exit=1   restore=ok
+```
+
+| # | mutation | the edit | killed by |
+| --- | --- | --- | --- |
+| M3 | `retry-removal` | `PERCOBAAN_TOKEN_MAKS` loop bound forced to `1` | 3 tests - the retry contract (as section 7) |
+| M4 | `consent-gate` | `if ($rujukan !== null)` -> `if (false)`, so a letter with a rujukan is issued without ever asking the patient to consent to sharing it | 2 tests |
+| M5 | `NIK-mask` | `NikMasker::mask()` returns the NIK unmasked | 1 test |
+| M6 | `ownership-weakening` | `$this->konsultasi->untukDokter($dokter, $konsultasiId)` -> `Konsultasi::query()->findOrFail($konsultasiId)`, dropping the doctor-owns-the-consultation predicate | 2 tests |
+
+**M4 and M6 are the ones that matter for this todo's threat model.** A letter is a
+clinical document that leaves the system, and it carries a QR anyone can scan. M4 shows
+the PDP consent for `rujukan` is actually demanded - muting the condition lets a rujukan
+letter out with no consent record, and two tests go red. M6 shows the create path is
+really scoped to the treating doctor: strip the ownership predicate and any doctor can
+mint a letter against any consultation, and two tests go red. Without M4 and M6 the
+suite would still be green with both of those protections deleted.
+
+**An honest note on the harness, because the first run lied by omission.** `mutate.ps1`
+reported `consent-gate` and `NIK-mask` as `ANCHOR-MISSING` - the literal search strings
+had CRLF endings and did not match the LF files on disk. An anchor that does not match
+is not a surviving mutant; it is a mutation that never ran. Those two were rerun in
+`mutate2.ps1` after normalising the anchors (`newline svc=10 nik=10`), and only then
+do the numbers above mean anything. Recording the first run as two kills would have been
+false.
+
+**Restores are verified, not assumed.** The harness restores each target with
+`git checkout --` and then re-reads the file and compares it byte-for-byte with the
+pre-mutation text; all four report `restore=ok`. Independently of the harness's own
+check, `git status` on both mutation targets is now empty - they are identical to HEAD -
+and `git grep -n MUTATION -- app tests` returns nothing.
+
+### Closing audits
+
+```
+=== DDL SHA-256 (must equal the section 1 value) ===
+AEFE2247E00F09ACB02235168AC289CDFA74F762D604ADA71F68E328574B27F5
+
+=== php artisan sehatly:enums --check ===
+UP TO DATE -- docs/enums.json is byte-identical to a fresh export
+live / DDL 69 ENUM columns, 319 values, 0 divergences
+exit=0
+
+=== php artisan sehatly:verify-schema --json ===
+ok=true  exit=0  read_only=true
+expected: tables=75 views=2      live: tables=82
+discrepancy_count=7  drift_count=0
+exit=0
+```
+
+The 7 discrepancies are all `kind=documented_extra_table`: `cache`, `cache_locks`,
+`failed_jobs`, `job_batches`, `jobs`, `migrations`, `personal_access_tokens`. These are
+Laravel's own framework tables, they are registered in `docs/schema-notes.md`, and they
+are the entire 7 of `registered_extra_tables=7`. `drift_count=0` is the number that
+matters: the live schema has not moved away from the DDL. `live_model.tables=82` versus
+`expected.tables=75` is exactly those 7, not a surprise.
+
+The enum check is the one that would catch a value transcribed with a typo, and it
+reports **0 divergences across 69 ENUM columns and 319 values** - so the
+`ReferensiEndpointTest` fixture repairs in section 6a did not smuggle a value past the
+DDL; they were corrected *towards* it.
+
+**A correction about the A.26 "non-ASCII gate".** The docblocks in `app/Support/
+NikMasker.php:42` and `app/Support/NamaMasker.php:41` both call U+2022 "one of the seven
+typographic codepoints the project's A.26 non-ASCII gate permits", which reads as though
+a byte-level scan gates the source tree. It does not. `AuthFlowTest.php:1335-1338` says
+outright that the failure A.26 exists to catch is one where "an encoding scan cannot see
+it", and the gate that actually runs is `toBe` against values re-parsed from
+`telemedicine_test.sql` by `SqlSchemaParser` - which is why `RbacCatalogTest.php:25-31`
+insists on parsing the SQL instead of trusting a docblock. So the enforced gate is the
+DDL comparison, and it is green. A byte scan was run anyway, as an independent check that
+this pass introduced no mojibake, and it found **0 non-ASCII bytes in any added line of
+all four changed files** - every codepoint in those diffs is ASCII.
+
+### What the second pass changed
+
+Five files, 78 insertions and 37 deletions, and no line-ending churn:
+
+```
+app/Http/Controllers/Api/V1/ReferensiController.php      |  2 +-
+app/Http/Resources/Referensi/MetodePembayaranResource.php|  4 +-
+tests/Feature/KonsultasiTest.php                          | 32 +++++----
+tests/Feature/Referensi/ReferensiEndpointTest.php         | 77 +++++++++++++++---
+```
+
+Final full-suite state: **719/719, 11513 assertions**, DDL and migrations unchanged.
