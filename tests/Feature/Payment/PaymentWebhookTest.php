@@ -388,22 +388,37 @@ test('the gateway is an interface with the two methods the plan names, and the m
         ->and((string) $verifikasi->getParameters()[0]->getType())->toBe(Illuminate\Http\Request::class);
 
     // The container resolves the INTERFACE, and resolves it to the mock -
-    // which is what makes a real Midtrans a one-line change to this file.
+    // which is what makes a real Midtrans a one-line change to the binding.
     $terikat = app(PaymentGatewayService::class);
 
-    expect($terikat)->toBeInstanceOf(MockPaymentGatewayService::class)
-        ->and($terikat->nama())->toBe(config('payment.gateway'))
-        ->and(config('payment.gateway'))->toBe('mock');
+    expect($terikat)->toBeInstanceOf(MockPaymentGatewayService::class);
 
-    // And the binding is in `AppServiceProvider`, not in a controller.
+    // And the binding is in `AppServiceProvider`, not in a controller. The
+    // binding is a CLOSURE, so its body is not readable as a string here - the
+    // two assertions that matter are above (the container resolves the
+    // interface, to the mock) and the file-level one below (the provider, not a
+    // controller, is where the name appears).
     $sumber = (string) file_get_contents(base_path('app/Providers/AppServiceProvider.php'));
 
     expect($sumber)->toContain('PaymentGatewayService::class')
-        ->and($sumber)->toContain('MockPaymentGatewayService');
+        ->and($sumber)->toContain('MockPaymentGatewayService')
+        ->and($sumber)->toContain('config(\'payment.gateway\')');
 
-    $kode = app()->getBindings()['App\Services\Payment\PaymentGatewayService'] ?? '';
+    // And NO controller names a concrete gateway, so swapping implementations
+    // cannot leave one call site behind.
+    $kontroler = (string) file_get_contents(base_path('app/Http/Controllers/Api/V1/PembayaranController.php'));
 
-    expect($kode)->toContain('MockPaymentGatewayService');
+    expect($kontroler)->not->toContain('MockPaymentGatewayService');
+
+    // The TWO config keys are not the same thing, and conflating them is the
+    // single most confusing fact about `config/payment.php`. Asserted apart on
+    // purpose: `gateway` names the IMPLEMENTATION and `gateway_pembayaran` is
+    // the `pembayaran.gateway` ENUM value the instance reports through `nama()`.
+    expect(config('payment.gateway'))->toBe('mock')
+        ->and(config('payment.gateway_pembayaran'))->toBe('midtrans')
+        ->and($terikat->nama())->toBe(config('payment.gateway_pembayaran'))
+        ->and($terikat->nama())->toBe(PembayaranGateway::Midtrans->value)
+        ->and($terikat->nama())->not->toBe(config('payment.gateway'));
 });
 
 test('the mock mints a reference, a VA number and a QR string, all inside their columns', function (): void {
@@ -473,7 +488,7 @@ test('a patient initiates payment on their own unpaid invoice and gets instructi
 
     $res = pay45Ajax($user)->postJson("/api/v1/invoice/{$invoice->getKey()}/bayar", ['metode_id' => $metodeId]);
 
-    $res->assertOk()
+    $res->assertCreated()
         ->assertJsonPath('success', true)
         ->assertJsonPath('data.invoice.id', (int) $invoice->getKey())
         ->assertJsonPath('data.invoice.status', pay45StatusMenunggu())
@@ -532,7 +547,7 @@ test('initiation refuses another patient 404, an account with no patient row 403
         ->assertForbidden();
 
     // Anonymous is the guard's 401, not this endpoint's 422.
-    test()->postJson("/api/v1/invoice/{$invoiceMilik->getKey()}/bayar", ['metode_id' => $metodeId])
+    pay45TanpaAuth()->postJson("/api/v1/invoice/{$invoiceMilik->getKey()}/bayar", ['metode_id' => $metodeId])
         ->assertUnauthorized();
 
     // A `lunas` invoice cannot be paid again, and says which state it is in.
@@ -558,7 +573,7 @@ test('a forged signature is rejected with NO state change AND no database read',
     $metodeId = pay45Metode();
 
     pay45Ajax($user)->postJson("/api/v1/invoice/{$invoice->getKey()}/bayar", ['metode_id' => $metodeId])
-        ->assertOk();
+        ->assertCreated();
 
     $baris = pay45PembayaranBaris((int) $invoice->getKey());
     $referensi = (string) $baris->nomor_referensi;
@@ -570,18 +585,27 @@ test('a forged signature is rejected with NO state change AND no database read',
 
     expect($updateAwal)->toBe(0);
 
-    // A VALID body, an INVALID signature. The tempting implementation - read
-    // the payment, then check the signature - would pass a "no state change"
-    // assertion. So the assertion here is on the STATEMENTS, not the rows.
-    [$raw, $server] = pay45Webhook($referensi, 'berhasil', pay45JumlahInvoice($invoice));
+    // A VALID body and an INVALID signature, and the two are built from
+    // DIFFERENT sources on purpose: the body by {@see pay45Webhook()}, the
+    // header by a key the application does not hold. An earlier version of this
+    // test let `pay45Webhook()` sign for it and then called the result forged -
+    // and it FAILED, because the request was not forged at all: it settled the
+    // invoice. That is the test doing its job on the test.
+    [$raw, ] = pay45Webhook($referensi, 'berhasil', pay45JumlahInvoice($invoice));
+
+    $server = [pay45HeaderTtD() => hash_hmac('sha256', $raw, 'kunci-yang-tidak-kita-punya')];
 
     $pernyataan = [];
-    $dengar = DB::listen(function (QueryExecuted $q) use (&$pernyataan): void {
+    // `DB::listen()` is a REGISTRATION and returns void on laravel/framework
+    // 13.33 - it used to hand back a callable that removed the listener, and
+    // calling that would be a `null is not callable` rather than a wrong
+    // answer. The listener is scoped to this test by the fact that the
+    // application is rebuilt between tests, so there is nothing to unregister.
+    DB::listen(function (QueryExecuted $q) use (&$pernyataan): void {
         $pernyataan[] = $q->sql;
     });
 
     $res = pay45Kirim(PAY45_GATEWAY, $raw, $server);
-    $dengar();
 
     $sentuh = array_values(array_filter(
         $pernyataan,
@@ -589,8 +613,9 @@ test('a forged signature is rejected with NO state change AND no database read',
             && ! str_contains(strtolower($sql), 'information_schema')
     ));
 
-    // The load-bearing assertion. A webhook handler that touched state before
-    // verifying the signature CANNOT pass this: it has issued its SELECT by now.
+    // A webhook handler that touched state before verifying the signature CANNOT
+    // pass this: it has issued its SELECT by now. This is the assertion that
+    // "the rows did not change" cannot make, and it is the reason it exists.
     expect($sentuh)->toBe([], 'the forged request issued statements against a payment table: '.json_encode($sentuh));
 
     expect($res->getStatusCode())->toBe(401);
@@ -615,7 +640,7 @@ test('an ABSENT signature, an empty one and a wrong-length one are all rejected'
     $invoice = pay45Invoice('booking', $bookingId, $pasienId);
     $metodeId = pay45Metode();
 
-    pay45Ajax($user)->postJson("/api/v1/invoice/{$invoice->getKey()}/bayar", ['metode_id' => $metodeId])->assertOk();
+    pay45Ajax($user)->postJson("/api/v1/invoice/{$invoice->getKey()}/bayar", ['metode_id' => $metodeId])->assertCreated();
 
     $baris = pay45PembayaranBaris((int) $invoice->getKey());
     $referensi = (string) $baris->nomor_referensi;
@@ -689,7 +714,7 @@ test('a duplicate webhook produces EXACTLY ONE state change and an identical sec
     $invoice = pay45Invoice('booking', $bookingId, $pasienId);
     $metodeId = pay45Metode();
 
-    pay45Ajax($user)->postJson("/api/v1/invoice/{$invoice->getKey()}/bayar", ['metode_id' => $metodeId])->assertOk();
+    pay45Ajax($user)->postJson("/api/v1/invoice/{$invoice->getKey()}/bayar", ['metode_id' => $metodeId])->assertCreated();
 
     $baris = pay45PembayaranBaris((int) $invoice->getKey());
     $referensi = (string) $baris->nomor_referensi;
@@ -721,11 +746,11 @@ test('a duplicate webhook produces EXACTLY ONE state change and an identical sec
     expect($setelahPertama->status)->toBe(PembayaranStatus::Berhasil->value)
         ->and($setelahPertama->dibayar_at)->toBe(PAY45_DETIK);
 
-    $lunasPertama = $invoice->fresh()->lunas_at;
+    $lunasPertama = (string) $invoice->fresh()->lunas_at;
     $bookingPertama = (string) DB::table('booking')->where('id', $bookingId)->value('status');
     $bookingDiubahPertama = (string) DB::table('booking')->where('id', $bookingId)->value('diubah_at');
 
-    expect((string) $lunasPertama)->toBe(PAY45_DETIK)
+    expect($lunasPertama)->toBe(PAY45_DETIK)
         ->and($bookingPertama)->toBe('terjadwal');
 
     // COUNTER 3 - the audit counter, one row per write per table.
@@ -786,18 +811,32 @@ test('a duplicate webhook produces EXACTLY ONE state change and an identical sec
     // Same `data` key set, in the same order.
     expect(array_keys($dua['data']))->toBe(array_keys($satu['data']));
 
-    // Every leaf identical EXCEPT `duplicate` - proved by diffing the two
-    // decoded bodies and requiring the difference set to be exactly that one
-    // key, rather than asserting a list of equalities that could miss a
-    // difference nobody thought to check.
+    // Every leaf identical EXCEPT two named keys - proved by diffing the two
+    // decoded bodies and requiring the difference set to be EXACTLY those two,
+    // rather than asserting a list of equalities that could miss a difference
+    // nobody thought to check.
+    //
+    // The two are:
+    //
+    // - `data.duplicate`, which is the whole point of the flag;
+    // - `message`, because a body that says "payment updated" about a delivery
+    //   that changed nothing is a lie a provider's logs would preserve. The
+    //   message is the ONE field on this endpoint that is allowed to describe
+    //   the delivery rather than the state, and that is a decision with a cost
+    //   stated here: a client that keys logic off `message` rather than off
+    //   `data.duplicate` will misread a retry. The envelope's `message` is
+    //   documented as human-readable and `data` as machine-readable, so the
+    //   cost is a client ignoring the contract.
     $beda = [];
 
     $bandingkan = function (mixed $a, mixed $b, string $jalur) use (&$bandingkan, &$beda): void {
         if (is_array($a) && is_array($b)) {
-            expect(array_keys($b))->toBe(array_keys($a), 'key set differs at '.$jalur);
+            // The key SET and the key ORDER are both compared, because "same
+            // shape" means both for a client that renders the body positionally.
+            expect(array_keys($b))->toBe(array_keys($a), 'key set differs at '.($jalur === '' ? '(root)' : $jalur));
 
             foreach ($a as $k => $v) {
-                $bandingkan($v, $b[$k], $jalur.'.'.$k);
+                $bandingkan($v, $b[$k], $jalur === '' ? (string) $k : $jalur.'.'.$k);
             }
 
             return;
@@ -810,11 +849,16 @@ test('a duplicate webhook produces EXACTLY ONE state change and an identical sec
 
     $bandingkan($satu, $dua, '');
 
-    expect($beda)->toBe(['data.duplicate']);
+    expect($beda)->toBe(['data.duplicate', 'message']);
 
-    // The `message` is identical too, so a provider that logs the body's
-    // message sees one stable string across a retry.
-    expect($dua['message'])->toBe($satu['message']);
+    // And the message really is the only prose that moved.
+    expect($satu['message'])->toBe('Status pembayaran berhasil diperbarui.')
+        ->and($dua['message'])->toBe('Pembayaran ini sudah pernah diproses.');
+
+    // `success` is `true` on BOTH, which is the property that matters most: a
+    // provider retrying gets a success envelope, not a refusal.
+    expect($satu['success'])->toBeTrue()
+        ->and($dua['success'])->toBeTrue();
 });
 
 test('a re-delivery does NOT overwrite webhook_payload: first body wins', function (): void {
@@ -823,7 +867,7 @@ test('a re-delivery does NOT overwrite webhook_payload: first body wins', functi
     $invoice = pay45Invoice('booking', $bookingId, $pasienId);
     $metodeId = pay45Metode();
 
-    pay45Ajax($user)->postJson("/api/v1/invoice/{$invoice->getKey()}/bayar", ['metode_id' => $metodeId])->assertOk();
+    pay45Ajax($user)->postJson("/api/v1/invoice/{$invoice->getKey()}/bayar", ['metode_id' => $metodeId])->assertCreated();
 
     $baris = pay45PembayaranBaris((int) $invoice->getKey());
     $referensi = (string) $baris->nomor_referensi;
@@ -840,7 +884,15 @@ test('a re-delivery does NOT overwrite webhook_payload: first body wins', functi
 
     $tersimpan = DB::table('pembayaran')->where('id', (int) $baris->id)->value('webhook_payload');
 
-    expect(json_decode((string) $tersimpan, true))->toBe([
+    // `toEqualCanonicalizing`, NOT `toBe`, and the reason is the COLUMN rather
+    // than the code: `webhook_payload` is `JSON` (:968) and MySQL's native JSON
+    // type NORMALISES on store - it reorders object members by (length, bytes)
+    // and drops insignificant whitespace. So the round-tripped value is
+    // semantically identical and positionally different, and asserting the
+    // order would be asserting MySQL's storage internals. What IS asserted is
+    // that every key survived, with its value, which is the property the
+    // forensic record depends on.
+    expect(json_decode((string) $tersimpan, true))->toEqualCanonicalizing([
         'gateway' => PAY45_GATEWAY,
         'nomor_referensi' => $referensi,
         'status' => 'berhasil',
@@ -867,7 +919,7 @@ test('a re-delivery does NOT overwrite webhook_payload: first body wins', functi
     // the honest comparison for a JSON column and is stated rather than hidden.
     $setelahUlang = json_decode((string) DB::table('pembayaran')->where('id', (int) $baris->id)->value('webhook_payload'), true);
 
-    expect($setelahUlang)->toBe([
+    expect($setelahUlang)->toEqualCanonicalizing([
         'gateway' => PAY45_GATEWAY,
         'nomor_referensi' => $referensi,
         'status' => 'berhasil',
@@ -901,7 +953,7 @@ test('a successful settlement advances a booking to terjadwal and a resep to dip
         $invoice = pay45Invoice($tipe, $referensiId, $pasienId);
         $jumlah = (string) $invoice->total;
 
-        pay45Ajax($user)->postJson("/api/v1/invoice/{$invoice->getKey()}/bayar", ['metode_id' => $metodeId])->assertOk();
+        pay45Ajax($user)->postJson("/api/v1/invoice/{$invoice->getKey()}/bayar", ['metode_id' => $metodeId])->assertCreated();
 
         $baris = pay45PembayaranBaris((int) $invoice->getKey());
 
@@ -925,7 +977,7 @@ test('a gagal webhook leaves the invoice and the referenced entity untouched', f
     $invoice = pay45Invoice('booking', $bookingId, $pasienId);
     $metodeId = pay45Metode();
 
-    pay45Ajax($user)->postJson("/api/v1/invoice/{$invoice->getKey()}/bayar", ['metode_id' => $metodeId])->assertOk();
+    pay45Ajax($user)->postJson("/api/v1/invoice/{$invoice->getKey()}/bayar", ['metode_id' => $metodeId])->assertCreated();
 
     $baris = pay45PembayaranBaris((int) $invoice->getKey());
     [$raw, $server] = pay45Webhook((string) $baris->nomor_referensi, 'gagal', (string) $invoice->total);
@@ -958,7 +1010,7 @@ test('a gagal webhook leaves the invoice and the referenced entity untouched', f
         ->assertJsonPath('data.duplicate', true)
         ->assertJsonPath('data.pembayaran.status', PembayaranStatus::Gagal->value);
 
-    expect((string) DB::table('pembayaran')->where('id', (int) $baris->id)->value('dibayar_at'))->toBeNull()
+    expect(DB::table('pembayaran')->where('id', (int) $baris->id)->value('dibayar_at'))->toBeNull()
         ->and((string) $invoice->fresh()->status)->toBe(pay45StatusMenunggu());
 });
 
@@ -968,7 +1020,7 @@ test('a kedaluwarsa webhook is handled symmetrically with gagal', function (): v
     $invoice = pay45Invoice('booking', $bookingId, $pasienId);
     $metodeId = pay45Metode();
 
-    pay45Ajax($user)->postJson("/api/v1/invoice/{$invoice->getKey()}/bayar", ['metode_id' => $metodeId])->assertOk();
+    pay45Ajax($user)->postJson("/api/v1/invoice/{$invoice->getKey()}/bayar", ['metode_id' => $metodeId])->assertCreated();
 
     $baris = pay45PembayaranBaris((int) $invoice->getKey());
     [$raw, $server] = pay45Webhook((string) $baris->nomor_referensi, 'kedaluwarsa', (string) $invoice->total);
@@ -989,7 +1041,7 @@ test('a webhook whose jumlah disagrees with the invoice total is rejected and wr
     $invoice = pay45Invoice('booking', $bookingId, $pasienId, null, ['total' => '150000.00']);
     $metodeId = pay45Metode();
 
-    pay45Ajax($user)->postJson("/api/v1/invoice/{$invoice->getKey()}/bayar", ['metode_id' => $metodeId])->assertOk();
+    pay45Ajax($user)->postJson("/api/v1/invoice/{$invoice->getKey()}/bayar", ['metode_id' => $metodeId])->assertCreated();
 
     $baris = pay45PembayaranBaris((int) $invoice->getKey());
 
@@ -1028,7 +1080,7 @@ test('a gateway that does not match the payment is a 404, and an unknown referen
     $invoice = pay45Invoice('booking', $bookingId, $pasienId);
     $metodeId = pay45Metode();
 
-    pay45Ajax($user)->postJson("/api/v1/invoice/{$invoice->getKey()}/bayar", ['metode_id' => $metodeId])->assertOk();
+    pay45Ajax($user)->postJson("/api/v1/invoice/{$invoice->getKey()}/bayar", ['metode_id' => $metodeId])->assertCreated();
 
     $baris = pay45PembayaranBaris((int) $invoice->getKey());
     $referensi = (string) $baris->nomor_referensi;
@@ -1056,7 +1108,7 @@ test('a status outside the three settlement outcomes is a 422, never a write', f
     $invoice = pay45Invoice('booking', $bookingId, $pasienId);
     $metodeId = pay45Metode();
 
-    pay45Ajax($user)->postJson("/api/v1/invoice/{$invoice->getKey()}/bayar", ['metode_id' => $metodeId])->assertOk();
+    pay45Ajax($user)->postJson("/api/v1/invoice/{$invoice->getKey()}/bayar", ['metode_id' => $metodeId])->assertCreated();
 
     $baris = pay45PembayaranBaris((int) $invoice->getKey());
 
@@ -1082,7 +1134,7 @@ test('the webhook requires a reference, and a malformed body is a 422 rather tha
     $invoice = pay45Invoice('booking', $bookingId, $pasienId);
     $metodeId = pay45Metode();
 
-    pay45Ajax($user)->postJson("/api/v1/invoice/{$invoice->getKey()}/bayar", ['metode_id' => $metodeId])->assertOk();
+    pay45Ajax($user)->postJson("/api/v1/invoice/{$invoice->getKey()}/bayar", ['metode_id' => $metodeId])->assertCreated();
 
     $kunci = (string) config('services.payment.gateways.'.PAY45_GATEWAY.'.webhook_secret');
 
@@ -1093,26 +1145,50 @@ test('the webhook requires a reference, and a malformed body is a 422 rather tha
         ->assertStatus(422)
         ->assertJsonPath('errors.nomor_referensi.0', 'nomor_referensi wajib diisi.');
 
-    // `jumlah` as a JSON NUMBER. A float has already lost precision by the
+    // A FRACTIONAL JSON number. A float has already lost its precision by the
     // time PHP parses it, and `Uang::parse` refuses one on purpose - the answer
     // must be a 422 naming the field, not a silently rounded settlement.
     $baris = pay45PembayaranBaris((int) $invoice->getKey());
-    $angka = (string) json_encode([
+    $pecahan = (string) json_encode([
         'nomor_referensi' => (string) $baris->nomor_referensi,
         'status' => 'berhasil',
-        'jumlah' => 150000.0,
+        'jumlah' => 150000.55,
     ]);
 
-    pay45Kirim(PAY45_GATEWAY, $angka, [pay45HeaderTtD() => hash_hmac('sha256', $angka, $kunci)])
-        ->assertStatus(422);
+    pay45Kirim(PAY45_GATEWAY, $pecahan, [pay45HeaderTtD() => hash_hmac('sha256', $pecahan, $kunci)])
+        ->assertStatus(422)
+        ->assertJsonPath('errors.jumlah.0', 'Nilai uang harus berupa string desimal, bukan float.');
 
     // Not JSON at all, correctly signed. Must not be a 500.
     $bukanJson = 'ini bukan json';
     pay45Kirim(PAY45_GATEWAY, $bukanJson, [pay45HeaderTtD() => hash_hmac('sha256', $bukanJson, $kunci)])
         ->assertStatus(422);
 
+    // Three refusals, and the row is STILL pending: none of them wrote.
     expect(DB::table('pembayaran')->where('id', (int) $baris->id)->value('status'))
         ->toBe(PembayaranStatus::Pending->value);
+
+    // A WHOLE JSON number is a different case, and it is asserted rather than
+    // left to a reader's guess. `150000` is an integer literal: it carries no
+    // precision to lose, and `Uang::parse` has always converted one, so
+    // refusing it would contradict that class's documented behaviour for no
+    // gain. The rule this endpoint serves is "money is transported so that
+    // nothing rounds", and an integer satisfies it.
+    $bulat = (string) json_encode([
+        'nomor_referensi' => (string) $baris->nomor_referensi,
+        'status' => 'berhasil',
+        'jumlah' => 150000,
+    ]);
+
+    pay45Kirim(PAY45_GATEWAY, $bulat, [pay45HeaderTtD() => hash_hmac('sha256', $bulat, $kunci)])
+        ->assertOk()
+        ->assertJsonPath('data.duplicate', false)
+        ->assertJsonPath('data.pembayaran.jumlah', '150000.00');
+
+    // ...and now it is terminal, which is what makes the three refusals above
+    // a sequence rather than three identical inputs.
+    expect(DB::table('pembayaran')->where('id', (int) $baris->id)->value('status'))
+        ->toBe(PembayaranStatus::Berhasil->value);
 });
 
 test('a patient cannot settle their own invoice by posting to the webhook', function (): void {
@@ -1126,7 +1202,7 @@ test('a patient cannot settle their own invoice by posting to the webhook', func
     $invoice = pay45Invoice('booking', $bookingId, $pasienKorban);
     $metodeId = pay45Metode();
 
-    pay45Ajax($korban)->postJson("/api/v1/invoice/{$invoice->getKey()}/bayar", ['metode_id' => $metodeId])->assertOk();
+    pay45Ajax($korban)->postJson("/api/v1/invoice/{$invoice->getKey()}/bayar", ['metode_id' => $metodeId])->assertCreated();
 
     $baris = pay45PembayaranBaris((int) $invoice->getKey());
 

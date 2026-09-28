@@ -1528,6 +1528,22 @@ test('the route table exposes the eight auth routes and the eleven patient route
         'GET api/v1/resep/{id}',
         'GET api/v1/resep/{id}/cek-interaksi',
         'POST api/v1/resep/{id}/verifikasi',
+        // Todo 46's three prescription-checkout routes, appended after todo
+        // 40's block and so listed LAST here in registration order. None of
+        // them is a `pasien` path, so the count under the `pasien` filter below
+        // is unchanged by them.
+        'GET api/v1/obat/{id}/stok',
+        'POST api/v1/resep/{id}/checkout',
+        'GET api/v1/pesanan-obat/{id}',
+        // Todo 45's TWO payment routes, appended after todo 46's block and so
+        // listed last. The initiation is a two-segment `invoice` path that
+        // none of the earlier entries resemble, and the webhook is a
+        // two-segment `webhook` path that is the WHOLE api/v1 surface's only
+        // unauthenticated POST which is not an auth endpoint - which is why it
+        // is named here explicitly rather than filtered in, and why it appears
+        // in the `$anonymous` set below.
+        'POST api/v1/invoice/{id}/bayar',
+        'POST api/v1/webhook/payment/{gateway}',
     ]);
 
     // THIRTEEN under the `pasien` filter: the ten above (profil read + write, two
@@ -1594,6 +1610,18 @@ test('the route table exposes the eight auth routes and the eleven patient route
         'GET api/v1/referensi/provinsi',
         'GET api/v1/referensi/spesialisasi',
         'GET api/v1/referensi/status-pernikahan',
+        // Todo 45's webhook: anonymous BY DESIGN, and the reason is a
+        // constraint rather than an omission. A payment provider is not a user
+        // of this system - it holds no Sanctum token and cannot be given one -
+        // so `auth:sanctum` here would 401 every real delivery. What
+        // authenticates it is an HMAC-SHA256 over the raw body keyed by the
+        // named gateway's secret in `config/services.php`, verified before the
+        // controller issues any query against `pembayaran` or `invoice`.
+        //
+        // It is listed in an INFERRED set nowhere: an inferred set would have
+        // silently stopped covering new public routes, which is the drift the
+        // explicit list above exists to prevent.
+        'POST api/v1/webhook/payment/{gateway}',
     ];
 
     foreach (array_keys($routes) as $key) {
@@ -1682,6 +1710,37 @@ test('the route table exposes the eight auth routes and the eleven patient route
             // they are refused here with a 403 from `ownPasien()` instead, which
             // is a fact about rows they do not own rather than a role they lack.
             'POST api/v1/promo/validasi' => [],
+            // Todo 46's three, read off the routes rather than guessed:
+            // `POST resep/{id}/checkout` carries `permission:pesanan.buat` and
+            // `GET pesanan-obat/{id}` carries `permission:pesanan.lihat`, while
+            // `GET obat/{id}/stok` carries NEITHER - the stock read is a
+            // catalogue read whose audience is a pharmacist and a patient
+            // choosing between pharmacies, and `obat.cari` is granted to
+            // `dokter` alone, so gating on it would refuse a pharmacist who has
+            // a `resep_verifikasi` row to dispense against. A closed set that
+            // guesses a guard is worse than one that does not, so these three
+            // belong to todo 46's own executor to correct if it changes a
+            // route's middleware.
+            'GET api/v1/obat/{id}/stok' => [],
+            'POST api/v1/resep/{id}/checkout' => ['permission:pesanan.buat'],
+            'GET api/v1/pesanan-obat/{id}' => ['permission:pesanan.lihat'],
+            // Todo 45's two.
+            //
+            // The initiation DOES take a `permission:`, and that is the
+            // interesting half: `pembayaran.bayar` is a real code granted to
+            // `pasien` and `superadmin` and to nobody else, so gating on it
+            // refuses `dokter`, `apoteker` and `admin` - none of whom may pay
+            // for a patient's invoice - WITHOUT locking out the one account
+            // type that owns the invoice being paid. `tipe:pasien` is refused
+            // for the same reason as everywhere else in this file: it cannot
+            // express "is this invoice yours", which `PembayaranController`
+            // answers through `ownPasien()` plus a tenant-scoped lookup.
+            'POST api/v1/invoice/{id}/bayar' => ['permission:pembayaran.bayar'],
+            // ...and the webhook takes NEITHER, for the reason the `$anonymous`
+            // set above gives. A route gate cannot express "you are a payment
+            // provider"; an HMAC over the raw body can, and
+            // `PaymentWebhookTest` proves it is checked before any row is read.
+            'POST api/v1/webhook/payment/{gateway}' => [],
         ];
 
         expect($guards)->toEqualCanonicalizing(

@@ -133,6 +133,29 @@ function pay45AkunPasien(string $nama = 'Pasien Pembayaran'): array
 }
 
 /**
+ * A request with NO credentials at all, for the 401 assertions.
+ *
+ * TWO things have to be undone, and missing either makes the "anonymous" probe
+ * pass for the wrong reason:
+ *
+ * 1. {@see pay45Ajax()} installs the bearer token as a DEFAULT header on the
+ *    TestCase, and a default header rides along on every later request;
+ * 2. the auth manager is a SINGLETON and its guard caches the resolved user, so
+ *    the previous request's `User` is still attached even with no header at all.
+ *    `forgetGuards()` is what todo 44's helper does for the same reason.
+ *
+ * Without both, the probe is authenticated as whoever the previous request was
+ * and answers 403 - which reads as "the guard refused them" and is in fact "the
+ * guard never ran".
+ */
+function pay45TanpaAuth(): Illuminate\Foundation\Testing\TestCase
+{
+    app('auth')->forgetGuards();
+
+    return test()->flushHeaders();
+}
+
+/**
  * The test case, already carrying `$user`'s bearer token.
  *
  * Returns the TestCase itself rather than a header array, because
@@ -573,16 +596,20 @@ function pay45Bersihkan(): void
 /**
  * Every table whose rows these tests create, children before parents.
  *
- * `pembayaran` and the `audit_log` rows the SERVICE writes are not here by
- * construction, so the two tables it writes are removed by what the collector
- * CAN see: every payment names an invoice this test created.
+ * `pembayaran` is NOT in this list and that is deliberate: the payment row is
+ * written by the SERVICE under test, not by a fixture, so the collector never
+ * sees its id. Listing it here with empty ids would silently do nothing, and
+ * the `invoice` delete below it would then fail with MySQL 1451 - which is
+ * exactly what happened before {@see pay45BersihkanSemua()} removed payments by
+ * `invoice_id` instead. The two tables the service writes are therefore reached
+ * through what the collector CAN see: every payment names an invoice this test
+ * created.
  *
  * @return list<string>
  */
 function pay45Tabel(): array
 {
     return [
-        'pembayaran',
         'promo_redemption',
         'invoice',
         'booking',
@@ -607,16 +634,38 @@ function pay45Tabel(): array
 /**
  * Delete every fixture this test created, children first.
  *
- * `audit_log` is emptied LAST and unconditionally, because the observer writes
- * rows for every audited model in the file and `record_id` is a bare column
- * (:1123) with no foreign key, so nothing cascades them and nothing would ever
- * remove them. Leaving them behind would make a later test's counter assertions
- * read rows it did not write - which is precisely the assertion this file is
- * built on, so it has to be airtight.
+ * ## `pembayaran` and `refund` go FIRST, by `invoice_id`
+ *
+ * `pembayaran.invoice_id` is foreign-keyed to `invoice(id)` (:960, :970) and
+ * `refund.pembayaran_id` to `pembayaran(id)` (:976, :982), so neither can be
+ * reached by a collected id - the rows are written by the service. Naming the
+ * invoices does reach them, and doing it in this order is what keeps the
+ * `invoice` delete from failing with 1451.
+ *
+ * ## `audit_log` is emptied LAST and unconditionally
+ *
+ * The observer writes a row for every audited model this file touches, and
+ * `record_id` is a BARE column (:1123) with no foreign key - so nothing
+ * cascades those rows and nothing would ever remove them. Leaving them behind
+ * would make a later test's `pay45HitungUpdate()` counter read rows it did not
+ * write, and that counter is the acceptance criterion, so the cleanup has to be
+ * airtight rather than best-effort.
  */
 function pay45BersihkanSemua(): void
 {
     $dibuat = pay45Dibuat();
+
+    $invoiceIds = $dibuat['invoice'] ?? [];
+
+    if ($invoiceIds !== []) {
+        $paymentIds = DB::table('pembayaran')->whereIn('invoice_id', $invoiceIds)->pluck('id')->all();
+
+        if ($paymentIds !== []) {
+            DB::table('refund')->whereIn('pembayaran_id', $paymentIds)->delete();
+        }
+
+        DB::table('pembayaran')->whereIn('invoice_id', $invoiceIds)->delete();
+    }
 
     foreach (pay45Tabel() as $tabel) {
         $ids = $dibuat[$tabel] ?? [];

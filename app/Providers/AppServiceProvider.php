@@ -5,6 +5,8 @@ namespace App\Providers;
 use App\Services\Audit\AuditObserverRegistrar;
 use App\Services\Auth\LogOtpSender;
 use App\Services\Auth\OtpSender;
+use App\Services\Payment\MockPaymentGatewayService;
+use App\Services\Payment\PaymentGatewayService;
 use App\Services\SuratKeterangan\QrTokenGenerator;
 use App\Services\SuratKeterangan\StrQrTokenGenerator;
 use Carbon\CarbonImmutable;
@@ -16,6 +18,7 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
+use LogicException;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -25,6 +28,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->configureQrTokenSource();
+        $this->configurePaymentGateway();
     }
 
     /**
@@ -89,6 +93,65 @@ class AppServiceProvider extends ServiceProvider
     private function configureOtpDelivery(): void
     {
         $this->app->bind(OtpSender::class, LogOtpSender::class);
+    }
+
+    /**
+     * Bind the payment gateway, selected by `config('payment.gateway')`.
+     *
+     * ## The one place a real Midtrans or Xendit would be named
+     *
+     * The plan puts real providers out of scope and the schema has no gateway
+     * table, no API-key column and no callback table, so the only shipped
+     * implementation is {@see MockPaymentGatewayService}. Everything else in
+     * the application depends on {@see PaymentGatewayService} - the controller
+     * and the service both take the INTERFACE - so adding a real gateway is:
+     * add the class, add one entry to `config/payment.php`'s `implementasi`
+     * map, and change the `PAYMENT_GATEWAY` environment value. No call site
+     * changes, and no test that drives the endpoint has to change either,
+     * because the signature scheme is part of the contract each adapter
+     * implements rather than something the controller knows about.
+     *
+     * ## Why the binding is a `bind()` and not a `singleton()`
+     *
+     * `bind()` hands out a fresh instance per resolution, which is what
+     * `configureOtpDelivery()` and `configureQrTokenSource()` already do in
+     * this file. None of the three implementations holds mutable state, so a
+     * singleton would buy nothing and would introduce a shared object whose
+     * lifetime spans requests for no reason.
+     *
+     * ## An unknown `PAYMENT_GATEWAY` FAILS LOUDLY, at boot
+     *
+     * The lookup falls back to the one registered implementation and then
+     * throws a `LogicException` naming the value and the registered set. That
+     * is deliberate and it is the opposite of what a `??` chain usually does:
+     * a typo in an environment variable that silently resolved to the mock
+     * would leave a production deployment minting `MOCK-` references and
+     * accepting webhooks signed with a development secret, with nothing in the
+     * logs. A 500 on the first request is a far better failure than a quiet
+     * one.
+     *
+     * @throws \LogicException  when `config('payment.gateway')` names no
+     *                          registered implementation
+     */
+    private function configurePaymentGateway(): void
+    {
+        $this->app->bind(PaymentGatewayService::class, function (): PaymentGatewayService {
+            $terpilih = (string) config('payment.gateway');
+
+            $implementasi = (array) config('payment.implementasi', []);
+
+            $kelas = $implementasi[$terpilih] ?? null;
+
+            if (! is_string($kelas) || ! class_exists($kelas)) {
+                throw new LogicException(sprintf(
+                    'config("payment.gateway") is [%s], which is not a registered implementation. Registered: [%s].',
+                    $terpilih,
+                    implode(', ', array_keys($implementasi))
+                ));
+            }
+
+            return $this->app->make($kelas);
+        });
     }
 
     /**
