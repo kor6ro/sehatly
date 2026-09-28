@@ -1,0 +1,459 @@
+{
+    "akses_rekam_medis_log.tujuan_akses": [
+        "perawatan",
+        "klaim",
+        "audit",
+        "pasien_sendiri",
+        "kepentingan_hukum"
+    ],
+    "artikel.status": [
+        "draft",
+        "review",
+        "terbit",
+        "arsip"
+    ],
+    "audit_log.aksi": [
+        "create",
+        "read",
+        "update",
+        "delete",
+        "login",
+        "logout",
+        "download",
+        "export"
+    ],
+    "booking.dibatalkan_oleh": [
+        "pasien",
+        "dokter",
+        "sistem"
+    ],
+    "booking.status": [
+        "menunggu_pembayaran",
+        "terjadwal",
+        "check_in",
+        "berlangsung",
+        "selesai",
+        "dibatalkan",
+        "no_show",
+        "kadaluarsa"
+    ],
+    "booking.tipe_layanan": [
+        "chat",
+        "video_call",
+        "kunjungan_klinik",
+        "home_visit"
+    ],
+    "dokter.status_verifikasi": [
+        "pending",
+        "terverifikasi",
+        "ditolak"
+    ],
+    "dokter.tipe": [
+        "dokter_umum",
+        "dokter_spesialis",
+        "dokter_gigi",
+        "psikolog",
+        "bidan",
+        "perawat",
+        "apoteker"
+    ],
+    "dokter_jadwal.tipe_layanan": [
+        "online",
+        "klinik",
+        "home_visit"
+    ],
+    "dokter_pendidikan.jenjang": [
+        "s1_kedokteran",
+        "profesi",
+        "sp1",
+        "sp2",
+        "s2",
+        "s3",
+        "lainnya"
+    ],
+    "faskes.akreditasi": [
+        "belum",
+        "dasar",
+        "utama",
+        "maju",
+        "paripurna"
+    ],
+    "faskes.tipe": [
+        "rumah_sakit",
+        "klinik",
+        "puskesmas",
+        "apotek",
+        "laboratorium"
+    ],
+    "home_care_pesanan.status": [
+        "menunggu_pembayaran",
+        "terjadwal",
+        "perjalanan",
+        "berlangsung",
+        "selesai",
+        "dibatalkan"
+    ],
+    "home_care_pesanan.tipe_layanan": [
+        "perawat",
+        "fisioterapi",
+        "dokter",
+        "bidan",
+        "vaksinasi_rumah"
+    ],
+    "invoice.referensi_tipe": [
+        "booking",
+        "konsultasi",
+        "resep",
+        "pesanan_obat",
+        "lab_permintaan",
+        "home_care"
+    ],
+    "invoice.status": [
+        "draft",
+        "menunggu_pembayaran",
+        "lunas",
+        "kadaluarsa",
+        "dibatalkan",
+        "refund_sebagian",
+        "refund_penuh"
+    ],
+    "klaim_bpjs.status": [
+        "draft",
+        "diajukan",
+        "terkirim",
+        "disetujui",
+        "ditolak",
+        "perlu_perbaikan"
+    ],
+    "klaim_bpjs.tipe_layanan": [
+        "rawat_jalan",
+        "rawat_inap"
+    ],
+    "konsultasi.status": [
+        "menunggu_dokter",
+        "berlangsung",
+        "menunggu_resep",
+        "selesai",
+        "dibatalkan",
+        "gagal"
+    ],
+    "konsultasi.tipe": [
+        "chat",
+        "video_call",
+        "telepon"
+    ],
+    "konsultasi_chat.pengirim_tipe": [
+        "pasien",
+        "dokter",
+        "sistem"
+    ],
+    "konsultasi_chat.tipe_pesan": [
+        "teks",
+        "gambar",
+        "dokumen",
+        "audio",
+        "video_note",
+        "resep",
+        "surat_keterangan",
+        "sistem"
+    ],
+    "lab_permintaan.status": [
+        "diminta",
+        "sampel_diangkat",
+        "diproses",
+        "hasil_terbit",
+        "dibatalkan"
+    ],
+    "lab_permintaan_detail.prioritas": [
+        "rutin",
+        "cepat",
+        "cito"
+    ],
+    "master_golongan_darah.kode": [
+        "A",
+        "B",
+        "AB",
+        "O"
+    ],
+    "master_lab_tindakan.kelompok": [
+        "darah",
+        "urine",
+        "hormon",
+        "kimia_darah",
+        "serologi",
+        "mikrobiologi",
+        "lainnya"
+    ],
+    "master_metode_pembayaran.tipe": [
+        "va_bank",
+        "e_wallet",
+        "qris",
+        "kartu_kredit",
+        "gerai_retail",
+        "cod",
+        "tunai",
+        "bpjs",
+        "asuransi"
+    ],
+    "master_obat.bentuk_sediaan": [
+        "tablet",
+        "kaplet",
+        "kapsul",
+        "sirup",
+        "salep",
+        "krim",
+        "gel",
+        "tetes",
+        "injeksi",
+        "inhaler",
+        "suppositoria",
+        "lainnya"
+    ],
+    "master_obat.kelas_obat": [
+        "bebas",
+        "bebas_terbatas",
+        "keras",
+        "fitofarmaka",
+        "narkotika",
+        "psikotropika"
+    ],
+    "master_obat.satuan": [
+        "tablet",
+        "kapsul",
+        "botol",
+        "tube",
+        "ampul",
+        "sachet",
+        "strip",
+        "box"
+    ],
+    "master_penjamin.tipe": [
+        "bpjs",
+        "asuransi_swasta",
+        "perusahaan",
+        "tunai"
+    ],
+    "master_promo.tipe_diskon": [
+        "persen",
+        "nominal",
+        "gratis_ongkir"
+    ],
+    "master_spesialisasi.tipe": [
+        "dokter_umum",
+        "spesialis",
+        "subspesialis"
+    ],
+    "master_status_pernikahan.nama": [
+        "belum_menikah",
+        "menikah",
+        "cerai_hidup",
+        "cerai_mati"
+    ],
+    "notifikasi.tipe": [
+        "booking",
+        "pembayaran",
+        "resep",
+        "chat",
+        "lab",
+        "promo",
+        "sistem"
+    ],
+    "obat_interaksi.tingkat": [
+        "ringan",
+        "sedang",
+        "berat",
+        "kontraindikasi"
+    ],
+    "pasien.jenis_kelamin": [
+        "L",
+        "P"
+    ],
+    "pasien.rhesus": [
+        "positif",
+        "negatif",
+        "tidak_diketahui"
+    ],
+    "pasien_alergi.keparahan": [
+        "ringan",
+        "sedang",
+        "berat",
+        "anafilaksis"
+    ],
+    "pasien_alergi.tipe_alergen": [
+        "obat",
+        "makanan",
+        "lingkungan",
+        "lainnya"
+    ],
+    "pasien_anggota_keluarga.jenis_kelamin": [
+        "L",
+        "P"
+    ],
+    "pasien_penjamin.kelas_rawat": [
+        "kelas_1",
+        "kelas_2",
+        "kelas_3"
+    ],
+    "pasien_riwayat_penyakit.status": [
+        "aktif",
+        "kronis",
+        "sembuh"
+    ],
+    "pasien_riwayat_penyakit.tipe": [
+        "pribadi",
+        "keluarga"
+    ],
+    "pasien_tanda_vital.sumber": [
+        "mandiri",
+        "dokter",
+        "perawat",
+        "iot_device"
+    ],
+    "pembayaran.gateway": [
+        "midtrans",
+        "xendit",
+        "doku",
+        "flip"
+    ],
+    "pembayaran.status": [
+        "pending",
+        "berhasil",
+        "gagal",
+        "kedaluwarsa",
+        "refund"
+    ],
+    "persetujuan_pdp.jenis": [
+        "syarat_ketentuan",
+        "kebijakan_privasi",
+        "berbagi_data_medis",
+        "pemasaran",
+        "komunikasi_tindak_lanjut"
+    ],
+    "pesanan_obat.kurir": [
+        "internal",
+        "grab_express",
+        "gojek",
+        "jne",
+        "jnt",
+        "sicepat"
+    ],
+    "pesanan_obat.status": [
+        "menunggu_pembayaran",
+        "diproses",
+        "siap",
+        "sedang_dikirim",
+        "selesai",
+        "dibatalkan"
+    ],
+    "pesanan_obat.tipe": [
+        "resep_dokter",
+        "obat_bebas",
+        "produk_kesehatan"
+    ],
+    "refund.status": [
+        "diajukan",
+        "diproses",
+        "berhasil",
+        "ditolak"
+    ],
+    "rekam_medis.status_dokumen": [
+        "draft",
+        "final",
+        "diamendemen"
+    ],
+    "rekam_medis.status_tindak_lanjut": [
+        "pulang_dengan_obat",
+        "kontrol",
+        "rujuk",
+        "rawat_inap",
+        "ke_igd"
+    ],
+    "rekam_medis.tipe_kunjungan": [
+        "telemedisin",
+        "rawat_jalan",
+        "rawat_inap",
+        "igd",
+        "home_visit"
+    ],
+    "rekam_medis_diagnosa.jenis": [
+        "utama",
+        "sekunder",
+        "diferensial",
+        "komplikasi"
+    ],
+    "rekam_medis_diagnosa.tipe_kasus": [
+        "baru",
+        "lama"
+    ],
+    "rekam_medis_lampiran.tipe": [
+        "hasil_lab",
+        "radiologi",
+        "foto_klinis",
+        "dokumen_lain"
+    ],
+    "rekam_medis_persetujuan.tipe": [
+        "general_consent",
+        "persetujuan_tindakan",
+        "penolakan_tindakan"
+    ],
+    "resep.status": [
+        "aktif",
+        "diproses",
+        "diverifikasi",
+        "dipenuhi",
+        "dikirim",
+        "selesai",
+        "kedaluwarsa",
+        "dibatalkan"
+    ],
+    "resep.tipe": [
+        "digital",
+        "manual"
+    ],
+    "resep_verifikasi.status": [
+        "sesuai",
+        "ada_koreksi",
+        "ditolak"
+    ],
+    "rujukan.status": [
+        "aktif",
+        "terpakai",
+        "kedaluwarsa"
+    ],
+    "surat_keterangan.tipe": [
+        "surat_sakit",
+        "surat_sehat",
+        "surat_rujukan",
+        "surat_kematian"
+    ],
+    "user_devices.platform": [
+        "android",
+        "ios",
+        "web"
+    ],
+    "user_otp.tujuan": [
+        "verifikasi_telepon",
+        "verifikasi_email",
+        "reset_kata_sandi",
+        "login"
+    ],
+    "users.bahasa": [
+        "id",
+        "en"
+    ],
+    "users.status": [
+        "pending_verifikasi",
+        "aktif",
+        "nonaktif",
+        "ditangguhkan"
+    ],
+    "users.tipe": [
+        "pasien",
+        "dokter",
+        "perawat",
+        "apoteker",
+        "kurir",
+        "admin",
+        "superadmin"
+    ]
+}
