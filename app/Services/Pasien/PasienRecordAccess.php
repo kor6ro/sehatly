@@ -128,15 +128,36 @@ final class PasienRecordAccess
      */
     public function ownPasien(User $user): Pasien
     {
-        $pasien = Pasien::query()
-            ->where('user_id', $user->getKey())
-            ->first();
+        $pasien = $this->ownPasienOrNull($user);
 
         if ($pasien === null) {
             throw new AccessDeniedHttpException('Endpoint ini hanya untuk akun pasien.');
         }
 
         return $pasien;
+    }
+
+    /**
+     * The `pasien` row the caller owns, or `null`.
+     *
+     * The nullable twin of {@see ownPasien()}, exactly as {@see ownDokter()} is
+     * the nullable twin of {@see ownDokterOrFail()}. It exists because a caller
+     * can legitimately own NEITHER profile row and the caller still needs to be
+     * told which case it is: `KonsultasiAccess::sisiDanKonsultasi()` asks the
+     * patient question and the doctor question in turn, and may only answer 403
+     * ("this account owns no profile at all") once BOTH have come back null. A
+     * 403 thrown by {@see ownPasien()} on the first miss would make that
+     * distinction unrepresentable, and the two answers are not the same: 403 is
+     * about the caller, 404 is about the row.
+     *
+     * The query is the one {@see ownPasien()} already ran, extracted rather than
+     * re-stated, so the two cannot drift about the `SoftDeletes` scope.
+     */
+    public function ownPasienOrNull(User $user): ?Pasien
+    {
+        return Pasien::query()
+            ->where('user_id', $user->getKey())
+            ->first();
     }
 
     /**

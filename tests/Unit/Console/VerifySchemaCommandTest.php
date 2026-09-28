@@ -182,7 +182,12 @@ test('the JSON report is machine-readable, and its exit code matches its verdict
     expect($json['expected']['tables'])->toBe(75);
     expect($json['expected']['views'])->toBe(2);
     expect($json['expected']['columns'])->toBeGreaterThan(600);
-    expect($json['live']['database'])->toBe('telemedisin_db_test');
+    // The CONFIGURED database name rather than a literal: a per-executor
+    // $env:DB_DATABASE override is a supported way to run this suite, and pinning the
+    // literal made the report test fail on any private database. config() is what the
+    // command itself reads, so this asserts the report names the database it was run
+    // against - which is the property that matters - rather than a spelling.
+    expect($json['live']['database'])->toBe(config('database.connections.mysql.database'));
     expect($json['reference']['md5'])->toBe(md5_file(base_path('telemedicine_test.sql')));
     expect($json['notes_registry']['registered_extra_tables'])->toBe($registeredExtras);
 

@@ -1443,6 +1443,13 @@ test('the route table exposes the eight auth routes and the eleven patient route
         'GET api/v1/dokter/{dokter}/jadwal',
         'GET api/v1/dokter/{dokter}/slot',
         'GET api/v1/master-spesialisasi',
+        'POST api/v1/konsultasi/mulai',
+        'GET api/v1/konsultasi/{id}',
+        'PUT api/v1/konsultasi/{id}/terima',
+        'GET api/v1/konsultasi/{id}/chat',
+        'POST api/v1/konsultasi/{id}/chat',
+        'POST api/v1/konsultasi/{id}/chat/baca',
+        'PUT api/v1/konsultasi/{id}/selesai',
     ]);
 
     // ELEVEN under the `pasien` filter: the ten above (profil read + write, two
@@ -1516,6 +1523,10 @@ test('the route table exposes the eight auth routes and the eleven patient route
             'GET api/v1/pasien/booking' => ['permission:booking.lihat'],
             'PUT api/v1/booking/{id}/batalkan' => ['permission:booking.batal'],
             'GET api/v1/dokter/booking' => ['permission:booking.lihat', 'tipe:dokter'],
+            'PUT api/v1/konsultasi/{id}/terima' => ['tipe:dokter', 'permission:konsultasi.mulai'],
+            'POST api/v1/konsultasi/{id}/chat' => ['permission:konsultasi.chat'],
+            'POST api/v1/konsultasi/{id}/chat/baca' => ['permission:konsultasi.chat'],
+            'PUT api/v1/konsultasi/{id}/selesai' => ['tipe:dokter', 'permission:konsultasi.selesai'],
         ];
 
         expect($guards)->toEqualCanonicalizing(
@@ -1553,11 +1564,17 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
     // else. The 24 codes name no patient-profile, family or allergy action,
     // and adding any other code is a policy change in `app/Support/Rbac/`.
     expect(array_map(static fn (array $m): string => $m[0], $matches))->toEqualCanonicalizing([
+        "'permission:booking.lihat'",
         "'permission:booking.buat'",
         "'permission:booking.batal'",
         "'permission:booking.lihat'",
-        "'permission:booking.lihat'",
         "'tipe:dokter'",
+        "'tipe:dokter'",
+        "'permission:konsultasi.mulai'",
+        "'permission:konsultasi.chat'",
+        "'permission:konsultasi.chat'",
+        "'tipe:dokter'",
+        "'permission:konsultasi.selesai'",
     ]);
 });
 

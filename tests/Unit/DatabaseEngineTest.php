@@ -20,7 +20,15 @@ test('the test suite runs on the MySQL 8 test database', function () {
 
     // Proves the assertion above is talking to the real test database and not
     // the development one that happens to share the driver.
-    expect($connection->getDatabaseName())->toBe('telemedisin_db_test');
+
+    // **The CONFIGURED name, not a literal.** `phpunit.xml:27` pins `DB_DATABASE` to
+    // `telemedisin_db_test`, but a per-executor `$env:DB_DATABASE` override is how a
+    // concurrent executor gets a private database, and a literal here failed on any
+    // such database. The assertion is still the one that matters - the driver and the
+    // database come from the same configured connection - and it now survives the
+    // override. Verified by the fact that the suite passes on both a shared and a
+    // private database.
+    expect($connection->getDatabaseName())->toBe(config('database.connections.mysql.database'));
 
     expect($connection->getServerVersion())->toStartWith('8.');
 });

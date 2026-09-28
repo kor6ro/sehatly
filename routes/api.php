@@ -246,6 +246,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
 });
 
 use App\Http\Controllers\Api\V1\DokterController;
+use App\Http\Controllers\Api\V1\KonsultasiController;
 
 /*
 |--------------------------------------------------------------------------
@@ -320,3 +321,126 @@ Route::get('dokter/{dokter}/slot', [DokterController::class, 'slot'])
 
 Route::get('master-spesialisasi', [DokterController::class, 'spesialisasiIndex'])
     ->name('master-spesialisasi.index');
+
+/*
+|--------------------------------------------------------------------------
+| Module 3 -- the consultation lifecycle and its chat transcript
+|--------------------------------------------------------------------------
+|
+| APPENDED by todo 32. Nothing above this line is touched: todo 20 owns the eight
+| auth routes, todo 21 the eleven patient routes, todo 22 and the gap closure the
+| five public `dokter` routes, and todo 27 the four booking routes. This block is
+| last in the file, which is the only ordering constraint it has: no route above
+| it can swallow a two- or three-segment `konsultasi` path, and no route in it can
+| swallow a path above it.
+|
+| ## Seven routes, and the seventh is not in the plan
+|
+| The plan's acceptance criterion says this path "lists 6 routes". It lists 7
+| because `PUT /konsultasi/{id}/terima` had to be added, and the reason is structural
+| rather than a matter of taste:
+|
+| - The plan requires `PUT /konsultasi/{id}/selesai` to compute `total_durasi_detik`
+|   from `mulai_at` and to answer 422 while `mulai_at` is null.
+| - `mulai_at` is `DATETIME NULL` (`telemedicine_test.sql:545`) and NOTHING in
+|   the plan's six endpoints writes it.
+| - `berlangsung` is therefore unreachable, and a consultation that never reaches
+|   `berlangsung` can never reach `selesai`, so the plan's own completion endpoint
+|   could only ever answer 422.
+|
+| `RbacCatalog::ROLE_PERMISSIONS` is the corroborating evidence that the step was
+| always intended: `konsultasi.mulai` ("Mulai Konsultasi") is granted to `dokter` and to
+| `superadmin` and to nobody else, and before this route no endpoint consumed that
+| code. It is a doctor-side start-of-session, and the plan lost the route rather
+| than the code. Recorded as a finding in `.omo/evidence/task-32-sehatly.md`.
+|
+| ## The guards, and why three of the seven carry none
+|
+| `auth:sanctum` is named on the group, for the same reason it is on the auth
+| group: an unauthenticated caller gets the guard's 401 envelope rather than this
+| controller's 403, and a route added to this file later cannot be unprotected by
+| omission.
+|
+| | route | `permission:` | `tipe:` | who is refused, and why |
+| | --- | --- | --- | --- |
+| | `POST /konsultasi/mulai` | - | - | any account with no `pasien` row, 403 from `ownPasien()` |
+| | `GET /konsultasi/{id}` | - | - | a non-party, 404; `superadmin` is allowed by the plan |
+| | `GET /konsultasi/{id}/chat` | - | - | a non-party, 404 |
+| | `PUT /konsultasi/{id}/terima` | `konsultasi.mulai` | `dokter` | patient, apoteker, admin, perawat, kurir, superadmin |
+| | `POST /konsultasi/{id}/chat` | `konsultasi.chat` | - | apoteker, admin, perawat, kurir, superadmin |
+| | `POST /konsultasi/{id}/chat/baca` | `konsultasi.chat` | - | same |
+| | `PUT /konsultasi/{id}/selesai` | `konsultasi.selesai` | `dokter` | same as `/terima` |
+|
+| All three consultation permission codes in `RbacCatalog::PERMISSIONS` are
+| consumed here, and each is used where the plan names the action. The three
+| ungated routes are a decision, not an omission:
+|
+| 1. No code names "read a consultation", so a `permission:` there would have to
+|    be invented - and `EnsurePermission` answers an unknown code with a
+|    **500**, not a 403, which is the failure mode `RbacCatalog`'s docblock and
+|    `PasienRecordAccess`'s both cite as the reason not to.
+| 2. The plan's `admin`/`superadmin` read allowance is a disjunction - "a party OR
+|    an oversight account" - and a route gate can only express a conjunction.
+|    `tipe:admin,superadmin` would exclude the patient and the doctor. It is in
+|    `KonsultasiAccess::findForRead()` instead, which delegates the party half of the
+|    disjunction to the ONE rule `routes/channels.php` uses.
+| 3. `POST /konsultasi/mulai` is a patient action, and `PasienRecordAccess::ownPasien()`
+|    already answers "does this account own a patient profile?" with a 403.
+|    `PasienRecordAccess` argues at length against a `tipe:pasien` in front of it,
+|    and this route follows that reasoning instead of restating it.
+|
+| `perawat` and `kurir` are real `users.tipe` values (`telemedicine_test.sql:139`)
+| that hold no role, so ANY `permission:` would lock them out of that route
+| permanently. They are refused on all seven anyway, and the reason is rows they do
+| not own rather than a role they lack: 403 on the two chat writes and on
+| `POST /mulai`, 404 on the three reads, and 403 at `tipe:dokter` on the two
+| doctor-only writes.
+|
+| ## `whereNumber('id')` on every `{id}`
+|
+| `konsultasi.id` and `KonsultasiChat.id` are `BIGINT UNSIGNED AUTO_INCREMENT` primary keys
+| (`:537`, `:564`). `whereNumber` makes a non-numeric segment a router 404, so the
+| controllers take an `int` and no request can arrive with `abc` in a position the
+| API treats as an identifier. `POST /mulai` is a one-segment path and needs none.
+|
+| ## No `Route::resource` and no `Route::apiResource`
+|
+| The six lifecycle operations have six distinct verbs and two distinct shapes
+| (`/chat` is both a GET and a POST, `/chat/baca` is neither), so a resource
+| route would publish methods this surface does not have.
+*/
+
+Route::middleware('auth:sanctum')->group(function (): void {
+    Route::prefix('konsultasi')->name('konsultasi.')->group(function (): void {
+        Route::post('mulai', [KonsultasiController::class, 'mulai'])
+            ->name('mulai');
+
+        Route::get('{id}', [KonsultasiController::class, 'show'])
+            ->whereNumber('id')
+            ->name('show');
+
+        Route::put('{id}/terima', [KonsultasiController::class, 'terima'])
+            ->whereNumber('id')
+            ->middleware(['tipe:dokter', 'permission:konsultasi.mulai'])
+            ->name('terima');
+
+        Route::get('{id}/chat', [KonsultasiController::class, 'chatIndex'])
+            ->whereNumber('id')
+            ->name('chat.index');
+
+        Route::post('{id}/chat', [KonsultasiController::class, 'chatStore'])
+            ->whereNumber('id')
+            ->middleware('permission:konsultasi.chat')
+            ->name('chat.store');
+
+        Route::post('{id}/chat/baca', [KonsultasiController::class, 'chatBaca'])
+            ->whereNumber('id')
+            ->middleware('permission:konsultasi.chat')
+            ->name('chat.baca');
+
+        Route::put('{id}/selesai', [KonsultasiController::class, 'selesai'])
+            ->whereNumber('id')
+            ->middleware(['tipe:dokter', 'permission:konsultasi.selesai'])
+            ->name('selesai');
+    });
+});

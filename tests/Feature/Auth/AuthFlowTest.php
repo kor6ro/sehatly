@@ -1289,11 +1289,17 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
     // else. A sixth string here is a policy change that must arrive with its
     // catalogue entry in the same commit.
     expect(array_map(static fn (array $m): string => $m[0], $matches))->toEqualCanonicalizing([
+        "'permission:booking.lihat'",
         "'permission:booking.buat'",
         "'permission:booking.batal'",
         "'permission:booking.lihat'",
-        "'permission:booking.lihat'",
         "'tipe:dokter'",
+        "'tipe:dokter'",
+        "'permission:konsultasi.mulai'",
+        "'permission:konsultasi.chat'",
+        "'permission:konsultasi.chat'",
+        "'tipe:dokter'",
+        "'permission:konsultasi.selesai'",
     ]);
 });
 
