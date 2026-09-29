@@ -16,6 +16,10 @@ import { BookingCreatePage } from '@/pages/booking-create-page';
 import { DoctorBookingsPage } from '@/pages/doctor-bookings-page';
 import { KonsultasiPage } from '@/pages/konsultasi-page';
 import { RekamMedisPage } from '@/pages/rekam-medis-page';
+import { ResepComposePage } from '@/pages/resep-compose-page';
+import { ResepDetailPage } from '@/pages/resep-detail-page';
+import { ApotekQueuePage } from '@/pages/apotek-queue-page';
+import { PasienRiwayatResepPage } from '@/pages/pasien-resep-page';
 
 /**
  * The route table.
@@ -124,6 +128,34 @@ export const router = createBrowserRouter([
                             {
                                 path: '/rekam-medis/:id',
                                 element: <RekamMedisPage />,
+                            },
+
+                            /**
+                             * Module 4. All four sit inside `RequireAuth` because every
+                             * endpoint behind them carries `auth:sanctum`, and each one is
+                             * gated on `user.tipe` inside the page rather than here - the
+                             * same split the two screens above use.
+                             *
+                             * `/konsultasi/:id/resep` is a three-segment path and
+                             * `/konsultasi/:id` is a two-segment one, so the longer literal is
+                             * a distinct route rather than a parameter: no ordering
+                             * constraint is needed and none is relied on.
+                             */
+                            {
+                                path: '/konsultasi/:id/resep',
+                                element: <ResepComposePage />,
+                            },
+                            {
+                                path: '/resep/:id',
+                                element: <ResepDetailPage />,
+                            },
+                            {
+                                path: '/apotek/resep',
+                                element: <ApotekQueuePage />,
+                            },
+                            {
+                                path: '/pasien/resep',
+                                element: <PasienRiwayatResepPage />,
                             },
                         ],
                     },

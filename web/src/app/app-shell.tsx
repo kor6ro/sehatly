@@ -7,6 +7,7 @@ import {
     HeartPulse,
     LogOut,
     MessagesSquare,
+    Pill,
     ShieldAlert,
     Stethoscope,
 } from 'lucide-react';
@@ -111,6 +112,8 @@ function AppSidebar() {
 
     const user = me.data?.data.user ?? null;
     const isPasien = user?.tipe === 'pasien';
+    const isDokter = user?.tipe === 'dokter';
+    const isApotek = user?.tipe === 'apoteker' || user?.tipe === 'superadmin';
 
     return (
         <Sidebar collapsible="icon">
@@ -258,6 +261,61 @@ function AppSidebar() {
                                 </NavLink>
                             </SidebarMenuButton>
                         </SidebarMenuItem>
+                    </SidebarMenu>
+                </SidebarGroup>
+
+                {/**
+                 * Module 4's four screens, split by who each one is for rather than
+                 * rendered for everyone.
+                 *
+                 * The prescription composer and the pharmacy queue are the two genuinely
+                 * single-audience screens here: `POST /konsultasi/{id}/resep` carries
+                 * `tipe:dokter` and `POST /resep/{id}/verifikasi` carries `tipe:apoteker`, so
+                 * showing either to the wrong account type costs a 403 screen. The detail
+                 * and the history are shown more widely - `resep.lihat` is held by `pasien`,
+                 * `dokter`, `apoteker` AND `superadmin` - and their content explains the
+                 * refusal for whoever cannot act on it, which is the server's contract
+                 * rather than a client-side guess.
+                 */}
+                <SidebarGroup>
+                    <SidebarGroupLabel>Resep</SidebarGroupLabel>
+
+                    <SidebarMenu>
+                        {isDokter ? (
+                            <SidebarMenuItem>
+                                <SidebarMenuButton asChild>
+                                    <NavLink to="/konsultasi/1/resep">
+                                        <Pill />
+
+                                        Tulis resep
+                                    </NavLink>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                        ) : null}
+
+                        {isApotek ? (
+                            <SidebarMenuItem>
+                                <SidebarMenuButton asChild>
+                                    <NavLink to="/apotek/resep">
+                                        <ClipboardCheck />
+
+                                        Antrean apoteker
+                                    </NavLink>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                        ) : null}
+
+                        {isPasien ? (
+                            <SidebarMenuItem>
+                                <SidebarMenuButton asChild>
+                                    <NavLink to="/pasien/resep">
+                                        <Pill />
+
+                                        Riwayat resep
+                                    </NavLink>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                        ) : null}
                     </SidebarMenu>
                 </SidebarGroup>
             </SidebarContent>

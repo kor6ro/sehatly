@@ -7,7 +7,8 @@ import {
     CATATAN_APOTEKER_MAKS,
     STATUS_BISA_DIVERIFIKASI,
     STATUS_VERIFIKASI,
-    butuhPengakuan,
+    perluCatatan,
+    semuaPeringatan,
     cekInteraksiOptions,
     resepOptions,
     verifikasiResepMutation,
@@ -190,16 +191,9 @@ function AntreanResep({
      */
     const bisa = STATUS_BISA_DIVERIFIKASI.some((s) => s === resep.status);
 
-    const semuaPeringatan =
-        warningGrup === null
-            ? []
-            : [
-                  ...warningGrup.antar_item,
-                  ...warningGrup.riwayat_resep,
-                  ...warningGrup.alergi,
-              ];
+    const semua = warningGrup === null ? [] : semuaPeringatan(warningGrup);
 
-    const butuhCatatan = butuhPengakuan(semuaPeringatan) && status !== 'ditolak';
+    const butuhCatatan = perluCatatan(semua) && status !== 'ditolak';
 
     const terkunci = status === null || (butuhCatatan && catatan.trim() === '');
 
