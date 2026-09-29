@@ -100,16 +100,49 @@ final class PdpConsent
     }
 
     /**
+     * The three-state answer: `true`, `false`, or `null` for "no row at all".
+     *
+     * ## Why this is not {@see disetujui()} with a different name
+     *
+     * `disetujui()` collapses `null` into `false`, which is the right direction
+     * for a GATE: an account with no consent row must be refused, and "refused"
+     * and "never asked" lead to the same place. It is the wrong shape for a
+     * READ, and this endpoint is a read: a consent checklist whose unchecked box
+     * and whose ticked-then-unticked box both render as "no" is a checklist that
+     * cannot show a person what is on record about them, which is the whole point
+     * of publishing the record at all.
+     *
+     * So the two are deliberately different methods with deliberately different
+     * return types, and this docblock is the only place that has to say so:
+     *
+     * | state | `effective()` | `disetujui()` |
+     * | --- | --- | --- |
+     * | no row at all | `null` | `false` |
+     * | highest version says yes | `true` | `true` |
+     * | highest version says no | `false` | `false` |
+     *
+     * @throws LogicException when `$jenis` is not a value of the DDL ENUM
+     */
+    public function effective(User $user, string $jenis): ?bool
+    {
+        $terbaru = $this->versiTerbaru($user, $jenis);
+
+        return $terbaru === null ? null : (bool) $terbaru->disetujui;
+    }
+
+    /**
      * The highest `versi_dokumen` row of `$jenis` for `$user`, or `null`.
      *
      * `orderByDesc('versi_dokumen')` is a STRING order because the column is
-     * `VARCHAR(20)` (`:1139`) - see the class docblock for why that is a convention
-     * rather than a numeric comparison and what it costs. `disetujui_at` is a
-     * `DATETIME NOT NULL` (`:1141`) and is NOT used as a tiebreaker, because
-     * `uq_consent` already makes `(user_id, jenis, versi_dokumen)` unique: there is
-     * never a second row to break a tie with, and ordering by a wall-clock `DATETIME`
-     * would be a different - and unsynchronised - notion of "latest" for a document
-     * whose version number is the authority.
+     * `VARCHAR(20)` (`:1139`) and the database's default collation is
+     * `utf8mb4_unicode_ci` (`telemedicine_test.sql:13`) - see the class docblock
+     * for why that is a convention rather than a numeric comparison and what it
+     * costs. `disetujui_at` is a `DATETIME NOT NULL` (`:1141`) and is NOT used as
+     * a tiebreaker, because `uq_consent` already makes `(user_id, jenis,
+     * versi_dokumen)` unique: there is never a second row to break a tie with, and
+     * ordering by a wall-clock `DATETIME` would be a different - and
+     * unsynchronised - notion of "latest" for a document whose version number is
+     * the authority.
      *
      * @throws LogicException when `$jenis` is not a value of the DDL ENUM
      */
@@ -144,5 +177,23 @@ final class PdpConsent
         }
 
         return Carbon::instance($consent->disetujui_at)->toISOString();
+    }
+
+    /**
+     * One entry per `jenis` in DDL order, carrying the row the version rule reads.
+     *
+     * The ordering is read from the DDL by {@see PersetujuanPdpJenis::nilai()}
+     * rather than from whatever order a query happened to return, because the
+     * consumer is a consent CHECKLIST: five slots, in a fixed order, each either
+     * carrying the effective answer or explicitly `null`. A checklist that
+     * omitted the unanswered kinds would push the "has this person answered
+     * this yet" rule into every client, and three clients would answer it three
+     * ways.
+     *
+     * @return list<array{jenis: string, baris: PersetujuanPdp|null}>
+     */
+    public function ringkasan(User $user): array
+    {
+        return app(PdpConsentService::class)->ringkasan($user);
     }
 }

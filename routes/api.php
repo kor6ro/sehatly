@@ -1174,3 +1174,105 @@ Route::post('invoice/{id}/bayar', [PembayaranController::class, 'bayar'])
 Route::post('webhook/payment/{gateway}', [PembayaranController::class, 'webhook'])
     ->whereIn('gateway', PembayaranGateway::untukRute())
     ->name('webhook.pembayaran');
+
+use App\Http\Controllers\Api\V1\NotifikasiController;
+use App\Http\Controllers\Api\V1\PersetujuanPdpController;
+
+/*
+|--------------------------------------------------------------------------
+| Module 5 -- PDP consent and the notification centre
+|--------------------------------------------------------------------------
+|
+| APPENDED by todo 47. Five routes in two groups, and the split is the whole
+| design: a person DECIDES, and an inbox TELLS them about it.
+|
+| | route | auth | guard | writes |
+| | --- | --- | --- | --- |
+| | `POST pdp/persetujuan` | `auth:sanctum` | - | one `persetujuan_pdp` row |
+| | `GET pdp/persetujuan` | `auth:sanctum` | - | nothing |
+| | `GET notifikasi` | `auth:sanctum` | `permission:notifikasi.lihat` | nothing |
+| | `PUT notifikasi/{id}/baca` | `auth:sanctum` | `permission:notifikasi.lihat` | one `dibaca_at` |
+| | `PUT notifikasi/baca-semua` | `auth:sanctum` | `permission:notifikasi.lihat` | many `dibaca_at` |
+|
+| ## The two consent routes carry NO `permission:`, and the one obvious code is
+| ## the one that must not be used here
+|
+| `RbacCatalog::PERMISSIONS` holds `pdp.kelola`, granted to `admin` and
+| `superadmin` and to nobody else. Putting it on a route about the caller's OWN
+| consent would lock out every patient, every doctor and every pharmacist - the
+| only people whose consents these are. A route with no guard is safe here
+| precisely because the service scopes every query to
+| `$request->user()->getKey()`: there is no `user_id` in the path, in the body or
+| in the query string, so there is no cross-tenant question for a permission to
+| answer.
+|
+| `pdp.kelola` therefore has NO consumer after this todo, and that is deliberate
+| rather than forgotten - `PdpNotificationTest` asserts it, so the claim cannot rot
+| into a false one. The reason is a compliance one: a route letting an `admin`
+| RECORD a data subject's consent would be a defect wearing a permission code,
+| because UU PDP asks the person and not their employer. The code stays in the
+| catalogue for the future admin READ surface, which is a different route and one
+| this todo declines to invent.
+|
+| `perawat` and `kurir` are the flip side. They are real `users.tipe` values
+| (:139) that hold NO role, so any `permission:` would lock them out of these
+| routes permanently - so the consent routes are open to them, and the three
+| notification routes are not. The asymmetry is asserted by the test, and its fix
+| is a data change in `app/Support/Rbac/RbacCatalog.php` plus a re-seed, not a
+| change here.
+|
+| ## The plan says FOUR new routes. There are FIVE.
+|
+| The plan's todo 47 acceptance criteria name four and its own prose names five
+| (`POST pdp/persetujuan`, `GET pdp/persetujuan`, `GET notifikasi`,
+| `PUT notifikasi/{id}/baca`, `PUT notifikasi/baca-semua`). The prose is right and
+| the count is an undercount; all five are registered. Recorded rather than
+| silently reconciled, because a plan whose arithmetic disagrees with itself is
+| something a later executor needs to see rather than be shown a tidied-up
+| version of.
+|
+| ## `whereNumber` on `{id}`
+|
+| `notifikasi.id` is a `BIGINT UNSIGNED AUTO_INCREMENT` primary key (:1037), so a
+| non-numeric segment is a ROUTER 404 - byte-identical to the 404 an id that does
+| not exist, or one belonging to another account, produces, which is the point.
+|
+| ## `baca-semua` is registered before `{id}/baca` out of reading order, not out of
+| ## necessity
+|
+| They cannot collide: one is two segments and the other three, and `{id}` is
+| numeric. The registration order here follows the list order above so a reader
+| comparing this block with the table above is not hunting.
+|
+| ## No `Route::resource`
+|
+| One decision, one checklist, one list, one stamp and one bulk stamp - five
+| distinct verbs, and no destroy anywhere. `notifikasi` has no soft-delete column
+| and a notification a client could delete is a record of an event that has not
+| been read, which is the one thing this table exists to say.
+|
+| @see \App\Services\Pdp\PdpConsentService the version rule
+| @see \App\Services\Pdp\PerubahanVersiException the revoked-same-version collision
+| @see \App\Services\Notifikasi\NotificationService the only notification producer
+*/
+
+Route::post('pdp/persetujuan', [PersetujuanPdpController::class, 'store'])
+    ->middleware(['auth:sanctum'])
+    ->name('pdp.persetujuan.store');
+
+Route::get('pdp/persetujuan', [PersetujuanPdpController::class, 'index'])
+    ->middleware(['auth:sanctum'])
+    ->name('pdp.persetujuan.index');
+
+Route::get('notifikasi', [NotifikasiController::class, 'index'])
+    ->middleware(['auth:sanctum', 'permission:notifikasi.lihat'])
+    ->name('notifikasi.index');
+
+Route::put('notifikasi/{id}/baca', [NotifikasiController::class, 'baca'])
+    ->whereNumber('id')
+    ->middleware(['auth:sanctum', 'permission:notifikasi.lihat'])
+    ->name('notifikasi.baca');
+
+Route::put('notifikasi/baca-semua', [NotifikasiController::class, 'bacaSemua'])
+    ->middleware(['auth:sanctum', 'permission:notifikasi.lihat'])
+    ->name('notifikasi.baca-semua');

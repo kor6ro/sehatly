@@ -5,6 +5,8 @@ namespace App\Providers;
 use App\Services\Audit\AuditObserverRegistrar;
 use App\Services\Auth\LogOtpSender;
 use App\Services\Auth\OtpSender;
+use App\Services\Notifikasi\LogPushDispatcher;
+use App\Services\Notifikasi\PushDispatcher;
 use App\Services\Payment\MockPaymentGatewayService;
 use App\Services\Payment\PaymentGatewayService;
 use App\Services\SuratKeterangan\QrTokenGenerator;
@@ -39,8 +41,9 @@ class AppServiceProvider extends ServiceProvider
         $this->configureDefaults();
         $this->configureOtpDelivery();
         $this->configureRateLimiting();
-        $this->configureAuditObservers();
-    }
+            $this->configureAuditObservers();
+            $this->configureNotificationPush();
+        }
 
     /**
      * Configure default behaviors for production-ready applications.
@@ -223,6 +226,26 @@ class AppServiceProvider extends ServiceProvider
     private function configureAuditObservers(): void
     {
         AuditObserverRegistrar::registerAll();
+    }
+
+    /**
+     * The push transport for `NotificationService`.
+     *
+     * Bound here rather than injected by concrete type because
+     * `PushDispatcher` is a contract with one implementation today and a real
+     * FCM client tomorrow, and the choice of transport is a deployment decision
+     * like the OTP sender's - which is why {@see configureOtpDelivery()} exists
+     * in the same provider for the same reason.
+     *
+     * The log is the delivery record because `notifikasi` cannot hold one: no
+     * `dikirim_at`, no `status_kirim`, no `channel`.
+     *
+     * @see \App\Services\Notifikasi\LogPushDispatcher for the limitation
+     * @see \App\Services\Notifikasi\PushDispatcher for the contract
+     */
+    private function configureNotificationPush(): void
+    {
+        $this->app->bind(PushDispatcher::class, LogPushDispatcher::class);
     }
 
     /**
