@@ -143,11 +143,11 @@ export function CheckoutForm({
                     <Field
                         label="Apotek"
                         required
+                        slot="checkout-apotek"
                         errors={alasanApotek}
                         hint="Daftar apotek diambil dari alternatif pada GET /api/v1/obat/{id}/stok. Tidak ada endpoint yang mendaftar apotek."
                     >
                         <FieldSelect
-                            data-slot="checkout-apotek"
                             value={apotekId}
                             onValueChange={setApotekId}
                             placeholder="Pilih apotek"

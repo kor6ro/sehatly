@@ -34,6 +34,15 @@ import type {
  * (`recorded: true`, `jumlah_stok: 0`). The first is a permanent "this pharmacy does not
  * carry it" and the second is "ask again tomorrow", and a screen that renders both as
  * "stok 0" sends a patient to a shop that was never going to help. See {@link StokObat}.
+ *
+ * ## The response is `data.stok`, NOT `data`
+ *
+ * `PesananObatController::stok()` wraps the pass-through resource under a `stok` key, and
+ * the shape is a read that is easy to get one level wrong. Measured on the live API:
+ * `{"data":{"stok":{"obat_id":2,"jumlah_diminta":1,"apotek":null,"alternatif":[...]}}}`.
+ * A reader written against `data.alternatif` reads `undefined` and concludes - wrongly -
+ * that no pharmacy stocks the drug, which is exactly the failure this screen exists to
+ * prevent.
  */
 
 /**
@@ -114,7 +123,7 @@ export function urutanStatusPesanan(value: StatusPesananObat): number | null {
 }
 
 export async function cekStokObat(obatId: number, params: CekStokParams = {}) {
-    return request<StokObat>(`obat/${obatId}/stok`, {
+    return request<{ stok: StokObat }>(`obat/${obatId}/stok`, {
         searchParams: {
             ...(params.apotekId == null ? {} : { apotek_id: params.apotekId }),
             ...(params.jumlah == null ? {} : { jumlah: params.jumlah }),

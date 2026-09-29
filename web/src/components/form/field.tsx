@@ -62,6 +62,7 @@ export function Field({
     hint,
     required,
     className,
+    slot,
     children,
 }: {
     label: string;
@@ -69,6 +70,17 @@ export function Field({
     hint?: string;
     required?: boolean;
     className?: string;
+    /**
+     * Replaces the emitted `data-slot="field"` so a caller can address ONE field in a form
+     * that holds several.
+     *
+     * `FieldSelect` renders its trigger through `useId()`, so the generated `id` differs on
+     * every mount and is not a stable selector; and neither `Field` nor `FieldSelect` spreads
+     * unknown props, so a `data-slot` passed to either is silently dropped rather than
+     * rejected. This is the one place a form field gets a stable test hook, which is what
+     * the checkout and payment-method pickers need to assert on.
+     */
+    slot?: string;
     children: ReactNode;
 }) {
     const id = useId();
@@ -82,7 +94,10 @@ export function Field({
             .join(' ') || undefined;
 
     return (
-        <div data-slot="field" className={cn('flex flex-col gap-1.5', className)}>
+        <div
+            data-slot={slot ?? 'field'}
+            className={cn('flex flex-col gap-1.5', className)}
+        >
             <Label htmlFor={id}>
                 {label}
 
@@ -202,7 +217,24 @@ export function FieldSelect({
                 aria-describedby={control.describedBy}
                 className={className}
             >
-                {placeholder === undefined ? <SelectValue /> : placeholder}
+                {/**
+                 * FIXED: this rendered the raw `placeholder` string INSTEAD of
+                 * `SelectValue`, so a `FieldSelect` could never display the value the user
+                 * had chosen - the trigger kept saying "Pilih..." after a successful
+                 * selection, and the surrounding form looked broken while the underlying
+                 * state was correct.
+                 *
+                 * `SelectValue` takes `placeholder` as a PROP precisely for this: it shows
+                 * the selected item's own text, and falls back to the placeholder only while
+                 * nothing is selected. The three pre-existing call sites
+                 * (`doctor-directory-page.tsx` twice, `register-page.tsx` once) all pass a
+                 * placeholder, so all three were affected.
+                 *
+                 * Caught by driving the real UI, not by the type checker: the bug is a
+                 * rendering mistake, not a type error, and the state behind it was correct
+                 * the whole time.
+                 */}
+                <SelectValue placeholder={placeholder} />
             </SelectTrigger>
 
             <SelectContent>{children}</SelectContent>

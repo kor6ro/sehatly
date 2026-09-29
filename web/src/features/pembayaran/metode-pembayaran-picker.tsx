@@ -69,10 +69,10 @@ export function MetodePembayaranPicker({
         <Field
             label="Metode pembayaran"
             required
+            slot="metode-pembayaran"
             hint="Fee admin dihitung server dari subtotal dikurangi diskon. Angka di bawah hanya perkiraan."
         >
             <FieldSelect
-                data-slot="metode-pembayaran"
                 value={value}
                 onValueChange={onValueChange}
                 placeholder="Pilih metode"

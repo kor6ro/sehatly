@@ -94,7 +94,7 @@ export function useStokResep(
      * shelf cannot serve, which is the exact failure the stock guard exists to prevent -
      * the patient picks, the server refuses, and the screen looks like it lied.
      */
-    const daftar = kandidatQuery.map((q) => q.data?.data.alternatif ?? []);
+    const daftar = kandidatQuery.map((q) => q.data?.data.stok.alternatif ?? []);
 
     const kandidat = daftar.length === 0 ? [] : daftar.slice(1).reduce(
         (acc, list) => acc.filter((a) => list.some((b) => b.apotek_id === a.apotek_id)),
@@ -111,14 +111,15 @@ export function useStokResep(
         }
 
         const index = cekabel.findIndex((c) => c.obatId === b.obatId && c.jumlah === b.jumlah);
-        const apotek = apotekId === null ? null : (shelfQuery[index]?.data?.data.apotek ?? null);
+        const apotek =
+            apotekId === null ? null : (shelfQuery[index]?.data?.data.stok.apotek ?? null);
 
         return { ...b, apotek, cukup: apotek?.cukup ?? null };
     });
 
     const adaYangGagal =
         apotekId !== null &&
-        shelfQuery.some((q) => q.isError || (q.isSuccess && q.data.data.apotek === null));
+        shelfQuery.some((q) => q.isError || (q.isSuccess && q.data.data.stok.apotek === null));
 
     return {
         baris: withShelf,
