@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Requests\Pdp;
 
 use App\Enums\PersetujuanPdpJenis;
-use App\Models\PersetujuanPdp;
+use App\Services\Pdp\PdpConsentService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -44,7 +44,7 @@ use Illuminate\Validation\Rule;
  * `VARCHAR(20)` (`:1139`), so `max:20` is the schema's limit and not a product
  * decision. The application-layer rule about what a version string means - that
  * "highest" is a STRING order and therefore wants fixed-width values - belongs to
- * {@see \App\Services\Pdp\PdpConsentService}, not here: a client cannot be told
+ * {@see PdpConsentService}, not here: a client cannot be told
  * which document is current, so it cannot be asked to produce a well-ordered
  * version.
  */

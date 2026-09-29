@@ -84,7 +84,7 @@ final class PdpConsent
      * obtain through the consent flow.
      *
      * @throws AccessDeniedHttpException when there is no consent, or the latest one is a refusal
-     * @throws LogicException            when `$jenis` is not a value of the DDL ENUM
+     * @throws LogicException when `$jenis` is not a value of the DDL ENUM
      */
     public function require(User $user, string $jenis): PersetujuanPdp
     {

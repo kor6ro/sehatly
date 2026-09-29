@@ -9,6 +9,7 @@ use App\Http\Requests\Notifikasi\IndexNotifikasiRequest;
 use App\Http\Resources\NotifikasiResource;
 use App\Models\Notifikasi;
 use App\Models\User;
+use App\Services\Notifikasi\NotificationService;
 use App\Support\ApiResponse;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
@@ -32,7 +33,7 @@ use Symfony\Component\HttpFoundation\Response;
  * create, edit or delete a row, and it may not set `dibuat_at` - a notification
  * placed in the past is a fabricated record, and a notification placed in the
  * future is a way to make a list look stale.
- * {@see \App\Services\Notifikasi\NotificationService} is the only producer, and
+ * {@see NotificationService} is the only producer, and
  * it is called by module services rather than by controllers.
  *
  * Both write routes take NO body: `Request` is injected rather than a

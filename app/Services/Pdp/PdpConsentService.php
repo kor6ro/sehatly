@@ -104,8 +104,8 @@ final class PdpConsentService
      *
      * @param  string|null  $ip  the request's address, or null outside a request
      *
-     * @throws PerubahanVersiException         on the collision or an out-of-order write
-     * @throws LogicException                   when `$jenis` is not a value of the DDL ENUM
+     * @throws PerubahanVersiException on the collision or an out-of-order write
+     * @throws LogicException when `$jenis` is not a value of the DDL ENUM
      * @throws UniqueConstraintViolationException never - it is caught and mapped
      */
     public function catat(User $user, string $jenis, string $versi, bool $disetujui, ?string $ip = null): PersetujuanPdp

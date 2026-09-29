@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Pdp;
 
+use App\Http\Controllers\Api\V1\PersetujuanPdpController;
 use RuntimeException;
 
 /**
@@ -48,11 +49,11 @@ use RuntimeException;
  * Do not retry - a retry is byte-identical and is refused identically. Read
  * `GET /api/v1/pdp/persetujuan` and use the `efektif` value on the entry for
  * that `jenis`; see the docblock of
- * {@see \App\Http\Controllers\Api\V1\PersetujuanPdpController}, which is the
+ * {@see PersetujuanPdpController}, which is the
  * one place a client is told, and assert it here rather than repeating it.
  *
- * @see \App\Services\Pdp\PdpConsentService for the rule that raises it
- * @see \App\Services\Pdp\PdpConsent for the version rule it protects
+ * @see PdpConsentService for the rule that raises it
+ * @see PdpConsent for the version rule it protects
  */
 class PerubahanVersiException extends RuntimeException
 {

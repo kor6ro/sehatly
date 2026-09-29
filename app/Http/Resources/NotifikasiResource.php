@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Resources;
 
 use App\Models\Notifikasi;
+use App\Services\Notifikasi\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Carbon;
@@ -14,7 +15,7 @@ use Illuminate\Support\Carbon;
  *
  * ## `payload` is passed through, unfiltered, and that is a decision
  *
- * `payload JSON NULL` (`:1043`) is written by {@see \App\Services\Notifikasi\NotificationService}
+ * `payload JSON NULL` (`:1043`) is written by {@see NotificationService}
  * and read by nobody but the client. This resource does not reshape it: a client
  * that knows it will get `{"booking_id": 1001}` for a booking notification should
  * not have to handle a second shape when a different event arrives, and the

@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Http\Resources;
 
 use App\Models\PersetujuanPdp;
+use App\Services\Pdp\PdpConsent;
+use App\Services\Pdp\PdpConsentService;
+use App\Support\NikMasker;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Carbon;
@@ -27,8 +30,8 @@ use Illuminate\Support\Carbon;
  * `efektif` is `true`, `false`, or `null`, and `null` means "no row has ever been
  * recorded for this document" - a different fact from `false`, which means "a row
  * says the person refused".
- * {@see \App\Services\Pdp\PdpConsent::effective()} is what makes the distinction
- * available and {@see \App\Services\Pdp\PdpConsent::disetujui()} is what the gates
+ * {@see PdpConsent::effective()} is what makes the distinction
+ * available and {@see PdpConsent::disetujui()} is what the gates
  * use, where collapsing the two into `false` is the safe direction.
  *
  * The remaining keys are published as `null` rather than omitted, for the same
@@ -42,7 +45,7 @@ use Illuminate\Support\Carbon;
  * `ip_address VARCHAR(45) NULL` (`:1142`) is the address the decision was taken
  * from, and it is part of what a data subject is entitled to see about the record
  * held about them. It is NOT masked, unlike `pasien.nik` through
- * {@see \App\Support\NikMasker}, because an address collected for a consent row is
+ * {@see NikMasker}, because an address collected for a consent row is
  * that row's own evidence rather than an identifier of a clinical subject - and the
  * row is only ever readable by the account it belongs to, because the query is
  * scoped in the service and not by a filter the client controls.
@@ -57,7 +60,7 @@ use Illuminate\Support\Carbon;
  * ## The row is the one the version rule reads
  *
  * Nothing is re-derived here. The resource is handed the row
- * {@see \App\Services\Pdp\PdpConsentService::ringkasan()} already selected with
+ * {@see PdpConsentService::ringkasan()} already selected with
  * `versi_dokumen DESC`, and publishing a lower row while calling it `efektif`
  * would be the exact defect this todo exists to prevent, one layer up.
  *

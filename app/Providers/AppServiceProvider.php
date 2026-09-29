@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Services\Audit\AuditObserverRegistrar;
+use App\Services\Audit\AuditScope;
 use App\Services\Auth\LogOtpSender;
 use App\Services\Auth\OtpSender;
 use App\Services\Notifikasi\LogPushDispatcher;
@@ -133,8 +134,8 @@ class AppServiceProvider extends ServiceProvider
      * logs. A 500 on the first request is a far better failure than a quiet
      * one.
      *
-     * @throws \LogicException  when `config('payment.gateway')` names no
-     *                          registered implementation
+     * @throws LogicException when `config('payment.gateway')` names no
+     *                        registered implementation
      */
     private function configurePaymentGateway(): void
     {
@@ -220,8 +221,8 @@ class AppServiceProvider extends ServiceProvider
      * listener set is empty - which is what stops the registration and the
      * closure from drifting apart in either direction.
      *
-     * @see \App\Services\Audit\AuditObserverRegistrar
-     * @see \App\Services\Audit\AuditScope
+     * @see AuditObserverRegistrar
+     * @see AuditScope
      */
     private function configureAuditObservers(): void
     {
@@ -240,8 +241,8 @@ class AppServiceProvider extends ServiceProvider
      * The log is the delivery record because `notifikasi` cannot hold one: no
      * `dikirim_at`, no `status_kirim`, no `channel`.
      *
-     * @see \App\Services\Notifikasi\LogPushDispatcher for the limitation
-     * @see \App\Services\Notifikasi\PushDispatcher for the contract
+     * @see LogPushDispatcher for the limitation
+     * @see PushDispatcher for the contract
      */
     private function configureNotificationPush(): void
     {

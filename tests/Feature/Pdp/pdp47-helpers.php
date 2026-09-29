@@ -6,6 +6,7 @@ use App\Models\Konsultasi;
 use App\Models\PersetujuanPdp;
 use App\Models\User;
 use App\Support\Rbac\RoleAssigner;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
@@ -520,7 +521,7 @@ function pd47Tangkap(callable $aksi, string $tipe): Throwable
 function pd47AdalahDuplikat(Throwable $e): bool
 {
     for ($tipe = $e; $tipe !== null; $tipe = $tipe->getPrevious()) {
-        if ($tipe instanceof Illuminate\Database\QueryException
+        if ($tipe instanceof QueryException
             && (int) ($tipe->errorInfo[1] ?? 0) === PD47_KODE_DUPLIKAT) {
             return true;
         }

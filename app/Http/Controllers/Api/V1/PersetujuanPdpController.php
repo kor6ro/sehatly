@@ -8,8 +8,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Pdp\StorePersetujuanPdpRequest;
 use App\Http\Resources\PersetujuanPdpResource;
 use App\Models\User;
-use App\Services\Pdp\PerubahanVersiException;
 use App\Services\Pdp\PdpConsentService;
+use App\Services\Pdp\PerubahanVersiException;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -86,8 +86,8 @@ use Symfony\Component\HttpFoundation\Response;
  *    the document being consented to, not of the account, so a withdrawal is
  *    driven by the consent flow advancing to a newer version and asking again.
  *
- * @see \App\Services\Pdp\PdpConsentService for the rule these four points are about
- * @see \App\Services\Pdp\PerubahanVersiException for the two refusal messages
+ * @see PdpConsentService for the rule these four points are about
+ * @see PerubahanVersiException for the two refusal messages
  */
 class PersetujuanPdpController extends Controller
 {

@@ -24,7 +24,7 @@ namespace App\Enums;
  * the parsed DDL, so dropping a value fails the suite rather than producing a
  * client that can never receive one.
  *
- * ## The same reasoning as {@see \App\Enums\PersetujuanPdpJenis}
+ * ## The same reasoning as {@see PersetujuanPdpJenis}
  *
  * The list is asserted against the parsed DDL with `toBe` on every test run, order
  * included, because a value differing from the schema by one letter still looks

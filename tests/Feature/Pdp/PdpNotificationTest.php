@@ -11,13 +11,16 @@ use App\Models\SuratKeterangan;
 use App\Models\User;
 use App\Services\Audit\AuditObserverRegistrar;
 use App\Services\Notifikasi\NotificationService;
-use App\Services\Pdp\PerubahanVersiException;
 use App\Services\Pdp\PdpConsent;
 use App\Services\Pdp\PdpConsentService;
+use App\Services\Pdp\PerubahanVersiException;
 use App\Support\Rbac\RbacCatalog;
-use Illuminate\Support\Carbon;
+use Database\Seeders\RbacSeeder;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 require_once __DIR__.'/pdp47-helpers.php';
 
@@ -26,7 +29,7 @@ beforeEach(function (): void {
     // `require_once`d by two test files, so a hook declared in it is registered
     // for the FIRST one only. The same trap todo 46 recorded as 35 errors.
     pd47KunciJam();
-    $this->seed(Database\Seeders\RbacSeeder::class);
+    $this->seed(RbacSeeder::class);
 });
 
 afterEach(function (): void {
@@ -184,7 +187,7 @@ test('the three tables this todo reads and writes are cited from the file, range
 
     // The three columns the version rule reads, at the lines cited.
     pd47AssertLine(1136, 'user_id BIGINT UNSIGNED NOT NULL');
-    pd47AssertLine(1139, "versi_dokumen VARCHAR(20) NOT NULL");
+    pd47AssertLine(1139, 'versi_dokumen VARCHAR(20) NOT NULL');
     pd47AssertLine(1140, 'disetujui TINYINT(1) NOT NULL');
     pd47AssertLine(1141, 'disetujui_at DATETIME NOT NULL');
     pd47AssertLine(1142, 'ip_address VARCHAR(45) NULL');
@@ -291,7 +294,7 @@ test('the five routes are registered with exactly the guards this todo claims', 
     // detail and pinning it would make this test fail on a harmless upgrade
     // instead of on a real regression. The rejection itself is driven over HTTP
     // in the cross-account test below.
-    $rute = Illuminate\Support\Facades\Route::getRoutes()->getByName('notifikasi.baca');
+    $rute = Route::getRoutes()->getByName('notifikasi.baca');
 
     expect($rute)->not->toBeNull()
         ->and($rute->wheres)->toHaveKey('id');
@@ -350,7 +353,7 @@ test('BOUNDARY 1 of 3: a HIGHER version supersedes every lower one, immediately'
 
     // And a gate refuses on the withdrawal rather than silently proceeding.
     expect(fn () => $consent->require($akun['user'], $jenis))
-        ->toThrow(Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException::class);
+        ->toThrow(AccessDeniedHttpException::class);
 
     // V5 again in the other direction: re-approving at a higher version
     // supersedes the withdrawal. Both rows stay on the table - the table is a
@@ -617,7 +620,7 @@ test('a same-version insert really is rejected by uq_consent, at the database', 
             'disetujui' => 0,
             'disetujui_at' => pd47Jam(),
         ]),
-        Illuminate\Database\UniqueConstraintViolationException::class,
+        UniqueConstraintViolationException::class,
     );
 
     expect(pd47AdalahDuplikat($e))->toBeTrue('the driver code is not MySQL 1062')
