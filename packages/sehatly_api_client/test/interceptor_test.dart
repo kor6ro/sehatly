@@ -335,7 +335,8 @@ void main() {
       expect(
         adapter.countOf(RefreshCoordinator.defaultRefreshPath),
         0,
-        reason: 'an anonymous request carries no credential, so a rotation '
+        reason:
+            'an anonymous request carries no credential, so a rotation '
             'cannot repair its 401 and must not be attempted',
       );
       expect(
@@ -375,7 +376,10 @@ void main() {
           return refreshOk();
         }
 
-        return ScriptedAdapter.errorResponse('Email atau kata sandi salah.', 401);
+        return ScriptedAdapter.errorResponse(
+          'Email atau kata sandi salah.',
+          401,
+        );
       };
 
       final FakeSecureBackend store = FakeSecureBackend();

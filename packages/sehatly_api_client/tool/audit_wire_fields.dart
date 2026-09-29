@@ -178,8 +178,9 @@ void main(List<String> args) {
   audit.run();
   audit.printReport(verbose: args.contains('--verbose'));
 
-  final int clientOnly =
-      audit.units.where((_Unit u) => u.clientOnly.isNotEmpty).length;
+  final int clientOnly = audit.units
+      .where((_Unit u) => u.clientOnly.isNotEmpty)
+      .length;
   final List<_Unit> unjustified = audit.units
       .where((_Unit u) => u.serverOnly.isNotEmpty)
       .where((_Unit u) => !audit.isJustified(u))
@@ -278,8 +279,9 @@ class _Audit {
   void _auditTokenFixtures() {
     final List<String> keys = <String>[];
 
-    for (final FileSystemEntity entry
-        in Directory('test').listSync(recursive: true)) {
+    for (final FileSystemEntity entry in Directory(
+      'test',
+    ).listSync(recursive: true)) {
       if (entry is! File || !entry.path.endsWith('.dart')) {
         continue;
       }
@@ -289,8 +291,9 @@ class _Audit {
       for (final RegExpMatch m in RegExp(
         r"<String, Object\?>\s*\{[^{}]*'access_token'[^{}]*\}",
       ).allMatches(code)) {
-        for (final RegExpMatch k
-            in RegExp(r"'([A-Za-z_][A-Za-z_0-9]*)'\s*:").allMatches(m.group(0)!)) {
+        for (final RegExpMatch k in RegExp(
+          r"'([A-Za-z_][A-Za-z_0-9]*)'\s*:",
+        ).allMatches(m.group(0)!)) {
           keys.add(k.group(1)!);
         }
       }
@@ -302,10 +305,8 @@ class _Audit {
     final List<String> extra = (unique.toList()..sort())
         .where((String k) => !server.contains(k))
         .toList();
-    final List<String> missing = server
-        .where((String k) => !unique.contains(k))
-        .toList()
-      ..sort();
+    final List<String> missing =
+        server.where((String k) => !unique.contains(k)).toList()..sort();
 
     _fixtureKeys = unique.toList()..sort();
     _fixtureExtra = extra;
@@ -359,9 +360,9 @@ class _Audit {
       final List<int> starts = <int>[];
       final List<String> names = <String>[];
 
-      for (final RegExpMatch m
-          in RegExp(r'\n    (?:public|private|protected) function (\w+)\(')
-              .allMatches(source)) {
+      for (final RegExpMatch m in RegExp(
+        r'\n    (?:public|private|protected) function (\w+)\(',
+      ).allMatches(source)) {
         starts.add(m.start);
         names.add(m.group(1)!);
       }
@@ -374,8 +375,9 @@ class _Audit {
         final int to = i + 1 < starts.length ? starts[i + 1] : source.length;
         final String method = names[i];
 
-        for (final _Node node
-            in _parsePhpArrays(source.substring(starts[i], to))) {
+        for (final _Node node in _parsePhpArrays(
+          source.substring(starts[i], to),
+        )) {
           if (method == 'toArray') {
             // The top level is compared as keys, not leaf paths: `pendidikan` is
             // a key the client reads, and flattening it to `pendidikan.jenjang`
@@ -442,8 +444,9 @@ class _Audit {
     final Map<String, List<String>> out = <String, List<String>>{};
     final List<int> starts = <int>[];
 
-    for (final RegExpMatch m
-        in RegExp(r'\n    public function (\w+)\(').allMatches(source)) {
+    for (final RegExpMatch m in RegExp(
+      r'\n    public function (\w+)\(',
+    ).allMatches(source)) {
       starts.add(m.start);
     }
 
@@ -451,8 +454,9 @@ class _Audit {
       final int from = starts[i];
       final int to = i + 1 < starts.length ? starts[i + 1] : source.length;
       final String body = source.substring(from, to);
-      final String method =
-          RegExp(r'\n    public function (\w+)\(').firstMatch(body)!.group(1)!;
+      final String method = RegExp(r'\n    public function (\w+)\(')
+          .firstMatch(body)!
+          .group(1)!;
 
       // Only the first argument is the payload: `success($data, $message,
       // $status, $meta)`. A bracket-matching scan finds its extent.
@@ -469,8 +473,9 @@ class _Audit {
         continue;
       }
 
-      final List<_Node> parsed =
-          _parsePhpArrays(body.substring(open, close + 1));
+      final List<_Node> parsed = _parsePhpArrays(
+        body.substring(open, close + 1),
+      );
 
       if (parsed.isEmpty) {
         continue;
@@ -638,7 +643,8 @@ class _Audit {
             after++;
           }
 
-          final bool isKey = after + 1 < source.length &&
+          final bool isKey =
+              after + 1 < source.length &&
               source[after] == '=' &&
               source[after + 1] == '>';
 
@@ -785,8 +791,10 @@ class _Audit {
   void _indexDeclarations(String source) {
     final List<int> starts = <int>[];
 
-    for (final RegExpMatch m
-        in RegExp(r'^[A-Za-z_]', multiLine: true).allMatches(source)) {
+    for (final RegExpMatch m in RegExp(
+      r'^[A-Za-z_]',
+      multiLine: true,
+    ).allMatches(source)) {
       starts.add(m.start);
     }
 
@@ -816,15 +824,19 @@ class _Audit {
   }
 
   static String? _declarationName(String chunk) {
-    final RegExpMatch? asClass =
-        RegExp(r'^class (\w+)', multiLine: true).firstMatch(chunk);
+    final RegExpMatch? asClass = RegExp(
+      r'^class (\w+)',
+      multiLine: true,
+    ).firstMatch(chunk);
 
     if (asClass != null) {
       return asClass.group(1);
     }
 
-    final RegExpMatch? asEnum =
-        RegExp(r'^enum (\w+)', multiLine: true).firstMatch(chunk);
+    final RegExpMatch? asEnum = RegExp(
+      r'^enum (\w+)',
+      multiLine: true,
+    ).firstMatch(chunk);
 
     if (asEnum != null) {
       return asEnum.group(1);
@@ -833,10 +845,10 @@ class _Audit {
     // A top-level function or getter, read as `Type name(`. Generic helpers such
     // as `T? _readNested` resolve to `T`, which no unit refers to, so they cost
     // nothing.
-    final RegExpMatch? asFunction =
-        RegExp(r'^(?:final\s+)?([A-Z][\w<>?]*)\s+_?\w+\s*\(',
-                multiLine: true)
-            .firstMatch(chunk);
+    final RegExpMatch? asFunction = RegExp(
+      r'^(?:final\s+)?([A-Z][\w<>?]*)\s+_?\w+\s*\(',
+      multiLine: true,
+    ).firstMatch(chunk);
 
     return asFunction?.group(1);
   }
@@ -858,9 +870,10 @@ class _Audit {
       // class stopping at the first `>` silently misses every such method.
       // Missing one shifts every later chunk boundary, which attributes one
       // endpoint's keys to the next.
-      for (final RegExpMatch m
-          in RegExp(r'^  Future<.+>\s+(\w+)\(', multiLine: true)
-              .allMatches(source)) {
+      for (final RegExpMatch m in RegExp(
+        r'^  Future<.+>\s+(\w+)\(',
+        multiLine: true,
+      ).allMatches(source)) {
         starts.add(m.start);
       }
 
@@ -870,9 +883,10 @@ class _Audit {
       for (int i = 0; i < starts.length; i++) {
         final int to = i + 1 < starts.length ? starts[i + 1] : source.length;
         final String chunk = source.substring(starts[i], to);
-        final String name = RegExp(r'^  Future<.+>\s+(\w+)\(', multiLine: true)
-            .firstMatch(chunk)!
-            .group(1)!;
+        final String name = RegExp(
+          r'^  Future<.+>\s+(\w+)\(',
+          multiLine: true,
+        ).firstMatch(chunk)!.group(1)!;
 
         byMethod[name] = _wrapperKeys(chunk);
         byWholeMap[name] = _wholeMapDto(chunk);
@@ -908,14 +922,15 @@ class _Audit {
     final String code = _stripComments(source);
     final Set<String> out = <String>{};
 
-    for (final RegExpMatch m
-        in RegExp(r"""dataMap\[['"]([A-Za-z_][A-Za-z_0-9]*)['"]\]""")
-            .allMatches(code)) {
+    for (final RegExpMatch m in RegExp(
+      r"""dataMap\[['"]([A-Za-z_][A-Za-z_0-9]*)['"]\]""",
+    ).allMatches(code)) {
       out.add(m.group(1)!);
     }
 
-    for (final RegExpMatch m
-        in RegExp(r"""key:\s*'([A-Za-z_][A-Za-z_0-9]*)'""").allMatches(code)) {
+    for (final RegExpMatch m in RegExp(
+      r"""key:\s*'([A-Za-z_][A-Za-z_0-9]*)'""",
+    ).allMatches(code)) {
       out.add(m.group(1)!);
     }
 
@@ -944,22 +959,24 @@ class _Audit {
     // than on the reader names is what makes it work through the nesting --
     // `jsonBool(jsonMap(json['refresh_token'])['dicabut'])` has two reader calls
     // and a name-based pattern misses all of them.
-    for (final RegExpMatch m
-        in RegExp(r"""\[\s*'(\w+)'\s*\]\s*\)\s*\[\s*'(\w+)'\s*\]""")
-            .allMatches(code)) {
+    for (final RegExpMatch m in RegExp(
+      r"""\[\s*'(\w+)'\s*\]\s*\)\s*\[\s*'(\w+)'\s*\]""",
+    ).allMatches(code)) {
       dotted.add('${m.group(1)}.${m.group(2)}');
       nested
         ..add(m.group(1)!)
         ..add(m.group(2)!);
     }
 
-    for (final RegExpMatch m
-        in RegExp(r"\['([A-Za-z_][A-Za-z_0-9]*)'\]").allMatches(code)) {
+    for (final RegExpMatch m in RegExp(
+      r"\['([A-Za-z_][A-Za-z_0-9]*)'\]",
+    ).allMatches(code)) {
       flat.add(m.group(1)!);
     }
 
-    for (final RegExpMatch m
-        in RegExp(r"""key:\s*'([A-Za-z_][A-Za-z_0-9]*)'""").allMatches(code)) {
+    for (final RegExpMatch m in RegExp(
+      r"""key:\s*'([A-Za-z_][A-Za-z_0-9]*)'""",
+    ).allMatches(code)) {
       flat.add(m.group(1)!);
     }
 
@@ -1044,9 +1061,7 @@ class _Audit {
       action: 'login',
       api: 'AuthApi',
       method: 'login',
-      units: <_UnitSpec>[
-        _UnitSpec('OtpChallenge', 'AuthController.login.otp'),
-      ],
+      units: <_UnitSpec>[_UnitSpec('OtpChallenge', 'AuthController.login.otp')],
     ),
     _Spec(
       endpoint: 'POST /api/v1/auth/otp/verify',
@@ -1065,9 +1080,7 @@ class _Audit {
       action: 'refresh',
       api: 'AuthApi',
       method: 'refresh',
-      units: <_UnitSpec>[
-        _UnitSpec('TokenPair', 'AuthTokenResource'),
-      ],
+      units: <_UnitSpec>[_UnitSpec('TokenPair', 'AuthTokenResource')],
     ),
     _Spec(
       endpoint: 'POST /api/v1/auth/logout',
@@ -1085,9 +1098,7 @@ class _Audit {
       action: 'devicesIndex',
       api: 'AuthApi',
       method: 'devices',
-      units: <_UnitSpec>[
-        _UnitSpec('UserDevice', 'UserDeviceResource'),
-      ],
+      units: <_UnitSpec>[_UnitSpec('UserDevice', 'UserDeviceResource')],
     ),
     _Spec(
       endpoint: 'POST /api/v1/auth/devices',
@@ -1095,9 +1106,7 @@ class _Audit {
       action: 'devicesStore',
       api: 'AuthApi',
       method: 'registerDevice',
-      units: <_UnitSpec>[
-        _UnitSpec('UserDevice', 'UserDeviceResource'),
-      ],
+      units: <_UnitSpec>[_UnitSpec('UserDevice', 'UserDeviceResource')],
     ),
     _Spec(
       endpoint: 'DELETE /api/v1/auth/devices/{deviceId}',
@@ -1105,9 +1114,7 @@ class _Audit {
       action: 'devicesDestroy',
       api: 'AuthApi',
       method: 'removeDevice',
-      units: <_UnitSpec>[
-        _UnitSpec('UserDevice', 'UserDeviceResource'),
-      ],
+      units: <_UnitSpec>[_UnitSpec('UserDevice', 'UserDeviceResource')],
     ),
     _Spec(
       endpoint: 'GET /api/v1/me',
@@ -1119,8 +1126,7 @@ class _Audit {
         _UnitSpec('User', 'UserResource'),
         _UnitSpec('PasienProfile', 'PasienResource'),
         _UnitSpec('DokterAccount', 'DokterAkunResource'),
-        _UnitSpec(
-            'DokterAkunSpesialisasi', 'DokterAkunResource.spesialisasi'),
+        _UnitSpec('DokterAkunSpesialisasi', 'DokterAkunResource.spesialisasi'),
       ],
     ),
     _Spec(
@@ -1129,9 +1135,7 @@ class _Audit {
       action: 'profilShow',
       api: 'PasienApi',
       method: 'profil',
-      units: <_UnitSpec>[
-        _UnitSpec('PasienProfile', 'PasienResource'),
-      ],
+      units: <_UnitSpec>[_UnitSpec('PasienProfile', 'PasienResource')],
     ),
     _Spec(
       endpoint: 'PUT /api/v1/pasien/profil',
@@ -1139,9 +1143,7 @@ class _Audit {
       action: 'profilUpdate',
       api: 'PasienApi',
       method: 'updateProfil',
-      units: <_UnitSpec>[
-        _UnitSpec('PasienProfile', 'PasienResource'),
-      ],
+      units: <_UnitSpec>[_UnitSpec('PasienProfile', 'PasienResource')],
     ),
     _Spec(
       endpoint: 'GET /api/v1/pasien/anggota-keluarga',
@@ -1189,9 +1191,7 @@ class _Audit {
       action: 'alergiIndex',
       api: 'PasienApi',
       method: 'alergi',
-      units: <_UnitSpec>[
-        _UnitSpec('PasienAlergi', 'PasienAlergiResource'),
-      ],
+      units: <_UnitSpec>[_UnitSpec('PasienAlergi', 'PasienAlergiResource')],
     ),
     _Spec(
       endpoint: 'POST /api/v1/pasien/alergi',
@@ -1199,9 +1199,7 @@ class _Audit {
       action: 'alergiStore',
       api: 'PasienApi',
       method: 'createAlergi',
-      units: <_UnitSpec>[
-        _UnitSpec('PasienAlergi', 'PasienAlergiResource'),
-      ],
+      units: <_UnitSpec>[_UnitSpec('PasienAlergi', 'PasienAlergiResource')],
     ),
     _Spec(
       endpoint: 'PUT /api/v1/pasien/alergi/{id}',
@@ -1209,9 +1207,7 @@ class _Audit {
       action: 'alergiUpdate',
       api: 'PasienApi',
       method: 'updateAlergi',
-      units: <_UnitSpec>[
-        _UnitSpec('PasienAlergi', 'PasienAlergiResource'),
-      ],
+      units: <_UnitSpec>[_UnitSpec('PasienAlergi', 'PasienAlergiResource')],
     ),
     _Spec(
       endpoint: 'DELETE /api/v1/pasien/alergi/{id}',
@@ -1229,9 +1225,7 @@ class _Audit {
       action: 'index',
       api: 'DokterApi',
       method: 'index',
-      units: <_UnitSpec>[
-        _UnitSpec('DokterListing', 'DokterResource'),
-      ],
+      units: <_UnitSpec>[_UnitSpec('DokterListing', 'DokterResource')],
     ),
     _Spec(
       endpoint: 'GET /api/v1/dokter/{dokter}',
@@ -1294,11 +1288,12 @@ class _Audit {
           // `login`, `otp/verify`, `logout` and both deletes all do this, and
           // without this branch their wrapper comparison is empty on the client
           // side and flags correct reads as server-only.
-          clientKeys: (methodKeys.isEmpty && wholeMapDto != null
-                  ? _dtoReachedKeys(wholeMapDto)
-                  : methodKeys)
-              .toList()
-            ..sort(),
+          clientKeys:
+              (methodKeys.isEmpty && wholeMapDto != null
+                      ? _dtoReachedKeys(wholeMapDto)
+                      : methodKeys)
+                  .toList()
+                ..sort(),
           serverKeys: (actions[spec.action]!).toList()..sort(),
         ),
       );
@@ -1309,8 +1304,8 @@ class _Audit {
             endpoint: spec.endpoint,
             clientClass: unit.clientClass,
             serverSource: unit.serverSource,
-            clientKeys:
-                (_dtoKeys[unit.clientClass] ?? <String>{}).toList()..sort(),
+            clientKeys: (_dtoKeys[unit.clientClass] ?? <String>{}).toList()
+              ..sort(),
             serverPaths: _serverPathsFor(unit.serverSource),
           ),
         );
@@ -1456,39 +1451,51 @@ class _Audit {
     stdout.writeln('wrapper comparisons: ${wrappers.length}');
     stdout.writeln('dto/resource comparisons: ${units.length}');
     stdout.writeln('');
-    stdout.writeln('TOTALS  matched=$matched  client-only=$clientOnly  '
-        'server-only=$serverOnly');
+    stdout.writeln(
+      'TOTALS  matched=$matched  client-only=$clientOnly  '
+      'server-only=$serverOnly',
+    );
     stdout.writeln('');
     stdout.writeln('== data envelope wrapper keys ==');
     stdout.writeln('endpoint | client reads | server writes');
 
     for (final _Wrapper w in wrappers) {
-      stdout.writeln('${w.endpoint} | ${w.clientKeys.join(',')} | '
-          '${w.serverKeys.join(',')}');
+      stdout.writeln(
+        '${w.endpoint} | ${w.clientKeys.join(',')} | '
+        '${w.serverKeys.join(',')}',
+      );
 
       if (w.clientOnly.isNotEmpty || w.serverOnly.isNotEmpty) {
-        stdout.writeln('   !! client-only=${w.clientOnly} '
-            'server-only=${w.serverOnly}');
+        stdout.writeln(
+          '   !! client-only=${w.clientOnly} '
+          'server-only=${w.serverOnly}',
+        );
       }
     }
 
     stdout.writeln('');
     stdout.writeln('== resource field keys ==');
-    stdout.writeln('endpoint | client class | server shape | matched | '
-        'client-only | server-only');
+    stdout.writeln(
+      'endpoint | client class | server shape | matched | '
+      'client-only | server-only',
+    );
 
     for (final _Unit u in units) {
-      stdout.writeln('${u.endpoint} | ${u.clientClass} | ${u.serverSource} | '
-          '${u.matched.length} | ${u.clientOnly.length} | '
-          '${u.serverOnly.length}');
+      stdout.writeln(
+        '${u.endpoint} | ${u.clientClass} | ${u.serverSource} | '
+        '${u.matched.length} | ${u.clientOnly.length} | '
+        '${u.serverOnly.length}',
+      );
 
       if (u.clientOnly.isNotEmpty) {
         stdout.writeln('   !! client-only: ${u.clientOnly.join(', ')}');
       }
 
       if (u.serverOnly.isNotEmpty) {
-        stdout.writeln('   -- server-only: ${u.serverOnly.join(', ')} '
-            '${isJustified(u) ? '(justified)' : '(UNJUSTIFIED)'}');
+        stdout.writeln(
+          '   -- server-only: ${u.serverOnly.join(', ')} '
+          '${isJustified(u) ? '(justified)' : '(UNJUSTIFIED)'}',
+        );
       }
 
       if (verbose) {
@@ -1499,18 +1506,24 @@ class _Audit {
 
     stdout.writeln('');
     stdout.writeln('== test-fixture token keys vs AuthTokenResource ==');
-    stdout.writeln('server: '
-        '${(_resourcePaths['AuthTokenResource'] ?? const <String>[]).join(', ')}');
+    stdout.writeln(
+      'server: '
+      '${(_resourcePaths['AuthTokenResource'] ?? const <String>[]).join(', ')}',
+    );
     stdout.writeln('fixtures: ${_fixtureKeys.join(', ')}');
 
     if (_fixtureExtra.isNotEmpty) {
-      stdout.writeln('   !! fixture-only (server does not publish): '
-          '${_fixtureExtra.join(', ')}');
+      stdout.writeln(
+        '   !! fixture-only (server does not publish): '
+        '${_fixtureExtra.join(', ')}',
+      );
     }
 
     if (_fixtureMissing.isNotEmpty) {
-      stdout.writeln('   -- server-only (no fixture covers it): '
-          '${_fixtureMissing.join(', ')}');
+      stdout.writeln(
+        '   -- server-only (no fixture covers it): '
+        '${_fixtureMissing.join(', ')}',
+      );
     }
   }
 }
