@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Contract\Support;
 
+use Illuminate\Container\Container;
 use Illuminate\Routing\Route as IlluminateRoute;
 use Illuminate\Support\Facades\Route;
 use Symfony\Component\Yaml\Yaml;
@@ -76,7 +77,7 @@ final class ContractSpec
     public static function document(): array
     {
         if (self::$document === null) {
-            $path = base_path('docs/openapi.yaml');
+            $path = self::projectRoot().'/docs/openapi.yaml';
 
             if (! is_file($path)) {
                 throw new \RuntimeException(
@@ -94,6 +95,32 @@ final class ContractSpec
         }
 
         return self::$document;
+    }
+
+    /**
+     * The project root, resolvable with or without a booted application.
+     *
+     * `base_path()` needs a bound container, and Pest resolves a dataset closure
+     * during test COLLECTION -- before `createApplication()` has run for the first
+     * test. A dataset that read the document through `base_path()` therefore died
+     * with `Call to undefined method Illuminate\Container\Container::basePath()`
+     * on the very first data set rather than on the assertion it was written to
+     * reach. So the container is used when it is available and the directory
+     * layout is walked when it is not.
+     *
+     * `__DIR__` is `tests/Contract/Support`, so three levels up is the project
+     * root. That is the same relationship `composer.json`'s `autoload-dev`
+     * psr-4 map declares (`Tests\` -> `tests/`), so the two cannot disagree.
+     */
+    private static function projectRoot(): string
+    {
+        $container = Container::getInstance();
+
+        if ($container !== null && $container->has('path.base')) {
+            return rtrim((string) $container->make('path.base'), '/\\');
+        }
+
+        return dirname(__DIR__, 3);
     }
 
     /**

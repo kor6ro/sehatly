@@ -45,6 +45,11 @@ final class LiveRequest
         'dokter' => '999999999',
         'deviceId' => 'contract-suite-absent-device',
         'nomor_surat' => 'SK/CONTRACT-SUITE-ABSENT',
+        // `pembayaran.gateway` is `ENUM('midtrans','xendit','doku','flip') NULL`
+        // (telemedicine_test.sql:965) and the route constrains the segment to
+        // that enum, so any other value is a router 404 and the service would
+        // never run. `midtrans` is a real member, not an invented one.
+        'gateway' => 'midtrans',
     ];
 
     /**

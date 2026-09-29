@@ -20,15 +20,16 @@ namespace Tests\Contract\Support;
  * These are the only keywords that may appear in a schema this validator will
  * accept, and {@see self::SUPPORTED_KEYWORDS} is the list:
  *
- * - `$ref`                          -- resolved against `#/components/schemas/`
- * - `type`                          -- a name, or a list of names
- * - `const`                         -- deep, by value
- * - `required`                      -- list of property names
- * - `properties`                    -- name to schema
- * - `additionalProperties`          -- `false`, or a schema for every extra key
- * - `items`                         -- schema for array elements
- * - `minItems`                      -- lower bound on array length
- * - `minimum`                       -- lower bound on a number
+* - `$ref`                          -- resolved against `#/components/schemas/`
+     * - `type`                          -- a name, or a list of names
+     * - `const`                         -- deep, by value
+     * - `enum`                          -- value must be one of the listed values
+     * - `required`                      -- list of property names
+     * - `properties`                    -- name to schema
+     * - `additionalProperties`          -- `false`, or a schema for every extra key
+     * - `items`                         -- schema for array elements
+     * - `minItems`                      -- lower bound on array length
+     * - `minimum`                       -- lower bound on a number
  *
  * `description`, `title` and `example` are annotations and are ignored, which is
  * what JSON Schema itself specifies.
@@ -63,6 +64,7 @@ final class EnvelopeValidator
         '$ref',
         'type',
         'const',
+        'enum',
         'required',
         'properties',
         'additionalProperties',
@@ -107,6 +109,26 @@ final class EnvelopeValidator
                 $this->describe($schema['const']),
                 $this->describe($body),
             );
+        }
+
+        if (array_key_exists('enum', $schema) && is_array($schema['enum'])) {
+            $matches = false;
+
+            foreach ($schema['enum'] as $candidate) {
+                if ($body === $candidate) {
+                    $matches = true;
+                    break;
+                }
+            }
+
+            if (! $matches) {
+                $violations[] = sprintf(
+                    '%s: %s is not one of the %d value(s) the schema allows',
+                    $pointer,
+                    $this->describe($body),
+                    count($schema['enum']),
+                );
+            }
         }
 
         if ($this->isObject($body)) {
@@ -224,7 +246,7 @@ final class EnvelopeValidator
      * @param  array<string, mixed>  $schema
      * @return list<string>
      */
-    private function checkObject(stdClass $body, array $schema, string $pointer): array
+    private function checkObject(\stdClass $body, array $schema, string $pointer): array
     {
         $violations = [];
         $properties = $schema['properties'] ?? [];
@@ -242,7 +264,7 @@ final class EnvelopeValidator
             if (isset($properties[$name]) && is_array($properties[$name])) {
                 $violations = array_merge(
                     $violations,
-                    $this->validate($value, $properties[$name], $pointer.'/'.\Illuminate\Support\Str::jsonEncode([$name])),
+                    $this->validate($value, $properties[$name], $pointer.$this->escapePointer((string) $name)),
                 );
 
                 continue;
@@ -261,7 +283,7 @@ final class EnvelopeValidator
             if (is_array($additional)) {
                 $violations = array_merge(
                     $violations,
-                    $this->validate($value, $additional, $pointer.'/'.\Illuminate\Support\Str::jsonEncode([$name])),
+                    $this->validate($value, $additional, $pointer.$this->escapePointer((string) $name)),
                 );
             }
         }
@@ -290,12 +312,25 @@ final class EnvelopeValidator
             foreach ($body as $index => $value) {
                 $violations = array_merge(
                     $violations,
-                    $this->validate($value, $schema['items'], $pointer.'/'.\Illuminate\Support\Str::jsonEncode([$index])),
+                    $this->validate($value, $schema['items'], $pointer.'/'.$index),
                 );
             }
         }
 
         return $violations;
+    }
+
+    /**
+     * Escape one path segment for a JSON pointer (RFC 6901).
+     *
+     * `~` and `/` are the two characters that would otherwise be read as pointer
+     * syntax. A field named `perluan/Untuk` or `a~b` would produce an ambiguous
+     * pointer without this, and an ambiguous pointer is worse than no pointer
+     * because it sends a reader to the wrong place confidently.
+     */
+    private function escapePointer(string $segment): string
+    {
+        return '/'.str_replace(['~', '/'], ['~0', '~1'], $segment);
     }
 
     private function isObject(mixed $value): bool
