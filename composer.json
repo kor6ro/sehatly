@@ -53,7 +53,8 @@
         ],
         "contract": [
             "@php artisan sehatly:enums --check",
-            "@php artisan sehatly:openapi --check"
+            "@php artisan sehatly:openapi --check",
+            "@php artisan test tests/Contract"
         ],
         "test": [
             "@php artisan config:clear --ansi @no_additional_args",

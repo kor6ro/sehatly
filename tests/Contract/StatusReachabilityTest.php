@@ -185,6 +185,73 @@ it('publishes 429 only where a named rate limiter is registered', function (): v
     }
 });
 
+it('answers 422 with the validation envelope on every anonymous write with a body', function (string $method, string $path): void {
+    $operation = ContractSpec::specOperations()[$method.' '.$path];
+
+    expect(contractPublishes($operation, '422'))->toBeTrue();
+
+    // An empty body against a required-field request is the cheapest way to reach
+    // the 422 on every one of these without inventing business data. `otp/verify`
+    // is included because it is the only endpoint that issues a token, so its
+    // failure envelope is the one a client meets first and the least likely to be
+    // exercised anywhere else.
+    $response = $this->json($method, LiveRequest::concretePath($path), []);
+
+    $response->assertStatus(422);
+
+    $violations = LiveRequest::validateAgainstDocument($response, $operation);
+
+    expect($violations)->toBe([], implode("\n", $violations));
+})->with([
+    ['post', '/api/v1/auth/register'],
+    ['post', '/api/v1/auth/login'],
+    ['post', '/api/v1/auth/refresh'],
+    ['post', '/api/v1/auth/otp/verify'],
+]);
+
+it('answers 422 when a public slot read omits its required date', function (): void {
+    // `IndexSlotDokterRequest` requires `tanggal` and the endpoint is public, so
+    // its 422 is reachable without a token. It is a separate test rather than
+    // another row above because it is a GET, and the empty-body trick does not
+    // apply to a GET.
+    $operation = ContractSpec::specOperations()['get /api/v1/dokter/{dokter}/slot'];
+
+    expect(contractPublishes($operation, '422'))->toBeTrue();
+
+    // No `?tanggal=` at all.
+    $missing = $this->getJson('/api/v1/dokter/1/slot');
+    $missing->assertStatus(422);
+
+    ['object' => $body] = LiveRequest::decode($missing);
+    expect($body->errors)->toHaveProperty('tanggal');
+
+    // A well-formed date against a doctor that does not exist is a 404, not a
+    // 422. Asserted because it is the boundary between the two documented
+    // statuses, and getting it backwards would make a client show a validation
+    // error for a genuine "not found".
+    $this->getJson('/api/v1/dokter/1/slot?tanggal=2027-02-14')->assertStatus(404);
+
+    // A malformed date IS the 422.
+    $this->getJson('/api/v1/dokter/1/slot?tanggal=abc')->assertStatus(422);
+});
+
+it('answers 404 with the error envelope when a public read is given an absent identifier', function (string $method, string $path): void {
+    $operation = ContractSpec::specOperations()[$method.' '.$path];
+
+    expect(contractPublishes($operation, '404'))->toBeTrue();
+
+    $response = $this->json($method, LiveRequest::concretePath($path));
+
+    $response->assertStatus(404);
+
+    $violations = LiveRequest::validateAgainstDocument($response, $operation);
+
+    expect($violations)->toBe([], implode("\n", $violations));
+})->with([
+    ['get', '/api/v1/dokter/{dokter}'],
+    ['get', '/api/v1/dokter/{dokter}/jadwal'],
+]);
+
 /*
  |--------------------------------------------------------------------------
  | Finding 7: 23 operations publish a 422 with nothing describing what fails it
