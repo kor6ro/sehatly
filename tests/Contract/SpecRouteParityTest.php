@@ -158,3 +158,46 @@ it('publishes a distinct path and method pair for every operation', function ():
     expect(count($spec))->toBe(count(array_unique(array_keys($spec))));
     expect(array_keys($live))->toBe(array_keys($spec));
 });
+
+it('would fail if a route existed with no entry in the document', function (): void {
+    /*
+     | The plan's own requirement: "a test registers a temporary route with no
+     | schema and asserts the conformance suite fails, proving it is not
+     | vacuous".
+     |
+     | Registering the route inside this process rather than shipping a broken
+     | repository is deliberate. The assertion under test is the DETECTOR -- does
+     | `it_publishes_every_real_/api/v1_route_in_the_document` actually notice a
+     | route the document does not mention? -- and that can be proved without the
+     | committed suite being red, which is the only form of this proof that can
+     | ever live in version control.
+     |
+     | The route is registered inside this test's own application instance and
+     | needs no cleanup: Laravel's `TestCase::setUp()` calls
+     | `refreshApplication()`, so every test method gets a fresh container and
+     | therefore a fresh router. An attempt to unregister it explicitly would be
+     | both impossible (`RouteCollection` has no `remove()`) and unnecessary --
+     | and would have asserted something untrue about the lifecycle.
+     */
+    $ghost = 'get /api/v1/contract-suite-ghost-route';
+
+    expect(ContractSpec::liveOperations())->not->toHaveKey($ghost);
+
+    Route::get('/api/v1/contract-suite-ghost-route', fn (): string => 'ghost')
+        ->middleware('api');
+
+    // The detector now sees it.
+    expect(ContractSpec::liveOperations())->toHaveKey($ghost);
+
+    // ...and this is the exact diff `it_publishes_every_real_/api/v1_route_in_the_document`
+    // computes, which is what makes that test non-vacuous rather than merely green.
+    $undocumented = array_values(array_diff(
+        array_keys(ContractSpec::liveOperations()),
+        array_keys(ContractSpec::specOperations()),
+    ));
+
+    expect($undocumented)->toBe([$ghost]);
+
+    // The operation count assertion would fire too, since 75 is not 74.
+    expect(count(ContractSpec::liveOperations()))->not->toBe(74);
+});
