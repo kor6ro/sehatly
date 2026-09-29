@@ -100,7 +100,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
  * two state predicates cannot lapse at all. Everything that is a *day* in this
  * class therefore has exactly one basis, and it is the clinic's.
  *
- * {@see \Tests\Feature\Dokter\DokterStrZonaWaktuTest} pins that basis at both ends
+ * `tests/Feature/Dokter/DokterStrZonaWaktuTest.php` pins that basis at both ends
  * of the seven-hour window in which the two candidates differ, and also asserts
  * the value the query BOUNDS rather than only the row set it returns.
  *
@@ -259,7 +259,7 @@ class DokterDirectoryService
      *
      * @param  array<string, mixed>  $filters  the FormRequest's `validated()` output
      * @param  CarbonInterface|null  $asOf  the reference day for rule 2, overriding
-     *                                     {@see today()}; `null` means the clinic's today
+     *                                      {@see today()}; `null` means the clinic's today
      * @return LengthAwarePaginator<int, DokterKatalog>
      */
     public function list(array $filters, ?CarbonInterface $asOf = null): LengthAwarePaginator

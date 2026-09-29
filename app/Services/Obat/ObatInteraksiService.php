@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Obat;
 
+use App\Services\Resep\ResepStateMachine;
 use App\Support\WaktuIndonesia;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
@@ -131,7 +132,7 @@ use Illuminate\Support\Facades\DB;
  * the day BEFORE the pharmacy's for the seven hours from 00:00 to 07:00 WIB,
  * which silently promoted a lapsed prescription back into "currently on" and
  * demoted a live one out of it. This is the same inclusive boundary
- * {@see \App\Services\Resep\ResepStateMachine::kedaluwarsa()} decides, and the
+ * {@see ResepStateMachine::kedaluwarsa()} decides, and the
  * same reference day; the guard is repeated here because this method filters
  * rows in PHP rather than a single model.
  *
