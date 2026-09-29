@@ -7,7 +7,7 @@ Commit `060d063 feat(api): add PDP consent versioning and notification centre`.
 
 ## 1. The version rule, and what "highest" means operationally
 
-`telemedicine_test.sql:1134`-`:1145` gives `persetsu[j]uan_pdp` three columns that decide everything:
+`telemedicine_test.sql:1134`-`:1145` gives `persetujuan_pdp` three columns that decide everything:
 
 ```
 :1139  versi_dokumen VARCHAR(20) NOT NULL,
