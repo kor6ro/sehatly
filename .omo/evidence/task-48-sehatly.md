@@ -49,6 +49,23 @@ Changed: `web/src/lib/api/types.ts` (Module 5 types appended, nothing above them
 `web/src/app/router.tsx`, `web/src/app/app-shell.tsx`,
 `web/src/components/form/field.tsx`.
 
+### Four naming deviations from the plan's prose, and why
+
+The plan's todo 48 names a few paths in passing. None of them match the conventions the
+existing `web/src/` already established, and the plan's own instruction was to follow the
+existing structure rather than invent a new pattern. Recorded so the difference is a
+decision on the record and not a silent omission:
+
+| Plan prose | Built | Why |
+| --- | --- | --- |
+| `web/src/features/checkout/` | `web/src/features/pesanan-obat/` | `features/` is domain-named throughout: `booking`, `konsultasi`, `rekam-medis`, `resep`. The domain here is `pesanan_obat`, which is also the route segment. |
+| `web/src/features/pesanan/` | `web/src/features/pesanan-obat/` | same reason; `pesanan-obat` matches the API path `/pesanan-obat/{id}`. |
+| one transport file (implied `pembayaran.ts`) | three: `pesanan-obat.ts`, `pembayaran.ts`, `notifikasi.ts` | `lib/api/` is one file per domain and `booking.ts` already holds all four of Module 2's endpoints. Folding the order endpoints into a file named `pembayaran.ts` would have separated them from the money calls they share a transaction with. |
+| `web/tests/e2e/pembayaran.spec.ts` | `web/tests/e2e/pesanan-obat.spec.ts` | the e2e specs are domain-named too: `booking.spec.ts`, `konsultasi.spec.ts`, `resep.spec.ts`. The spec covers the whole Module 5 order flow, not only payment. |
+
+No route path, endpoint, or component name was changed to suit this; it is purely where the
+files sit.
+
 ---
 
 ## 2. FINDING - the payment webhook IS idempotent, and the client does not fake it
