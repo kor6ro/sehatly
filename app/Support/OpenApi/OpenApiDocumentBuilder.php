@@ -7,6 +7,7 @@ namespace App\Support\OpenApi;
 use Illuminate\Cache\RateLimiter;
 use Illuminate\Http\Request as HttpRequest;
 use ReflectionObject;
+use Symfony\Component\Yaml\Yaml;
 
 /**
  * Turns a {@see RouteInventory} into an OpenAPI 3.1 document, deterministically.
@@ -176,12 +177,12 @@ final class OpenApiDocumentBuilder
      */
     public function render(): string
     {
-        $yaml = \Symfony\Component\Yaml\Yaml::dump(
+        $yaml = Yaml::dump(
             $this->document(),
             6,
             2,
-            \Symfony\Component\Yaml\Yaml::DUMP_EMPTY_ARRAY_AS_SEQUENCE
-                | \Symfony\Component\Yaml\Yaml::DUMP_MULTI_LINE_LITERAL_BLOCK,
+            Yaml::DUMP_EMPTY_ARRAY_AS_SEQUENCE
+                | Yaml::DUMP_MULTI_LINE_LITERAL_BLOCK,
         );
 
         return rtrim(str_replace("\r\n", "\n", $yaml), "\n")."\n";
@@ -357,7 +358,6 @@ final class OpenApiDocumentBuilder
 
     /**
      * @param  array<string, mixed>  $operation
-     * @param  bool  $authenticated
      * @param  array{max: int, decay_seconds: int}|null  $throttle
      * @return array<string, mixed>
      */

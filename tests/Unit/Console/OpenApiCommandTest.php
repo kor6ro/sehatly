@@ -32,9 +32,13 @@ declare(strict_types=1);
 | the same name, and this repository has more than one Pest file.
 */
 
+use App\Http\Controllers\Api\V1\NotifikasiController;
 use App\Support\OpenApi\DartContractGenerator;
 use App\Support\OpenApi\OpenApiDocumentBuilder;
 use App\Support\OpenApi\RouteInventory;
+use Illuminate\Auth\Middleware\Authenticate;
+use Illuminate\Cache\RateLimiter;
+use Illuminate\Http\Request;
 use Illuminate\Routing\RouteCollection;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
@@ -99,7 +103,7 @@ $operations = function (array $document): array {
  * would make the two counts differ for a reason that has nothing to do with
  * drift.
  *
- * @return array<string, \Illuminate\Routing\Route>
+ * @return array<string, Illuminate\Routing\Route>
  */
 $liveRoutes = function (): array {
     $live = [];
@@ -126,7 +130,7 @@ $liveRoutes = function (): array {
  *
  * @return list<string>
  */
-$guards = function (\Illuminate\Routing\Route $route): array {
+$guards = function (Illuminate\Routing\Route $route): array {
     return array_values(array_filter(
         $route->gatherMiddleware(),
         static fn (string $m): bool => $m !== 'api' && $m !== 'web',
@@ -150,7 +154,7 @@ $guards = function (\Illuminate\Routing\Route $route): array {
  */
 $isSanctum = function (string $entry): bool {
     return $entry === 'auth:sanctum'
-        || $entry === \Illuminate\Auth\Middleware\Authenticate::class.':sanctum'
+        || $entry === Authenticate::class.':sanctum'
         || str_ends_with($entry, 'Authenticate:sanctum');
 };
 
@@ -431,7 +435,7 @@ test('a mutated route table -- a POST with no FormRequest -- IS detected', funct
     // handler is an existing controller method whose signature takes a bare
     // `Illuminate\Http\Request`, which is what "validates inline instead of
     // through a FormRequest" looks like from the outside.
-    Route::post('api/v1/openapi-dod-probe', [\App\Http\Controllers\Api\V1\NotifikasiController::class, 'bacaSemua'])
+    Route::post('api/v1/openapi-dod-probe', [NotifikasiController::class, 'bacaSemua'])
         ->middleware(['api', 'auth:sanctum'])
         ->name('openapi.dod.probe');
 
@@ -567,8 +571,8 @@ test('the published rate limits are the ones the application registers, not inve
 
     expect($throttled)->not->toBeEmpty('no operation published a rate limit, so the 429 publication is vacuous');
 
-    $limiter = app(\Illuminate\Cache\RateLimiter::class);
-    $property = (new \ReflectionObject($limiter))->getProperty('limiters');
+    $limiter = app(RateLimiter::class);
+    $property = (new ReflectionObject($limiter))->getProperty('limiters');
     $property->setAccessible(true);
     $registered = $property->getValue($limiter);
 
@@ -581,7 +585,7 @@ test('the published rate limits are the ones the application registers, not inve
             $key.' publishes a limiter nobody registers; ThrottleRequests answers 500 for that',
         );
 
-        $actual = $registered[$name](\Illuminate\Http\Request::create('/api/v1/', 'GET'));
+        $actual = $registered[$name](Request::create('/api/v1/', 'GET'));
 
         expect($publishedLimit['max'])->toBe($actual->maxAttempts, $key.' publishes a limit that differs from the registered one');
         expect($publishedLimit['decay_seconds'])->toBe($actual->decaySeconds, $key.' publishes a decay that differs from the registered one');

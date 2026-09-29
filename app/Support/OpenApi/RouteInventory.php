@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace App\Support\OpenApi;
 
+use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Request as HttpRequest;
 use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\Route as RouteFacade;
+use Illuminate\Validation\Rules\In;
+use Illuminate\Validation\Rules\NotIn;
 use ReflectionMethod;
 use ReflectionNamedType;
 use Throwable;
@@ -320,7 +323,7 @@ final class RouteInventory
 
             $name = $type->getName();
 
-            if (is_a($name, \Illuminate\Foundation\Http\FormRequest::class, true)) {
+            if (is_a($name, FormRequest::class, true)) {
                 return $name;
             }
         }
@@ -412,13 +415,13 @@ final class RouteInventory
             return get_debug_type($rule);
         }
 
-        if ($rule instanceof \Illuminate\Validation\Rules\In || $rule instanceof \Illuminate\Validation\Rules\NotIn) {
+        if ($rule instanceof In || $rule instanceof NotIn) {
             $values = $this->protectedValues($rule);
 
             if ($values !== null) {
                 $encoded = json_encode($values, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
-                return ($rule instanceof \Illuminate\Validation\Rules\NotIn ? 'not_in:' : 'in:')
+                return ($rule instanceof NotIn ? 'not_in:' : 'in:')
                     .($encoded === false ? '[]' : $encoded);
             }
         }
