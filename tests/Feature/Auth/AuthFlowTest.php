@@ -1375,6 +1375,24 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         // NEITHER, and so contributes no string to this census at all: it is
         // authenticated by an HMAC over the raw body rather than by a session.
         "'permission:pembayaran.bayar'",
+        // Todo 47's notification centre contributes THREE more, for THIRTY-THREE
+        // in total. All three carry the same code and no `tipe:`:
+        // `notifikasi.lihat` is granted to `pasien` and `superadmin`, so the
+        // permission alone already refuses `perawat` and `kurir` - which are
+        // real `users.tipe` values that hold no role, and so hold no grant.
+        // Adding a `tipe:pasien` on top would be the wrong gate here, for the
+        // same reason `pembayaran.bayar` above carries no `tipe:`: the
+        // permission already narrows the audience, and a second gate would
+        // lock out the one account type that legitimately holds it.
+        //
+        // The two PDP consent routes contribute NOTHING to this census. They are
+        // guarded by `auth:sanctum` alone, deliberately: a consent record is the
+        // caller's own, so the audience is "any authenticated caller" and a
+        // permission code would add a grantable role for something that is not
+        // role-scoped. `PdpNotificationTest` asserts both guards directly.
+        "'permission:notifikasi.lihat'",
+        "'permission:notifikasi.lihat'",
+        "'permission:notifikasi.lihat'",
     ]);
 });
 

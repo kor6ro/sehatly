@@ -41,9 +41,9 @@ class AppServiceProvider extends ServiceProvider
         $this->configureDefaults();
         $this->configureOtpDelivery();
         $this->configureRateLimiting();
-            $this->configureAuditObservers();
-            $this->configureNotificationPush();
-        }
+        $this->configureAuditObservers();
+        $this->configureNotificationPush();
+    }
 
     /**
      * Configure default behaviors for production-ready applications.

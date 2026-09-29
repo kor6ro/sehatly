@@ -1544,6 +1544,21 @@ test('the route table exposes the eight auth routes and the eleven patient route
         // in the `$anonymous` set below.
         'POST api/v1/invoice/{id}/bayar',
         'POST api/v1/webhook/payment/{gateway}',
+        // Todo 47's FIVE routes, appended after todo 45's block and so listed
+        // LAST here in registration order. Two are a two-segment `pdp` path and
+        // three are a two-segment `notifikasi` path, neither of which any
+        // earlier entry resembles, so none of them can be folded into an earlier
+        // group without being listed by prefix - and the reason this list is
+        // keyed by URI rather than by prefix.
+        //
+        // `PdpNotificationTest` asserts the same five as their own closed set,
+        // with their guards, so the two files cannot disagree about which routes
+        // exist or what protects them.
+        'GET api/v1/pdp/persetujuan',
+        'POST api/v1/pdp/persetujuan',
+        'GET api/v1/notifikasi',
+        'PUT api/v1/notifikasi/{id}/baca',
+        'PUT api/v1/notifikasi/baca-semua',
     ]);
 
     // THIRTEEN under the `pasien` filter: the ten above (profil read + write, two
@@ -1741,6 +1756,31 @@ test('the route table exposes the eight auth routes and the eleven patient route
             // provider"; an HMAC over the raw body can, and
             // `PaymentWebhookTest` proves it is checked before any row is read.
             'POST api/v1/webhook/payment/{gateway}' => [],
+            // Todo 47's FIVE, and the two halves of its decision stated here
+            // rather than only in `routes/api.php`.
+            //
+            // The two PDP consent routes take NEITHER, and that is the same shape
+            // of decision as the promo validator above rather than an omission: a
+            // consent record is the CALLER's own, so the audience is exactly "a
+            // caller who holds a token" and every account type may read and
+            // answer for itself. A `permission:` here would add a grantable role
+            // to something that is not role-scoped, and a `tipe:pasien` would
+            // refuse a `dokter` who is filling a consent form in on a patient's
+            // behalf. The ownership half - nobody else's record - is answered by
+            // the controller's own `user_id` scoping, not by a middleware.
+            'GET api/v1/pdp/persetujuan' => [],
+            'POST api/v1/pdp/persetujuan' => [],
+            // The three notification routes take the permission and NO `tipe:`,
+            // for the reason `pembayaran.bayar` above takes no `tipe:`:
+            // `notifikasi.lihat` is granted to `pasien` and `superadmin` and to
+            // nobody else, so it already refuses `dokter`, `apoteker`, `admin`,
+            // `perawat` and `kurir` - the last two holding no role at all, and so
+            // no grant - without a second gate that could only narrow further.
+            // The per-row half is the controller's `user_id` scoping, so another
+            // account's notification is a 404 and not a disclosure.
+            'GET api/v1/notifikasi' => ['permission:notifikasi.lihat'],
+            'PUT api/v1/notifikasi/{id}/baca' => ['permission:notifikasi.lihat'],
+            'PUT api/v1/notifikasi/baca-semua' => ['permission:notifikasi.lihat'],
         ];
 
         expect($guards)->toEqualCanonicalizing(
@@ -1847,6 +1887,25 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         // `permission:` nor a `tipe:` - it is authenticated by an HMAC over the
         // raw body - and so adds nothing to this census.
         "'permission:pembayaran.bayar'",
+        // Todo 47 contributes THREE strings for THREE routes, and no `tipe:` at
+        // all: the three notification-centre routes wire only
+        // `permission:notifikasi.lihat`, and the two PDP consent routes wire
+        // `auth:sanctum` alone, so neither half of the regex fires for them.
+        //
+        // That the consent routes carry NO permission code is a decision, not an
+        // omission, and it is the reason they are not in the `$anonymous` set
+        // below by accident: a consent record is the CALLER's own, so the
+        // audience is exactly "a caller who is logged in" and a permission
+        // would add a grant that can be given to the wrong role. The two consent
+        // gates are proved by `PdpNotificationTest`, which asserts the middleware
+        // of all five directly.
+        //
+        // Duplicated deliberately from `AuthFlowTest` over the same regex: a
+        // closed set only one file watches is a closed set one later refactor
+        // can quietly reopen.
+        "'permission:notifikasi.lihat'",
+        "'permission:notifikasi.lihat'",
+        "'permission:notifikasi.lihat'",
     ]);
 });
 

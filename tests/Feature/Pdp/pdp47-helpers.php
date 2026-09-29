@@ -528,3 +528,50 @@ function pd47AdalahDuplikat(Throwable $e): bool
 
     return false;
 }
+
+/**
+ * The PHP source of `$path` with every comment removed, comments JOINED by a
+ * space so two adjacent tokens cannot fuse into a new one.
+ *
+ * ## Why a text match cannot answer this
+ *
+ * A substring search over a file cannot tell code from prose, and the files under
+ * test are full of comments that NAME the construct they avoid: the
+ * `NotifikasiController` docblock quotes `->update([...])` in full while explaining
+ * that it fires no Eloquent event. Asserting the file does not contain `->update(`
+ * therefore fails on the very comment that documents the decision, and "fixing" it
+ * by deleting the explanation would be exactly backwards.
+ *
+ * ## Why a line filter is not enough either
+ *
+ * Stripping whole comment LINES is wrong for `//` trailing a statement, and for
+ * `/*` blocks that start mid-line. The tokenizer is the only reader that knows
+ * where each comment actually ends.
+ *
+ * ## What this drops, and what it deliberately does not
+ *
+ * Comments only: `T_COMMENT` and `T_DOC_COMMENT`. String literals are KEPT, since
+ * a `->update(` inside a string is still a `->update(` this audit should see. PHP
+ * 8.0 removed the ability to nest unterminated block comments, so a single regex
+ * would be equivalent - but the tokenizer is the definition rather than an
+ * approximation of it.
+ *
+ * @return string Same source, comments replaced by single spaces
+ */
+function pd47TanpaKomentar(string $path): string
+{
+    $tokens = token_get_all((string) file_get_contents($path));
+    $hasil = '';
+
+    foreach ($tokens as $token) {
+        if (is_array($token)) {
+            $hasil .= in_array($token[0], [T_COMMENT, T_DOC_COMMENT], true) ? ' ' : $token[1];
+
+            continue;
+        }
+
+        $hasil .= $token;
+    }
+
+    return $hasil;
+}
