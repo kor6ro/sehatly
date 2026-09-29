@@ -8,6 +8,9 @@ use App\Models\Dokter;
 use App\Models\DokterJadwal;
 use App\Models\DokterLibur;
 use App\Support\Dokter\StrBerlaku;
+use App\Support\WaktuIndonesia;
+use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -305,8 +308,13 @@ class SlotAvailabilityService
      *
      * Two calls in the same request must agree on the boundary or a midnight
      * rollover between them would answer differently. Null until first use.
+     *
+     * `CarbonInterface`, never `Carbon`: `WaktuIndonesia::now()` returns a
+     * `Carbon\CarbonImmutable`, which is a **sibling** of
+     * `Illuminate\Support\Carbon` and not an instance of it, so a narrower
+     * property type raises a `TypeError` the moment the rule is exercised.
      */
-    private ?Carbon $hariIni = null;
+    private ?CarbonInterface $hariIni = null;
 
     /**
      * `GET /api/v1/dokter/{dokter}/jadwal` -- the weekly window template.
@@ -395,7 +403,7 @@ class SlotAvailabilityService
      * rule at the edge, and both may coexist.
      *
      * @param  string  $tanggal  `Y-m-d`, Asia/Jakarta wall clock
-     * @param  Carbon|null  $acuan  the "today" the elapsed-slot rule compares against; the database's own calendar day by default
+     * @param  CarbonInterface|null  $acuan  the "today" the elapsed-slot rule compares against; the Jakarta calendar day by default
      * @return list<array{
      *     jadwal_id: int,
      *     jam_mulai: string,
@@ -408,7 +416,7 @@ class SlotAvailabilityService
      *
      * @throws InvalidArgumentException when `$tanggal` is not a real calendar date
      */
-    public function getSlotTerbuka(Dokter $dokter, string $tanggal, ?Carbon $acuan = null): array
+    public function getSlotTerbuka(Dokter $dokter, string $tanggal, ?CarbonInterface $acuan = null): array
     {
         $hari = $this->tanggalValid($tanggal);
 
@@ -434,9 +442,19 @@ class SlotAvailabilityService
         // Rule 2, one comparison for the whole day rather than one per slot.
         $libur = $this->hariLibur($dokter, $tanggal);
 
-        // Rule 1b, only when the requested date IS today. `Carbon::now()` honours
-        // `setTestNow()` and is read once, so every slot of the day agrees.
-        $sudahLewat = $tanggal === $this->hariIni($acuan)->toDateString() ? Carbon::now() : null;
+        // Rule 1b, only when the requested date IS today. `WaktuIndonesia::now()`
+        // honours `setTestNow()` and is read once, so every slot of the day agrees.
+        //
+        // ZONE MATTERS, AND IT IS NOT COSMETIC. `sudahLewat` is compared against a
+        // `TIME` column, which `docs/timezone-policy.md` is explicit is a wall
+        // clock ("17:00 at the clinic"), not an instant. Reading "now" as UTC and
+        // comparing it against that wall clock made every slot between
+        // `now(WIB) - 7h` and `now(WIB)` look bookable - so a 09:00 WIB appointment
+        // stayed available until 16:00 WIB. Both sides of this comparison are now
+        // Jakarta wall clocks, and neither passes through a conversion.
+        $sudahLewat = $tanggal === $this->hariIni($acuan)->toDateString()
+            ? WaktuIndonesia::now()
+            : null;
 
         $slot = [];
 
@@ -530,7 +548,7 @@ class SlotAvailabilityService
         DokterJadwal $jadwal,
         string $tanggal,
         bool $libur,
-        ?Carbon $sudahLewat,
+        ?CarbonInterface $sudahLewat,
     ): array {
         $mulai = $this->detik((string) $jadwal->jam_mulai);
         $selesai = $this->detik((string) $jadwal->jam_selesai);
@@ -633,7 +651,7 @@ class SlotAvailabilityService
      */
     private function keputusan(
         bool $libur,
-        ?Carbon $sudahLewat,
+        ?CarbonInterface $sudahLewat,
         string $jamSelesai,
         array $bertabrakan,
         int $mulaiSlot,
@@ -693,6 +711,21 @@ class SlotAvailabilityService
      *
      * @throws InvalidArgumentException when the string is not a real calendar date
      */
+    /**
+     * Parse a `Y-m-d` request date, refusing the calendar's rollover.
+     *
+     * `createFromFormat` accepts `2026-13-45` and returns `2027-02-14`, so the
+     * round trip is what actually validates the input.
+     *
+     * The return type stays `Illuminate\Support\Carbon`, not `CarbonInterface`:
+     * the value's only two consumers are `$hari->dayOfWeek` and
+     * `StrBerlaku::berlakuPada()`, and widening the whole path to an immutable
+     * would force a second, unrelated type change in `StrBerlaku` for no gain. The
+     * immutable values live in `hariIni()` and in the elapsed-slot comparison,
+     * which is where the policy actually needs them.
+     *
+     * @throws InvalidArgumentException when the string is not a real calendar date
+     */
     private function tanggalValid(string $tanggal): Carbon
     {
         $hari = Carbon::createFromFormat('!Y-m-d', $tanggal);
@@ -707,25 +740,33 @@ class SlotAvailabilityService
     }
 
     /**
-     * Today, as the database's calendar day, or the caller's explicit day.
+     * Today, on the clinic's calendar, or the caller's explicit day.
      *
-     * `config/app.php` is UTC while the DDL's `dibuat_at`/`diubah_at` are
+     * `config/app.php` is UTC while `dibuat_at`/`diubah_at` are
      * `TIMESTAMP DEFAULT CURRENT_TIMESTAMP` and the rest of the schema stores
-     * naive wall clock, so a PHP-built date would compare a Jakarta calendar day
-     * against a UTC one. `SELECT CURDATE()` is the same clock MySQL used.
+     * naive wall clock, so a PHP-built UTC date would compare a Jakarta calendar
+     * day against a UTC one.
+     *
+     * It was `SELECT CURDATE()`, and that was a bug that happened to be invisible:
+     * `CURDATE()` is the **server's** wall clock, so it answered correctly only
+     * because this host is set to WIB. Pinning the connection to `+00:00` - which
+     * `docs/timezone-policy.md` requires for every `TIMESTAMP` read - would have
+     * silently turned "today" into the UTC day, and a clinic seven hours ahead
+     * would open its book on the wrong date between midnight and seven in the
+     * morning WIB. A clinic's "today" is a business fact, so it is computed in the
+     * clinic's zone rather than read off whichever server is answering.
+     *
      * Cached per instance so two calls in one request cannot disagree across a
      * midnight rollover.
      */
-    private function hariIni(?Carbon $acuan = null): Carbon
+    private function hariIni(?CarbonInterface $acuan = null): CarbonInterface
     {
         if ($acuan !== null) {
             return $acuan->copy()->startOfDay();
         }
 
         if ($this->hariIni === null) {
-            $baris = DB::selectOne('SELECT CURDATE() AS hari');
-
-            $this->hariIni = Carbon::parse((string) $baris->hari)->startOfDay();
+            $this->hariIni = WaktuIndonesia::now()->startOfDay();
         }
 
         return $this->hariIni->copy();

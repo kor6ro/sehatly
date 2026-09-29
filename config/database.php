@@ -55,6 +55,19 @@ return [
             'unix_socket' => env('DB_SOCKET', ''),
             'charset' => env('DB_CHARSET', 'utf8mb4'),
             'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
+            // Pins `SET time_zone='+00:00'` on every MySQL connection.
+            //
+            // Without it the session inherits the host's zone - `SYSTEM`, and on
+            // this machine that is Asia/Jakarta - and MySQL converts every
+            // `TIMESTAMP` **on read** using it. The value is stored correctly
+            // (UTC-native) but read back seven hours late, then labelled UTC by
+            // Eloquent because `app.timezone` is UTC, and published with a `Z` on
+            // the end of it.
+            //
+            // `+00:00` rather than `'UTC'`: MySQL resolves named zones from its
+            // timezone tables, which a hardened server does not ship, whereas the
+            // numeric offset always works. See `docs/timezone-policy.md`.
+            'timezone' => env('DB_TIMEZONE', '+00:00'),
             'prefix' => '',
             'prefix_indexes' => true,
             'strict' => true,
