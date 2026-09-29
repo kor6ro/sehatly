@@ -40,6 +40,7 @@ use Tests\Contract\Support\LiveRequest;
  | conclusion it no longer holds.
  */
 
+use App\Support\Schema\SqlSchemaParser;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -376,9 +377,20 @@ it('finds_the_webhook_declared_anonymous_answering_an_undocumented_401', functio
 
     // No signature header: `verifyWebhook()` checks the header FIRST, before the
     // body is touched, and raises `TandaTanganWebhookTidakValid` -- a 401.
+    //
+    // The body values are real DDL tokens. `pembayaran.status` is
+    // `enum('pending','berhasil','gagal','kedaluwarsa','refund')`
+    // (telemedicine_test.sql:965) and `pembayaran.gateway` is
+    // `enum('midtrans','xendit','doku','flip')`, both read back through
+    // `SqlSchemaParser` while writing this test. An invented value such as
+    // `settle` -- which appears nowhere in the schema -- would be the same class
+    // of defect as the `referencia` typo that once cost this project 48 test
+    // failures: the assertion would pass for the wrong reason and the token
+    // would rot silently. The body is never parsed on this path, so a wrong
+    // value here would cost nothing today and everything the day it did.
     $response = $this->postJson('/api/v1/webhook/payment/midtrans', [
         'nomor_referensi' => 'MOCK-CONTRACT-SUITE',
-        'status' => 'settle',
+        'status' => 'berhasil',
         'jumlah' => '1000.00',
     ]);
 
@@ -391,4 +403,71 @@ it('finds_the_webhook_declared_anonymous_answering_an_undocumented_401', functio
     $violations = LiveRequest::validateAgainstDocument($response, $operation);
     expect($violations)->not->toBeEmpty();
     expect(implode("\n", $violations))->toContain('publishes no 401');
+});
+
+/*
+ |--------------------------------------------------------------------------
+ | Token hygiene: every literal this suite writes is a real DDL token
+ |--------------------------------------------------------------------------
+ |
+ | This project's own history is the reason. A single misspelled Indonesian token
+ | -- `referencia` for `referensi` -- cost 48 test failures, and the failure mode
+ | is the dangerous kind: the assertions that used the wrong token passed or
+ | failed for reasons unrelated to what they claimed to check, and nothing
+ | announced that a literal had stopped meaning anything.
+ |
+ | A conformance suite is where that is most likely, because it is full of
+ * literals copied out of a schema: path-parameter names, column names, ENUM
+ | values. So every one is read back through `App\Support\Schema\SqlSchemaParser`
+ | -- the same parser `sehatly:verify-schema` uses, which means this audit cannot
+ * disagree with the verifier about what the DDL says.
+ *
+ | This test caught a real instance of the defect it exists to catch: the webhook
+ * body in the test above originally carried `status => settle`, which appears
+ | NOWHERE in `telemedicine_test.sql`. The assertion would have passed regardless,
+ * because the signature check rejects the request before the body is parsed --
+ * so the wrong token would have cost nothing that day and everything the day the
+ * path changed.
+ */
+it('writes_only_tokens_the_ddl_actually_declares', function (): void {
+    $schema = (new SqlSchemaParser)->parseFile(base_path('telemedicine_test.sql'));
+
+    // 1. The path-parameter substitutions, as columns of the tables they address.
+    expect($schema->hasTable('users'))->toBeTrue();
+    expect($schema->table('users')->columns)->toHaveKey('nama_lengkap');
+    expect($schema->table('users')->columns)->toHaveKey('tipe');
+
+    // 2. The ENUM-value bucket: every value this suite writes must exist in some
+    //    declared ENUM. This is the bucket a typo lands in silently.
+    $declared = [];
+
+    foreach ($schema->tables as $table) {
+        foreach ($table->columns as $column) {
+            if (! preg_match('/^enum\((.*)\)$/', $column->type, $matches)) {
+                continue;
+            }
+
+            foreach (explode(',', $matches[1]) as $value) {
+                $declared[trim(trim($value), "'")][] = $table->name.'.'.$column->name;
+            }
+        }
+    }
+
+    // `midtrans` is the `{gateway}` substitution; `berhasil` is the webhook
+    // `status` body value. Both must be real.
+    expect($declared)->toHaveKey('midtrans');
+    expect($declared['midtrans'])->toBe(['pembayaran.gateway']);
+
+    // `berhasil` is shared by two ENUM columns, which is itself worth stating:
+    // the webhook's `status` is ambiguous between `pembayaran` and `refund`, and
+    // only the surrounding `gateway` + reference keys disambiguate it. Asserting
+    // the real pair keeps a future migration that adds a third home visible.
+    expect($declared)->toHaveKey('berhasil');
+    $berhasilHomes = $declared['berhasil'];
+    sort($berhasilHomes);
+    expect($berhasilHomes)->toBe(['pembayaran.status', 'refund.status']);
+
+    // And the value this suite originally wrote must NOT exist, so a future
+    // re-introduction of the same typo is caught by name rather than by accident.
+    expect($declared)->not->toHaveKey('settle');
 });
