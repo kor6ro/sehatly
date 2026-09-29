@@ -753,6 +753,27 @@ test('a tampered, truncated or foreign payload is refused rather than decrypted 
             ->and($hasil)->toBe('not reached');
     }
 
+    // The MARKER check, isolated. A 16-digit plaintext is only 12 bytes once
+    // base64-decoded, so the LENGTH check refuses it first and a test that used
+    // a plaintext NIK to prove the marker was proving the wrong guard - the M9
+    // mutation, which deletes the marker check, survived exactly that test. The
+    // value that separates the two is one that decodes to the RIGHT LENGTH and
+    // is still not a payload, and the message has to say which check fired,
+    // because an operator reading "too short" for a full-length foreign value
+    // would go looking in the wrong place.
+    $asing = base64_encode(str_repeat('N', NikCipher::PAYLOAD_LENGTH));
+    $pesan = null;
+
+    try {
+        NikCipher::decrypt($asing);
+    } catch (NikDecryptionException $e) {
+        $pesan = $e->getMessage();
+    }
+
+    expect(strlen((string) base64_decode($asing, true)))->toBe(NikCipher::PAYLOAD_LENGTH)
+        ->and($pesan)->toContain('NKC1')
+        ->and($pesan)->toContain('plaintext');
+
     // An empty string is "no identifier" rather than corruption, so it answers
     // null instead of throwing - a nullable column must stay readable.
     expect(NikCipher::decrypt(''))->toBeNull()
@@ -775,6 +796,50 @@ test('a tampered, truncated or foreign payload is refused rather than decrypted 
 });
 
 // -------------------------------------------------------------- API masking
+
+test('the config file reads the NIK key from the environment and never from APP_KEY', function (): void {
+    // The M10 mutation, which points `config/nik.php` at `APP_KEY`, survived
+    // every other test in this file, because every test sets `config('nik.key')`
+    // directly and so never evaluates the config file at all. The only way to
+    // close that is to evaluate the file the way Laravel does - by requiring it
+    // with a controlled environment - rather than by reading its source.
+    //
+    // The re-require is a copy, not a mutation of the live repository: the
+    // returned array is the file's own result and `config()` is untouched.
+    $sebelum = ['nik' => $_ENV['NIK_CIPHER_KEY'] ?? null, 'app' => $_ENV['APP_KEY'] ?? null];
+
+    try {
+        $_ENV['NIK_CIPHER_KEY'] = null;
+        $_ENV['APP_KEY'] = 'base64:'.base64_encode(random_bytes(32));
+
+        $rebuild = require base_path('config/nik.php');
+
+        expect($rebuild['key'])->toBeNull('config/nik.php took its key from something other than NIK_CIPHER_KEY')
+            ->and($rebuild['previous_keys'])->toBe([]);
+
+        // And with the NIK variable set, that is what it reads.
+        $_ENV['NIK_CIPHER_KEY'] = base64_encode(random_bytes(32));
+        $rebuild = require base_path('config/nik.php');
+
+        expect($rebuild['key'])->toBe($_ENV['NIK_CIPHER_KEY'])
+            ->and($rebuild['key'])->not->toBe($_ENV['APP_KEY']);
+
+        // The previous-key list is a LIST, split on commas, blanks dropped, so
+        // the deployment story in the docblock is executable rather than prose.
+        $_ENV['NIK_CIPHER_PREVIOUS_KEYS'] = ' aaa , ,bbb ';
+        $rebuild = require base_path('config/nik.php');
+
+        expect($rebuild['previous_keys'])->toBe(['aaa', 'bbb']);
+    } finally {
+        foreach ($sebelum as $name => $value) {
+            if ($value === null) {
+                unset($_ENV[$name]);
+            } else {
+                $_ENV[$name] = $value;
+            }
+        }
+    }
+});
 
 test('a NIK masked from a payload is character-identical to one masked from plaintext', function (): void {
     $nik = '3273123456780001';
