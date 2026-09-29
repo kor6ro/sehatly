@@ -1,0 +1,217 @@
+name: contract
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+  pull_request:
+    branches:
+      - develop
+      - main
+
+concurrency:
+  group: contract-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The generated contract must agree with the code that produces it. This job
+  # exists because a committed `docs/openapi.yaml` is a COPY of the route table,
+  # and a copy nobody compares against its source is exactly how a client ends up
+  # calling an endpoint that was renamed three todos ago.
+  #
+  # `--check` writes nothing: it renders in memory and compares SHA-256, so a
+  # stale file fails here without the job silently repairing it.
+  generated-contract:
+    name: generated contract is fresh
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: yes
+          MYSQL_DATABASE: telemedisin_db
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-scripts
+
+      - name: Copy environment file
+        run: cp .env.example .env
+
+      - name: Generate application key
+        run: php artisan key:generate --force
+
+      - name: Set a NIK cipher key
+        # `NIK_CIPHER_KEY` is deliberately NOT derived from `APP_KEY`: coupling
+        # them would re-derive every NIK blind index whenever the app key rotates.
+        # A test-only value is correct here because this job runs against a
+        # throwaway database.
+        run: |
+          KEY=$(php -r 'echo base64_encode(random_bytes(32));')
+          echo "NIK_CIPHER_KEY=base64:$KEY" >> .env
+
+      - name: Migrate
+        run: php artisan migrate --force
+
+      - name: ENUM catalogue is a fresh export
+        run: php artisan sehatly:enums --check
+
+      - name: OpenAPI document and Dart types are a fresh export
+        run: php artisan sehatly:openapi --check
+
+      - name: Install the OpenAPI type-generator toolchain
+        # Isolated from `web/` on purpose: openapi-typescript peers on
+        # typescript ^5 while `web/` compiles against typescript ^7. See
+        # tools/openapi-types/README.md.
+        run: npm --prefix tools/openapi-types ci
+
+      - name: Regenerate the TypeScript client types
+        run: npm run types:generate
+
+      - name: The regenerated types are byte-identical to the committed ones
+        run: git diff --exit-code -- web/src/types/api.d.ts
+
+      - name: Install the web client's dependencies
+        run: npm --prefix web ci --ignore-scripts
+
+      - name: The generated TypeScript compiles
+        run: npm run types:check
+
+      - name: Build the SPA
+        run: npm run build
+
+      - name: Set up the Dart SDK
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: '3.13.2'
+
+      - name: Resolve the Dart package
+        run: dart pub get --directory packages/sehatly_api_client
+
+      - name: Analyze the Dart package
+        run: dart analyze packages/sehatly_api_client
+
+      - name: Test the Dart package
+        run: dart test packages/sehatly_api_client
+
+      - name: No Flutter app exists in this repository
+        # The plan's guardrail, as a real check rather than prose. The Dart
+        # package is pure Dart on purpose: a `flutter:` SDK constraint or a
+        # `flutter` dependency would make it untestable without the Flutter SDK.
+        run: |
+          test ! -e mobile
+          ! grep -rn --include=pubspec.yaml -E '^\s+flutter:' .
+          ! grep -rn --include=pubspec.yaml -E '^\s{2}flutter:' .
+
+  # The schema parity check and the full suite, in the order a developer runs
+  # them. `migrate:fresh --seed` runs first so the suite starts from a known
+  # state rather than whatever the previous run left behind.
+  php:
+    name: PHP suite and schema parity
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: yes
+          MYSQL_DATABASE: telemedisin_db
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: Copy environment file
+        run: cp .env.example .env
+
+      - name: Generate application key
+        run: php artisan key:generate --force
+
+      - name: Set a NIK cipher key
+        run: |
+          KEY=$(php -r 'echo base64_encode(random_bytes(32));')
+          echo "NIK_CIPHER_KEY=base64:$KEY" >> .env
+
+      - name: Create the test database
+        # A separate database from the dev one. `phpunit.xml` pins
+        # `DB_DATABASE=telemedisin_db_test`, and the Unit suite does not use
+        # `RefreshDatabase`, so a missing schema there fails as eight unrelated
+        # failures rather than as one obvious "database not migrated" error.
+        run: php artisan db:create-test-database
+
+      - name: Migrate and seed from scratch
+        run: php artisan migrate:fresh --seed --force
+
+      - name: Create the test database schema
+        run: php artisan migrate --force --database=mysql --env=testing
+
+      - name: Pint
+        run: vendor/bin/pint --test
+
+      - name: Schema parity
+        run: php artisan sehatly:verify-schema
+
+      - name: Test suite
+        run: php artisan test
+
+  web:
+    name: web suite
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          npm ci --ignore-scripts
+          npm --prefix web ci --ignore-scripts
+
+      - name: Types
+        run: npm run types:check
+
+      - name: Unit tests
+        run: npm --prefix web run test:unit
+
+      - name: Build
+        run: npm run build
