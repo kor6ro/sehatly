@@ -10,6 +10,7 @@ pertama, dan tidak ada satu pun yang mendokumentasikan endpoint yang belum ada.
 | 1 - pasien | [`modul-1-pasien.md`](modul-1-pasien.md) | selesai | 11 |
 | 1 - dokter | [`modul-1-dokter.md`](modul-1-dokter.md) | selesai | 3 |
 | 2 - jadwal dan booking | [`modul-2-jadwal-booking.md`](modul-2-jadwal-booking.md) | **belum lengkap** | **0** |
+| 3 - konsultasi dan rekam medis | [`modul-3-konsultasi-rekam-medis.md`](modul-3-konsultasi-rekam-medis.md) | selesai | 15 |
 
 Modul 2 tidak sengaja diselesaikan pada berkas mana pun. Endpoint jadwal,
 slot, dan booking dibangun pada todo 27, dan sisi React-nya pada todo 28.
