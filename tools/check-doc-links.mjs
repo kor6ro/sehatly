@@ -104,6 +104,44 @@ const PATHS_EXPECTED_ABSENT = [
   'mobile/',
 ];
 
+/**
+ * API paths the document deliberately names as **not registered**.
+ *
+ * Entries are stored in NORMALISED form -- placeholders collapsed to `{}` -- so
+ * they compare against the same shape `normalisePath()` produces.
+ *
+ * `docs/mobile-integration.md` tells the mobile team that the plan's
+ * "poll GET /invoice/{id}" rule points at an endpoint this application does not
+ * have, and it has to be able to write that path down in order to say so. Each
+ * entry is a *negative* assertion with a lifetime: the tool fails if the path
+ * ever becomes a registered route, because at that moment the document is
+ * lying and the sentence has to be rewritten. A missing-endpoint claim that
+ * nobody checks is exactly as rot-prone as a dead link.
+ */
+const ENDPOINTS_EXPECTED_ABSENT = [
+  // Named by the plan's todo 36 section 12 as the thing to poll after a
+  // payment. The route table has `POST /api/v1/invoice/{id}/bayar` and no read
+  // at all on the invoice resource, so there is nothing to poll here.
+  'api/v1/invoice/{}',
+];
+
+/**
+ * IANA top-level media types, so a MIME prefix in prose is not read as a path
+ * into the repository. `text/` and `application/` appear in the upload MIME
+ * allow-list and would otherwise be two false failures on every run.
+ */
+const MIME_ROOTS = new Set([
+  'application',
+  'audio',
+  'font',
+  'image',
+  'message',
+  'model',
+  'multipart',
+  'text',
+  'video',
+]);
+
 // ---------------------------------------------------------------------------
 // argument parsing
 // ---------------------------------------------------------------------------
@@ -405,7 +443,9 @@ function looksLikeRepoPath(value) {
     return false;
   }
 
-  if (/^[a-z]+\/[a-z0-9.+-]+$/i.test(value)) {
+  const [head] = value.split('/');
+
+  if (MIME_ROOTS.has(head.toLowerCase())) {
     return false;
   }
 
@@ -488,9 +528,9 @@ function checkLinks(docFile, text) {
 
     if (filePart === '') {
       resolved = docFile;
-    } else if (existsSync(fromDoc) && statIsFile(fromDoc)) {
+    } else if (statExists(fromDoc)) {
       resolved = fromDoc;
-    } else if (existsSync(fromRoot) && statIsFile(fromRoot)) {
+    } else if (statExists(fromRoot)) {
       resolved = fromRoot;
     }
 
@@ -532,9 +572,16 @@ function checkLinks(docFile, text) {
   }
 }
 
-function statIsFile(path) {
+/**
+ * A link may point at a directory -- GitHub renders `packages/sehatly_api_client`
+ * as a file listing, and that is a useful link to have. The target only has to
+ * *exist*; an anchor additionally has to be a Markdown file, which is asserted
+ * separately below.
+ */
+function statExists(path) {
   try {
-    return statSync(path).isFile();
+    statSync(path);
+    return true;
   } catch {
     return false;
   }
@@ -740,6 +787,36 @@ function normalisePath(value) {
   return path;
 }
 
+/**
+ * Whether a candidate is a *group* reference rather than a single route.
+ *
+ * `docs/mobile-integration.md` says "the fourteen `GET /api/v1/referensi/*`
+ * endpoints", and `/api/v1/referensi` names no route -- it names a family of
+ * them. A candidate that is a genuine prefix of at least one registered route
+ * is a group reference, not a typo, so it is accepted. A candidate that is a
+ * prefix of nothing (`/api/v1/nope-xyz`, `/api/v1/tidak-ada`) is still a failure,
+ * so the rule cannot grow into a blanket exemption.
+ *
+ * A candidate containing a `{placeholder}` never qualifies. `/api/v1/invoice/{id}`
+ * *is* a prefix of `/api/v1/invoice/{id}/bayar`, and letting it through on the
+ * prefix rule would make the document's most important negative claim -- that no
+ * such endpoint exists -- pass silently. Placeholder-bearing paths must either
+ * match a route exactly or appear in `ENDPOINTS_EXPECTED_ABSENT`.
+ */
+function isRouteGroup(candidate) {
+  if (candidate.includes('{')) {
+    return false;
+  }
+
+  for (const route of routePaths) {
+    if (route.startsWith(`${candidate}/`)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function checkApiPaths(docFile, text) {
   const known = loadRoutePaths();
   const seen = new Map();
@@ -760,16 +837,43 @@ function checkApiPaths(docFile, text) {
         seen.set(normalised, index + 1);
       }
 
-      if (!known.has(normalised)) {
-        finding(
-          'endpoint',
-          docFile,
-          index + 1,
-          `no registered route matches ${raw} (normalised: /${normalised})`,
-        );
+      if (known.has(normalised)) {
+        continue;
       }
+
+      if (isRouteGroup(normalised)) {
+        note(`${docFile}:${index + 1}  api group (not a route) /${normalised}`);
+        continue;
+      }
+
+      if (ENDPOINTS_EXPECTED_ABSENT.includes(normalised)) {
+        note(`${docFile}:${index + 1}  endpoint asserted ABSENT /${normalised}`);
+        continue;
+      }
+
+      finding(
+        'endpoint',
+        docFile,
+        index + 1,
+        `no registered route matches ${raw} (normalised: /${normalised})`,
+      );
     }
   });
+
+  // The negative assertions, checked in the other direction: an entry in
+  // ENDPOINTS_EXPECTED_ABSENT that has become a real route means the document's
+  // "this does not exist" sentence is now false.
+  for (const absent of ENDPOINTS_EXPECTED_ABSENT) {
+    if (known.has(absent)) {
+      finding(
+        'endpoint',
+        '<tool>',
+        0,
+        `${absent} is asserted absent by this tool but IS a registered route; ` +
+          'the document claiming it does not exist is now wrong',
+      );
+    }
+  }
 
   return seen;
 }
