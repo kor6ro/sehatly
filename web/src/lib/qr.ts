@@ -639,15 +639,20 @@ function pasangData(
     let kursor = 0;
     let naik = true;
 
-    for (let kanan = ukuran - 1; kanan >= 1; kanan -= 2) {
+    /**
+     * `kanan`, `langkah`, `baris` and `kolom` carry explicit annotations because `kanan` is
+     * mutated inside the loop body (`if (kanan === 6) kanan -= 1`), and without them the
+     * control-flow inference for `baris` becomes circular and TypeScript gives up on it.
+     */
+    for (let kanan: number = ukuran - 1; kanan >= 1; kanan -= 2) {
         if (kanan === 6) {
             kanan -= 1;
         }
 
-        for (let langkah = 0; langkah < ukuran; langkah += 1) {
-            const baris = naik ? ukuran - 1 - langkah : langkah;
+        for (let langkah: number = 0; langkah < ukuran; langkah += 1) {
+            const baris: number = naik ? ukuran - 1 - langkah : langkah;
 
-            for (let kolom = 0; kolom < 2; kolom += 1) {
+            for (let kolom: number = 0; kolom < 2; kolom += 1) {
                 const indeks = baris * ukuran + (kanan - kolom);
 
                 if (tetap[indeks] === 1) {
