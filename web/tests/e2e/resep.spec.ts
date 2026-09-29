@@ -326,6 +326,20 @@ function jejakPostResep(jejak: string[], konsultasiId: number): string[] {
     );
 }
 
+/**
+ * How many catalogue queries reached `GET /api/v1/obat`.
+ *
+ * The counterpart to {@link jejakPostResep} for the search box, and the only place the
+ * debounce is observable at all: `DEBOUNCE_MS` and `MINIMAL_KARAKTER` are internal to the
+ * component, so the network log is the honest evidence that a keystroke did NOT become a
+ * request.
+ */
+function jejakObat(jejak: string[]): string[] {
+    return jejak.filter(
+        (baris) => baris.startsWith('GET ') && baris.includes('/api/v1/obat'),
+    );
+}
+
 test.describe.configure({ mode: 'serial' });
 
 test.describe('Module 4 prescription warn-then-override', () => {
@@ -388,17 +402,45 @@ test.describe('Module 4 prescription warn-then-override', () => {
             dokter.locator('[data-slot="obat-autocomplete"]'),
         ).toBeVisible({ timeout: 30_000 });
 
+        // --- the search box does not become a request per keystroke -------------------
         /**
-         * The FULL generic name, not a prefix.
+         * Both halves of the box's cost control, measured on the wire.
          *
-         * `ObatSearchService::cari()` matches on `NamaObat::inti()` **equality**, never on
-         * containment - "two spellings of one substance meet on an equal normalised core, not
-         * on containment" is the service's own rule, and it exists so search and the allergy
-         * engine can never disagree about a spelling. A prefix therefore matches nothing at
-         * all, which is a real usability finding about the endpoint rather than about this
-         * spec; see `.omo/evidence/task-41-sehatly.md`.
+         * `MINIMAL_KARAKTER = 2` means one character issues NO query at all - the component
+         * leaves the query `enabled: false`, so the request is never made rather than made
+         * and discarded. Then the remaining characters go in at 50 ms each, which is well
+         * inside the 300 ms debounce, so every keystroke RESTARTS the timer and only the
+         * final value is ever sent. One burst of ten characters, one request.
+         *
+         * Without these two assertions the debounce is an implementation detail nobody could
+         * tell had been removed, and a catalogue query per keystroke is exactly the cost
+         * `staleTime: 60_000` exists to avoid.
          */
-        await dokter.getByLabel('Cari obat').fill('Amoxicillin');
+        await dokter.getByLabel('Cari obat').pressSequentially('A', { delay: 0 });
+        await dokter.waitForTimeout(900);
+
+        expect(
+            jejakObat(jejak()).length,
+            'satu karakter tidak boleh memicu query katalog',
+        ).toBe(0);
+
+        await dokter
+            .getByLabel('Cari obat')
+            .pressSequentially('moxicillin', { delay: 50 });
+
+        await dokter
+            .locator('[data-slot="obat-autocomplete-pilihan"][data-obat-id="2"]')
+            .waitFor({ timeout: 20_000 });
+
+        await dokter.waitForTimeout(900);
+
+        expect(
+            jejakObat(jejak()).length,
+            'sepuluh karakter dalam waktu debounce harus menghasilkan SATU query',
+        ).toBe(1);
+
+        // The FULL generic name, not a prefix: `ObatSearchService` matches on
+        // `NamaObat::inti()` EQUALITY, never containment. Evidence file, finding 5.2.
         await dokter
             .locator('[data-slot="obat-autocomplete-pilihan"][data-obat-id="2"]')
             .click();
@@ -732,6 +774,10 @@ test.describe('Module 4 prescription warn-then-override', () => {
         });
 
         // --- the network log, printed for the evidence file -------------------------
+        console.log(
+            'CATALOGUE_QUERIES_T41\n' + jejakObat(jejak()).join('\n'),
+        );
+
         console.log(
             'NETWORK_LOG_T41\n' + [...jejak(), ...jejakApotek].join('\n'),
         );
