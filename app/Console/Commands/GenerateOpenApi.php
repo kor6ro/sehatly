@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
+use App\Support\OpenApi\DartContractGenerator;
 use App\Support\OpenApi\OpenApiDocumentBuilder;
 use App\Support\OpenApi\OpenApiGenerationException;
 use App\Support\OpenApi\RouteInventory;
@@ -63,7 +64,8 @@ class GenerateOpenApi extends Command
 {
     protected $signature = 'sehatly:openapi
         {--out= : Path to write (default: docs/openapi.yaml)}
-        {--check : Write nothing; exit 1 when the file on disk differs from a fresh export}
+        {--dart-dir= : Directory for the generated Dart files (default: packages/sehatly_api_client/lib/src/generated)}
+        {--check : Write nothing; exit 1 when any generated file on disk differs from a fresh export}
         {--json : Emit a machine-readable report on stdout}';
 
     protected $description = 'Generate docs/openapi.yaml from the live /api/v1 route table, its middleware and each FormRequest\'s rules()';
@@ -123,8 +125,44 @@ class GenerateOpenApi extends Command
         $onDisk = is_file($outPath) ? (string) file_get_contents($outPath) : null;
         $matchesOnDisk = $onDisk === $rendered;
 
+        // The Dart half, rendered from the SAME inventory in the SAME process.
+        // See DartContractGenerator for why it is not a second generator reading
+        // the committed YAML: a separate tool could be pointed at a stale
+        // document and nothing would say so.
+        $dartDirectory = (string) ($this->option('dart-dir') ?: base_path('packages/sehatly_api_client/lib/src/generated'));
+        $dartFiles = (new DartContractGenerator)->render($inventory, $this->enums());
+        $dartResults = [];
+
+        foreach ($dartFiles as $name => $contents) {
+            $target = $dartDirectory.DIRECTORY_SEPARATOR.$name;
+            $existing = is_file($target) ? (string) file_get_contents($target) : null;
+
+            $dartResults[$name] = [
+                'path' => $this->relative($target),
+                'bytes' => strlen($contents),
+                'sha256' => hash('sha256', $contents),
+                'matches_on_disk' => $existing === $contents,
+                'changed' => false,
+            ];
+        }
+
         $writes = $inventory->writesWithoutFormRequest();
         $unexempt = array_values(array_filter($writes, static fn (array $w): bool => $w['exempt'] === false));
+
+        // The number of DISTINCT `FormRequest` classes, which is not the number
+        // of operations that have one: three rekam-medis endpoints share a base
+        // class, and `form_requests` is what a reader means by "how many request
+        // shapes does the contract describe".
+        $distinctFormRequests = count(array_unique(array_filter(array_map(
+            static fn (array $o): string => (string) ($o['form_request'] ?? ''),
+            $inventory->operations(),
+        ))));
+
+        $allFresh = $matchesOnDisk;
+
+        foreach ($dartResults as $result) {
+            $allFresh = $allFresh && $result['matches_on_disk'];
+        }
 
         $report = [
             'ok' => true,
@@ -133,12 +171,7 @@ class GenerateOpenApi extends Command
             'routes_read' => $inventory->routesRead(),
             'unique_paths' => $inventory->uniquePaths(),
             'operations' => count($inventory->operations()),
-            'form_requests' => count($inventory->formRequestExemptions()) > 0
-                ? count(array_unique(array_map(
-                    static fn (array $o): string => (string) ($o['form_request'] ?? ''),
-                    $inventory->operations(),
-                ))) - 1
-                : 0,
+            'form_requests' => $distinctFormRequests,
             'writes_without_form_request' => $writes,
             'unexempt_writes' => $unexempt,
             'out' => $this->relative($outPath),
@@ -146,6 +179,8 @@ class GenerateOpenApi extends Command
             'sha256' => hash('sha256', $rendered),
             'on_disk_sha256' => $onDisk === null ? null : hash('sha256', $onDisk),
             'matches_on_disk' => $matchesOnDisk,
+            'dart' => $dartResults,
+            'dart_all_fresh' => $allFresh,
             'changed' => false,
         ];
 
@@ -183,8 +218,8 @@ class GenerateOpenApi extends Command
         }
 
         if ($check) {
-            $report['ok'] = $matchesOnDisk;
-            $report['exit_code'] = $matchesOnDisk ? self::SUCCESS : self::FAILURE;
+            $report['ok'] = $allFresh;
+            $report['exit_code'] = $allFresh ? self::SUCCESS : self::FAILURE;
 
             if ($json) {
                 $this->line((string) json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
@@ -192,27 +227,46 @@ class GenerateOpenApi extends Command
                 return $report['exit_code'];
             }
 
-            if (! $matchesOnDisk) {
+            if (! $allFresh) {
                 $this->newLine();
-                $this->line('  <fg=red>DRIFT</> -- '.$this->relative($outPath).' is not a fresh export. Run `php artisan sehatly:openapi`.');
-                $this->row('on disk', $onDisk === null
-                    ? 'file does not exist'
-                    : strlen($onDisk).' bytes, sha256 '.hash('sha256', $onDisk));
-                $this->row('fresh export', strlen($rendered).' bytes, sha256 '.hash('sha256', $rendered));
-                $this->row('first difference', $this->firstDifference($onDisk, $rendered));
-                $this->row('routes read', (string) $inventory->routesRead());
-                $this->newLine();
-                $this->line('  <fg=red>The file was NOT overwritten.</> Commit the regenerated copy, or revert the hand-edit.');
+
+                if (! $matchesOnDisk) {
+                    $this->line('  <fg=red>DRIFT</> -- '.$this->relative($outPath).' is not a fresh export. Run `php artisan sehatly:openapi`.');
+                    $this->row('on disk', $onDisk === null
+                        ? 'file does not exist'
+                        : strlen($onDisk).' bytes, sha256 '.hash('sha256', $onDisk));
+                    $this->row('fresh export', strlen($rendered).' bytes, sha256 '.hash('sha256', $rendered));
+                    $this->row('first difference', $this->firstDifference($onDisk, $rendered));
+                    $this->row('routes read', (string) $inventory->routesRead());
+                    $this->newLine();
+                }
+
+                foreach ($dartResults as $name => $result) {
+                    if ($result['matches_on_disk']) {
+                        continue;
+                    }
+
+                    $this->line('  <fg=red>DRIFT</> -- '.$result['path'].' is not a fresh export. Run `php artisan sehatly:openapi`.');
+                    $this->row('fresh export', $result['bytes'].' bytes, sha256 '.$result['sha256']);
+                    $this->newLine();
+                }
+
+                $this->line('  <fg=red>No file was overwritten.</> Commit the regenerated copies, or revert the hand-edit.');
                 $this->newLine();
 
                 return self::FAILURE;
             }
 
             $this->newLine();
-            $this->line('  <fg=green>UP TO DATE</> -- '.$this->relative($outPath).' is byte-identical to a fresh export');
+            $this->line('  <fg=green>UP TO DATE</> -- every generated file is byte-identical to a fresh export');
             $this->row('routes read', $inventory->routesRead().' under api/v1');
             $this->row('paths / operations', $inventory->uniquePaths().' paths, '.count($inventory->operations()).' operations');
-            $this->row('sha256', hash('sha256', $rendered));
+            $this->row('openapi.yaml', strlen($rendered).' bytes, sha256 '.hash('sha256', $rendered));
+
+            foreach ($dartResults as $result) {
+                $this->row($this->shortName($result['path']), $result['bytes'].' bytes, sha256 '.$result['sha256']);
+            }
+
             $this->newLine();
 
             return self::SUCCESS;
@@ -230,7 +284,26 @@ class GenerateOpenApi extends Command
             file_put_contents($outPath, $rendered);
         }
 
-        $report['changed'] = $changed;
+        foreach ($dartResults as $name => $result) {
+            $target = $dartDirectory.DIRECTORY_SEPARATOR.$name;
+
+            if (! is_dir($dartDirectory)) {
+                mkdir($dartDirectory, 0o755, true);
+            }
+
+            if (! $result['matches_on_disk']) {
+                file_put_contents($target, $dartFiles[$name]);
+                $dartResults[$name]['changed'] = true;
+            }
+        }
+
+        $anyDartChanged = false;
+
+        foreach ($dartResults as $result) {
+            $anyDartChanged = $anyDartChanged || $result['changed'];
+        }
+
+        $report['changed'] = $changed || $anyDartChanged;
 
         if ($json) {
             $this->line((string) json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
@@ -247,6 +320,13 @@ class GenerateOpenApi extends Command
         $this->row('output', $this->relative($outPath).($changed ? '  (rewritten)' : '  (unchanged, already byte-identical)'));
         $this->row('bytes', (string) strlen($rendered));
         $this->row('sha256', hash('sha256', $rendered));
+        $this->row('Dart output', $this->relative($dartDirectory).DIRECTORY_SEPARATOR);
+
+        foreach ($dartResults as $name => $result) {
+            $this->row('  '.$name, $result['bytes'].' bytes, sha256 '.$result['sha256']
+                .($result['changed'] ? '  (rewritten)' : '  (unchanged)'));
+        }
+
         $this->row('writes without FormRequest', $writes === []
             ? 'none'
             : count($writes).' ('.count($unexempt).' unexempt, '.count($writes) - count($unexempt).' documented exemption)');
@@ -326,6 +406,66 @@ class GenerateOpenApi extends Command
     private function row(string $label, string $value): void
     {
         $this->line(sprintf('  <fg=gray>%-24s</> %s', $label, $value));
+    }
+
+    private function shortName(string $path): string
+    {
+        $position = strrpos($path, '\\');
+        $position = $position === false ? (int) strrpos($path, '/') : $position;
+        $slash = strrpos($path, '/');
+
+        if ($slash !== false && ($position === false || $slash > $position)) {
+            $position = $slash;
+        }
+
+        return $position === false ? $path : substr($path, $position + 1);
+    }
+
+    /**
+     * The ENUM catalogue the document and the Dart enums are both built from.
+     *
+     * Read once and passed to both renderers rather than re-read per consumer, so
+     * the two artefacts cannot disagree about a value even within one run -- and
+     * so a malformed catalogue fails here, before either file is written.
+     *
+     * @return array<string, list<string>>
+     */
+    private function enums(): array
+    {
+        $path = base_path('docs/enums.json');
+
+        if (! is_file($path)) {
+            throw new OpenApiGenerationException(
+                'docs/enums.json is missing. Run `php artisan sehatly:enums` first; the OpenAPI '
+                .'document and the generated Dart enums both read their ENUM values from that file.',
+            );
+        }
+
+        $decoded = json_decode((string) file_get_contents($path), true);
+
+        if (! is_array($decoded) || $decoded === []) {
+            throw new OpenApiGenerationException(
+                'docs/enums.json is not a non-empty JSON object, or could not be decoded: '
+                .json_last_error_msg().'. Run `php artisan sehatly:enums --check` to regenerate it.',
+            );
+        }
+
+        $enums = [];
+
+        foreach ($decoded as $column => $values) {
+            if (! is_string($column) || ! is_array($values) || ! array_is_list($values)) {
+                throw new OpenApiGenerationException(
+                    'docs/enums.json has an unexpected shape at key "'.(is_string($column) ? $column : '?')
+                    .'": expected `{"table.column": ["value", ...]}`.',
+                );
+            }
+
+            $enums[$column] = array_values(array_map('strval', $values));
+        }
+
+        ksort($enums, SORT_STRING);
+
+        return $enums;
     }
 
     private function relative(string $path): string

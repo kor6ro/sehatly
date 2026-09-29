@@ -32,6 +32,7 @@ declare(strict_types=1);
 | the same name, and this repository has more than one Pest file.
 */
 
+use App\Support\OpenApi\DartContractGenerator;
 use App\Support\OpenApi\OpenApiDocumentBuilder;
 use App\Support\OpenApi\RouteInventory;
 use Illuminate\Routing\RouteCollection;
@@ -168,6 +169,25 @@ $hasPrefix = function (array $middleware, string $prefix): bool {
     return false;
 };
 
+/**
+ * The Dart class name `DartContractGenerator` gives an ENUM column.
+ *
+ * Duplicated here rather than imported from the generator, because a test that
+ * asked the generator what it produced would agree with the generator by
+ * construction. This spells the rule out independently -- split on `.` and `_`,
+ * upper-case each part's first letter -- so a rename in the generator fails here.
+ */
+$dartEnumClass = function (string $column): string {
+    $parts = preg_split('/[._]+/', $column) ?: [$column];
+    $name = '';
+
+    foreach ($parts as $part) {
+        $name .= strtoupper(substr($part, 0, 1)).substr($part, 1);
+    }
+
+    return 'Enum'.$name;
+};
+
 test('the generator reports the route count it actually read', function () use ($liveRoutes) {
     expect(Artisan::call('sehatly:openapi', ['--json' => true]))->toBe(0);
 
@@ -229,7 +249,7 @@ test('a hand-edit to one path in docs/openapi.yaml is DETECTED and refused -- th
         expect($exit)->toBe(1, 'the drift check PASSED on a hand-edited document. A check that cannot fail is a file copy.');
         expect($output)->toContain('DRIFT');
         expect($output)->toContain('first difference');
-        expect($output)->toContain('was NOT overwritten');
+        expect($output)->toContain('No file was overwritten.');
 
         // The refusal has to be a refusal, not a silent repair. A check that
         // overwrites the hand-edit has destroyed the evidence of the drift.
@@ -704,4 +724,98 @@ test('the committed document is what the builder produces, byte for byte', funct
         hash('sha256', $fromDisk),
         'the committed document is not what the builder produces',
     );
+});
+
+test('the generated Dart files are a fresh export, and a hand-edit to one is DETECTED', function () {
+    $directory = base_path('packages/sehatly_api_client/lib/src/generated');
+    $originals = [];
+
+    foreach (DartContractGenerator::FILES as $name) {
+        $path = $directory.'/'.$name;
+
+        expect(is_file($path))->toBeTrue($name.' was not generated');
+
+        $originals[$name] = (string) file_get_contents($path);
+    }
+
+    // GREEN control first: every file is currently fresh.
+    expect(Artisan::call('sehatly:openapi', ['--check' => true]))->toBe(0);
+
+    $target = $directory.'/paths_table.dart';
+    $mutated = str_replace(
+        "const String apiv1dokter = '/api/v1/dokter';",
+        "const String apiv1dokter = '/api/v1/doctor';",
+        $originals['paths_table.dart'],
+    );
+
+    try {
+        expect($mutated)->not->toBe($originals['paths_table.dart'], 'the Dart hand-edit did not apply');
+
+        file_put_contents($target, $mutated);
+
+        // RED: the same command that catches a hand-edit to the YAML catches a
+        // hand-edit to the Dart, because both are rendered from one walk.
+        expect(Artisan::call('sehatly:openapi', ['--check' => true]))->toBe(1, 'the drift check passed on a hand-edited Dart file');
+
+        $output = Artisan::output();
+
+        expect($output)->toContain('DRIFT');
+        expect($output)->toContain('paths_table.dart');
+        expect($output)->toContain('No file was overwritten.');
+        expect((string) file_get_contents($target))->toBe($mutated, 'the check repaired the hand-edit instead of refusing it');
+
+        expect(Artisan::call('sehatly:openapi', ['--check' => true, '--json' => true]))->toBe(1);
+
+        $report = json_decode(Artisan::output(), true);
+
+        expect($report['dart']['paths_table.dart']['matches_on_disk'])->toBeFalse();
+        expect($report['dart']['enums.dart']['matches_on_disk'])->toBeTrue('the report names the wrong file as drifted');
+        expect($report['dart_all_fresh'])->toBeFalse();
+    } finally {
+        file_put_contents($target, $originals['paths_table.dart']);
+    }
+
+    expect(Artisan::call('sehatly:openapi', ['--check' => true]))->toBe(0);
+});
+
+test('the generated Dart enums are exactly docs/enums.json, in declaration order', function () use ($dartEnumClass) {
+    $catalogue = json_decode(
+        (string) file_get_contents(base_path('docs/enums.json')),
+        true,
+    );
+
+    expect($catalogue)->toBeArray()->not->toBeEmpty();
+
+    $source = (string) file_get_contents(base_path('packages/sehatly_api_client/lib/src/generated/enums.dart'));
+
+    foreach ($catalogue as $column => $values) {
+        $expected = $dartEnumClass((string) $column);
+
+        // `strpos(...) !== false` rather than `toContain($needle, $message)`:
+        // Pest reads `toContain`'s second argument as another NEEDLE on a string
+        // expectation, so the failure message would itself be asserted absent.
+        expect(str_contains($source, 'enum '.$expected.' {'))->toBeTrue(
+            $column.' produced no Dart enum (expected class '.$expected.')',
+        );
+        expect(str_contains($source, "static const String column = '".$column."';"))->toBeTrue(
+            $column.' does not name its own DDL key',
+        );
+
+        // The values appear in DECLARATION order inside the enum body, because
+        // MySQL's numeric index is that order and a sorted list is a different
+        // type. Checked as a positional sequence, not as membership.
+        $position = 0;
+
+        foreach ($values as $value) {
+            $needle = "('".$value."')";
+            $found = strpos($source, $needle, $position);
+
+            expect($found)->not->toBe(false, $column.' is missing the value '.$value);
+            $position = $found + strlen($needle);
+        }
+    }
+
+    // And the file imports nothing, least of all Flutter.
+    expect($source)->not->toContain('import ');
+    expect($source)->not->toContain('package:flutter');
 });
