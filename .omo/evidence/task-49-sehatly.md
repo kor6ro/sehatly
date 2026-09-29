@@ -407,3 +407,16 @@ together. Reported, not touched.
    block rather than from the request's rules - plus publishing the five query
    parameters. All seven findings go red the moment that lands, which is the
    intended tripwire.
+6. **`README.md:320-322` is now false, because this todo made it false.** It
+   reads:
+
+   > `docs/mobile-integration.md` and `docs/contract-conformance.md` are named by
+   > the plan and belong to later todos; they are not in this repository yet, and
+   > this index does not pretend otherwise.
+
+   `docs/contract-conformance.md` now exists - this todo created it. Only
+   `docs/mobile-integration.md` is still absent (a later todo). `README.md` is
+   explicitly off-limits to this one, so the stale paragraph is recorded here
+   rather than edited. It is a one-line fix for whichever todo may touch
+   `README.md`: drop `contract-conformance.md` from that sentence, and add a row
+   to the "Contract and schema" table above it.
