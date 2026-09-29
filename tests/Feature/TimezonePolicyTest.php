@@ -386,6 +386,38 @@ it('reads a freshly written timestamp back as the same instant MySQL holds', fun
     expect(abs($dibaca->diffInSeconds($expected)))->toBeLessThan(60);
 });
 
+it('stores an Eloquent-written timestamp at the right instant, not seven hours early', function (): void {
+    // The subtler half of the same defect, and the one that hides.
+    //
+    // `users.dibuat_at` is `TIMESTAMP DEFAULT CURRENT_TIMESTAMP`, but Eloquent
+    // owns that column (`CREATED_AT = 'dibuat_at'`, `$timestamps` on), so it writes
+    // an EXPLICIT literal taken from `Date::now()` - a UTC wall clock - rather than
+    // letting the database default fire.
+    //
+    // With the session on `SYSTEM` (WIB here), MySQL reads that literal AS a
+    // Jakarta wall clock and stores it seven hours early. Reading it back with the
+    // SAME session returns the identical string, so the round trip *looks* lossless
+    // and the published value looks correct. The corruption only surfaces when
+    // anything reads the stored bytes under a different session - a report, an
+    // export, another tool, or `v_pendapatan_bulanan`.
+    //
+    // So this asserts the STORED instant, by re-reading under an explicitly pinned
+    // connection, rather than asserting the value that came back out.
+    $userId = zonawaktuUser();
+
+    $semua = Carbon::parse(
+        (string) DB::selectOne('SELECT UTC_TIMESTAMP() AS sekarang')->sekarang,
+        ZONA_UTC,
+    );
+
+    DB::statement("SET time_zone = '+00:00'");
+
+    $tersimpan = DB::table('users')->where('id', $userId)->value('dibuat_at');
+
+    expect(abs(Carbon::parse((string) $tersimpan, ZONA_UTC)->diffInSeconds($semua)))
+        ->toBeLessThan(60);
+});
+
 it('serialises every rule-1 instant with a Z suffix and nothing else', function (): void {
     // The wire format itself, proven on the columns a round-trip can reach without
     // building 77 fixtures: one `TIMESTAMP`, one machine-written `DATETIME`.
