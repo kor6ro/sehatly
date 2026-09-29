@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Resources;
 
 use App\Models\PasienAnggotaKeluarga;
+use App\Support\NikCipher;
 use App\Support\NikMasker;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -60,7 +61,13 @@ class PasienAnggotaKeluargaResource extends JsonResource
                 'hubungan',
                 fn (): ?string => $this->resource->hubungan?->nama,
             ),
-            'nik' => NikMasker::mask($this->resource->nik),
+            // `nik_cipher` is the PROPOSED encrypted column and does not exist yet,
+            // so it reads as null and the legacy plaintext column is what gets
+            // masked. Note that this table gets NO blind index: its `nik`
+            // (telemedicine_test.sql:263) carries no UNIQUE, so an index here would
+            // buy no integrity guarantee and would still link every relative of
+            // every patient. See `App\Support\NikCipher`.
+            'nik' => NikCipher::mask($this->resource->nik_cipher, $this->resource->nik),
             'nama_lengkap' => $this->resource->nama_lengkap,
             'jenis_kelamin' => $this->resource->jenis_kelamin,
             'tanggal_lahir' => $this->resource->tanggal_lahir?->toDateString(),

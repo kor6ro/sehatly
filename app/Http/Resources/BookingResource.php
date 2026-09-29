@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Resources;
 
 use App\Models\Booking;
+use App\Support\NikCipher;
 use App\Support\NikMasker;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -58,7 +59,7 @@ class BookingResource extends JsonResource
             'dibuat_at' => $this->resource->dibuat_at?->toISOString(),
             'pasien' => $this->whenLoaded('pasien', fn (): array => [
                 'id' => $this->resource->pasien->getKey(),
-                'nik' => NikMasker::mask($this->resource->pasien->nik),
+                'nik' => NikCipher::mask($this->resource->pasien->nik_cipher, $this->resource->pasien->nik),
                 'nama_lengkap' => $this->resource->pasien->user?->nama_lengkap,
             ]),
         ];

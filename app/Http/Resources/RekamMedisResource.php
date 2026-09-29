@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Resources;
 
 use App\Models\RekamMedis;
+use App\Support\NikCipher;
 use App\Support\NikMasker;
 use DateTimeInterface;
 use Illuminate\Database\Eloquent\Model;
@@ -107,7 +108,7 @@ class RekamMedisResource extends JsonResource
             'adalah_versi_terkini' => $this->adalahTerkini(),
             'pasien' => $this->whenLoaded('pasien', fn (): ?array => $this->resource->pasien === null ? null : [
                 'id' => (int) $this->resource->pasien->getKey(),
-                'nik' => NikMasker::mask($this->resource->pasien->nik),
+                'nik' => NikCipher::mask($this->resource->pasien->nik_cipher, $this->resource->pasien->nik),
                 'nama_lengkap' => $this->resource->pasien->user?->nama_lengkap,
             ]),
             'dokter' => $this->whenLoaded('dokter', fn (): ?array => $this->resource->dokter === null ? null : [

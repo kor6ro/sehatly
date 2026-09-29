@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Resources;
 
 use App\Models\Pasien;
+use App\Support\NikCipher;
 use App\Support\NikMasker;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -83,7 +84,16 @@ class PasienResource extends JsonResource
         return [
             'id' => $this->resource->getKey(),
             'nomor_rm' => $this->resource->nomor_rm,
-            'nik' => NikMasker::mask($this->resource->nik),
+            // `nik_cipher` is the PROPOSED encrypted column and does not exist yet,
+            // so it reads as null today and the second argument - the legacy
+            // plaintext column - is what gets masked. The call is written for the
+            // shape both columns will have: payload first, legacy plaintext as the
+            // fallback. See `App\Support\NikCipher` for why `CHAR(16)` cannot hold
+            // the payload and the migration somebody has to author.
+            'nik' => NikCipher::mask($this->resource->nik_cipher, $this->resource->nik),
+            // `nomor_kk` is the family-card number, not the national identity, and
+            // no cipher column is proposed for it, so there is nothing to decrypt:
+            // it goes straight to the shared rule.
             'nomor_kk' => NikMasker::mask($this->resource->nomor_kk),
             'nama_lengkap' => $this->resource->relationLoaded('user')
                 ? $this->resource->user->nama_lengkap

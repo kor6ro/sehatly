@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
+use App\Support\NikCipher;
 use App\Support\NikMasker;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -81,7 +82,7 @@ class KonsultasiResource extends JsonResource
             'diubah_at' => $this->resource->diubah_at?->toISOString(),
             'pasien' => $this->whenLoaded('pasien', fn (): array => [
                 'id' => $this->resource->pasien->getKey(),
-                'nik' => NikMasker::mask($this->resource->pasien->nik),
+                'nik' => NikCipher::mask($this->resource->pasien->nik_cipher, $this->resource->pasien->nik),
                 'nama_lengkap' => $this->resource->pasien->user?->nama_lengkap,
             ]),
             'dokter' => $this->whenLoaded('dokter', fn (): array => [
