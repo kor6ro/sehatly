@@ -20,6 +20,10 @@ import { ResepComposePage } from '@/pages/resep-compose-page';
 import { ResepDetailPage } from '@/pages/resep-detail-page';
 import { ApotekQueuePage } from '@/pages/apotek-queue-page';
 import { PasienRiwayatResepPage } from '@/pages/pasien-resep-page';
+import { CheckoutPage } from '@/pages/checkout-page';
+import { PesananPage } from '@/pages/pesanan-page';
+import { PembayaranPage } from '@/pages/pembayaran-page';
+import { NotifikasiPage } from '@/pages/notifikasi-page';
 
 /**
  * The route table.
@@ -156,6 +160,39 @@ export const router = createBrowserRouter([
                             {
                                 path: '/pasien/resep',
                                 element: <PasienRiwayatResepPage />,
+                            },
+
+                            /**
+                             * Module 5. Three two-segment parameterised paths and one
+                             * literal, so no ordering constraint is needed between them and
+                             * none is relied on: `/notifikasi` can never be swallowed by
+                             * `/pesanan/:id` because the segments differ.
+                             *
+                             * They are all inside `RequireAuth` because every endpoint
+                             * behind them carries `auth:sanctum`, and each is gated on
+                             * `user.tipe` inside the page - the same split the four
+                             * Module 4 screens above use.
+                             *
+                             * `/checkout/:resepId` and `/pesanan/:id` are two-segment
+                             * paths for two different nouns, and neither is a prefix of
+                             * the other, so both are distinct routes rather than one
+                             * shadowing the other.
+                             */
+                            {
+                                path: '/checkout/:resepId',
+                                element: <CheckoutPage />,
+                            },
+                            {
+                                path: '/pesanan/:id',
+                                element: <PesananPage />,
+                            },
+                            {
+                                path: '/pembayaran/:pesananId',
+                                element: <PembayaranPage />,
+                            },
+                            {
+                                path: '/notifikasi',
+                                element: <NotifikasiPage />,
                             },
                         ],
                     },

@@ -7,6 +7,7 @@ import {
     HeartPulse,
     LogOut,
     MessagesSquare,
+    Package,
     Pill,
     ShieldAlert,
     Stethoscope,
@@ -21,6 +22,7 @@ import { useFlashToast } from '@/hooks/use-flash-toast';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { Toaster } from '@/components/ui/sonner';
+import { NotificationBell } from '@/features/notifikasi/notification-bell';
 import {
     Sidebar,
     SidebarContent,
@@ -318,23 +320,80 @@ function AppSidebar() {
                         ) : null}
                     </SidebarMenu>
                 </SidebarGroup>
+
+                {/**
+                 * Module 5. Shown to every signed-in account rather than filtered by type,
+                 * because the four routes behind them are four different surfaces and only
+                 * the checkout and payment writes are `pasien`-gated: `GET /pesanan-obat/{id}`
+                 * also serves `apoteker` and `admin`, and `GET /notifikasi` serves every
+                 * account holding `notifikasi.lihat`. Hiding a link an account may follow
+                 * would be a worse failure than showing one whose content explains the
+                 * refusal.
+                 *
+                 * The two id-carrying links point at a PLACEHOLDER id, the same trade-off
+                 * the consultation entries above leave in place: there is no order-list
+                 * endpoint and no invoice-list endpoint, so the real link to a specific
+                 * order is the one the checkout screen supplies. See
+                 * `.omo/evidence/task-48-sehatly.md`.
+                 */}
+                <SidebarGroup>
+                    <SidebarGroupLabel>Obat dan pembayaran</SidebarGroupLabel>
+
+                    <SidebarMenu>
+                        {isPasien ? (
+                            <SidebarMenuItem>
+                                <SidebarMenuButton asChild>
+                                    <NavLink to="/checkout/1">
+                                        <Package />
+
+                                        Checkout resep
+                                    </NavLink>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                        ) : null}
+
+                        <SidebarMenuItem>
+                            <SidebarMenuButton asChild>
+                                <NavLink to="/pesanan/1">
+                                    <Package />
+
+                                    Lacak pesanan
+                                </NavLink>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
+
+                        <SidebarMenuItem>
+                            <SidebarMenuButton asChild>
+                                <NavLink to="/pembayaran/1">
+                                    <ClipboardCheck />
+
+                                    Bayar
+                                </NavLink>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
+                    </SidebarMenu>
+                </SidebarGroup>
             </SidebarContent>
 
             <SidebarFooter>
-                <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="w-full"
-                    disabled={signOut.isPending}
-                    onClick={() => {
-                        signOut.mutate();
-                    }}
-                >
-                    {signOut.isPending ? <Spinner /> : <LogOut />}
+                <div className="flex items-center gap-2">
+                    <NotificationBell />
 
-                    Keluar
-                </Button>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                        disabled={signOut.isPending}
+                        onClick={() => {
+                            signOut.mutate();
+                        }}
+                    >
+                        {signOut.isPending ? <Spinner /> : <LogOut />}
+
+                        Keluar
+                    </Button>
+                </div>
             </SidebarFooter>
         </Sidebar>
     );

@@ -1224,3 +1224,504 @@ export type Resep = {
     /** Absent unless the relation was eager-loaded, which every `resep` response does. */
     items?: ResepItem[];
 };
+
+// ============================================================================
+// invoice / pembayaran / pesanan_obat / apotek_stok / master_metode_pembayaran
+// ============================================================================
+
+/**
+ * `invoice.status`, the seven-value ENUM at `telemedicine_test.sql`, in DDL order.
+ *
+ * Only the first three are reachable from anything a patient can trigger in this
+ * client: `InvoiceService::buat()` writes `menunggu_pembayaran` and nothing else, and
+ * `PaymentService` writes exactly one transition, `lunas`. The remaining four are a refund
+ * lifecycle that Module 5 never wires to a route, and they are declared rather than
+ * collapsed to `string` so a screen that colours five states cannot silently fall through
+ * to a default on a sixth.
+ */
+export type StatusInvoice =
+    | 'draft'
+    | 'menunggu_pembayaran'
+    | 'lunas'
+    | 'kadaluarsa'
+    | 'dibatalkan'
+    | 'refund_sebagian'
+    | 'refund_penuh';
+
+/**
+ * `invoice.referensi_tipe`, six values, of which **four are reachable**.
+ *
+ * `InvoiceService::SUMBER_REFERENSI` maps four of them onto a real model and
+ * `DI_LUAR_LINGKUP` rejects the other two with a 422 whose message names the value. So a
+ * value outside the four reachable members is not a corrupt identifier - it is a
+ * documented refusal, and the UI copy for it must not say "unknown".
+ */
+export type TipeReferensiInvoice =
+    | 'booking'
+    | 'konsultasi'
+    | 'resep'
+    | 'pesanan_obat'
+    | 'lab_permintaan'
+    | 'home_care';
+
+/** The four `InvoiceService::SUMBER_REFERENSI` members, i.e. the implementable ones. */
+export const TIPE_REFERENSI_DAPAT_DIBUAT: ReadonlyArray<TipeReferensiInvoice> = [
+    'booking',
+    'konsultasi',
+    'resep',
+    'pesanan_obat',
+];
+
+/**
+ * `pembayaran.status`, the five-value ENUM, in DDL order.
+ *
+ * ## `pending` is the only NON-terminal member, and that is the whole idempotency story
+ *
+ * `PembayaranStatus::KEADAAN_AKHIR` is `['berhasil','gagal','kedaluwarsa','refund']`, so
+ * a payment that is still `pending` is one the server has not decided about yet. A second
+ * delivery of the same gateway event finds a terminal status and is answered with
+ * `duplicate: true` and no write. Read {@link Pembayaran.terminal} - the server's own
+ * answer - rather than comparing this string in the client, because the server already
+ * evaluated the rule.
+ */
+export type StatusPembayaran =
+    | 'pending'
+    | 'berhasil'
+    | 'gagal'
+    | 'kedaluwarsa'
+    | 'refund';
+
+/** `pembayaran.gateway`, the four-value ENUM, in DDL order. */
+export type GatewayPembayaran = 'midtrans' | 'xendit' | 'doku' | 'flip';
+
+/**
+ * `master_metode_pembayaran.tipe`, the **NINE**-value ENUM, in DDL order.
+ *
+ * The plan's todo 48 names five of them (`va_bank`, `e_wallet`, `qris`, `cod`, `tunai`)
+ * and that list is incomplete: the column also declares `kartu_kredit`, `gerai_retail`,
+ * `bpjs` and `asuransi`, and the seeder ships rows for all of them. A picker built from
+ * the plan's five would silently hide four of the fourteen seeded methods. Declared as
+ * nine, and the picker groups over the values the server actually returns.
+ */
+export type TipeMetodePembayaran =
+    | 'va_bank'
+    | 'e_wallet'
+    | 'qris'
+    | 'kartu_kredit'
+    | 'gerai_retail'
+    | 'cod'
+    | 'tunai'
+    | 'bpjs'
+    | 'asuransi';
+
+/** `pesanan_obat.tipe`, the three-value ENUM. Only `resep_dokter` is ever written. */
+export type TipePesananObat = 'resep_dokter' | 'obat_bebas' | 'produk_kesehatan';
+
+/** `pesanan_obat.kurir`, the six-value ENUM. */
+export type KurirPesanan =
+    | 'internal'
+    | 'grab_express'
+    | 'gojek'
+    | 'jne'
+    | 'jnt'
+    | 'sicepat';
+
+/**
+ * `pesanan_obat.status`, the six-value ENUM, in DDL order.
+ *
+ * ## Four of the six are UNREACHABLE over HTTP in this tree
+ *
+ * `PesananObatStateMachine::TRANSISI` can reach all six, but the state machine is not
+ * wired to a route, so the only automatic transition is the one `PaymentService::LANJUT`
+ * performs on settlement: `menunggu_pembayaran` -> `diproses`. `siap`, `sedang_dikirim`,
+ * `selesai` and `dibatalkan` therefore cannot be produced by any endpoint that exists. A
+ * tracking screen still renders all six, because the column is six-valued and a client
+ * that coloured three would be wrong the day a pharmacy route lands.
+ */
+export type StatusPesananObat =
+    | 'menunggu_pembayaran'
+    | 'diproses'
+    | 'siap'
+    | 'sedang_dikirim'
+    | 'selesai'
+    | 'dibatalkan';
+
+/** `PesananObatStateMachine::TERMINAL` - the two an order never leaves. */
+export const STATUS_PESANAN_TERMINAL: ReadonlyArray<StatusPesananObat> = [
+    'selesai',
+    'dibatalkan',
+];
+
+/** `notifikasi.tipe`, the seven-value ENUM, in DDL order. */
+export type TipeNotifikasi =
+    | 'booking'
+    | 'pembayaran'
+    | 'resep'
+    | 'chat'
+    | 'lab'
+    | 'promo'
+    | 'sistem';
+
+/**
+ * The four `NotifikasiTipe::nilaiYangDipakai()` members: the only `tipe` values
+ * `NotificationService` has a producer for.
+ *
+ * `lab` and `promo` are legal DDL values that nothing in the application can emit, so a
+ * panel that groups by them would render two permanently empty sections and read as a
+ * broken filter rather than as an honest one.
+ */
+export const TIPE_NOTIFIKASI_DIPAKAI: ReadonlyArray<TipeNotifikasi> = [
+    'booking',
+    'pembayaran',
+    'resep',
+    'chat',
+];
+
+/**
+ * The invoice block as `PembayaranController::bayar()` and `::webhook()` compose it.
+ *
+ * ## There is no `InvoiceResource`, and this shape is therefore NOT one resource
+ *
+ * Two different controllers hand-assemble the invoice with **different keys**:
+ * `bayar()` publishes `{id, nomor_invoice, status, total}` and `webhook()` publishes
+ * `{id, nomor_invoice, status, lunas_at}`. So they are declared as two separate types
+ * rather than merged into one, because merging them would make a screen read
+ * `invoice.total` off a webhook response and print `-` for a field that was never sent.
+ */
+export type InvoiceDibayar = {
+    id: number;
+    nomor_invoice: string;
+    status: StatusInvoice;
+    /** `DECIMAL(14,2)` - a JSON string. See {@link Decimal}. */
+    total: Decimal;
+};
+
+export type InvoiceSelesai = {
+    id: number;
+    nomor_invoice: string;
+    status: StatusInvoice;
+    /** ISO-8601 UTC. The only proof that settlement was applied exactly once. */
+    lunas_at: Iso;
+};
+
+/**
+ * One `pembayaran` row, as `PembayaranResource` publishes it: 11 keys, every one allow-listed.
+ *
+ * ## `webhook_payload` is deliberately NOT here
+ *
+ * The column exists and the service writes the first delivery's raw body into it, but the
+ * resource never publishes it. A client type that carried it would invite rendering a
+ * gateway payload to a patient.
+ *
+ * ## `kadaluwarsa_at` is DERIVED, not stored
+ *
+ * There is no such column. `PembayaranResource` computes `dibuat_at + config('payment.kedaluwarsa_detik')`
+ * (default 86400) and publishes that, so a countdown rendered from it is counting down to
+ * the server's own deadline and not to a guess.
+ *
+ * ## `terminal` is the server's verdict on idempotency
+ *
+ * It is `PembayaranStatus::adalahAkhir($status)`, computed server-side. A screen that
+ * compared the status string itself would be re-deriving a rule the API already publishes.
+ */
+export type Pembayaran = {
+    id: number;
+    invoice_id: number | null;
+    metode_id: number | null;
+    /** `DECIMAL(15,2)`, a JSON string. */
+    jumlah: Decimal;
+    nomor_referensi: string;
+    gateway: GatewayPembayaran | null;
+    /** `VARCHAR(30) NULL`. Populated for a VA method, `null` for a QR method. */
+    va_number: string | null;
+    status: StatusPembayaran;
+    dibayar_at: Iso;
+    kadaluwarsa_at: Iso;
+    terminal: boolean;
+};
+
+/**
+ * `data.toko` off the payment-initiation response, as a DISCRIMINATED union.
+ *
+ * The branch is `config('payment.metode_tipe_qr')` = `['qris','gerai_retail']`: those two
+ * method types get a QR, every other type gets a virtual account. `pembayaran` has one
+ * `va_number VARCHAR(30)` column and **no** `qr_string` column at all, so the two shapes
+ * are genuinely exclusive and typing this as one flat object would make a QR panel read
+ * `va_number` and print `null`.
+ */
+export type TokoPembayaran =
+    | {
+          va_number: string;
+          nama_bank: string;
+          nama_pemilik: string;
+          qr_string?: undefined;
+          nama_penyedia?: undefined;
+      }
+    | {
+          va_number?: undefined;
+          nama_bank?: undefined;
+          nama_pemilik?: undefined;
+          qr_string: string;
+          nama_penyedia: string;
+      };
+
+/** `data` on `POST /invoice/{id}/bayar` (201). */
+export type MulaiPembayaranData = {
+    invoice: InvoiceDibayar;
+    pembayaran: Pembayaran;
+    gateway: {
+        nama: string;
+        nomor_referensi: string;
+    };
+    toko: TokoPembayaran;
+    /** The gateway's own steps, as published strings. Rendered verbatim, never re-ordered. */
+    instruksi: string[];
+};
+
+/**
+ * `data` on `POST /webhook/payment/{gateway}` (200).
+ *
+ * ## `duplicate` is the only field a browser can never see
+ *
+ * The webhook is unauthenticated and HMAC-signed, so it is called by the gateway, not by a
+ * client. This type exists so the screen's docblock can point at the field that answers
+ * "was this applied twice", and so the e2e spec has a shape to assert on.
+ */
+export type WebhookPembayaranData = {
+    duplicate: boolean;
+    pembayaran: Pembayaran;
+    invoice: InvoiceSelesai;
+    referensi: {
+        tipe: TipeReferensiInvoice;
+        id: number;
+        status: string | null;
+        /**
+         * Whether the REFERENCED row now sits in its post-payment state.
+         *
+         * A fact about the row, not about this delivery: a late delivery for a cancelled
+         * booking records the money and leaves `advanced: false`, because the source state
+         * no longer matches the guard.
+         */
+        advanced: boolean;
+    };
+};
+
+/**
+ * One `pesanan_obat` row, as `PesananObatResource` publishes it: 15 keys.
+ *
+ * ## `tracking` is OPTIONAL, and the difference is not cosmetic
+ *
+ * `PesananObatResource` guards it with `whenLoaded()`. `POST /resep/{id}/checkout` returns
+ * the order from `buat()`, which never eager-loads the relation, so the serializer drops
+ * the key entirely on the 201 - absent, not `null`. `GET /pesanan-obat/{id}` calls
+ * `muatan()` and includes it. Optional rather than nullable, for exactly the reason
+ * `Booking.pasien` is: a caller must not write `pesanan.tracking.map()` on a 201.
+ *
+ * ## The order's money is goods plus shipping and NOTHING else
+ *
+ * `total = subtotal + biaya_kirim`. `pesanan_obat` has no discount column and no admin-fee
+ * column, so the order total is NOT the invoice total whenever a promo or a method with a
+ * fee applies. The screen that quotes "the total you will pay" must quote the INVOICE.
+ */
+export type PesananObat = {
+    id: number;
+    nomor_pesanan: string;
+    resep_id: number | null;
+    pasien_id: number;
+    apotek_id: number;
+    tipe: TipePesananObat;
+    alamat_kirim: string;
+    kurir: KurirPesanan | null;
+    no_resi: string | null;
+    /** `DECIMAL(12,2)`, a JSON string. */
+    subtotal: Decimal;
+    /** `DECIMAL(12,2)`, a JSON string. */
+    biaya_kirim: Decimal;
+    /** `DECIMAL(12,2)`, a JSON string. Equals `subtotal + biaya_kirim`. */
+    total: Decimal;
+    status: StatusPesananObat;
+    dibuat_at: Iso;
+    diubah_at: Iso;
+    tracking?: PesananObatTracking[];
+};
+
+/**
+ * One `pesanan_obat_tracking` row: 6 keys, no `created_at`, no `updated_at`.
+ *
+ * The table has no timestamp columns other than `waktu`, which IS the creation stamp, and
+ * the resource publishes no Eloquent timestamps. `status` is `VARCHAR(100)` in the DDL but
+ * the application narrows it to the same six values as {@link StatusPesananObat}, so the
+ * union is used rather than `string`.
+ *
+ * ## The trail is history, not the authority
+ *
+ * The current state of an order is `pesanan_obat.status`. The trail is append-only and is
+ * not ordered by the query - it comes back in InnoDB primary-key order, which is
+ * oldest-first in practice but is not guaranteed. A screen that derived the current state
+ * from the LAST row would be reading an accident.
+ */
+export type PesananObatTracking = {
+    id: number;
+    pesanan_obat_id: number;
+    status: StatusPesananObat;
+    keterangan: string | null;
+    lokasi: string | null;
+    waktu: Iso;
+};
+
+/** The chosen pharmacy's shelf, from `GET /obat/{id}/stok`. */
+export type StokDiApotek = {
+    apotek_id: number;
+    nama: string;
+    /**
+     * Whether an `apotek_stok` row exists AT ALL for this pair.
+     *
+     * The distinction the service docblock insists on: a row of zero means "ask again
+     * tomorrow", no row means "this pharmacy does not carry it". A panel that renders both
+     * as `jumlah_stok: 0` tells a patient to try a pharmacy that has never stocked the
+     * drug.
+     */
+    recorded: boolean;
+    /**
+     * A **SIGNED** `int` with no `CHECK (jumlah_stok >= 0)`. `ApotekStokService::kurangi()`
+     * is the only writer and it refuses rather than going negative, so a negative here
+     * would be a backend bug, not a number to display as-is.
+     */
+    jumlah_stok: number;
+    stok_minimum: number;
+    /** `DECIMAL(12,2)`, a JSON string. `"0.00"` when `recorded` is false. */
+    harga_jual: Decimal;
+    /**
+     * `Y-m-d`, Asia/Jakarta wall clock - the ONE date-typed field on this endpoint.
+     *
+     * `StokObatResource` is a pass-through of `PesananObatService::cekStok()`, which calls
+     * `toDateString()` here, whereas every other instant in this API is `toISOString()` UTC.
+     * Read it with `formatTanggal`, never with `formatWaktu`.
+     */
+    kedaluwarsa: Tanggal;
+    /** The server's own verdict: `recorded && jumlah_stok >= jumlah_diminta`. */
+    cukup: boolean;
+};
+
+/** One other pharmacy that could serve the request, most plentiful first. */
+export type StokAlternatif = {
+    apotek_id: number;
+    nama: string;
+    jumlah_stok: number;
+    harga_jual: Decimal;
+};
+
+/**
+ * `data` on `GET /obat/{id}/stok`.
+ *
+ * ## With no `?apotek_id=`, `apotek` is null AND `alternatif` is the pharmacy LIST
+ *
+ * `PesananObatService::cekStok()` skips the chosen-pharmacy block when no id is given, and
+ * `ApotekStokService::alternatif()` then excludes only `apotek_id <> 0` - which every real
+ * pharmacy passes. So the alternatives array is every active `apotek` facility with enough
+ * of that drug, and it is the only pharmacy list this API publishes. There is no
+ * `GET /apotek`; a client that needs pharmacies has to read them out of here.
+ */
+export type StokObat = {
+    obat_id: number;
+    /** The `jumlah` that was sent, or 1 when the parameter was omitted. */
+    jumlah_diminta: number;
+    apotek: StokDiApotek | null;
+    alternatif: StokAlternatif[];
+};
+
+/**
+ * `data` on `POST /promo/validasi`.
+ *
+ * ## A refusal here is a 200 with `valid: false`, NOT a 422
+ *
+ * `PromoController::validasi()` returns the success envelope in every accepted case, with
+ * the reasons in `alasan`. So a promo input must branch on `valid`, never on the status
+ * code, and it must render `nilai_diskon` and `total` exactly as they arrive: the server is
+ * authoritative for `kuota`, `min_transaksi` and `maks_diskon`, and a client that
+ * recomputed a percentage would disagree with the cap.
+ */
+export type PromoValidasi = {
+    promo: {
+        kode: string | null;
+        nama: string | null;
+        tipe_diskon: string | null;
+    };
+    invoice: {
+        id: number;
+        nomor_invoice: string;
+    };
+    valid: boolean;
+    /** The server's computed discount, a JSON string. `null` when the promo is unusable. */
+    nilai_diskon: Decimal;
+    /** The server's computed post-discount total, a JSON string. */
+    total: Decimal;
+    rincian: {
+        subtotal: Decimal;
+        diskon: Decimal;
+        biaya_admin: Decimal;
+        biaya_pengiriman: Decimal;
+        total: Decimal;
+    };
+    /**
+     * Why it was refused, empty when `valid` is true.
+     *
+     * Each entry names the FIELD it failed on (`kode`, `status_aktif`, `jendela_waktu`,
+     * `min_transaksi`, `kuota`), so a form can attach each message to the control the
+     * patient can actually change.
+     */
+    alasan: Array<{ kode: string; kolom: string; pesan: string }>;
+};
+
+/**
+ * One `master_metode_pembayaran` row, as `MetodePembayaranResource` publishes it.
+ *
+ * ## Both fee columns are published as JSON NUMBERS, not strings
+ *
+ * `MetodePembayaranResource` casts both to `(float)`, unlike every other money value in
+ * this API. That is the resource's choice, not a transcription slip, and it is why
+ * `biaya_admin_flat` is a bare `number` here while {@link Decimal} is a union everywhere
+ * else. The server still applies the fee inside `InvoiceService`; these two numbers exist
+ * so the picker can show the fee before the patient commits.
+ */
+export type MetodePembayaran = {
+    id: number;
+    kode: string;
+    nama: string;
+    tipe: TipeMetodePembayaran;
+    /** Free text, and the only hint of a provider the table carries. */
+    penyedia: string | null;
+    biaya_admin_flat: number;
+    /** Percent, applied to `subtotal - diskon` - never to `subtotal`. */
+    biaya_admin_persen: number;
+    status_aktif: boolean;
+};
+
+/**
+ * One `notifikasi` row, as `NotifikasiResource` publishes it: 8 keys.
+ *
+ * ## There is no `channel` and no `user_id`
+ *
+ * `notifikasi` has no channel column and no delivery-state column, so push-delivery
+ * outcome is unrepresentable and is logged to the application log instead. A client cannot
+ * show "delivered" or "queued" and must not offer a per-channel toggle.
+ *
+ * ## `payload` is passed through UNFILTERED
+ *
+ * It is the raw `JSON` column, so it is typed `unknown` and read defensively. The
+ * documented shape for the payment event is `{invoice_id}`, for a booking `{booking_id}`
+ * or `{booking_id, alasan}`, for a prescription `{resep_id}` and for a chat message
+ * `{konsultasi_id, pengirim_user_id}`.
+ */
+export type Notifikasi = {
+    id: number;
+    judul: string;
+    isi: string;
+    tipe: TipeNotifikasi;
+    /** The API PATH, e.g. `/api/v1/booking/1001`, not a route in this SPA. */
+    tautan: string | null;
+    payload: unknown;
+    /** ISO-8601 UTC. `null` is what "unread" means, and it is the only such field. */
+    dibaca_at: Iso;
+    dibuat_at: Iso;
+};
