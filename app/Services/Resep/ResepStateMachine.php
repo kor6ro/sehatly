@@ -8,8 +8,8 @@ use App\Enums\ResepStatus;
 use App\Enums\ResepVerifikasiStatus;
 use App\Models\Resep;
 use App\Models\ResepVerifikasi;
+use App\Support\WaktuIndonesia;
 use DateTimeInterface;
-use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 use LogicException;
 
@@ -194,6 +194,16 @@ final class ResepStateMachine
      * the honest answer, because an operator who expired a row early and a
      * prescription that aged out are the same fact to whoever reads it.
      *
+     * **The right-hand side is the ASIA/JAKARTA calendar day, read through
+     * {@see WaktuIndonesia::tanggal()}.** It was `Carbon::today()`, which is a
+     * UTC day because `config/app.php` is `UTC`, so for the seven hours from
+     * 00:00 to 07:00 WIB it named the day BEFORE the pharmacy's: a prescription
+     * whose paper validity ended on the 30th read as still valid until seven in
+     * the morning on the 31st, and one expiring on the 31st read as expired a
+     * day early. `berlaku_sampai` is a `DATE` and the DDL's own `COMMENT` counts
+     * it in days on paper, so the day it is compared against has to be the day on
+     * the paper.
+     *
      * **STATIC, and load-bearing.** `ResepResource` publishes this flag on
      * every surface - the create response, the detail, the history - and
      * `ResepAccess` publishes it beside them. Two implementations of "has this
@@ -218,7 +228,7 @@ final class ResepStateMachine
             return false;
         }
 
-        return $sampai->format('Y-m-d') < Carbon::today()->toDateString();
+        return $sampai->format('Y-m-d') < WaktuIndonesia::tanggal();
     }
 
     /**

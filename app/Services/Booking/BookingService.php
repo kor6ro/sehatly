@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Services\Pasien\PasienRecordAccess;
 use App\Support\Dokter\StrBerlaku;
 use App\Support\Dokumen\NomorDokumen;
+use App\Support\WaktuIndonesia;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -197,23 +198,39 @@ class BookingService
      * many rows moved.
      *
      * The schema has NO column recording when the payment window closes, so
-     * the expiry is COMPUTED from `tanggal_kunjungan` + `slot_mulai`, read
-     * against the database's own calendar day. Only `menunggu_pembayaran`
-     * rows move — a paid booking is never touched however old it is — so a
-     * second run is a no-op.
+     * the expiry is COMPUTED from `tanggal_kunjungan` + `slot_mulai`. Only
+     * `menunggu_pembayaran` rows move - a paid booking is never touched however
+     * old it is - so a second run is a no-op.
+     *
+     * **Both reference values are the CLINIC's, and each is on the same clock
+     * as the column it is compared with.** `tanggal_kunjungan` is a `DATE` and
+     * `slot_mulai` is a `TIME`, and per `docs/timezone-policy.md` rule 2 both are
+     * Asia/Jakarta wall clocks with no offset and no conversion - so "now" for
+     * both has to be the Jakarta wall clock, which is {@see WaktuIndonesia::now()}.
+     *
+     * This method read `SELECT CURDATE()` for the day and `Carbon::now()` for
+     * the time of day. Both were UTC: the MySQL session is pinned to `+00:00`
+     * and `config/app.php` is `UTC`, while WIB is +07:00. So for the seven hours
+     * from 00:00 to 07:00 WIB the day was yesterday's and the clock was seven
+     * hours slow, and a booking for a 09:00 slot stayed payable until 16:00 -
+     * the same seven-hour window `SlotAvailabilityService` had already closed
+     * for the slot read and which was left open here. The two values are read
+     * ONCE so a sweep cannot judge a row against one day and its slot against
+     * another.
      */
     public function kadaluarsa(): int
     {
-        $hariIni = (string) DB::selectOne('SELECT CURDATE() AS hari')->hari;
-        $sekarang = Carbon::now()->format('H:i:s');
+        $sekarang = WaktuIndonesia::now();
+        $hariIni = $sekarang->format(WaktuIndonesia::FORMAT_TANGGAL);
+        $jamIni = $sekarang->format(WaktuIndonesia::FORMAT_WAKTU);
 
         return Booking::query()
             ->where('status', 'menunggu_pembayaran')
-            ->where(function ($query) use ($hariIni, $sekarang): void {
+            ->where(function ($query) use ($hariIni, $jamIni): void {
                 $query->where('tanggal_kunjungan', '<', $hariIni)
-                    ->orWhere(function ($sama) use ($hariIni, $sekarang): void {
+                    ->orWhere(function ($sama) use ($hariIni, $jamIni): void {
                         $sama->where('tanggal_kunjungan', $hariIni)
-                            ->where('slot_mulai', '<=', $sekarang);
+                            ->where('slot_mulai', '<=', $jamIni);
                     });
             })
             ->update(['status' => 'kadaluarsa']);
@@ -338,6 +355,19 @@ class BookingService
             ];
         }
 
+        /**
+         * The THIRD reference day, and the only one of the three that is not
+         * "now": the date the request named.
+         *
+         * `DokterDirectoryService` answers against the clinic's today and
+         * `SlotAvailabilityService` answers against the consultation date; this is
+         * the same second basis, for an instant booking that has no
+         * `dokter_jadwal` row to ask about. `$tanggal` is a `Y-m-d` the caller
+         * sent, so it is a day in whatever calendar it was written in and no zone
+         * is involved: `StrBerlaku::berlakuPada()` reduces both operands to
+         * `startOfDay()` before comparing, which is what makes the parse's own
+         * zone irrelevant rather than merely harmless.
+         */
         if (! StrBerlaku::berlakuPada($dokter->str_berlaku_sampai, Carbon::parse($tanggal))) {
             throw SlotTakenException::strKedaluwarsa();
         }
@@ -354,12 +384,21 @@ class BookingService
 
         $slotSelesai = Carbon::parse($slotMulai)->addMinutes($durasi)->format('H:i:s');
 
-        // Rule 1b, only when the requested date IS today, against the database
-        // calendar day: `config/app.php` is UTC while the schema stores naive
-        // wall clock.
-        $hariIni = (string) DB::selectOne('SELECT CURDATE() AS hari')->hari;
+        // Rule 1b, only when the requested date IS today, against the CLINIC's
+        // calendar day and the CLINIC's clock: `tanggal_kunjungan` is a `DATE` and
+        // `slot_selesai` is a `TIME`, and `docs/timezone-policy.md` rule 2 says both
+        // are Asia/Jakarta wall clocks stored exactly as authored. `config/app.php`
+        // is `UTC` and the MySQL session is pinned to `+00:00`, so this used to ask
+        // the database for the day and PHP for the time of day and get two UTC
+        // values - which meant the guard did not fire at all for a clinic booking
+        // made between 00:00 and 07:00 WIB, and fired seven hours late for the
+        // rest of the day. `{@see WaktuIndonesia::now()}` is the same instant as
+        // `now()` on the clinic's wall clock, which is the only clock the two
+        // columns are written in.
+        $sekarang = WaktuIndonesia::now();
 
-        if ($tanggal === $hariIni && $slotSelesai <= Carbon::now()->format('H:i:s')) {
+        if ($tanggal === $sekarang->format(WaktuIndonesia::FORMAT_TANGGAL)
+            && $slotSelesai <= $sekarang->format(WaktuIndonesia::FORMAT_WAKTU)) {
             throw SlotTakenException::sudahLewat();
         }
 

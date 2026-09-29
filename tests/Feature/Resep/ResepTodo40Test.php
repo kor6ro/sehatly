@@ -12,6 +12,7 @@ use App\Services\Obat\ObatInteraksiService;
 use App\Services\Resep\ResepStateMachine;
 use App\Services\Resep\ResepVerifikasiService;
 use App\Support\Rbac\RbacCatalog;
+use App\Support\WaktuIndonesia;
 use Database\Seeders\RbacSeeder;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Carbon;
@@ -375,7 +376,14 @@ test('is_kedaluwarsa flips on the date alone, with no status change', function (
     // `berlaku_sampai` is a DATE (`:755`) and NOTHING in the schema reacts to
     // it: no trigger, no generated column, no event. So the flag is a PHP
     // comparison against the clock, and the clock is what moves here.
-    Carbon::setTestNow(Carbon::parse('2026-03-19 08:00:00'));
+    //
+    // **Both pinned instants name the clinic's zone.** `berlaku_sampai` is
+    // compared with a calendar day, so an instant written without a zone only
+    // says which day it is on under one basis - and `2026-03-18 23:59:59` read
+    // as UTC is `2026-03-19 06:59:59` at the pharmacy, the day AFTER the
+    // boundary. Pinning the zone is what makes "the last minute of the expiry
+    // day" mean that on the clock the flag is compared against.
+    Carbon::setTestNow(Carbon::parse('2026-03-19 08:00:00', WaktuIndonesia::ZONA));
 
     $this->withHeaders(rx40As($akun['user']))->getJson($path)
         ->assertOk()
@@ -388,8 +396,11 @@ test('is_kedaluwarsa flips on the date alone, with no status change', function (
     expect(rx40StatusDiDb($resep->getKey()))->toBe('aktif');
 
     // The boundary is INCLUSIVE, matching `ObatInteraksiService`: valid
-    // through today means still valid today.
-    Carbon::setTestNow(Carbon::parse('2026-03-18 23:59:59'));
+    // through today means still valid today. One minute before the pharmacy's
+    // midnight on the expiry date, so this is the same calendar day under the
+    // UTC reading too and the assertion cannot be satisfied by picking a
+    // convenient clock.
+    Carbon::setTestNow(Carbon::parse('2026-03-18 23:59:59', WaktuIndonesia::ZONA));
 
     $this->withHeaders(rx40As($akun['user']))->getJson($path)
         ->assertJsonPath('data.resep.is_kedaluwarsa', false);

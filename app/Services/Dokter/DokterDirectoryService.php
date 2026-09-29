@@ -8,11 +8,11 @@ use App\Models\Dokter;
 use App\Models\MasterSpesialisasi;
 use App\Support\Dokter\StrBerlaku;
 use App\Support\Schema\SqlSchemaParser;
+use App\Support\WaktuIndonesia;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\DB;
 
 /**
  * The public doctor directory: one place where "may this doctor be shown to a
@@ -76,6 +76,34 @@ use Illuminate\Support\Facades\DB;
  * protection. The boundary is pinned by a test on the exact boundary date, on both
  * sides of it.
  *
+ * ## `<today>` is the ASIA/JAKARTA calendar day, and that is the load-bearing word
+ *
+ * The predicate above is incomplete as written, and the missing half is a real
+ * compliance defect rather than a missing docblock. `<today>` is **not** the
+ * server's date and **not** `config('app.timezone')`'s date. It is the clinic's
+ * calendar day, read through {@see WaktuIndonesia} - see the section below for
+ * the measurement. Written out in full, the rule is:
+ *
+ *     d.str_berlaku_sampai >= (today in Asia/Jakarta)
+ *
+ * Two different date bases are in play in this class, and they are not
+ * interchangeable:
+ *
+ * | value | basis | where it comes from |
+ * | --- | --- | --- |
+ * | rule 1: `status_verifikasi = 'terverifikasi'` | none - it is a state, not a date | the view's own `WHERE` at `:1183` |
+ * | `u.dihapus_at IS NULL` | none - also a state, and a `TIMESTAMP` that is only tested for NULLity, never compared | written at `:148` |
+ * | rule 2: `str_berlaku_sampai >= <today>` | **Asia/Jakarta wall clock** | {@see today()}, which asks {@see WaktuIndonesia::now()} |
+ *
+ * Only the third row carries a date basis at all. `dihapus_at` is a `TIMESTAMP`
+ * (an instant) and is only asked whether it is NULL, so no zone is involved; the
+ * two state predicates cannot lapse at all. Everything that is a *day* in this
+ * class therefore has exactly one basis, and it is the clinic's.
+ *
+ * {@see \Tests\Feature\Dokter\DokterStrZonaWaktuTest} pins that basis at both ends
+ * of the seven-hour window in which the two candidates differ, and also asserts
+ * the value the query BOUNDS rather than only the row set it returns.
+ *
  * **The decision itself moved to {@see StrBerlaku} in todo 26, and this
  * section is now the ORIGIN of that decision rather than a second copy of
  * it.** `SlotAvailabilityService` needs the same boundary against a different
@@ -98,17 +126,38 @@ use Illuminate\Support\Facades\DB;
  * fail-closed. If the column were ever relaxed to nullable, this predicate already
  * excludes the unknown rather than admitting it.
  *
- * ## Why "today" is read from the database, not from PHP
+ * ## Why "today" is read from the CLINIC, and not from the database or from PHP
  *
- * `config/app.php` sets the application timezone to `UTC`, while the DDL's
- * `dibuat_at`/`diubah_at` are `TIMESTAMP DEFAULT CURRENT_TIMESTAMP` (`:431`-`:432`)
- * and the rest of the schema stores naive wall-clock. Reading the date from PHP
- * would compare a Jakarta calendar day against a UTC one, and for seven hours every
- * evening the STR boundary would be a day out.
+ * `config/app.php` sets the application timezone to `UTC`, and
+ * `config/database.php` pins the MySQL session to `+00:00` (`'timezone' =>
+ * env('DB_TIMEZONE', '+00:00')`, for the `TIMESTAMP` reason quoted there). WIB is
+ * UTC+07:00, so **for seven hours every day - 00:00 to 07:00 WIB - the UTC
+ * calendar day and the Jakarta calendar day are different dates.** Anything that
+ * asks the database or `Carbon` for "today" is therefore a day out during that
+ * window, and a `DATE` comparison against it is a compliance defect rather than a
+ * cosmetic one: it lists a doctor whose STR expired yesterday and hides one whose
+ * STR runs out today.
  *
- * `SELECT CURDATE()` is the same clock MySQL used when it wrote the column, so the
- * comparison is between two values from one clock. {@see $asOf} lets a caller (only
- * a test, in practice) state the day explicitly; the default stays the database's.
+ * **This method used to ask the database.** It read
+ * `SELECT CURDATE() AS hari` on the argument that "the same clock MySQL used when
+ * it wrote the column" is the clock to compare with. That argument was wrong twice
+ * over. The column was not written by MySQL - `str_berlaku_sampai` is authored by
+ * an operator as a `DATE` and is a `DATE` in the DDL, so the wall clock it is
+ * written in is the clinic's, not the server's. And once todo 51 pinned the
+ * session to `+00:00`, `CURDATE()` had silently become the UTC day, so the
+ * "agreement" it relied on was agreement with a clock nobody in the business uses.
+ * Measured on this host at 2026-09-29 18:25 UTC: the Laravel connection reported
+ * `@@session.time_zone = +00:00` and `CURDATE() = 2026-09-29` while
+ * {@see WaktuIndonesia::tanggal()} reported `2026-09-30`.
+ *
+ * {@see WaktuIndonesia::now()} is the same instant as `now()` expressed on the
+ * clinic's wall clock, which is the one value that is both the current moment and
+ * the current day in the zone the licence is written in. It also honours
+ * `Carbon::setTestNow()`, which `CURDATE()` never could - a boundary that cannot be
+ * frozen cannot be tested at either end of its own window.
+ *
+ * {@see $asOf} still lets a caller (only a test, in practice) state the day
+ * explicitly; the default is now the clinic's day rather than the server's.
  *
  * ## Ordering is total, on purpose
  *
@@ -191,21 +240,29 @@ class DokterDirectoryService
     public const SEARCH_MAX = 150;
 
     /**
-     * The resolved "today" for one call, cached per request.
+     * The resolved "today" for one instance, cached per request.
      *
      * Two directory calls in the same request must agree on the boundary, or a
      * midnight rollover between the list and a detail fetch could make one say
      * "eligible" and the other say "expired". Null until the first call.
+     *
+     * `CarbonInterface`, never `Carbon`: {@see WaktuIndonesia::now()} returns a
+     * `Carbon\CarbonImmutable`, which is a **sibling** of
+     * `Illuminate\Support\Carbon` and not an instance of it, so a narrower
+     * property type raises a `TypeError` the first time the rule is exercised -
+     * on a path that looks correct in every editor and in every code review.
      */
-    private ?Carbon $today = null;
+    private ?CarbonInterface $today = null;
 
     /**
      * `GET /api/v1/dokter` - one page of eligible doctors.
      *
      * @param  array<string, mixed>  $filters  the FormRequest's `validated()` output
+     * @param  CarbonInterface|null  $asOf  the reference day for rule 2, overriding
+     *                                     {@see today()}; `null` means the clinic's today
      * @return LengthAwarePaginator<int, DokterKatalog>
      */
-    public function list(array $filters, ?Carbon $asOf = null): LengthAwarePaginator
+    public function list(array $filters, ?CarbonInterface $asOf = null): LengthAwarePaginator
     {
         $query = $this->query($asOf);
 
@@ -239,7 +296,7 @@ class DokterDirectoryService
      * appended for the same reason the list order does - a `SMALLINT UNSIGNED NULL`
      * year and a `TINYINT(1)` flag both tie often.
      */
-    public function find(int $dokterId, ?Carbon $asOf = null): ?Dokter
+    public function find(int $dokterId, ?CarbonInterface $asOf = null): ?Dokter
     {
         /** @var Dokter|null $dokter */
         $dokter = $this->query($asOf)
@@ -308,7 +365,7 @@ class DokterDirectoryService
      *
      * @return Builder<DokterKatalog>
      */
-    private function query(?Carbon $asOf): Builder
+    private function query(?CarbonInterface $asOf): Builder
     {
         $query = DokterKatalog::query()
             ->select(DokterKatalog::kolomTerpilih())
@@ -332,6 +389,12 @@ class DokterDirectoryService
      * of truth, and the looser one is the one that would let an unlicensed
      * doctor take a consultation.
      *
+     * **The reference day this method passes is the ASIA/JAKARTA day** - see the
+     * `<today>` section of the class docblock. `SlotAvailabilityService` passes a
+     * DATE the caller asked about instead, which is a third basis again and is
+     * correct there: it is neither "now" nor a wall clock, it is the consultation
+     * date the request named.
+     *
      * Nested inside a `where(function ...)` by that class rather than by this
      * method because a caller may itself be inside a nested closure; the
      * grouping keeps the `NOT NULL` and the comparison from ever being separated
@@ -339,27 +402,33 @@ class DokterDirectoryService
      * would matter: `A OR B` with `A` being a two-clause rule splits into
      * `A1 OR A2`, and `A2` alone admits the NULL.
      */
-    private function strBelumKedaluwarsa(Builder $query, ?Carbon $asOf): void
+    private function strBelumKedaluwarsa(Builder $query, ?CarbonInterface $asOf): void
     {
         StrBerlaku::terapkan($query, 'd.str_berlaku_sampai', $this->today($asOf));
     }
 
     /**
-     * Today, as the database's calendar day, or the caller's explicit day.
+     * Today, on the **clinic's** calendar, or the caller's explicit day.
      *
-     * Cached per instance so every predicate in one request compares against the same
-     * value; see the class docblock on why the source is MySQL and not PHP.
+     * The basis is `Asia/Jakarta` and the source is {@see WaktuIndonesia::now()},
+     * which is the same instant as `now()` expressed on that wall clock. It is
+     * deliberately neither `SELECT CURDATE()` nor `Carbon::today()`: the MySQL
+     * session is pinned to `+00:00` and `config/app.php` is `UTC`, so for seven
+     * hours every day both of those name the day BEFORE the clinic's. The class
+     * docblock carries the measurement and the consequence.
+     *
+     * Cached per instance so every predicate in one request compares against the
+     * same value; a midnight rollover between the list query and the detail query
+     * must not be able to answer them differently.
      */
-    private function today(?Carbon $asOf): Carbon
+    private function today(?CarbonInterface $asOf): CarbonInterface
     {
         if ($asOf !== null) {
             return $asOf->copy()->startOfDay();
         }
 
         if ($this->today === null) {
-            $row = DB::selectOne('SELECT CURDATE() AS hari');
-
-            $this->today = Carbon::parse((string) $row->hari)->startOfDay();
+            $this->today = WaktuIndonesia::now()->startOfDay();
         }
 
         return $this->today->copy();

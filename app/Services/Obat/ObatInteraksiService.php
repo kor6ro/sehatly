@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services\Obat;
 
+use App\Support\WaktuIndonesia;
 use Illuminate\Database\Query\Builder;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -123,6 +123,17 @@ use Illuminate\Support\Facades\DB;
  * timezone - and the resulting silent mismatch is a warning that appears and
  * disappears. The comparison is INCLUSIVE: a prescription valid through today
  * is still being taken today.
+ *
+ * **The day it is compared against is the ASIA/JAKARTA calendar day**, read once
+ * through {@see WaktuIndonesia::tanggal()} and applied to every row in the loop,
+ * so two prescriptions cannot be judged against two different days inside one
+ * answer. `Carbon::today()` is a UTC day (`config/app.php` is `UTC`) and named
+ * the day BEFORE the pharmacy's for the seven hours from 00:00 to 07:00 WIB,
+ * which silently promoted a lapsed prescription back into "currently on" and
+ * demoted a live one out of it. This is the same inclusive boundary
+ * {@see \App\Services\Resep\ResepStateMachine::kedaluwarsa()} decides, and the
+ * same reference day; the guard is repeated here because this method filters
+ * rows in PHP rather than a single model.
  *
  * ## Allergy matching has NO join key, and this is the documented reason
  *
@@ -442,7 +453,7 @@ final class ObatInteraksiService
             $query->whereNotIn('resep.id', $saring);
         }
 
-        $hariIni = Carbon::today()->toDateString();
+        $hariIni = WaktuIndonesia::tanggal();
 
         // drug id -> the prescriptions holding it, after the date guard.
         $dimiliki = [];

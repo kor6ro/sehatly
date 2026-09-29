@@ -18,6 +18,7 @@ use App\Support\NikMasker;
 use App\Support\Rbac\RbacCatalog;
 use App\Support\Rbac\RoleAssigner;
 use App\Support\Schema\SqlSchemaParser;
+use App\Support\WaktuIndonesia;
 use Database\Seeders\RbacSeeder;
 use Illuminate\Routing\Route as RoutingRoute;
 use Illuminate\Support\Carbon;
@@ -303,13 +304,22 @@ function bkuPayload(int $dokterId, array $ubah = []): array
 }
 
 /**
- * Today, as the DATABASE sees it. The same clock `SlotAvailabilityService`
- * reads, for the reason its `hariIni()` gives: `config/app.php` is UTC while the
- * schema stores naive wall clock.
+ * Today, as the **clinic** sees it, and as a value whose `setTime()` means
+ * Jakarta time.
+ *
+ * `booking.tanggal_kunjungan` is a `DATE` and `booking.slot_mulai` is a `TIME`;
+ * `docs/timezone-policy.md` rule 2 makes both Asia/Jakarta wall clocks. The two
+ * boundaries under test here therefore both need the clinic's clock, and a test
+ * that froze "12:00" in UTC would be freezing 19:00 at the clinic and asserting
+ * against the wrong end of the schedule.
+ *
+ * It was `SELECT CURDATE()`, which reads the *session's* wall clock: right only
+ * by accident while the MySQL session inherited this host's WIB, and the UTC day
+ * the moment todo 51 pinned the connection to `+00:00`.
  */
 function bkuHariIni(): Carbon
 {
-    return Carbon::parse((string) DB::selectOne('SELECT CURDATE() AS hari')->hari)->startOfDay();
+    return Carbon::parse(WaktuIndonesia::tanggal(), WaktuIndonesia::ZONA)->startOfDay();
 }
 
 /**
@@ -1306,11 +1316,11 @@ test('BOUNDARY: a holiday and a lapsed STR are refused, and a slot outside the w
 
 test('BOUNDARY: an instant booking today is refused once the slot has already ended', function (): void {
     // Rule 1b. `SlotAvailabilityService` compares `jam_selesai <= now` and only
-    // when the requested date IS today, using the DATABASE calendar day so the
-    // comparison is not made against a UTC one. This service reads that day once
-    // and hands it to the service as `$acuan`; the same two comparisons are then
-    // applied to an instant booking, which has no `dokter_jadwal` row for the
-    // service to answer about.
+    // when the requested date IS today, on the CLINIC's clock: `tanggal_kunjungan`
+    // is a `DATE` and `jam_selesai` a `TIME`, and both are Asia/Jakarta wall
+    // clocks under `docs/timezone-policy.md` rule 2. This service reads that clock
+    // once and applies the same two comparisons to an instant booking, which has no
+    // `dokter_jadwal` row for the service to answer about.
     $hariIni = bkuHariIni();
 
     Carbon::setTestNow($hariIni->copy()->setTime(12, 0, 0));
@@ -1625,9 +1635,11 @@ test('the expiry sweep flips only a stale menunggu_pembayaran booking to kadalua
     // `booking.status` includes `kadaluarsa` (:515-:516) and the schema has NO
     // column recording when the payment window closes, so the plan requires the
     // expiry to be COMPUTED from `tanggal_kunjungan` + `slot_mulai`. The
-    // reference clock is the database's own, for the reason
-    // `SlotAvailabilityService::hariIni()` gives: `config/app.php` is UTC while the
-    // schema stores naive wall clock.
+    // reference clock is the clinic's own, for the reason
+    // `SlotAvailabilityService::hariIni()` gives and `docs/timezone-policy.md`
+    // rule 2 requires: `tanggal_kunjungan` is a `DATE` and `slot_mulai` a `TIME`,
+    // both Asia/Jakarta wall clocks, so the clock they are compared against has to
+    // be the Jakarta one.
     $dokter = bkuDoctor();
     bkuJadwal($dokter['dokter']->getKey());
     $pasien = bkuPatient();

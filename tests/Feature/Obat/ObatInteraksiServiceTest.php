@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use App\Services\Obat\ObatInteraksiService;
 use App\Support\Schema\SqlSchemaParser;
-use Illuminate\Support\Carbon;
+use App\Support\WaktuIndonesia;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -687,13 +687,18 @@ test('a prescription whose berlaku_sampai has elapsed is not a clash even while 
     $metformin = oiObat('Metformin', 'Glucophage', '500 mg', 'Antidiabetik');
     oiInteraksi($amox, $metformin, 'berat');
 
-    $kedaluwarsaTanggal = oiResep($pasien, $dokter, 'aktif', Carbon::now()->subDays(3)->toDateString());
+    // The two fixture dates are read on the CLINIC's calendar, the same basis the
+    // guard under test reads: `resep.berlaku_sampai` is a `DATE` whose `COMMENT`
+    // counts seven days on paper, and `Carbon::today()` is a UTC day
+    // (`config/app.php` is `UTC`), so between 00:00 and 07:00 WIB it named the day
+    // before and this pair stopped straddling the boundary the test is about.
+    $kedaluwarsaTanggal = oiResep($pasien, $dokter, 'aktif', WaktuIndonesia::now()->subDays(3)->toDateString());
     oiItem($kedaluwarsaTanggal, $metformin, 'Metformin 500 mg');
 
     expect(oiLayanan()->cekRiwayatPasien($pasien, $amox))->toBe([]);
 
     // Today is still a clash: the DATE is inclusive.
-    $hariIni = oiResep($pasien, $dokter, 'aktif', Carbon::now()->toDateString());
+    $hariIni = oiResep($pasien, $dokter, 'aktif', WaktuIndonesia::tanggal());
     oiItem($hariIni, $metformin, 'Metformin 500 mg');
 
     expect(oiLayanan()->cekRiwayatPasien($pasien, $amox))->toHaveCount(1);

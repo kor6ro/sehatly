@@ -17,6 +17,7 @@ use App\Services\Pasien\PasienRecordAccess;
 use App\Services\Pdp\PdpConsent;
 use App\Support\Dokumen\NomorDokumen;
 use App\Support\NamaMasker;
+use App\Support\WaktuIndonesia;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -348,11 +349,17 @@ final class SuratKeteranganService
             'nomor_surat' => (string) $surat->nomor_surat,
             'tipe' => (string) $surat->tipe,
             'dokter' => $surat->dokter?->user?->nama_lengkap,
-            // The STORED calendar day of `dibuat_at`, deliberately not offset-converted.
-            // `dibuat_at` is a `TIMESTAMP` written by MySQL, and the question a scanner
-            // asks is "which day was this issued", not "what instant". `tanggal_mulai` and
-            // `tanggal_selesai` are the letter's CLINICAL period and are withheld.
-            'tanggal' => Carbon::instance($surat->dibuat_at)->toDateString(),
+            // The calendar day the letter was ISSUED, read on the clinic's clock.
+            // `dibuat_at` is a `TIMESTAMP`, so it is an instant and the instant
+            // itself is not in question; the question is which DAY it falls on,
+            // and "which day was this issued" is a question about the clinic's
+            // wall clock. It used to be the UTC day, so a letter issued at 01:00
+            // WIB scanned its own date as the day before. `tanggal_mulai` and
+            // `tanggal_selesai` are the letter's CLINICAL period and are
+            // withheld.
+            'tanggal' => Carbon::instance($surat->dibuat_at)
+                ->setTimezone(WaktuIndonesia::ZONA)
+                ->toDateString(),
             'pasien_nama_masked' => NamaMasker::mask($surat->pasien?->user?->nama_lengkap),
         ];
     }
@@ -530,8 +537,12 @@ final class SuratKeteranganService
                 'alasan_rujukan' => $alasan === null ? null : (string) $alasan,
                 // The plan's default, measured from the letter's own start date.
                 // `berlaku_sampai` (:608) is NOT NULL, so a referral always carries one.
+                // When no start date was given the anchor is the CLINIC's today,
+                // `WaktuIndonesia::now()` - not `Carbon::now()`, which is a UTC day
+                // and named the day before for the seven hours from 00:00 to 07:00 WIB,
+                // handing the patient a referral that expires a day early.
                 'berlaku_sampai' => $this->tanggal($data, 'berlaku_sampai')?->toDateString()
-                    ?? ($mulai ?? Carbon::now())->copy()->addDays(self::BERLAKU_SAMPAIL_HARI)->toDateString(),
+                    ?? ($mulai ?? WaktuIndonesia::now())->copy()->addDays(self::BERLAKU_SAMPAIL_HARI)->toDateString(),
             ],
             [],
         ];
@@ -561,7 +572,12 @@ final class SuratKeteranganService
         array $periode,
         ?array $rujukan,
     ): SuratKeterangan {
-        $hariIni = Carbon::now()->toDateString();
+        // The document number's date part is the CLINIC's day, not a UTC one.
+        // `config/app.php` is `UTC` and WIB is +07:00, so `Carbon::now()` stamped
+        // every letter written between 00:00 and 07:00 WIB with the previous day's
+        // date. `Carbon::setTestNow()` is honoured either way, which is what lets a
+        // test pin a letter's number.
+        $hariIni = WaktuIndonesia::tanggal();
 
         for ($percobaan = 1; $percobaan <= self::PERCOBAAN_TOKEN_MAKS; $percobaan++) {
             // The APPLICATION-level check, and the reason this method exists. The

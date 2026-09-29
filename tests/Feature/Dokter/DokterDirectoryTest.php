@@ -11,6 +11,7 @@ use App\Services\Dokter\DokterDirectoryService;
 use App\Services\Dokter\DokterKatalog;
 use App\Support\Rbac\RbacCatalog;
 use App\Support\Schema\SqlSchemaParser;
+use App\Support\WaktuIndonesia;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
@@ -60,9 +61,19 @@ use Illuminate\Support\Str;
 | `dokter.str_berlaku_sampai` is a `DATE` (`telemedicine_test.sql:414`) and the
 | rule is inclusive: a doctor whose STR expires *today* is listed, one whose STR
 | expired *yesterday* is not. Both sides of that line are asserted, once through
-| HTTP against `SELECT CURDATE()` - the same clock the column was written with -
-| and once through the service's explicit `$asOf` parameter with a frozen date,
-| so no assertion can be broken by a midnight rollover mid-test.
+| HTTP against the clinic's own calendar day - `WaktuIndonesia::tanggal()`, the
+| same primitive the service asks - and once through the service's explicit
+| `$asOf` parameter with a frozen date, so no assertion can be broken by a
+| midnight rollover mid-test.
+|
+| **The date basis is stated rather than inherited.** The rule compares a `DATE`
+| against a day, so the day is `Asia/Jakarta`, and a fixture built from any
+| other calendar is a test of a different predicate than the one that runs. That
+| is not hypothetical: this fixture read `SELECT CURDATE()`, which is the
+| *session's* wall clock and is the UTC day on this connection, so for seven
+| hours every day it was a day out from the rule it was supposed to pin - and
+| the suite read green for the other seventeen. `DokterStrZonaWaktuTest` pins the
+| basis at both ends of that window.
 |
 */
 
@@ -239,15 +250,22 @@ function direktoriFaskes(string $nama): Faskes
 }
 
 /**
- * Today, as the *database* sees it.
+ * Today, as the **clinic** sees it.
  *
- * The service reads the boundary from `SELECT CURDATE()` rather than from PHP
- * because `config/app.php` is `UTC` while the schema stores naive wall-clock; a
- * test that built the date in PHP would be comparing two different clocks.
+ * `dokter.str_berlaku_sampai` is a `DATE` and the rule compares it with a day, so
+ * the day has to be the one on the clinic's calendar. It was `SELECT CURDATE()`,
+ * which reads the *session's* wall clock: right only by accident while the MySQL
+ * session inherited this host's WIB, and the UTC day the moment todo 51 pinned
+ * the connection to `+00:00` - which put every fixture here a day behind the rule
+ * for seven hours every day.
+ *
+ * The same question is therefore asked the same way the service asks it, through
+ * {@see WaktuIndonesia}, so a fixture and the predicate it is testing cannot be
+ * built from two different calendars.
  */
 function direktoriHariIni(): string
 {
-    return (string) DB::selectOne('SELECT CURDATE() AS hari')->hari;
+    return WaktuIndonesia::tanggal();
 }
 
 /**

@@ -24,6 +24,7 @@ use App\Services\Auth\RefreshTokenRejected;
 use App\Services\Auth\TokenService;
 use App\Support\ApiResponse;
 use App\Support\Rbac\RoleAssigner;
+use App\Support\WaktuIndonesia;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -596,10 +597,17 @@ class AuthController extends Controller
      * The `YYYYMM` prefix is read at write time, so a record's month is the month it was
      * registered. That is stated rather than assumed, because it makes `nomor_rm`
      * non-reproducible from the id alone after the fact.
+     *
+     * The month is the **clinic's**, via {@see WaktuIndonesia::tanggal('Ym')}.
+     * `now()` is a UTC instant (`config/app.php` is `UTC`) and WIB is +07:00, so a
+     * UTC basis stamped every record registered between 00:00 and 07:00 WIB with
+     * the previous month. `WaktuIndonesia::tanggal()` honours
+     * `Carbon::setTestNow()`, so the number is still reproducible under a frozen
+     * clock.
      */
     private function nomorRekamMedis(User $user): string
     {
-        return sprintf('RM-%s-%06d', now()->format('Ym'), (int) $user->getKey());
+        return sprintf('RM-%s-%06d', WaktuIndonesia::tanggal('Ym'), (int) $user->getKey());
     }
 
     /**

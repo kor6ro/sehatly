@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace App\Support\Dokter;
 
+use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use DateTimeInterface;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Carbon;
 
 /**
  * The one place the STR licence boundary is decided.
@@ -66,9 +67,29 @@ use Illuminate\Support\Carbon;
  * ## The reference day, and why the two callers use different ones
  *
  * - The **directory** compares against today, because the question is whether a
- *   patient may see the doctor in the directory *now*.
+ *   patient may see the doctor in the directory *now*. That today is the
+ *   **Asia/Jakarta** calendar day, read through
+ *   `App\Support\WaktuIndonesia::now()` by
+ *   `DokterDirectoryService::today()`. It is deliberately not `CURDATE()` and
+ *   not `Carbon::today()`: the MySQL session is pinned to `+00:00` and
+ *   `config/app.php` is `UTC`, so for seven hours every day both of those name
+ *   the day BEFORE the clinic's, and this class would then list a doctor whose
+ *   STR expired yesterday and hide one whose STR runs out today.
  * - The **slot service** compares against the requested consultation date,
  *   because the question is whether a specific visit may proceed on that day.
+ *   That is a third basis, and it is the right one: the date is a `Y-m-d` the
+ *   caller named, so it is a day in whatever calendar it was written in and no
+ *   zone is involved at all.
+ *
+ * So there are **three** reference days in this codebase, not one "today", and
+ * naming them is the only way a future reader can tell a deliberate basis from an
+ * accidental one:
+ *
+ * | caller | reference day | basis |
+ * | --- | --- | --- |
+ * | `DokterDirectoryService` | today | Asia/Jakarta wall clock (`WaktuIndonesia::now()`) |
+ * | `SlotAvailabilityService::getSlotTerbuka()` | the requested date | caller-supplied `Y-m-d` |
+ * | `BookingService` (instant booking) | the requested date | caller-supplied `Y-m-d` |
  *
  * Answering the second with the first would be a patient-safety hole, not a
  * convenience: a doctor's licence could run out next week, and nothing in the
@@ -137,17 +158,26 @@ final class StrBerlaku
      * normalised to a calendar day before the comparison, so a timestamp
      * carrying a time of day can never shift the boundary.
      *
+     * `$hari` is a `CarbonInterface`, never `Illuminate\Support\Carbon`:
+     * laravel/framework 13.33 boots with `Date::use(CarbonImmutable::class)`, so
+     * `App\Support\WaktuIndonesia::now()` hands back a `Carbon\CarbonImmutable` -
+     * a **sibling** of `Illuminate\Support\Carbon`, not a subclass of it. A
+     * `Carbon` type hint does not match it and PHP raises a `TypeError` on the
+     * one code path that decides who may legally practise. The directory passes
+     * the clinic's wall-clock day from `WaktuIndonesia`; the slot service passes
+     * a parsed `Y-m-d`; both are days, and neither is converted through a zone.
+     *
      * @param  DateTimeInterface|string|null  $strBerlakuSampai
      */
-    public static function berlakuPada(DateTimeInterface|string|null $strBerlakuSampai, Carbon $hari): bool
+    public static function berlakuPada(DateTimeInterface|string|null $strBerlakuSampai, CarbonInterface $hari): bool
     {
         if ($strBerlakuSampai === null) {
             return false;
         }
 
         $kedaluwarsa = $strBerlakuSampai instanceof DateTimeInterface
-            ? Carbon::instance($strBerlakuSampai)
-            : Carbon::parse($strBerlakuSampai);
+            ? CarbonImmutable::instance($strBerlakuSampai)
+            : CarbonImmutable::parse($strBerlakuSampai);
 
         return $kedaluwarsa->startOfDay()->gte($hari->copy()->startOfDay());
     }
@@ -163,8 +193,10 @@ final class StrBerlaku
      * `A1 OR A2`, and `A2` alone admits the NULL.
      *
      * @param  Builder<covariant \Illuminate\Database\Eloquent\Model>  $query
+     * @param  CarbonInterface  $hari  the reference DAY, in whatever calendar the
+     *                                 caller read it in; only its `Y-m-d` is used
      */
-    public static function terapkan(Builder $query, string $kolom, Carbon $hari): void
+    public static function terapkan(Builder $query, string $kolom, CarbonInterface $hari): void
     {
         $query->where(function ($inner) use ($kolom, $hari): void {
             $inner

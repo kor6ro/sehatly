@@ -16,8 +16,8 @@ use App\Services\Obat\ObatInteraksiService;
 use App\Services\Pasien\PasienRecordAccess;
 use App\Services\SuratKeterangan\QrTokenGenerator;
 use App\Support\Dokumen\NomorDokumen;
+use App\Support\WaktuIndonesia;
 use Illuminate\Database\UniqueConstraintViolationException;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
@@ -429,6 +429,18 @@ final class ResepService
      * serialising them) is accepted and stated: a UNIQUE index would close it
      * and would also be permanent drift against read-only law.
      *
+     * **The clock is the CLINIC's, and every value derived from it moves
+     * together.** `$sekarang` is {@see WaktuIndonesia::now()}, the same instant
+     * as `now()` on the Jakarta wall clock. It is read once so the three values
+     * below cannot be built from three different days. It used to be
+     * `Carbon::now()`, a UTC instant: for the seven hours from 00:00 to 07:00 WIB
+     * a prescription written at 01:00 recorded a `tanggal_resep` seven hours into
+     * the previous day and a `berlaku_sampai` **one calendar day short** - and
+     * `berlaku_sampai` is a `DATE` whose own `COMMENT` (`:755`) counts "7 hari"
+     * in days on paper, so a day short is a patient turned away a day early.
+     * `docs/timezone-policy.md` classifies `tanggal_resep` as a wall clock
+     * precisely because it is printed and dispensed against a local calendar date.
+     *
      * @param list<array<string, mixed>> $items
      */
     private function tulisDenganNomorUnik(
@@ -437,7 +449,7 @@ final class ResepService
         array $items,
         ?string $catatan,
     ): Resep {
-        $sekarang = Carbon::now();
+        $sekarang = WaktuIndonesia::now();
 
         return DB::transaction(function () use ($sesi, $dokter, $items, $catatan, $sekarang): Resep {
             for ($percobaan = 1; $percobaan <= self::PERCOBAAN_NOMOR_MAKS; $percobaan++) {

@@ -19,6 +19,7 @@ use App\Services\Resep\ResepStateMachine;
 use App\Services\Resep\ResepVerifikasiService;
 use App\Support\Dokumen\NomorDokumen;
 use App\Support\Uang\Uang;
+use App\Support\WaktuIndonesia;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Carbon;
@@ -733,6 +734,12 @@ final class PesananObatService
      * `status` is WRITTEN rather than defaulted, for the reason
      * {@see PesananObatStatus::default()} gives.
      *
+     * The document number's date part is the **CLINIC's** day,
+     * {@see WaktuIndonesia::tanggal()}, not `Carbon::now()->toDateString()`. The
+     * order is dated on the day the patient placed it, and `config/app.php` is
+     * `UTC` while WIB is +07:00, so a UTC basis stamped every order placed
+     * between 00:00 and 07:00 WIB with the previous day's date.
+     *
      * @param  array<string, mixed>  $data
      */
     private function tulisDenganNomorUnik(
@@ -744,14 +751,14 @@ final class PesananObatService
         string $pengiriman,
         string $total,
     ): PesananObat {
-        $sekarang = Carbon::now();
+        $hariIni = WaktuIndonesia::tanggal();
 
         for ($percobaan = 1; $percobaan <= self::PERCOBAAN_NOMOR_MAKS; $percobaan++) {
             try {
                 $pesanan = new PesananObat;
                 $pesanan->nomor_pesanan = $this->nomor->berikutnya(
                     NomorDokumen::PREFIX_PESANAN,
-                    $sekarang->toDateString(),
+                    $hariIni,
                 );
                 $pesanan->resep_id = $resep->getKey();
                 $pesanan->pasien_id = $pasien->getKey();
