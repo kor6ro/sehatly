@@ -6,6 +6,7 @@ use App\Models\Dokter;
 use App\Services\Booking\SlotAvailabilityService;
 use App\Support\Dokter\StrBerlaku;
 use App\Support\Schema\SqlSchemaParser;
+use App\Support\WaktuIndonesia;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -291,15 +292,21 @@ function slotCari(array $slots, string $mulai): ?array
 }
 
 /**
- * Today, as the *database* sees it.
+ * Today, as the **clinic** sees it.
  *
- * The service reads its default reference day from `SELECT CURDATE()` rather
- * than from PHP because `config/app.php` is UTC while the schema stores naive
- * wall-clock, exactly as `DokterDirectoryService` does for its own boundary.
+ * `docs/timezone-policy.md` rule 2: the slot times in this file are `TIME`
+ * columns, which are clinic-local wall clocks, so "today" has to be the Jakarta
+ * calendar day. `WaktuIndonesia::tanggal()` is what the service now asks, and
+ * this helper asks the same question so the two cannot drift.
+ *
+ * It was `SELECT CURDATE()`, which read the *server's* calendar day. That was only
+ * ever right because the development host is set to WIB, and it silently became
+ * the UTC day the moment the MySQL session was pinned to `+00:00` - between
+ * midnight and seven in the morning WIB, "today" would have been yesterday.
  */
 function slotHariIni(): Carbon
 {
-    return Carbon::parse((string) DB::selectOne('SELECT CURDATE() AS hari')->hari)->startOfDay();
+    return Carbon::parse(WaktuIndonesia::tanggal(), WaktuIndonesia::ZONA)->startOfDay();
 }
 
 /*
@@ -1032,7 +1039,12 @@ test('the STR boundary has exactly one spelling, shared with the doctor director
 
 test('BOUNDARY: a slot that has already ended today is unavailable, and one ending a minute later is not', function (): void {
     $hariIni = slotHariIni();
-    $sekarang = $hariIni->copy()->setTime(10, 7, 0);
+    // `setTime()` on a UTC-labelled Carbon would freeze "now" at 10:07 **UTC**,
+    // which the service correctly reads as 17:07 on the clinic wall clock and
+    // then closes the whole afternoon. The window below is written in WIB, so the
+    // frozen instant has to be 10:07 WIB - which is 03:07 UTC. This is the
+    // difference between an instant and a wall clock, in one line.
+    $sekarang = WaktuIndonesia::toInstant($hariIni->toDateString(), '10:07:00');
 
     Carbon::setTestNow($sekarang);
 

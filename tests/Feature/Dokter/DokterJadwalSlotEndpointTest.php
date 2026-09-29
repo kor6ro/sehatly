@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Services\Booking\SlotAvailabilityService;
 use App\Support\Dokter\StrBerlaku;
 use App\Support\Schema\SqlSchemaParser;
+use App\Support\WaktuIndonesia;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
@@ -191,15 +192,20 @@ function jslBooking(int $dokterId, string $mulai, string $selesai, array $ubah =
 }
 
 /**
- * Today, as the DATABASE sees it.
+ * Today, as the **clinic** sees it.
  *
- * `config/app.php` is UTC while the schema stores naive wall clock, so the two
- * services read their reference day from `SELECT CURDATE()`. A test that built
- * the day in PHP would be comparing two clocks.
+ * `docs/timezone-policy.md` rule 2: `dokter_jadwal.jam_mulai`/`jam_selesai` are
+ * `TIME` columns, which are clinic-local wall clocks, so "today" has to be the
+ * Jakarta calendar day. The service asks `WaktuIndonesia::tanggal()`; this helper
+ * asks the same question so the two cannot drift.
+ *
+ * It was `SELECT CURDATE()`, which read the *server's* calendar day - right only
+ * because the development host is set to WIB, and silently the UTC day the moment
+ * the MySQL session was pinned to `+00:00`.
  */
 function jslHariIni(): Carbon
 {
-    return Carbon::parse((string) DB::selectOne('SELECT CURDATE() AS hari')->hari)->startOfDay();
+    return Carbon::parse(WaktuIndonesia::tanggal(), WaktuIndonesia::ZONA)->startOfDay();
 }
 
 /** The `jam_mulai` of every slot, in order. */
@@ -635,7 +641,10 @@ test('BOUNDARY: the STR is checked against the CONSULTATION date, and today only
 
 test('a slot that has already ended today is published but closed, with alasan lewat_waktu', function (): void {
     $hariIni = jslHariIni();
-    $sekarang = $hariIni->copy()->setTime(10, 7, 0);
+    // The window below is written in WIB, so the frozen instant is 10:07 WIB
+    // (03:07 UTC). Freezing 10:07 on a UTC-labelled Carbon would ask the service
+    // whether 17:07 WIB is past every slot in an 08:07-12:07 window.
+    $sekarang = WaktuIndonesia::toInstant($hariIni->toDateString(), '10:07:00');
 
     Carbon::setTestNow($sekarang);
 
