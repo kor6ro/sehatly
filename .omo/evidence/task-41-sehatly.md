@@ -319,7 +319,30 @@ There is no `page.route` stub, no fixture array standing in for a server answer,
 token, no hard-coded OTP and no hard-coded patient phone number. The patient registers through
 `POST /auth/register` and reads the OTP out of **that response body**.
 
-### 10.2 How a contraindication was produced without touching the database
+### 10.2 The catalogue search box, measured on the wire
+
+`MINIMAL_KARAKTER = 2` and `DEBOUNCE_MS = 300` are private to the component, so the network
+log is the only place they are observable - and they had **no test at all** until this was
+noticed on review. Removing either would have changed nothing the suite could see. Both are now
+asserted inside the same walkthrough:
+
+- **One character issues ZERO** `GET /api/v1/obat` requests. The component leaves the query
+  `enabled: false`, so the request is never *made* rather than made and discarded.
+- **Eleven characters typed at 50 ms each - well inside the 300 ms debounce, so every keystroke
+  RESTARTS the timer - issue exactly ONE.**
+
+That second assertion is the one that matters alongside `staleTime: 60_000`: a catalogue query
+per keystroke is exactly the cost that minute of cache exists to avoid.
+
+```
+CATALOGUE_QUERIES_T41
+GET 200 /api/v1/obat?search=Amoxicillin&per_page=15
+GET 200 /api/v1/obat?search=Metformin&per_page=15
+```
+
+Two queries for two drugs, across eleven keystrokes plus a `fill()`.
+
+### 10.3 How a contraindication was produced without touching the database
 
 The dev seed has **no** `obat_interaksi` row at `tingkat = 'kontraindikasi'` (it has two, both
 milder: `2 x 5 = berat` and `2 x 3 = ringan`). Inserting one would have been fabricating the
@@ -332,7 +355,7 @@ One prescription then produces **two** of the three `sumber` groups at once - `a
 `kontraindikasi` and `antar_item` at `berat` - with the third (`riwayat_resep`) empty and
 asserted present-and-zero.
 
-### 10.3 Screenshots
+### 10.4 Screenshots
 
 | File | What it shows |
 | --- | --- |
