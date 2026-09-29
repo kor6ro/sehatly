@@ -24,6 +24,10 @@
  * | `OtpChallenge` | the inline `otp` array in `AuthController` |
  * | `Konsultasi`, `KonsultasiPesan` | `KonsultasiResource`, `KonsultasiChatResource` |
  * | `RekamMedis`, `RekamMedisRantai` | `RekamMedisResource` |
+ * | `Resep`, `ResepItem` | `ResepResource`, `ResepItemResource` |
+ * | `ResepVerifikasi` | `ResepVerifikasiResource` |
+ * | `MasterObat` | `MasterObatResource` |
+ * | `PeringatanPeringatan` | `ObatInteraksiService::susunInteraksi()` / `::susunAlergi()` |
  *
  * ## Nullable is spelled honestly
  *
@@ -880,4 +884,343 @@ export type RekamMedis = {
     persetujuan?: RekamMedisPersetujuan[];
     /** Ascending by `versi`, never truncated. See {@link RekamMedisRantai}. */
     ran?: RekamMedisRantai[];
+};
+
+// ============================================================================
+// resep / resep_item / resep_verifikasi / master_obat
+// ============================================================================
+
+/**
+ * `obat_interaksi.tingkat`, the FOUR-value ENUM at `telemedicine_test.sql:735`, in the
+ * DDL's own order, which is **ASCENDING seriousness**.
+ *
+ * That ordering is the whole reason the union is declared rather than `string`:
+ * {@link ResepPeringatan} is sorted worst-first by the server, and a client that maps a
+ * level to a colour with a `switch` on `string` will silently fall through to a default
+ * on a fifth value. Four named members make that a compile error instead.
+ */
+export type TingkatPeringatan = 'ringan' | 'sedang' | 'berat' | 'kontraindikasi';
+
+/**
+ * The severity at which a doctor's acknowledgement is required.
+ *
+ * `ObatInteraksiService::TINGKAT_KONTRAINDIKASI`. It is a `const` rather than a boolean
+ * because the same level appears in two independent places in a response - `tingkat` and
+ * the precomputed `wajib_catatan_dokter` - and a client that compared the two by string
+ * literal would be duplicating a rule the server already evaluated.
+ */
+export const TINGKAT_KONTRAINDIKASI = 'kontraindikasi' as const;
+
+/**
+ * `obat_interaksi.tingkat` rank, worst LAST so a descending sort puts the worst first.
+ *
+ * Byte-for-byte the mirror of `ObatInteraksiService::PERINGKAT`. The server already
+ * returns its output in that order; this copy exists so a client can order a group it
+ * built itself and can rank severities without re-deriving the rule.
+ */
+export const PERINGKAT: Readonly<Record<TingkatPeringatan, number>> = {
+    ringan: 0,
+    sedang: 1,
+    berat: 2,
+    kontraindikasi: 3,
+};
+
+/**
+ * The three `sumber` values, in the order `ObatInteraksiService::SUMBER` declares them
+ * and therefore the order every panel should render them in.
+ *
+ * A closed vocabulary of exactly three, and the plan's acceptance criterion that
+ * `WarningPanel` renders three visually distinct `sumber` groups is only checkable
+ * because it is closed: an `antar_item` row and an `alergi` row describe different
+ * clinical facts about the same prescription and must not be rendered as one list.
+ */
+export type SumberPeringatan = 'antar_item' | 'riwayat_resep' | 'alergi';
+
+export const SUMBER_PERINGATAN: readonly SumberPeringatan[] = [
+    'antar_item',
+    'riwayat_resep',
+    'alergi',
+] as const;
+
+/** One side of a two-drug interaction, as `ObatInteraksiService::sisi()` builds it. */
+export type SisiPeringatan = {
+    id: number;
+    /** `master_obat.nama_generik`, resolved by the server so no client join is needed. */
+    nama: string;
+};
+
+/**
+ * `rincian` for an `antar_item` / `riwayat_resep` warning, i.e. one backed by an
+ * `obat_interaksi` row.
+ *
+ * Two fields exist to make a correctness claim visible on the wire rather than only in a
+ * test. `arah_tersimpan` is the orientation the row is stored in and `arah_diminta` the
+ * orientation the lookup asked for; when they differ, the REVERSE-direction probe is what
+ * found the row, which is the property `ObatInteraksiService::pasangan()` exists to
+ * guarantee. `ganda` says more than one row claimed the same pair at different severities,
+ * in which case the panel is showing the worst of them.
+ */
+export type RincianInteraksi = {
+    baris_tertemu: number[];
+    ganda: boolean;
+    arah_tersimpan: [number, number];
+    arah_diminta: [number, number];
+    /** `[resepId]` for `riwayat_resep`, `[]` for `antar_item`. */
+    resep_id: number[];
+};
+
+/**
+ * `rincian` for an `alergi` warning, i.e. one backed by a `pasien_alergi` row.
+ *
+ * `inti_alergi` / `inti_kandidat` / `inti_cocok` are the three normalised name cores the
+ * best-effort match decided on. `pasien_alergi.nama_alergen` is free text and is NOT a
+ * foreign key to `master_obat`, so a panel that names only `inti_cocok` leaves a doctor
+ * unable to answer "why did this fire?" - which is exactly the question a warning exists
+ * to raise. `jalur` says whether the match came from the catalogue row or its
+ * `kelas_terapi`.
+ */
+export type RincianAlergi = {
+    alergi_id: number;
+    nama_alergen: string;
+    /** `pasien_alergi.keparahan`, four values - `anafilaksis` is among them. */
+    keparahan: 'ringan' | 'sedang' | 'berat' | 'anafilaksis';
+    inti_alergi: string;
+    inti_kandidat: string;
+    inti_cocok: string;
+    jalur: string;
+};
+
+export type ResepPeringatanRincian = Partial<RincianInteraksi> & Partial<RincianAlergi>;
+
+/**
+ * One drug-interaction or allergy warning, exactly as
+ * `ObatInteraksiService::susunInteraksi()` / `::susunAlergi()` assemble it.
+ *
+ * ## `obat_b` is `null` on an `alergi` warning, and that is not a gap
+ *
+ * An allergy warning names ONE drug against a recorded allergen, so the pair shape does
+ * not apply. Typing it `SisiPeringatan` would make a panel that prints
+ * `obat_a x obat_b` render a literal "null" beside every allergy warning. It is nullable,
+ * and a panel branches on `obat_b === null` instead of string-coercing it.
+ *
+ * ## `wajib_catatan_dokter` is the server's own verdict, not a client re-derivation
+ *
+ * It is computed once, in the engine, from the same row that produced `tingkat`. A client
+ * that compared `tingkat === 'kontraindikasi'` itself would be right today and wrong the
+ * day a fifth severity is added to the ENUM; reading the flag keeps the rule in one place.
+ */
+export type ResepPeringatan = {
+    sumber: SumberPeringatan;
+    /**
+     * De-duplication key, and it already carries the source - so the same clinical fact
+     * from two sources stays two entries while one fact from two database rows collapses
+     * to one. Used as a React key precisely because the server defines it as unique.
+     */
+    kunci: string;
+    tingkat: TingkatPeringatan;
+    deskripsi: string | null;
+    obat_a: SisiPeringatan | null;
+    obat_b: SisiPeringatan | null;
+    rincian: ResepPeringatanRincian;
+    wajib_catatan_dokter: boolean;
+};
+
+/**
+ * The `warning_grup` block: the SAME warnings keyed by `sumber`.
+ *
+ * Every key is always present, with an empty list where a source found nothing -
+ * `peringatanGrup()` walks `ObatInteraksiService::SUMBER` and fills all three before
+ * returning, and the create response builds the map the same way. So this is a total
+ * record over {@link SUMBER_PERINGATAN}, not a partial one, and a panel can render three
+ * regions unconditionally instead of guessing what it was given.
+ */
+export type PeringatanGrup = Record<SumberPeringatan, ResepPeringatan[]>;
+
+/**
+ * `data.acknowledgement` on the create response, and the answer to "was the override
+ * recorded?".
+ *
+ * `diminta` is `ObatInteraksiService::wajibCatatanDokter()` over the warning set, and
+ * `catatan_dodio` is what the service actually stored in `resep.catatan_dokter`. The pair
+ * is the load-bearing fact: **`diminta === true` with a `catatan_dodio` present is proof
+ * that the prescriber knowingly overrode a contraindication, and it is the only place in
+ * the whole schema where that is recorded.** There is no `resep_interaksi` table and no
+ * acknowledgement column, so this free-text note IS the record.
+ */
+export type Acknowledgement = {
+    diminta: boolean;
+    catatan_dodio: string | null;
+    jumlah_peringatan: number;
+};
+
+/**
+ * `resep.status`, the **EIGHT**-value ENUM at `telemedicine_test.sql:751`-`:752`, in the
+ * DDL's own order.
+ *
+ * Eight, and the split matters more than the count: `ObatInteraksiService::STATUS_BERLAKU`
+ * is the first FIVE (a course the patient is still on, and therefore the set a new
+ * prescription is checked against) and `STATUS_AKHIR` is the last three (a course that
+ * ended). Typing this as `string` would let a panel colour a `selesai` prescription with
+ * the "active" treatment and tell a patient their finished course is still running.
+ */
+export type StatusResep =
+    | 'aktif'
+    | 'diproses'
+    | 'diverifikasi'
+    | 'dipenuhi'
+    | 'dikirim'
+    | 'selesai'
+    | 'kedaluwarsa'
+    | 'dibatalkan';
+
+/** `resep.tipe`, the two-value ENUM; this client only ever writes `digital`. */
+export type TipeResep = 'digital' | 'manual';
+
+/** `resep_verifikasi.status`, the three-value ENUM at `:790`, in the DDL's order. */
+export type StatusVerifikasiResep = 'sesuai' | 'ada_koreksi' | 'ditolak';
+
+/** `master_obat.kelas_obat`, the six-value ENUM at `:713`-`:714`. */
+export type KelasObat =
+    | 'bebas'
+    | 'bebas_terbatas'
+    | 'keras'
+    | 'fitofarmaka'
+    | 'narkotika'
+    | 'psikotropika';
+
+/**
+ * One `master_obat` row, allow-listed by `MasterObatResource`.
+ *
+ * ## `harga_jual` is a `DECIMAL` and therefore a STRING
+ *
+ * `ResepItemResource` publishes `harga_satuan` and `subtotal` the same way, and both
+ * reach the client as JSON strings. See {@link Decimal}. A screen that renders
+ * `resep_item.subtotal` as a bare number prints either `NaN` or a string.
+ *
+ * ## `nama_brand`, `kelas_terapi` and the clinical columns are genuinely nullable
+ *
+ * They are `VARCHAR`/`TEXT` NULL at `:715`-`:729`, and a seeded catalogue row has every
+ * one of them empty. The composer therefore treats `nama_brand` as a suffix and never as
+ * the identity: the identity is `nama_generik` + `kekuatan` + `satuan`.
+ */
+export type MasterObat = {
+    id: number;
+    kode_obat: string;
+    nama_generik: string;
+    nama_brand: string | null;
+    /** `master_obat.bentuk_sediaan`, the twelve-value ENUM at `:714`. */
+    bentuk_sediaan: string;
+    kekuatan: string | null;
+    satuan: string;
+    pabrikan: string | null;
+    kelas_terapi: string | null;
+    kelas_obat: KelasObat;
+    requires_resep: boolean;
+    aturan_pakai_umum: string | null;
+    indikasi: string | null;
+    kontraindikasi: string | null;
+    harga_jual: Decimal;
+    status_aktif: boolean;
+};
+
+/**
+ * One `resep_item` row, publishing the STORED snapshot.
+ *
+ * ## `nama_obat` is a snapshot, and that is the point
+ *
+ * `resep_item.nama_obat` is `VARCHAR(255) NOT NULL COMMENT 'Snapshot nama saat
+ * diresepkan'` (`:771`): written explicitly from the catalogue at creation and published
+ * from the row, never through a live join. Renaming a drug in `master_obat` must not
+ * rewrite a prescription a patient is holding, and this field is what makes that true. A
+ * client that "fixed" a blank-looking name by re-fetching the catalogue would defeat it.
+ *
+ * ## `obat_id` is `null` for a racikan, and a racikan is structurally uncheckable
+ *
+ * `ObatInteraksiService` skips NULL ids with a `whereNotNull`, so a racikan can never
+ * produce an interaction or allergy warning. A panel must not imply otherwise.
+ */
+export type ResepItem = {
+    id: number;
+    obat_id: number | null;
+    nama_obat: string;
+    kekuatan: string | null;
+    aturan_pakai: string;
+    jumlah: number;
+    satuan: string | null;
+    is_racikan: boolean;
+    racikan_nama: string | null;
+    harga_satuan: Decimal;
+    subtotal: Decimal;
+    /** Pharmacist-owned. `prohibited` on the create request, so only the queue writes it. */
+    catatan_apoteker: string | null;
+};
+
+/**
+ * One `resep_verifikasi` row, as `ResepVerifikasiResource` publishes it.
+ *
+ * ## `terminal` is `true` for ALL THREE outcomes, and that surprises people
+ *
+ * `resep_verifikasi.resep_id` is `UNIQUE` (`:788`), so the existence of the row at all
+ * means the ONE verification is spent. `ditolak` additionally means the prescription is
+ * closed forever: there is no `resep.status` meaning "returned for correction" among the
+ * eight, so a rejected prescription cannot be revised and re-submitted. Rendering a
+ * "resubmit" affordance on a rejection would advertise a flow the schema cannot honour.
+ */
+export type ResepVerifikasi = {
+    id: number;
+    resep_id: number | null;
+    apoteker_user_id: number | null;
+    apoteker: {
+        id: number | null;
+        nama_lengkap: string | null;
+    } | null;
+    status: StatusVerifikasiResep;
+    catatan: string | null;
+    diverifikasi_at: Iso;
+    terminal: boolean;
+    ditolak: boolean;
+};
+
+/**
+ * One `resep` row, transcribed field by field from `ResepResource`.
+ *
+ * ## `is_kedaluwarsa` and `terminal` are on EVERY surface, deliberately
+ *
+ * Both are computed on the model by `ResepStateMachine` and published from the one
+ * resource, so the create response, the detail, the verification response and the history
+ * all carry an identical shape. The reason is recorded in the resource's own docblock: on
+ * laravel/framework 13, `JsonResource::additional()` on a nested resource is a silent
+ * no-op, so a flag added per-endpoint would read `null` from a 200. One component and one
+ * "can I still act on this" rule therefore cannot depend on which endpoint answered.
+ */
+export type Resep = {
+    id: number;
+    nomor_resep: string;
+    konsultasi_id: number | null;
+    rekam_medis_id: number | null;
+    pasien_id: number;
+    dokter_id: number;
+    apotek_id: number | null;
+    tipe: TipeResep;
+    status: StatusResep;
+    /**
+     * `TEXT NULL` at `:753` - and the ONLY place a doctor's decision to prescribe despite
+     * a `kontraindikasi` can be recorded. There is no `resep_interaksi` table and no
+     * acknowledgement column, so a non-null value here is the durable evidence that the
+     * warning was shown and knowingly overridden. See {@link Acknowledgement}.
+     */
+    catatan_dokter: string | null;
+    /** `DATETIME` at `:754`, an ISO-8601 instant. Read with `formatWaktu`. */
+    tanggal_resep: Iso;
+    /** `DATE` at `:755`, `Y-m-d`, Asia/Jakarta wall clock. Read with `formatTanggal`. */
+    berlaku_sampai: Tanggal;
+    is_kedaluwarsa: boolean;
+    terminal: boolean;
+    is_iter: boolean;
+    jumlah_iter: number;
+    /** `NOT NULL` but deliberately NOT `UNIQUE` at `:758`; see the plan's schema notes. */
+    qr_token: string;
+    dibuat_at: Iso;
+    /** Absent unless the relation was eager-loaded, which every `resep` response does. */
+    items?: ResepItem[];
 };
