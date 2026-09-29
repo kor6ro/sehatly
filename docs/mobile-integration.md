@@ -57,8 +57,9 @@ and implemented in your app. They are copy-pasteable, and section 3 and section
 Companion documents: the OpenAPI contract
 ([`openapi.yaml`](openapi.yaml), generated from the live route table and
 drift-checked), the machine-readable enum lists ([`enums.json`](enums.json)),
-the per-module summaries under [`docs/modules/`](modules/README.md), and the
-storage and push adapters in the package's
+the per-module summaries under [`docs/modules/`](modules/README.md), the root
+[README](../README.md#no-flutter-app-exists-in-this-repository) on the no-Flutter
+constraint, and the storage and push adapters in the package's
 [README](../packages/sehatly_api_client/README.md).
 
 ---
@@ -638,22 +639,22 @@ caller gets the 401 envelope and never the 403 envelope.
 
 ```text
 on ApiException e
-├─ e.isNetworkError ............... statusCode 0: retry with backoff, never prompt for login
-├─ e.isUnauthorized
-│  ├─ the failing path is the refresh path ... session over: clear, route to login, do not retry
-│  └─ any other path ................ the interceptor already retried once; surface the error
-├─ e.isTooManyRequests ............ read Retry-After; disable the action for that many seconds
-├─ e.isValidationError
-│  ├─ errors has "kode" ........... an OTP failure: expired / wrong / already used
-│  ├─ errors has "slot" ........... the slot is gone; offer the next one
-│  └─ otherwise ................... render every list entry per field
-├─ e.isForbidden
-│  ├─ e.isConsentRequired .......... start the PDP consent flow
-│  ├─ the screen is wrong for the account type ... hide it
-│  └─ otherwise ................... a permission bug; log the permission code
-├─ e.isNotFound ................... the row is gone or not yours; remove it from the UI
-├─ e.isServerError ................ generic copy; offer retry; do not parse the body
-└─ anything else .................. log method, path and status
+|-- e.isNetworkError ............... statusCode 0: retry with backoff, never prompt for login
+|-- e.isUnauthorized
+|  |-- the failing path is the refresh path ... session over: clear, route to login, do not retry
+|  `-- any other path ................ the interceptor already retried once; surface the error
+|-- e.isTooManyRequests ............ read Retry-After; disable the action for that many seconds
+|-- e.isValidationError
+|  |-- errors has "kode" ........... an OTP failure: expired / wrong / already used
+|  |-- errors has "slot" ........... the slot is gone; offer the next one
+|  `-- otherwise ................... render every list entry per field
+|-- e.isForbidden
+|  |-- e.isConsentRequired .......... start the PDP consent flow
+|  |-- the screen is wrong for the account type ... hide it
+|  `-- otherwise ................... a permission bug; log the permission code
+|-- e.isNotFound ................... the row is gone or not yours; remove it from the UI
+|-- e.isServerError ................ generic copy; offer retry; do not parse the body
+`-- anything else .................. log method, path and status
 ```
 
 ---
@@ -743,8 +744,8 @@ Future<void> main() async {
 
 This is the section where a plausible-looking client is most likely to be wrong,
 because a wrong instant still **parses**. The full analysis is
-[`timezone-policy.md`](timezone-policy.md); these are the two rules and what they
-mean for your code.
+[`timezone-policy.md`](timezone-policy.md#the-time-rule-stated-on-its-own);
+these are the two rules and what they mean for your code.
 
 ### 6.1 Rule 1 -- an instant is UTC, published with a `Z`
 
@@ -946,7 +947,9 @@ stopping the broker degrades delivery, it does not break the API.
 `laravel_reverb` is **not** a dependency of the Dart package, and
 `RealtimeSocket` is the seam you implement. The package's README carries a
 `pusher_channels_flutter` adapter; it is a starting point, not a locked-in choice,
-because both Reverb and Soketi speak the Pusher protocol.
+because both Reverb and Soketi speak the Pusher protocol. Running the broker
+locally is three processes, and the Module 3 summary has the commands
+([Realtime: kanal privat per konsultasi](modules/modul-3-konsultasi-rekam-medis.md#realtime-kanal-privat-per-konsultasi)).
 
 ### 9.2 Channel naming -- the two strings are different
 
@@ -1487,7 +1490,9 @@ and the public letter verification. That is deliberate: a login-screen province
 picker must work before the user has a token. The full enum vocabulary is also
 baked into the package as compile-checked Dart enums in
 `packages/sehatly_api_client/lib/src/generated/enums.dart`, so you can build
-every dropdown from constants rather than string literals.
+every dropdown from constants rather than string literals, and
+[`docs/contract-conformance.md`](contract-conformance.md) is the PHP suite that
+holds real responses to the published schemas.
 
 ```dart
 Future<void> main() async {
@@ -1625,8 +1630,17 @@ follows the route table and says so: the plan's error-catalogue list includes a
 poll an invoice endpoint that is not registered. The generated contract
 ([`openapi.yaml`](openapi.yaml)) is the tie-breaker, and it is regenerated from
 the live route table with a drift check that fails the build when it disagrees.
+The remaining arithmetic, and the environment notes for this host, are in the
+[module index](modules/README.md#angka) and in
+[`docs/pre-existing-defects.md`](pre-existing-defects.md#1-toolchain); the bare
+`php` on `PATH` is 8.2 and will not boot the application, which is why the command
+above is absolute ([the README says so too](../README.md#the-php-binary-is-not-on-path)).
 
 This document is checked by `node tools/check-doc-links.mjs`, which resolves
 every relative link, every cross-document anchor, every repository path named in
 prose, and every `/api` path against the live route table, and which hands every
 fenced `dart` block to the Dart formatter.
+
+```console
+npm run docs:check
+```
