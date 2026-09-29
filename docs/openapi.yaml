@@ -332,7 +332,7 @@ paths:
       x-ratelimit:
         limiter: auth-otp-verify
         max: 5
-        decay_seconds: 60
+        decay_seconds: 300
       requestBody:
         required: true
         description: 'Validated by `App\Http\Requests\Auth\VerifyOtpRequest::rules()`, which is read at generation time -- these properties are the live rules, not a transcription.'
@@ -349,7 +349,7 @@ paths:
           description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
         429:
-          description: 'Rate limited. This operation is limited to 5 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}`.'
+          description: 'Rate limited. This operation is limited to 5 request(s) per 300 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}`.'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
         500:
           description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
