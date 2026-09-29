@@ -144,6 +144,35 @@ export function ResepComposer({
      */
     const terkunci = ditolak && (!sudahBaca || catatan.trim() === '');
 
+    /**
+     * The commit, and the guard is INSIDE the handler as well as on the button.
+     *
+     * `disabled` alone is the whole defence for a real user - a browser does not dispatch a
+     * click on a disabled button - but it is not the whole defence in general. Playwright's
+     * `click({ force: true })` dispatches the event anyway, and this composer was driven by
+     * exactly that: an earlier version of the spec force-clicked the locked button and the
+     * prescription was written anyway, because the guard lived only in the attribute. So the
+     * same condition is re-checked here, and the note is re-read from the form rather than
+     * from the render that produced the attribute.
+     *
+     * A client that lets a DOM attribute enforce a clinical decision is relying on the
+     * browser being honest. This does not.
+     */
+    const commit = (): void => {
+        if (simpan.isPending) {
+            return;
+        }
+
+        if (
+            ditolak &&
+            (!sudahBaca || (form.getValues('catatan_dodio') ?? '').trim() === '')
+        ) {
+            return;
+        }
+
+        void kirim();
+    };
+
     return (
         <Card data-slot="resep-composer">
             <CardHeader>
@@ -336,13 +365,9 @@ export function ResepComposer({
                 </Button>
 
                 <Button
-                    type="submit"
-                    form="resep-composer-form"
+                    type="button"
                     disabled={simpan.isPending || terkunci}
-                    onClick={(e) => {
-                        e.preventDefault();
-                        void kirim();
-                    }}
+                    onClick={commit}
                 >
                     {simpan.isPending ? (
                         <Loader2 className="animate-spin" />
