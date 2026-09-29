@@ -5,9 +5,10 @@
     "scripts": {
         "build": "npm --prefix web run build",
         "dev": "npm --prefix web run dev",
-        "types:check": "npm --prefix web run types:check"
+        "types:check": "npm --prefix web run types:check",
+        "types:generate": "npm --prefix tools/openapi-types run generate"
     },
-    "//": "Todo 30 removed the Inertia/React starter kit from the repository root. `resources/js` is gone, so there is no longer an entry for a root Vite build, and `web/` is the single front-end project: it owns `web/src`, its own `index.html`, its own Vite 8 config and its own dependency list, and it builds to `web/dist` (gitignored, like `public/build`). The three scripts above delegate into it so `npm run build` from the repository root still means \"build the SPA\" and does not quietly become a command that does nothing. `composer.json`'s `setup` script installs `web/`'s dependencies for the same reason.",
+    "//": "Todo 30 removed the Inertia/React starter kit from the repository root. `resources/js` is gone, so there is no longer an entry for a root Vite build, and `web/` is the single front-end project: it owns `web/src`, its own `index.html`, its own Vite 8 config and its own dependency list, and it builds to `web/dist` (gitignored, like `public/build`). The three build/dev/check scripts above delegate into it so `npm run build` from the repository root still means \"build the SPA\" and does not quietly become a command that does nothing. `composer.json`'s `setup` script installs `web/`'s dependencies for the same reason. `types:generate` points at `tools/openapi-types` rather than at `web/`: openapi-typescript 7.13.0 declares a PEER dependency on typescript ^5 and calls that compiler's JavaScript API (`ts.factory`), while `web/` deliberately compiles against typescript ^7 (todo 3's pin, with its reason recorded there). npm cannot satisfy both in one tree, so the generator carries its own typescript 5. This is a toolchain split, not a version conflict in the app.",
     "dependencies": {},
     "devDependencies": {}
 }

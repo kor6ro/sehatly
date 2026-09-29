@@ -1,0 +1,14 @@
+{
+    "$schema": "https://json.schemastore.org/package.json",
+    "name": "sehatly-openapi-types",
+    "private": true,
+    "type": "module",
+    "description": "Isolated toolchain that turns docs/openapi.yaml into web/src/types/api.d.ts. It is a separate package because openapi-typescript requires typescript ^5 as a PEER dependency and calls its JavaScript compiler API (`ts.factory`), while web/ deliberately compiles against typescript ^7 (the plan's todo-3 pin, with the reason written down there). npm cannot satisfy both in one tree, so the generator gets its own.",
+    "scripts": {
+        "generate": "openapi-typescript ../../docs/openapi.yaml -o ../../web/src/types/api.d.ts"
+    },
+    "devDependencies": {
+        "openapi-typescript": "7.13.0",
+        "typescript": "5.9.3"
+    }
+}
