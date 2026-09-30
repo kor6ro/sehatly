@@ -591,20 +591,50 @@ test('the published rate limits are the ones the application registers, not inve
         expect($publishedLimit['decay_seconds'])->toBe($actual->decaySeconds, $key.' publishes a decay that differs from the registered one');
     }
 
-    // Every limiter named on a route must be published, and no route may carry
-    // a throttle the document silently dropped.
-    $routed = 0;
+    // Every throttled ROUTE must appear in the document, and every limiter name a
+    // route mounts must be REGISTERED. A route may mount more than one: since F-002
+    // `/auth/login` mounts `auth-login` and `auth-login-ip`, and the document
+    // publishes the FIRST, because `x-ratelimit` is one object and the 429 body
+    // names one limiter. Counting middleware instances against published operations
+    // therefore stopped being the invariant the moment a second limiter was mounted
+    // - the invariant is the route set, plus the "mounted but registered nowhere"
+    // check that this project's mid-bracket-limiter failure mode requires.
+    $routed = [];
+    $terpasang = [];
 
     foreach ($liveRoutes() as $route) {
         foreach ($guards($route) as $guard) {
             if (str_starts_with($guard, 'throttle:')) {
-                $routed++;
+                $routed[$route->uri()] = true;
+                $terpasang[substr($guard, strlen('throttle:'))] = true;
             }
         }
     }
 
-    expect($routed)->toBeGreaterThan(0);
-    expect(count($throttled))->toBe($routed, 'a throttled route published no rate limit, or an unthrottled one published one');
+    expect($routed)->not->toBeEmpty();
+    expect(count($throttled))->toBe(count($routed), 'a throttled route published no rate limit, or an unthrottled one published one');
+
+    foreach (array_keys($terpasang) as $name) {
+        expect(array_key_exists($name, $registered))->toBeTrue(
+            $name.' is mounted on a route but registered nowhere; ThrottleRequests answers 500 for that',
+        );
+    }
+
+    // The one multi-limiter route, named rather than left implicit: the document
+    // publishes `auth-login` (5/min, per identifier) and NOT `auth-login-ip`
+    // (60/min, per address). The second ceiling is real at run time and invisible in
+    // the document - a contract gap recorded as backlog in the F-002 report, and
+    // asserted here so it cannot disappear without somebody noticing.
+    $loginKey = null;
+
+    foreach (array_keys($throttled) as $key) {
+        if (is_string($key) && str_ends_with($key, 'auth/login')) {
+            $loginKey = $key;
+        }
+    }
+
+    expect($loginKey)->not->toBeNull()
+        ->and($throttled[$loginKey]['limiter'])->toBe('auth-login');
 });
 
 test('the ENUM catalogue in the document is exactly docs/enums.json', function () use ($document) {

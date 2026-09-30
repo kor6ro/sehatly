@@ -51,6 +51,19 @@ use Illuminate\Support\Facades\Route;
 | key includes the caller's identifier so one attacker cannot lock every account
 | out by spending a shared budget.
 |
+| APPENDED by F-002: seven of the ten limiters that `AppServiceProvider` had
+| registered but left unmounted are now mounted - `auth-login-ip` beside
+| `auth-login` on `/auth/login`, `auth-refresh` on `/auth/refresh`, and one each on
+| booking, chat, checkout, promo validation and the payment webhook. The remaining
+| three are deliberately NOT mounted: `otp-kirim` (3/min per identifier) and
+| `otp-kirim-jam` (10/hour) would lower `/auth/login`'s EFFECTIVE ceiling from the
+| plan's 5/min to 3/min, and `auth-register` (3/hour per IP) would lower
+| `/auth/register` from 10/min to 3/hour per address and punish every patient
+| behind one shared NAT. Mounting any of the three is a ceiling decision rather
+| than a wiring one, so it is recorded in `AppServiceProvider`'s inventory and
+| asserted UNMOUNTED by `tests/Feature/Security/RouteThrottlingTest.php` instead of
+| being made here.
+|
 | ## Why no `permission:` or `tipe:` appears here
 |
 | `RbacCatalog::PERMISSIONS` holds 24 codes and none of them names an auth,
@@ -77,7 +90,12 @@ Route::prefix('auth')->name('auth.')->group(function (): void {
         ->name('register');
 
     Route::post('login', [AuthController::class, 'login'])
-        ->middleware('throttle:auth-login')
+        // `otp-kirim` and `otp-kirim-jam` are deliberately NOT mounted here: both are
+        // keyed on the identifier with a 3/min and a 10/hour ceiling, so mounting them
+        // lowers login's EFFECTIVE ceiling below the plan's 5/min. That is a ceiling
+        // decision rather than a wiring one, and F-002 recorded it in
+        // `AppServiceProvider`'s inventory instead of making it here.
+        ->middleware(['throttle:auth-login', 'throttle:auth-login-ip'])
         ->name('login');
 
     Route::post('otp/verify', [AuthController::class, 'verifyOtp'])
@@ -85,6 +103,7 @@ Route::prefix('auth')->name('auth.')->group(function (): void {
         ->name('otp.verify');
 
     Route::post('refresh', [AuthController::class, 'refresh'])
+        ->middleware('throttle:auth-refresh')
         ->name('refresh');
 
     /*
@@ -232,7 +251,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
     | before the controller runs.
     */
     Route::post('booking', [BookingController::class, 'store'])
-        ->middleware('permission:booking.buat')
+        ->middleware(['permission:booking.buat', 'throttle:booking'])
         ->name('booking.store');
 
     Route::put('booking/{id}/batalkan', [BookingController::class, 'batalkan'])
@@ -430,7 +449,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
 
         Route::post('{id}/chat', [KonsultasiController::class, 'chatStore'])
             ->whereNumber('id')
-            ->middleware('permission:konsultasi.chat')
+            ->middleware(['permission:konsultasi.chat', 'throttle:chat'])
             ->name('chat.store');
 
         Route::post('{id}/chat/baca', [KonsultasiController::class, 'chatBaca'])
@@ -857,6 +876,7 @@ use App\Http\Controllers\Api\V1\ResepController;
 
 Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('promo/validasi', [PromoController::class, 'validasi'])
+        ->middleware('throttle:promo-validasi')
         ->name('promo.validasi');
 });
 
@@ -1080,7 +1100,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
 
     Route::post('resep/{id}/checkout', [PesananObatController::class, 'checkout'])
         ->whereNumber('id')
-        ->middleware('permission:pesanan.buat')
+        ->middleware(['permission:pesanan.buat', 'throttle:checkout'])
         ->name('resep.checkout');
 
     Route::get('pesanan-obat/{id}', [PesananObatController::class, 'show'])
@@ -1173,6 +1193,7 @@ Route::post('invoice/{id}/bayar', [PembayaranController::class, 'bayar'])
 */
 Route::post('webhook/payment/{gateway}', [PembayaranController::class, 'webhook'])
     ->whereIn('gateway', PembayaranGateway::untukRute())
+    ->middleware('throttle:webhook-payment')
     ->name('webhook.pembayaran');
 
 use App\Http\Controllers\Api\V1\NotifikasiController;

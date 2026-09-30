@@ -46,19 +46,21 @@ use Tests\Support\FakeOtpSender;
 | headers. So the 429 the client actually receives either has `Retry-After` or it
 | does not, and only a real request can say which.
 |
-| ## Why the probe routes below exist
+| ## Why the probe routes below still exist after F-002
 |
-| Eight of the limiters this todo registers are not mounted by any route:
-| `routes/api.php` is owned by another executor this round, so the plan's
-| `->middleware('throttle:promo-validasi')` lines are a FINDING rather than
-| something this file may do. A registered-but-unmounted limiter is worth nothing
-| as evidence, so each one is driven through a **runtime-registered probe route**
-| -- the technique `ApiKernelTest` and `RbacMiddlewareTest` use, and the reason
-| they use it: a route registered inside a test process cannot reach
-| `docs/openapi.yaml`, which a separate console run generates. The probe proves the
-| limiter, its key and its ceiling really refuse through the real `throttle:`
-| middleware. What it cannot prove is that the production route mounts it, and
-| that gap is stated in `.omo/evidence/task-52-sehatly.md` rather than hidden.
+| F-002 mounted seven of the ten limiters that had no route, so the probe routes
+| are no longer the only place a limiter is exercised - and this file's older
+| paragraph claiming "eight of the limiters ... are not mounted by any route" was
+| true when it was written and is not any more. The probes are kept because they
+| drive ONE limiter at a time with a bucket of its own, which is what lets this
+| file assert a ceiling and a window per limiter without paying for a route's
+| other guards - and because a route registered inside a test process cannot reach
+| `docs/openapi.yaml`, which a separate console run generates. What the probe
+| cannot prove is that the production route mounts the limiter; that half is
+| `tests/Feature/Security/RouteThrottlingTest.php`, which reads the mounted set out
+| of the route table and drives real routes to a 429. The three limiters F-002 left
+| unmounted (`otp-kirim`, `otp-kirim-jam`, `auth-register`) are asserted UNMOUNTED
+| there, because mounting them moves a documented ceiling rather than adding wiring.
 |
 | ## The helpers are local, not shared with `AuthFlowTest`
 |

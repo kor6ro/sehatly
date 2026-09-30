@@ -285,31 +285,45 @@ class AppServiceProvider extends ServiceProvider
      * `tests/Feature/Security/RateLimitingTest.php` asserts that no file in `app/`
      * other than this one registers a limiter.
      *
-     * ## The inventory, and which of it is mounted
+     * ## The inventory, and where each one is mounted
+     *
+     * F-002 mounted seven of the ten entries that had no route: a registered limiter
+     * protects nobody until a route names it, and before F-002 ten of the thirteen
+     * were unowned. The `mounted on` column is the route the
+     * `->middleware('throttle:...')` line sits on, and
+     * `tests/Feature/Security/RouteThrottlingTest.php` reads the mounted set back
+     * out of the route table so the table and `routes/api.php` cannot drift.
+     *
+     * Three remain deliberately unmounted, and the reason is a CEILING rather than a
+     * missing line:
+     *
+     * - `otp-kirim` (3/min) and `otp-kirim-jam` (10/hour) are keyed on the
+     *   identifier and were written for `/auth/login` - the second endpoint that
+     *   mints an OTP, after the password matched. Mounting them there would make
+     *   login's EFFECTIVE ceiling 3/min instead of the plan's 5, and would lock a
+     *   legitimate patient out of login after ten attempts in an hour. Moving a
+     *   documented ceiling is a decision, not wiring, so it is recorded here and
+     *   asserted UNMOUNTED by `RouteThrottlingTest`.
+     * - `auth-register` (3/hour, client IP) would lower `/auth/register` from the
+     *   documented 10/min (`auth-otp-send`) to 3/hour per address. The
+     *   carrier-grade-NAT paragraph below is exactly why that number must not be
+     *   adopted silently: one clinic's egress is not one abuser.
      *
      * | limiter | key | ceiling | window | mounted on |
      * | --- | --- | --- | --- | --- |
      * | `auth-login` | identifier | 5 | 60 s | `POST /auth/login` |
-     * | `auth-login-ip` | client IP | 60 | 60 s | **not mounted** |
+     * | `auth-login-ip` | client IP | 60 | 60 s | `POST /auth/login` |
      * | `auth-otp-send` | identifier + IP | 10 | 60 s | `POST /auth/register` |
-     * | `otp-kirim` | identifier | 3 | 60 s | **not mounted** |
-     * | `otp-kirim-jam` | identifier | 10 | 3600 s | **not mounted** |
+     * | `otp-kirim` | identifier | 3 | 60 s | **not mounted - ceiling decision (F-002)** |
+     * | `otp-kirim-jam` | identifier | 10 | 3600 s | **not mounted - ceiling decision (F-002)** |
      * | `auth-otp-verify` | `user_otp.id` | 5 | 300 s | `POST /auth/otp/verify` |
-     * | `auth-register` | client IP | 3 | 3600 s | **not mounted** |
-     * | `auth-refresh` | SHA-256 of the presented refresh token | 30 | 60 s | **not mounted** |
-     * | `booking` | user id | 10 | 60 s | **not mounted** |
-     * | `checkout` | user id | 5 | 60 s | **not mounted** |
-     * | `webhook-payment` | gateway + client IP | 60 | 60 s | **not mounted** |
-     * | `promo-validasi` | user id | 20 | 60 s | **not mounted** |
-     * | `chat` | consultation id | 60 | 60 s | **not mounted** |
-     *
-     * The eight unmounted entries are registered, unit-asserted and driven through
-     * a runtime probe route by the test suite, but `routes/api.php` is owned by
-     * another executor this round, so the `->middleware('throttle:...')` line that
-     * would mount each one is a FINDING in `.omo/evidence/task-52-sehatly.md`
-     * rather than something this file may do. A registered limiter protects nobody
-     * until a route names it, and the evidence file says so in those words rather
-     * than letting the table above imply otherwise.
+     * | `auth-register` | client IP | 3 | 3600 s | **not mounted - ceiling decision (F-002)** |
+     * | `auth-refresh` | SHA-256 of the presented refresh token | 30 | 60 s | `POST /auth/refresh` |
+     * | `booking` | user id | 10 | 60 s | `POST /booking` |
+     * | `checkout` | user id | 5 | 60 s | `POST /resep/{id}/checkout` |
+     * | `webhook-payment` | gateway + client IP | 60 | 60 s | `POST /webhook/payment/{gateway}` |
+     * | `promo-validasi` | user id | 20 | 60 s | `POST /promo/validasi` |
+     * | `chat` | consultation id | 60 | 60 s | `POST /konsultasi/{id}/chat` |
      *
      * ## `auth-login` keys on the IDENTIFIER, not on identifier + IP
      *
