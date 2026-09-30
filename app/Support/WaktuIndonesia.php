@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Support;
 
+use App\Services\Booking\SlotAvailabilityService;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use InvalidArgumentException;
@@ -49,7 +50,7 @@ use InvalidArgumentException;
  * editor. This project has already been bitten by exactly that, so the interface
  * is the only type that appears here.
  *
- * @see \App\Services\Booking\SlotAvailabilityService which asks "is it over?" in this zone.
+ * @see SlotAvailabilityService which asks "is it over?" in this zone.
  */
 final class WaktuIndonesia
 {

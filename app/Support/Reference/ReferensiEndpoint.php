@@ -4,6 +4,36 @@ declare(strict_types=1);
 
 namespace App\Support\Reference;
 
+use App\Http\Requests\Referensi\IndexReferensiRequest;
+use App\Http\Resources\MasterSpesialisasiResource;
+use App\Http\Resources\Referensi\AgamaResource;
+use App\Http\Resources\Referensi\GolonganDarahResource;
+use App\Http\Resources\Referensi\HubunganKeluargaResource;
+use App\Http\Resources\Referensi\Icd10Resource;
+use App\Http\Resources\Referensi\Icd9cmResource;
+use App\Http\Resources\Referensi\KabupatenKotaResource;
+use App\Http\Resources\Referensi\KecamatanResource;
+use App\Http\Resources\Referensi\KelurahanResource;
+use App\Http\Resources\Referensi\MetodePembayaranResource;
+use App\Http\Resources\Referensi\PendidikanResource;
+use App\Http\Resources\Referensi\ProvinsiResource;
+use App\Http\Resources\Referensi\StatusPernikahanResource;
+use App\Models\MasterAgama;
+use App\Models\MasterGolonganDarah;
+use App\Models\MasterHubunganKeluarga;
+use App\Models\MasterIcd10;
+use App\Models\MasterIcd9cm;
+use App\Models\MasterKabupatenKota;
+use App\Models\MasterKecamatan;
+use App\Models\MasterKelurahan;
+use App\Models\MasterMetodePembayaran;
+use App\Models\MasterPendidikan;
+use App\Models\MasterProvinsi;
+use App\Models\MasterSpesialisasi;
+use App\Models\MasterStatusPernikahan;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\Resources\Json\JsonResource;
+
 /**
  * The definition of one read-only reference endpoint, in one place.
  *
@@ -43,8 +73,8 @@ namespace App\Support\Reference;
 final class ReferensiEndpoint
 {
     /**
-     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $model
-     * @param  class-string<\Illuminate\Http\Resources\Json\JsonResource>  $resource
+     * @param  class-string<Model>  $model
+     * @param  class-string<JsonResource>  $resource
      * @param  list<string>  $searchable
      * @param  list<string>  $orders
      */
@@ -99,30 +129,30 @@ final class ReferensiEndpoint
             // The administrative hierarchy. Each level filters on the level above,
             // and the whole chain is public because a patient picks a province
             // before they have an account.
-            self::make('provinsi', \App\Models\MasterProvinsi::class, \App\Http\Resources\Referensi\ProvinsiResource::class, 'provinsi', orders: ['nama', 'kode']),
-            self::make('kabupaten-kota', \App\Models\MasterKabupatenKota::class, \App\Http\Resources\Referensi\KabupatenKotaResource::class, 'kabupaten/kota', parent: 'provinsi_id', paginates: true, orders: ['nama', 'kode']),
-            self::make('kecamatan', \App\Models\MasterKecamatan::class, \App\Http\Resources\Referensi\KecamatanResource::class, 'kecamatan', parent: 'kabupaten_kota_id', paginates: true, orders: ['nama', 'kode']),
-            self::make('kelurahan', \App\Models\MasterKelurahan::class, \App\Http\Resources\Referensi\KelurahanResource::class, 'kelurahan', parent: 'kecamatan_id', paginates: true, orders: ['nama', 'kode']),
+            self::make('provinsi', MasterProvinsi::class, ProvinsiResource::class, 'provinsi', orders: ['nama', 'kode']),
+            self::make('kabupaten-kota', MasterKabupatenKota::class, KabupatenKotaResource::class, 'kabupaten/kota', parent: 'provinsi_id', paginates: true, orders: ['nama', 'kode']),
+            self::make('kecamatan', MasterKecamatan::class, KecamatanResource::class, 'kecamatan', parent: 'kabupaten_kota_id', paginates: true, orders: ['nama', 'kode']),
+            self::make('kelurahan', MasterKelurahan::class, KelurahanResource::class, 'kelurahan', parent: 'kecamatan_id', paginates: true, orders: ['nama', 'kode']),
 
             // The demographic vocabularies. Small, fixed, and read whole: a
             // registration form needs all of them on one screen. None of these four
             // has a `kode` column, so `nama` is the only order key there is.
-            self::make('agama', \App\Models\MasterAgama::class, \App\Http\Resources\Referensi\AgamaResource::class, 'agama', orders: ['nama']),
-            self::make('golongan-darah', \App\Models\MasterGolonganDarah::class, \App\Http\Resources\Referensi\GolonganDarahResource::class, 'golongan darah', orders: ['kode']),
-            self::make('pendidikan', \App\Models\MasterPendidikan::class, \App\Http\Resources\Referensi\PendidikanResource::class, 'pendidikan', orders: ['nama']),
-            self::make('status-pernikahan', \App\Models\MasterStatusPernikahan::class, \App\Http\Resources\Referensi\StatusPernikahanResource::class, 'status pernikahan', orders: ['nama']),
-            self::make('hubungan-keluarga', \App\Models\MasterHubunganKeluarga::class, \App\Http\Resources\Referensi\HubunganKeluargaResource::class, 'hubungan keluarga', orders: ['nama']),
+            self::make('agama', MasterAgama::class, AgamaResource::class, 'agama', orders: ['nama']),
+            self::make('golongan-darah', MasterGolonganDarah::class, GolonganDarahResource::class, 'golongan darah', orders: ['kode']),
+            self::make('pendidikan', MasterPendidikan::class, PendidikanResource::class, 'pendidikan', orders: ['nama']),
+            self::make('status-pernikahan', MasterStatusPernikahan::class, StatusPernikahanResource::class, 'status pernikahan', orders: ['nama']),
+            self::make('hubungan-keluarga', MasterHubunganKeluarga::class, HubunganKeluargaResource::class, 'hubungan keluarga', orders: ['nama']),
 
             // Clinical vocabularies.
-            self::make('spesialisasi', \App\Models\MasterSpesialisasi::class, \App\Http\Resources\MasterSpesialisasiResource::class, 'spesialisasi', searchable: ['kode', 'nama'], orders: ['nama', 'kode']),
-            self::make('metode-pembayaran', \App\Models\MasterMetodePembayaran::class, \App\Http\Resources\Referensi\MetodePembayaranResource::class, 'metode pembayaran', searchable: ['kode', 'nama'], filterStatusAktif: true, orders: ['nama', 'kode']),
+            self::make('spesialisasi', MasterSpesialisasi::class, MasterSpesialisasiResource::class, 'spesialisasi', searchable: ['kode', 'nama'], orders: ['nama', 'kode']),
+            self::make('metode-pembayaran', MasterMetodePembayaran::class, MetodePembayaranResource::class, 'metode pembayaran', searchable: ['kode', 'nama'], filterStatusAktif: true, orders: ['nama', 'kode']),
 
             // The diagnosis codes. The two largest reference tables after
             // `master_kelurahan`, and the only ones a client ever searches rather
             // than scrolls - so they page, and they accept `?q=`. They are ordered
             // on `kode` first because a code list is read as a code list.
-            self::make('icd10', \App\Models\MasterIcd10::class, \App\Http\Resources\Referensi\Icd10Resource::class, 'kode ICD-10', searchable: ['kode', 'deskripsi'], paginates: true, orders: ['kode', 'deskripsi']),
-            self::make('icd9cm', \App\Models\MasterIcd9cm::class, \App\Http\Resources\Referensi\Icd9cmResource::class, 'kode ICD-9CM', searchable: ['kode', 'deskripsi'], paginates: true, orders: ['kode', 'deskripsi']),
+            self::make('icd10', MasterIcd10::class, Icd10Resource::class, 'kode ICD-10', searchable: ['kode', 'deskripsi'], paginates: true, orders: ['kode', 'deskripsi']),
+            self::make('icd9cm', MasterIcd9cm::class, Icd9cmResource::class, 'kode ICD-9CM', searchable: ['kode', 'deskripsi'], paginates: true, orders: ['kode', 'deskripsi']),
         ];
     }
 
@@ -179,7 +209,7 @@ final class ReferensiEndpoint
      * The query-parameter names this endpoint answers.
      *
      * The parent filter, the search needle, the status switch and the paging pair.
-     * {@see \App\Http\Requests\Referensi\IndexReferensiRequest} builds its
+     * {@see IndexReferensiRequest} builds its
      * validation rules from exactly this list, which is what stops a parameter
      * being accepted and then ignored - a client sending `?kota=Jakarta` to
      * `/kabupaten-kota` gets a 422 naming the field rather than the full list as

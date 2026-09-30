@@ -2,25 +2,22 @@
 
 declare(strict_types=1);
 
-use App\Models\AksesRekamMedisLog;
 use App\Models\AuditLog;
 use App\Models\Booking;
-use App\Models\Invoice;
 use App\Models\Konsultasi;
 use App\Models\KonsultasiChat;
 use App\Models\Pasien;
-use App\Models\Pembayaran;
 use App\Models\RekamMedis;
-use App\Models\Rujukan;
-use App\Models\SuratKeterangan;
 use App\Models\User;
 use App\Services\Audit\AuditColumnPolicy;
 use App\Services\Auth\OtpSender;
 use App\Services\Auth\OtpService;
 use App\Support\NikCipher;
 use App\Support\NikMasker;
+use App\Support\Schema\SqlSchemaParser;
 use Database\Seeders\RbacSeeder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\Support\FakeOtpSender;
@@ -267,9 +264,9 @@ function al43PasienModel(int $userId, string $nik, array $extra = []): Pasien
  * query builder: the count is the thing under test, and reading it through
  * the `AuditLog` model would share code with the writer.
  *
- * @return \Illuminate\Support\Collection<int, object>
+ * @return Collection<int, object>
  */
-function al43RowsFor(string $table, int|string $recordId): \Illuminate\Support\Collection
+function al43RowsFor(string $table, int|string $recordId): Collection
 {
     return DB::table('audit_log')
         ->where('tabel_target', $table)
@@ -699,7 +696,7 @@ test('forceDelete on RekamMedis is blocked and the access evidence survives', fu
 // =====================================================================
 
 test('audit_log DDL citations: columns, lines, enum, indexes, bare keys', function (): void {
-    $spec = (new \App\Support\Schema\SqlSchemaParser)->parseFile(base_path('telemedicine_test.sql'));
+    $spec = (new SqlSchemaParser)->parseFile(base_path('telemedicine_test.sql'));
 
     $table = $spec->table('audit_log');
     expect($table)->not->toBeNull();

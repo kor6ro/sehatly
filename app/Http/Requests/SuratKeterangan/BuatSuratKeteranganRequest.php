@@ -6,6 +6,7 @@ namespace App\Http\Requests\SuratKeterangan;
 
 use App\Enums\SuratKeteranganTipe;
 use App\Http\Requests\RekamMedis\RekamMedisRequest;
+use App\Services\SuratKeterangan\SuratKeteranganService;
 use Illuminate\Validation\Rule;
 
 /**
@@ -25,7 +26,7 @@ use Illuminate\Validation\Rule;
  *
  * They are `nullable` here rather than `required` because whether they are MANDATORY
  * depends on `tipe`, and a conditional rule spelled out per-branch in a FormRequest is
- * a second copy of {@see \App\Services\SuratKeterangan\SuratKeteranganService}'s rule
+ * a second copy of {@see SuratKeteranganService}'s rule
  * that could disagree with it. The service is the single owner, it collects EVERY
  * violation before throwing, and it also REFUSES a referral key sent on a letter that
  * is not a referral - which no per-branch rule would do, because the offending request

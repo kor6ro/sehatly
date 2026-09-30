@@ -728,7 +728,7 @@ test('nominal is taken whole, capped by the purchase and by maks_diskon', functi
         $pasienId = inv44Pasien(inv44User('Pemilih Nominal')->getKey());
         $layanan = app(InvoiceService::class);
 
-                // kuota_per_user is raised so these three invoices test the MONEY and
+        // kuota_per_user is raised so these three invoices test the MONEY and
         // not the quota, which 	he per-user limit test covers on its own.
         $kode = inv44Kode(['tipe_diskon' => 'nominal', 'nilai' => '50000.00', 'kuota_per_user' => 10]);
 

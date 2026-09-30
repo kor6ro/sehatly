@@ -2,10 +2,9 @@
 
 declare(strict_types=1);
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Contract\Support\ContractSpec;
 use Tests\Contract\Support\EnvelopeValidator;
-use Tests\Contract\Support\LiveRequest;
-
 /*
  |--------------------------------------------------------------------------
  | Envelope conformance: real responses validated against the document
@@ -47,7 +46,7 @@ use Tests\Contract\Support\LiveRequest;
  | every existing client reads.
  */
 
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Contract\Support\LiveRequest;
 use Tests\TestCase;
 
 uses(TestCase::class, RefreshDatabase::class);

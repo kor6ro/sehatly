@@ -2,15 +2,14 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\V1\PromoController;
 use App\Http\Requests\Promo\ValidasiPromoRequest;
 use App\Services\Invoice\InvoiceService;
 use App\Services\Invoice\PromoHitungan;
 use App\Support\Rbac\RbacCatalog;
 use Database\Seeders\RbacSeeder;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Validation\ValidationException;
 
 require_once __DIR__.'/invoice-helpers.php';
 
@@ -69,7 +68,7 @@ test('route:list --path=api/v1/promo lists exactly one route and it is this one'
     expect(array_keys($punya))->toBe(['POST api/v1/promo/validasi'])
         ->and($punya['POST api/v1/promo/validasi']->getName())->toBe('promo.validasi')
         ->and($punya['POST api/v1/promo/validasi']->getActionName())
-        ->toBe(\App\Http\Controllers\Api\V1\PromoController::class.'@validasi');
+        ->toBe(PromoController::class.'@validasi');
 
     // The guards, read off the route rather than off the source file: a gate
     // added here would change this assertion and nothing else in the file.

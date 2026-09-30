@@ -18,6 +18,7 @@ use App\Support\NikCipher;
 use App\Support\NikMasker;
 use App\Support\Security\MissingNikCipherKeyException;
 use App\Support\Security\NikDecryptionException;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -964,7 +965,7 @@ test('every resource that publishes a NIK publishes the same masked string', fun
         // reads it off the model rather than re-querying, because a read that
         // does not log is the one thing that design refuses, so an unset
         // relation here would be a fixture problem rather than a resource one.
-        RekamMedisResource::class => (new RekamMedis)->setRelation('pasien', $pasien)->setRelation('ran', new Illuminate\Database\Eloquent\Collection),
+        RekamMedisResource::class => (new RekamMedis)->setRelation('pasien', $pasien)->setRelation('ran', new Collection),
         SuratKeteranganResource::class => (new SuratKeterangan)->setRelation('pasien', $pasien),
     ];
 

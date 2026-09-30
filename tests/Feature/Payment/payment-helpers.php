@@ -9,11 +9,14 @@ use App\Models\Booking;
 use App\Models\Invoice;
 use App\Models\User;
 use App\Services\Invoice\InvoiceService;
-use App\Support\Schema\SqlSchemaParser;
+use App\Support\Rbac\RoleAssigner;
 use App\Support\Schema\SchemaSpec;
+use App\Support\Schema\SqlSchemaParser;
+use Illuminate\Foundation\Testing\TestCase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Testing\TestResponse;
 use PHPUnit\Framework\Assert;
 
 /*
@@ -103,7 +106,7 @@ function pay45User(string $nama, string $tipe = 'pasien', ?string $role = 'pasie
     ]));
 
     if ($role !== null) {
-        app(App\Support\Rbac\RoleAssigner::class)->assign($id, $role);
+        app(RoleAssigner::class)->assign($id, $role);
     }
 
     return User::query()->findOrFail($id);
@@ -148,7 +151,7 @@ function pay45AkunPasien(string $nama = 'Pasien Pembayaran'): array
  * and answers 403 - which reads as "the guard refused them" and is in fact "the
  * guard never ran".
  */
-function pay45TanpaAuth(): Illuminate\Foundation\Testing\TestCase
+function pay45TanpaAuth(): TestCase
 {
     app('auth')->forgetGuards();
 
@@ -164,7 +167,7 @@ function pay45TanpaAuth(): Illuminate\Foundation\Testing\TestCase
  * `pay45Ajax($user)->postJson(...)` against an array, which is the kind of
  * failure that reads like a broken test rather than a broken helper.
  */
-function pay45Ajax(User $user): Illuminate\Foundation\Testing\TestCase
+function pay45Ajax(User $user): TestCase
 {
     app('auth')->forgetGuards();
 
@@ -364,7 +367,7 @@ function pay45PembayaranSemua(int $invoiceId): array
  * bytes signed here are exactly the bytes put on the wire.
  *
  * @param  array<string, mixed>  $tambahan  extra keys, stored verbatim and
- *                                             ignored by the service
+ *                                          ignored by the service
  * @return array{0: string, 1: array<string, string>}
  */
 function pay45Webhook(
@@ -408,7 +411,7 @@ function pay45HeaderTtD(): string
  *
  * @param  array<string, string>  $server
  */
-function pay45Kirim(string $gateway, string $raw, array $server): Illuminate\Testing\TestResponse
+function pay45Kirim(string $gateway, string $raw, array $server): TestResponse
 {
     return test()->call(
         'POST',

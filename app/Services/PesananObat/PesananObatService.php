@@ -272,10 +272,10 @@ final class PesananObatService
      *
      * @param  array<string, mixed>  $data  validated `CheckoutResepRequest` payload
      *
-     * @throws AccessDeniedHttpException|ModelNotFoundException  when the caller owns no
+     * @throws AccessDeniedHttpException|ModelNotFoundException when the caller owns no
      *                                                          `pasien` row, or the
      *                                                          prescription is not theirs
-     * @throws ValidationException|StokTidakCukupException        on any refusal
+     * @throws ValidationException|StokTidakCukupException on any refusal
      */
     public function buat(User $caller, Pasien $pasien, int $resepId, array $data): PesananObat
     {
@@ -617,7 +617,6 @@ final class PesananObatService
      * one exists.
      *
      * @param  list<array{resep_item_id: int, obat_id: ?int, nama_obat: string, jumlah: int, harga_satuan: string}>  $items
-     *
      * @return never
      *
      * @throws ValidationException

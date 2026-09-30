@@ -265,9 +265,9 @@ class NikCipherMigrationTest extends TestCase
         $this->assertSame(0, DB::table('pasien')->whereNotNull('nik_cipher')->count());
 
         $this->assertSame(0, Artisan::call('migrate:rollback', [
-        '--path' => 'database/migrations/2026_10_01_000079_move_pasien_nik_to_nik_cipher_table.php',
-        '--force' => true,
-    ]));
+            '--path' => 'database/migrations/2026_10_01_000079_move_pasien_nik_to_nik_cipher_table.php',
+            '--force' => true,
+        ]));
 
         // The shape the DDL used to declare, restored: the name, the width, the
         // nullability, the comment and the UNIQUE are all back, and this reads

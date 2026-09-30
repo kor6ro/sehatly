@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Services\Konsultasi;
 
 use App\Enums\KonsultasiStatus;
-use App\Enums\KonsultasiTipe;
 use App\Models\Booking;
+use App\Models\Dokter;
 use App\Models\Konsultasi;
 use App\Models\KonsultasiChat;
 use App\Models\Pasien;
@@ -123,10 +123,9 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
  * - **No `dokter.jumlah_konsultasi` increment.** The column exists (`:425`) and
  *   the directory publishes it, but the plan does not say which event increments
  *   it, and guessing would make a counter that is either double-counted or frozen.
-     */
+ */
 final class KonsultasiService
 {
-
     /**
      * The six columns a doctor may write through `PUT /konsultasi/{id}/selesai`: the four
      * SOAP fields plus `diagnosis_kerja` and `saran_tindak_lanjut`.
@@ -625,7 +624,6 @@ final class KonsultasiService
      * two forms was used.
      *
      * @param  array<string, mixed>  $data
-     *
      * @return array{0: int, 1: string, 2: string, 3: int|null}
      *
      * @throws ValidationException|NotFoundHttpException
@@ -712,7 +710,7 @@ final class KonsultasiService
         $dokter = $this->directory->find($dokterId);
 
         if ($dokter === null) {
-            throw (new ModelNotFoundException)->setModel(\App\Models\Dokter::class, [$dokterId]);
+            throw (new ModelNotFoundException)->setModel(Dokter::class, [$dokterId]);
         }
 
         return [

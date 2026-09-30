@@ -131,8 +131,8 @@ use Illuminate\Validation\ValidationException;
  * The invoice still goes `lunas` - the money is real - and the response says
  * what it did, so the discrepancy is visible rather than silent.
  *
- * @see \App\Services\Payment\PaymentGatewayService the provider contract
- * @see \App\Services\Payment\MockPaymentGatewayService the shipped gateway
+ * @see PaymentGatewayService the provider contract
+ * @see MockPaymentGatewayService the shipped gateway
  */
 final class PaymentService
 {
@@ -224,10 +224,10 @@ final class PaymentService
      * (:958-973). The refusal names the existing reference so the client can
      * show the right one.
      *
-     * @throws ValidationException  on a non-payable invoice status, an unknown
-     *                              or inactive method, or an existing pending
-     *                              payment
-     * @throws ModelNotFoundException  when the invoice is not the caller's
+     * @throws ValidationException on a non-payable invoice status, an unknown
+     *                             or inactive method, or an existing pending
+     *                             payment
+     * @throws ModelNotFoundException when the invoice is not the caller's
      */
     public function mulai(Invoice $invoice, MasterMetodePembayaran $metode): array
     {
@@ -245,7 +245,7 @@ final class PaymentService
 
         $jumlah = (string) $invoice->total;
 
-        if (! Preg_match('/^[1-9][0-9]{0,11}(\.[0-9]{1,2})?$/', $jumlah)) {
+        if (! preg_match('/^[1-9][0-9]{0,11}(\.[0-9]{1,2})?$/', $jumlah)) {
             throw ValidationException::withMessages([
                 'metode_id' => ['Total invoice tidak dapat dibayar.'],
             ]);
@@ -332,12 +332,12 @@ final class PaymentService
      * @param  array{nomor_referensi: string, status: string, jumlah: string, gateway: string|null, payload: array<string, mixed>}  $terverifikasi
      * @return array{pembayaran: Pembayaran, invoice: Invoice, duplicate: bool, referensi: array<string, mixed>}
      *
-     * @throws ModelNotFoundException  when the `(gateway, nomor_referensi)`
-     *                                 pair names no payment - a 404, because a
-     *                                 settlement for an unknown reference is not
-     *                                 an error the provider can act on
-     * @throws ValidationException  when the signed `jumlah` disagrees with the
-     *                              stored one - a 422, and nothing is written
+     * @throws ModelNotFoundException when the `(gateway, nomor_referensi)`
+     *                                pair names no payment - a 404, because a
+     *                                settlement for an unknown reference is not
+     *                                an error the provider can act on
+     * @throws ValidationException when the signed `jumlah` disagrees with the
+     *                             stored one - a 422, and nothing is written
      */
     public function terimaWebhook(string $gateway, array $terverifikasi): array
     {

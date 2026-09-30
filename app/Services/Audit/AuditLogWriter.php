@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Audit;
 
 use App\Models\User;
+use App\Support\NikMasker;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 
@@ -47,12 +48,12 @@ use Illuminate\Support\Facades\DB;
  * ## Redaction is the policy's job, not this class's
  *
  * Every rule lives in {@see AuditColumnPolicy}, which computes the allow-list
- * from the DDL and masks with the one {@see \App\Support\NikMasker}. This class
+ * from the DDL and masks with the one {@see NikMasker}. This class
  * only decides what an EVENT means.
  *
- * @see \App\Services\Audit\AuditColumnPolicy
- * @see \App\Services\Audit\AuditObserver
- * @see \App\Services\Audit\AuditObserverRegistrar
+ * @see AuditColumnPolicy
+ * @see AuditObserver
+ * @see AuditObserverRegistrar
  */
 final class AuditLogWriter
 {

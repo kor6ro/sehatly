@@ -1019,7 +1019,7 @@ test('the STR boundary has exactly one spelling, shared with the doctor director
     expect(StrBerlaku::OPERATOR_BATAS)->toBe('>=')
         ->and(StrBerlaku::REFERENSI)->toBe('Asia/Jakarta');
 
-    $dok = new \App\Models\Dokter;
+    $dok = new Dokter;
     $dok->str_berlaku_sampai = '2026-12-07';
 
     // The same three rows, one day either side of the boundary, answered by

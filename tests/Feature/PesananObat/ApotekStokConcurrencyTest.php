@@ -3,9 +3,12 @@
 declare(strict_types=1);
 
 use App\Models\ApotekStok;
-use Database\Seeders\RbacSeeder;
+use App\Models\Pasien;
+use App\Models\User;
+use App\Services\PesananObat\ApotekStokService;
 use App\Services\PesananObat\PesananObatService;
 use App\Services\PesananObat\StokTidakCukupException;
+use Database\Seeders\RbacSeeder;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Support\Facades\DB;
 
@@ -285,10 +288,10 @@ test('TWO CONNECTIONS, one unit on the shelf: the second checkout collides on th
 
             try {
                 $keadaan['hasil'] = po46DiSisiLawan(static function () use ($layanan, $akunB, $resepB): mixed {
-                    $pasienB = \App\Models\Pasien::query()->findOrFail($akunB['pasien']);
+                    $pasienB = Pasien::query()->findOrFail($akunB['pasien']);
 
                     return $layanan->buat(
-                        \App\Models\User::query()->findOrFail($akunB['user']->getKey()),
+                        User::query()->findOrFail($akunB['user']->getKey()),
                         $pasienB,
                         (int) $resepB->getKey(),
                         [],
@@ -300,7 +303,7 @@ test('TWO CONNECTIONS, one unit on the shelf: the second checkout collides on th
         });
 
         // ---- connection A ----
-        $pasienA = \App\Models\Pasien::query()->findOrFail($akunA['pasien']);
+        $pasienA = Pasien::query()->findOrFail($akunA['pasien']);
         $pesananA = $layanan->buat($akunA['user'], $pasienA, (int) $resepA->getKey(), []);
 
         expect($pesananA->exists)->toBeTrue()
@@ -326,10 +329,10 @@ test('TWO CONNECTIONS, one unit on the shelf: the second checkout collides on th
         // ---- connection B, retrying now that A has committed ----
         $ditolak = po46Tangkap(
             static fn () => po46DiSisiLawan(static function () use ($layanan, $akunB, $resepB): mixed {
-                $pasienB = \App\Models\Pasien::query()->findOrFail($akunB['pasien']);
+                $pasienB = Pasien::query()->findOrFail($akunB['pasien']);
 
                 return $layanan->buat(
-                    \App\Models\User::query()->findOrFail($akunB['user']->getKey()),
+                    User::query()->findOrFail($akunB['user']->getKey()),
                     $pasienB,
                     (int) $resepB->getKey(),
                     [],
@@ -435,7 +438,7 @@ test('CONTROL: with NEITHER mechanism the same two transactions drive the shelf 
         $terbacaB = po46DiSisiLawan(static function () use ($apotek, $obat): int {
             DB::connection(PO46_KONEKSI_LAWAN)->beginTransaction();
 
-            return (int) \App\Models\ApotekStok::query()
+            return (int) ApotekStok::query()
                 ->where('apotek_id', $apotek)
                 ->where('obat_id', $obat)
                 ->value('jumlah_stok');
@@ -446,7 +449,7 @@ test('CONTROL: with NEITHER mechanism the same two transactions drive the shelf 
         // A now takes the unit with an UNGUARDED write, and commits.
         DB::connection(PO46_KONEKSI_UTAMA)->beginTransaction();
 
-        \App\Models\ApotekStok::query()
+        ApotekStok::query()
             ->where('apotek_id', $apotek)
             ->where('obat_id', $obat)
             ->update(['jumlah_stok' => DB::raw('jumlah_stok - 1')]);
@@ -456,7 +459,7 @@ test('CONTROL: with NEITHER mechanism the same two transactions drive the shelf 
         // B re-reads its OWN snapshot - a consistent read never sees a commit
         // that happened after the snapshot was taken - so it still concludes
         // there is room.
-        $snapshotB = po46DiSisiLawan(static fn (): int => (int) \App\Models\ApotekStok::query()
+        $snapshotB = po46DiSisiLawan(static fn (): int => (int) ApotekStok::query()
             ->where('apotek_id', $apotek)
             ->where('obat_id', $obat)
             ->value('jumlah_stok'));
@@ -467,7 +470,7 @@ test('CONTROL: with NEITHER mechanism the same two transactions drive the shelf 
         // predicate to refuse with - and a write is applied to the LATEST
         // committed row, so it lands on zero and produces MINUS ONE.
         po46DiSisiLawan(static function () use ($apotek, $obat): void {
-            \App\Models\ApotekStok::query()
+            ApotekStok::query()
                 ->where('apotek_id', $apotek)
                 ->where('obat_id', $obat)
                 ->update(['jumlah_stok' => DB::raw('jumlah_stok - 1')]);
@@ -518,7 +521,7 @@ test('the guarded write refuses on its OWN, with no lock at all', function (): v
 
         $ditolak = po46Tangkap(
             static fn () => DB::connection(PO46_KONEKSI_UTAMA)->transaction(
-                static fn () => app(\App\Services\PesananObat\ApotekStokService::class)
+                static fn () => app(ApotekStokService::class)
                     ->kurangi($apotek, $obat, 1, 'Amoxicillin')
             ),
             StokTidakCukupException::class,

@@ -2,9 +2,8 @@
 
 declare(strict_types=1);
 
-use Tests\Contract\Support\ContractSpec;
-use Tests\Contract\Support\LiveRequest;
-
+use App\Support\Schema\SqlSchemaParser;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 /*
  |--------------------------------------------------------------------------
  | Findings: where docs/openapi.yaml and the application disagree
@@ -40,8 +39,8 @@ use Tests\Contract\Support\LiveRequest;
  | conclusion it no longer holds.
  */
 
-use App\Support\Schema\SqlSchemaParser;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Contract\Support\ContractSpec;
+use Tests\Contract\Support\LiveRequest;
 use Tests\TestCase;
 
 uses(TestCase::class, RefreshDatabase::class);

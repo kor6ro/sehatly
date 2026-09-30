@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\SuratKeterangan\BuatSuratKeteranganRequest;
 use App\Http\Resources\RujukanResource;
 use App\Http\Resources\SuratKeteranganResource;
+use App\Models\SuratKeterangan;
 use App\Models\User;
 use App\Services\Pasien\PasienRecordAccess;
 use App\Services\SuratKeterangan\SuratKeteranganService;
@@ -178,7 +179,7 @@ class SuratKeteranganController extends Controller
      * a caller that cannot tell the two apart from the response would be misled about
      * what it just did.
      */
-    private function pesan(\App\Models\SuratKeterangan $baris): string
+    private function pesan(SuratKeterangan $baris): string
     {
         return $baris->rujukan->isEmpty()
             ? 'Surat keterangan berhasil dibuat.'

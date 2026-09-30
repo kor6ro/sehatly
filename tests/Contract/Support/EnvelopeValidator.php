@@ -20,16 +20,16 @@ namespace Tests\Contract\Support;
  * These are the only keywords that may appear in a schema this validator will
  * accept, and {@see self::SUPPORTED_KEYWORDS} is the list:
  *
-* - `$ref`                          -- resolved against `#/components/schemas/`
-     * - `type`                          -- a name, or a list of names
-     * - `const`                         -- deep, by value
-     * - `enum`                          -- value must be one of the listed values
-     * - `required`                      -- list of property names
-     * - `properties`                    -- name to schema
-     * - `additionalProperties`          -- `false`, or a schema for every extra key
-     * - `items`                         -- schema for array elements
-     * - `minItems`                      -- lower bound on array length
-     * - `minimum`                       -- lower bound on a number
+ * - `$ref`                          -- resolved against `#/components/schemas/`
+ * - `type`                          -- a name, or a list of names
+ * - `const`                         -- deep, by value
+ * - `enum`                          -- value must be one of the listed values
+ * - `required`                      -- list of property names
+ * - `properties`                    -- name to schema
+ * - `additionalProperties`          -- `false`, or a schema for every extra key
+ * - `items`                         -- schema for array elements
+ * - `minItems`                      -- lower bound on array length
+ * - `minimum`                       -- lower bound on a number
  *
  * `description`, `title` and `example` are annotations and are ignored, which is
  * what JSON Schema itself specifies.

@@ -3,12 +3,12 @@
 declare(strict_types=1);
 
 use App\Models\MasterPromo;
+use App\Models\PromoRedemption;
 use App\Services\Invoice\InvoiceService;
 use App\Services\Invoice\PromoService;
 use Database\Seeders\RbacSeeder;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Database\QueryException;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -245,7 +245,7 @@ test('a second transaction really collides on the promo lock, so the quota canno
         // While A is inside its own apply, B runs the REAL apply for a
         // DIFFERENT patient and the same promo. B must collide on the
         // `master_promo` row A holds.
-        inv44SaatPromoTerkunci($keadaan, function () use ($userB, $pasienB, $kode): void {
+        inv44SaatPromoTerkunci($keadaan, function () use ($pasienB, $kode): void {
             $bookingB = inv44Booking($pasienB);
 
             inv44DiSisiLawan(function () use ($bookingB, $pasienB, $kode): void {
@@ -335,7 +335,7 @@ test('without the lock the same choreography overspends, which is what makes the
         $snapshotB = inv44DiSisiLawan(function () use ($promoId, $pasienB): array {
             DB::connection(INV44_KONEKSI_LAWAN)->beginTransaction();
 
-            $terpakai = \App\Models\PromoRedemption::query()
+            $terpakai = PromoRedemption::query()
                 ->where('promo_id', $promoId)
                 ->select('id')
                 ->orderBy('id')
@@ -343,7 +343,7 @@ test('without the lock the same choreography overspends, which is what makes the
                 ->pluck('id')
                 ->count();
 
-            $terpakaiUser = \App\Models\PromoRedemption::query()
+            $terpakaiUser = PromoRedemption::query()
                 ->where('promo_id', $promoId)
                 ->where('pasien_id', $pasienB)
                 ->select('id')
@@ -374,7 +374,7 @@ test('without the lock the same choreography overspends, which is what makes the
         $insertB = inv44DiSisiLawan(function () use ($promoId, $pasienB, $invoiceB): void {
             // B re-reads its own snapshot: still zero, because a consistent
             // read never sees a commit that happened after the snapshot.
-            $dibaca = \App\Models\PromoRedemption::query()
+            $dibaca = PromoRedemption::query()
                 ->where('promo_id', $promoId)
                 ->select('id')
                 ->orderBy('id')
@@ -384,7 +384,7 @@ test('without the lock the same choreography overspends, which is what makes the
 
             expect($dibaca)->toBe(0);
 
-            $baris = new \App\Models\PromoRedemption;
+            $baris = new PromoRedemption;
             $baris->promo_id = $promoId;
             $baris->pasien_id = $pasienB;
             $baris->invoice_id = (int) $invoiceB->getKey();

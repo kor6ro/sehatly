@@ -6,8 +6,10 @@ namespace App\Services\Audit;
 
 use App\Support\Schema\SqlSchemaParser;
 use App\Support\Schema\TableSpec;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 use ReflectionClass;
+use Tests\Feature\Audit\RegistrationTest;
 
 /**
  * Which tables this project audits, derived rather than declared.
@@ -38,7 +40,7 @@ use ReflectionClass;
  * Parsing the SQL costs roughly 60ms, so the result is memoised per process.
  * The file is a build-time constant, not a runtime input.
  *
- * @see \Tests\Feature\Audit\RegistrationTest
+ * @see RegistrationTest
  */
 final class AuditScope
 {
@@ -189,7 +191,7 @@ final class AuditScope
      * is `roles`, and so on. Inverting from the filesystem makes the map total
      * by construction, so a new model is covered the day it is written.
      *
-     * @return class-string<\Illuminate\Database\Eloquent\Model>|null
+     * @return class-string<Model>|null
      */
     public static function classFor(string $table): ?string
     {
@@ -233,7 +235,7 @@ final class AuditScope
     /**
      * The table a model class names, without instantiating it.
      *
-     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $class
+     * @param  class-string<Model>  $class
      */
     public static function tableFor(string $class): string
     {
@@ -249,7 +251,7 @@ final class AuditScope
     /**
      * Every class under `app/Models`, memoised.
      *
-     * @return list<class-string<\Illuminate\Database\Eloquent\Model>>
+     * @return list<class-string<Model>>
      */
     private static function modelClasses(): array
     {
@@ -258,7 +260,7 @@ final class AuditScope
         foreach ((array) glob(app_path('Models/*.php')) as $file) {
             $class = 'App\\Models\\'.basename((string) $file, '.php');
 
-            if (class_exists($class) && is_subclass_of($class, \Illuminate\Database\Eloquent\Model::class)) {
+            if (class_exists($class) && is_subclass_of($class, Model::class)) {
                 $classes[] = $class;
             }
         }

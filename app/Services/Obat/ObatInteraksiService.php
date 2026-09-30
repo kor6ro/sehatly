@@ -592,6 +592,7 @@ final class ObatInteraksiService
 
                     if ($cocok['inti'] === $inti['inti']) {
                         $hasil[$kunci] = $this->susunAlergi($cocok['row'], $inti, 'nama', $inti['inti']);
+
                         continue;
                     }
 
@@ -812,7 +813,6 @@ final class ObatInteraksiService
      *
      * @param  Collection<int, object>  $baris
      * @param  list<array{0: int, 1: int}>  $pasangan
-     * @param  string  $sumber
      * @param  string  $awalanKunci  the `kunci` prefix this source needs
      * @return list<array<string, mixed>>
      */
@@ -891,7 +891,6 @@ final class ObatInteraksiService
      * decided on `Antibiotik` would send a reader looking in the wrong place
      * when asking why a panel appeared.
      *
-     * @param  object  $baris
      * @param  array{tujuan: string, inti: string, nama: string, id: int, kelas: ?string}  $inti
      * @return array<string, mixed>
      */
@@ -1075,6 +1074,7 @@ final class ObatInteraksiService
         foreach ($mentah as $nilai) {
             if (is_int($nilai)) {
                 $id[$nilai] = true;
+
                 continue;
             }
 

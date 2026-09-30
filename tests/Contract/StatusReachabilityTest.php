@@ -2,9 +2,8 @@
 
 declare(strict_types=1);
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Contract\Support\ContractSpec;
-use Tests\Contract\Support\LiveRequest;
-
 /*
  |--------------------------------------------------------------------------
  | Status reachability: documented statuses reachable, undocumented ones absent
@@ -39,7 +38,7 @@ use Tests\Contract\Support\LiveRequest;
  * does prove is named operation by operation in the coverage document.
  */
 
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Contract\Support\LiveRequest;
 use Tests\TestCase;
 
 uses(TestCase::class, RefreshDatabase::class);

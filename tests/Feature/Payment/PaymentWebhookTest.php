@@ -8,14 +8,15 @@ use App\Enums\PembayaranStatus;
 use App\Http\Controllers\Api\V1\PembayaranController;
 use App\Models\Booking;
 use App\Models\Invoice;
+use App\Models\MasterMetodePembayaran;
 use App\Models\Pembayaran;
 use App\Services\Payment\MockPaymentGatewayService;
 use App\Services\Payment\PaymentGatewayService;
 use Database\Seeders\RbacSeeder;
 use Illuminate\Database\Events\QueryExecuted;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Validation\ValidationException;
 
 require_once __DIR__.'/payment-helpers.php';
 
@@ -383,9 +384,9 @@ test('the gateway is an interface with the two methods the plan names, and the m
 
     expect((string) $buat->getReturnType())->toBe('array')
         ->and((string) $verifikasi->getReturnType())->toBe('array')
-        ->and((string) $buat->getParameters()[0]->getType())->toBe(App\Models\Invoice::class)
-        ->and((string) $buat->getParameters()[1]->getType())->toBe(App\Models\MasterMetodePembayaran::class)
-        ->and((string) $verifikasi->getParameters()[0]->getType())->toBe(Illuminate\Http\Request::class);
+        ->and((string) $buat->getParameters()[0]->getType())->toBe(Invoice::class)
+        ->and((string) $buat->getParameters()[1]->getType())->toBe(MasterMetodePembayaran::class)
+        ->and((string) $verifikasi->getParameters()[0]->getType())->toBe(Request::class);
 
     // The container resolves the INTERFACE, and resolves it to the mock -
     // which is what makes a real Midtrans a one-line change to the binding.
@@ -427,7 +428,7 @@ test('the mock mints a reference, a VA number and a QR string, all inside their 
     $invoice = pay45Invoice('booking', $bookingId, $pasienId);
     $metodeId = pay45Metode();
 
-    $metode = App\Models\MasterMetodePembayaran::query()->findOrFail($metodeId);
+    $metode = MasterMetodePembayaran::query()->findOrFail($metodeId);
     $layanan = app(PaymentGatewayService::class);
 
     $hasil = $layanan->createTransaction($invoice, $metode);
@@ -462,7 +463,7 @@ test('the mock mints a reference, a VA number and a QR string, all inside their 
         expect(strlen((string) $hasil['toko']['va_number']))->toBeLessThanOrEqual(30);
     }
 
-    $qris = App\Models\MasterMetodePembayaran::query()->findOrFail(pay45Metode(['tipe' => 'qris']));
+    $qris = MasterMetodePembayaran::query()->findOrFail(pay45Metode(['tipe' => 'qris']));
     $hasilQris = $layanan->createTransaction($invoice->fresh(), $qris);
 
     expect($hasilQris['toko']['qr_string'])->toBeString()
@@ -591,7 +592,7 @@ test('a forged signature is rejected with NO state change AND no database read',
     // test let `pay45Webhook()` sign for it and then called the result forged -
     // and it FAILED, because the request was not forged at all: it settled the
     // invoice. That is the test doing its job on the test.
-    [$raw, ] = pay45Webhook($referensi, 'berhasil', pay45JumlahInvoice($invoice));
+    [$raw] = pay45Webhook($referensi, 'berhasil', pay45JumlahInvoice($invoice));
 
     $server = [pay45HeaderTtD() => hash_hmac('sha256', $raw, 'kunci-yang-tidak-kita-punya')];
 
@@ -644,7 +645,7 @@ test('an ABSENT signature, an empty one and a wrong-length one are all rejected'
 
     $baris = pay45PembayaranBaris((int) $invoice->getKey());
     $referensi = (string) $baris->nomor_referensi;
-    [$raw, ] = pay45Webhook($referensi, 'berhasil', pay45JumlahInvoice($invoice));
+    [$raw] = pay45Webhook($referensi, 'berhasil', pay45JumlahInvoice($invoice));
 
     // Absent entirely.
     pay45Kirim(PAY45_GATEWAY, $raw, [])->assertStatus(401);

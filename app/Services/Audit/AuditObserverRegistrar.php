@@ -52,8 +52,8 @@ use Illuminate\Support\Facades\Event;
  * sensitive model is audited the day it is written, because a new table with a
  * foreign key to a person is in the closure with no edit to any list.
  *
- * @see \App\Services\Audit\AuditScope
- * @see \App\Observers\AuditObserver
+ * @see AuditScope
+ * @see AuditObserver
  */
 final class AuditObserverRegistrar
 {
@@ -76,7 +76,7 @@ final class AuditObserverRegistrar
      * The model classes in the person-scope closure, minus the two declared
      * credential-table exclusions and minus any closure table with no model.
      *
-     * @return list<class-string<\Illuminate\Database\Eloquent\Model>>
+     * @return list<class-string<Model>>
      */
     public static function auditedModels(): array
     {
@@ -113,7 +113,7 @@ final class AuditObserverRegistrar
      * check is {@see isAudited()}, not a private static flag, because the
      * flag cannot see a registration somebody else made.
      *
-     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $class
+     * @param  class-string<Model>  $class
      */
     public static function observe(string $class): void
     {

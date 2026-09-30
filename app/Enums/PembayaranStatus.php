@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Enums;
 
+use App\Services\Resep\ResepStateMachine;
+
 /**
  * The five `pembayaran.status` values, in the DDL's own order.
  *
@@ -65,7 +67,7 @@ enum PembayaranStatus: string
     /**
      * Every status nothing leads out of, keyed by nothing.
      *
-     * The same rule as {@see \App\Services\Resep\ResepStateMachine::TERMINAL}:
+     * The same rule as {@see ResepStateMachine::TERMINAL}:
      * a state with no legal successor. It is PUBLIC because the idempotency
      * guard reads it, and a private list would be a second definition of
      * "settled" that could drift from this one.

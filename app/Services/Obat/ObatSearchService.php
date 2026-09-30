@@ -36,7 +36,7 @@ final class ObatSearchService
     /**
      * Search the active catalogue.
      *
-     * @param array{search?: ?string, kelas_obat?: ?string, requires_resep?: bool|int|string|null, page?: int, per_page?: int} $filter
+     * @param  array{search?: ?string, kelas_obat?: ?string, requires_resep?: bool|int|string|null, page?: int, per_page?: int}  $filter
      */
     public function cari(array $filter): LengthAwarePaginator
     {

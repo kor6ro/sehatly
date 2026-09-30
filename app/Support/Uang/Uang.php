@@ -77,13 +77,13 @@ final class Uang
      * two decimal places.
      *
      * @param  bool  $bolehNol  whether `0` / `0.00` is a legal amount. A line
-     *                           price of zero mints a zero-value invoice, so it
-     *                           is not; a shipping charge of zero is an order
-     *                           with nothing to ship for, so it is.
+     *                          price of zero mints a zero-value invoice, so it
+     *                          is not; a shipping charge of zero is an order
+     *                          with nothing to ship for, so it is.
      * @param  int  $batas  the column the value will be stored in
      *
      * @throws InvalidArgumentException naming what was wrong, for the caller to
-     *                               file on the field the value came in on
+     *                                  file on the field the value came in on
      */
     public static function parse(mixed $masuk, bool $bolehNol = false, string $batas = self::BATAS_DECIMAL_14_2): string
     {

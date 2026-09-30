@@ -3,11 +3,11 @@
 declare(strict_types=1);
 
 use App\Enums\PesananObatStatus;
-use Database\Seeders\RbacSeeder;
 use App\Models\PesananObat;
 use App\Models\PesananObatTracking;
 use App\Services\PesananObat\PesananObatService;
 use App\Services\PesananObat\PesananObatStateMachine;
+use Database\Seeders\RbacSeeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -109,7 +109,7 @@ test('the trail vocabulary is the ORDER enum, and the column it is written to is
     }
 
     foreach (['in_transit', 'kirim', 'DIBATALKAN', 'selesai ', 'selesaii', 'diterima', ''] as $asing) {
-        expect($mesin->bolehDilacak($asing))->toBeFalse("[" . $asing . '] was accepted as a tracking status');
+        expect($mesin->bolehDilacak($asing))->toBeFalse('['.$asing.'] was accepted as a tracking status');
     }
 });
 

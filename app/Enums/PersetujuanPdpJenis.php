@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Enums;
 
+use App\Services\Pdp\PdpConsent;
+
 /**
  * The five `persetujuan_pdp.jenis` values, in the DDL's own order.
  *
@@ -17,7 +19,7 @@ namespace App\Enums;
  *
  * ## Exactly one of the five is cross-faskes data sharing
  *
- * {@see \App\Services\Pdp\PdpConsent} gates one operation on `berbagi_data_medis`, and
+ * {@see PdpConsent} gates one operation on `berbagi_data_medis`, and
  * the other four are named by the DDL rather than by this todo: terms, privacy policy,
  * marketing and follow-up communication. None of the other four means "may I read my
  * own record" either, which is why issuing a non-referral letter to a patient

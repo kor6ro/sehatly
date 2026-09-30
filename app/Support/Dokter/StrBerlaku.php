@@ -8,6 +8,8 @@ use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use DateTimeInterface;
 use Illuminate\Database\Eloquent\Builder;
+use Tests\Feature\Dokter\DokterDirectoryTest;
+use Tests\Feature\Dokter\SlotAvailabilityTest;
 
 /**
  * The one place the STR licence boundary is decided.
@@ -43,9 +45,9 @@ use Illuminate\Database\Eloquent\Builder;
  * currently-licensed doctor for a whole day, which is a bookable-consultation
  * denial rather than a patient-safety protection.
  *
- * {@see \Tests\Feature\Dokter\DokterDirectoryTest} pins it on the exact
+ * {@see DokterDirectoryTest} pins it on the exact
  * boundary date on both sides through the directory, and
- * {@see \Tests\Feature\Dokter\SlotAvailabilityTest} pins it through this class
+ * {@see SlotAvailabilityTest} pins it through this class
  * on the exact consultation date.
  *
  * ## What a NULL expiry means: EXCLUDED
@@ -136,9 +138,7 @@ final class StrBerlaku
     /**
      * No instances: every method is a pure decision.
      */
-    private function __construct()
-    {
-    }
+    private function __construct() {}
 
     /**
      * Is the licence still valid on `$hari`?
@@ -166,8 +166,6 @@ final class StrBerlaku
      * one code path that decides who may legally practise. The directory passes
      * the clinic's wall-clock day from `WaktuIndonesia`; the slot service passes
      * a parsed `Y-m-d`; both are days, and neither is converted through a zone.
-     *
-     * @param  DateTimeInterface|string|null  $strBerlakuSampai
      */
     public static function berlakuPada(DateTimeInterface|string|null $strBerlakuSampai, CarbonInterface $hari): bool
     {

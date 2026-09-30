@@ -214,21 +214,21 @@ class InvoiceService
      * Mint one invoice for one referenced record.
      *
      * @param  string  $referensiTipe  one of `invoice.referensi_tipe`'s six ENUM
-     *                                members (telemedicine_test.sql:940)
+     *                                 members (telemedicine_test.sql:940)
      * @param  int  $referensiId  the id in that table; `BIGINT UNSIGNED` (:941),
      *                            so zero and negatives are refused rather than
      *                            queried
      * @param  int  $pasienId  the patient the invoice belongs to, and the one the
      *                         referenced row must already belong to
      * @param  list<array{harga_satuan?: mixed, jumlah?: mixed}>  $lines  the
-     *                         purchase. `harga_satuan` is a DECIMAL string and
-     *                         `jumlah` a positive integer.
+     *                                                                    purchase. `harga_satuan` is a DECIMAL string and
+     *                                                                    `jumlah` a positive integer.
      * @param  int|null  $metodeId  the payment method whose admin fee applies.
-     *                               `null` means none, and the fee is 0.00.
+     *                              `null` means none, and the fee is 0.00.
      * @param  string|null  $kodePromo  a promo to apply. `null` means none.
      * @param  mixed  $biayaPengiriman  the shipping charge, a DECIMAL string.
-     *                                   `0.00` is legal and means nothing to
-     *                                   ship for.
+     *                                  `0.00` is legal and means nothing to
+     *                                  ship for.
      *
      * `mixed` rather than `string` for the last two, and that is deliberate: a
      * JSON number arriving where a money string belongs is a CONTRACT problem
@@ -238,13 +238,13 @@ class InvoiceService
      * typed `string` would have turned every one of those into a 500. The line
      * prices inside `$lines` are untyped for the same reason.
      *
-     * @throws ValidationException  on a bad reference type, a non-positive
-     *                              reference id, malformed money, an empty
-     *                              `lines`, an unknown or inactive method, a
-     *                              duplicate `(referensi_tipe, referensi_id)`, or
-     *                              a promo that fails any rule
-     * @throws ModelNotFoundException  when the referenced row does not exist or
-     *                                 belongs to another patient
+     * @throws ValidationException on a bad reference type, a non-positive
+     *                             reference id, malformed money, an empty
+     *                             `lines`, an unknown or inactive method, a
+     *                             duplicate `(referensi_tipe, referensi_id)`, or
+     *                             a promo that fails any rule
+     * @throws ModelNotFoundException when the referenced row does not exist or
+     *                                belongs to another patient
      */
     public function buat(
         string $referensiTipe,
@@ -264,7 +264,7 @@ class InvoiceService
         // either all land or none does. A refused promo must leave NO invoice,
         // because the duplicate guard reads `invoice` - a row written before the
         // refusal would make the retry fail with the wrong error.
-        return DB::transaction(function () use ($referensiTipe, $referensiId, $pasienId, $model, $subtotal, $pengiriman, $metodeId, $kodePromo, $lines): Invoice {
+        return DB::transaction(function () use ($referensiTipe, $referensiId, $pasienId, $model, $subtotal, $pengiriman, $metodeId, $kodePromo): Invoice {
             $this->pastikanMilik($model, $referensiId, $pasienId);
             $this->tolakDuplikat($referensiTipe, $referensiId);
 
@@ -614,7 +614,7 @@ class InvoiceService
      *
      * @param  array{diskon: string, biaya_admin: string, biaya_pengiriman: string}  $uang
      *
-     * @throws ValidationException  when every candidate number collides
+     * @throws ValidationException when every candidate number collides
      */
     private function tulis(
         string $referensiTipe,

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Enums;
 
+use App\Services\PesananObat\PesananObatService;
+
 /**
  * The six `pesanan_obat.status` values, in the DDL's own order.
  *
@@ -58,7 +60,7 @@ enum PesananObatStatus: string
     /**
      * The DDL's own default: a new order is born unpaid.
      *
-     * Written explicitly by {@see \App\Services\PesananObat\PesananObatService}
+     * Written explicitly by {@see PesananObatService}
      * rather than relied upon, for the reason `InvoiceService`'s docblock gives
      * about `invoice.status`: relying on a column default would make a later
      * migration's change to that default silently change what an unpaid order

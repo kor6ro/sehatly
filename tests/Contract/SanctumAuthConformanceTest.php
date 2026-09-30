@@ -2,9 +2,8 @@
 
 declare(strict_types=1);
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Contract\Support\ContractSpec;
-use Tests\Contract\Support\LiveRequest;
-
 /*
  |--------------------------------------------------------------------------
  | Sanctum bearer auth really yields 401 on an absent or garbage token
@@ -41,7 +40,7 @@ use Tests\Contract\Support\LiveRequest;
  | 302 here, and nothing else in the suite would notice.
  */
 
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Contract\Support\LiveRequest;
 use Tests\TestCase;
 
 uses(TestCase::class, RefreshDatabase::class);

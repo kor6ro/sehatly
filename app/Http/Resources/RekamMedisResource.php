@@ -6,7 +6,6 @@ namespace App\Http\Resources;
 
 use App\Models\RekamMedis;
 use App\Support\NikCipher;
-use App\Support\NikMasker;
 use DateTimeInterface;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;

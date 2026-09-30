@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Support\Security;
 
+use App\Support\NikCipher;
 use RuntimeException;
 
 /**
@@ -16,7 +17,7 @@ use RuntimeException;
  * ciphertext, so an application with a broken key looks healthy: writes succeed,
  * reads succeed, and every row is encrypted under a key nobody recorded. A
  * missing key is therefore the worst possible thing to handle quietly, which is
- * why every entry point on {@see \App\Support\NikCipher} refuses instead.
+ * why every entry point on {@see NikCipher} refuses instead.
  *
  * The three shapes that are refused rather than absorbed:
  *
@@ -30,7 +31,7 @@ use RuntimeException;
 final class MissingNikCipherKeyException extends RuntimeException
 {
     public static function forVariable(string $reason): self
-{
+    {
         return new self(sprintf(
             'NIK_CIPHER_KEY %s. It must be 32 random bytes encoded as base64, optionally with a'
             .' "base64:" prefix, e.g. the output of: php -r "echo base64_encode(random_bytes(32)) . PHP_EOL;"'

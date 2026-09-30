@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Enums\PesananObatStatus;
+use App\Services\PesananObat\PesananObatService;
 use App\Support\Schema\SqlSchemaParser;
 
 require_once __DIR__.'/pesanan46-helpers.php';
@@ -201,8 +203,8 @@ test('every column and ENUM value this todo names resolves against the parsed DD
     // And the classification is TOTAL over those fifteen: every column is either
     // derived-and-prohibited or accepted-from-the-request, with no column falling
     // into neither bucket by accident.
-    $dikirim = App\Services\PesananObat\PesananObatService::KOLOM_DARI_REQUEST;
-    $milikSistem = App\Services\PesananObat\PesananObatService::KOLOM_MILIK_SISTEM;
+    $dikirim = PesananObatService::KOLOM_DARI_REQUEST;
+    $milikSistem = PesananObatService::KOLOM_MILIK_SISTEM;
 
     $diklasifikasi = array_merge($dikirim, $milikSistem);
 
@@ -225,9 +227,9 @@ test('every ENUM member this todo writes is a member of the column it writes, an
     $spec = (new SqlSchemaParser)->parseFile(base_path('telemedicine_test.sql'));
 
     $enumYangDipakai = [
-        'pesanan_obat.status' => App\Enums\PesananObatStatus::nilai(),
-        'pesanan_obat.tipe' => App\Services\PesananObat\PesananObatService::SEMUA_TIPE,
-        'pesanan_obat.kurir' => App\Services\PesananObat\PesananObatService::SEMUA_KURIR,
+        'pesanan_obat.status' => PesananObatStatus::nilai(),
+        'pesanan_obat.tipe' => PesananObatService::SEMUA_TIPE,
+        'pesanan_obat.kurir' => PesananObatService::SEMUA_KURIR,
         'faskes.tipe' => ['rumah_sakit', 'klinik', 'puskesmas', 'apotek', 'laboratorium'],
     ];
 

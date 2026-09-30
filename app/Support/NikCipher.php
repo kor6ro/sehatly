@@ -127,7 +127,7 @@ use App\Support\Security\NikDecryptionException;
  * identity (session encryption, a compromised cookie key), and coupling the two
  * would destroy clinical data as a side effect of an unrelated security action.
  *
- * @see \App\Support\NikMasker for the single masking rule every column shares.
+ * @see NikMasker for the single masking rule every column shares.
  */
 final class NikCipher
 {

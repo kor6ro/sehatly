@@ -5,7 +5,9 @@ declare(strict_types=1);
 use App\Models\Invoice;
 use App\Models\User;
 use App\Support\Rbac\RoleAssigner;
+use App\Support\Schema\SchemaSpec;
 use App\Support\Schema\SqlSchemaParser;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -374,7 +376,7 @@ function inv44Tangkap(callable $aksi, string $tipe): Throwable
 // DDL assertions
 // =====================================================================
 
-function inv44Spec(): App\Support\Schema\SchemaSpec
+function inv44Spec(): SchemaSpec
 {
     return (new SqlSchemaParser)->parseFile(base_path('telemedicine_test.sql'));
 }
@@ -642,7 +644,7 @@ function inv44DiSisiLawan(callable $aksi): mixed
 function inv44AdalahLockWait(Throwable $e): bool
 {
     for ($tipe = $e; $tipe !== null; $tipe = $tipe->getPrevious()) {
-        if ($tipe instanceof Illuminate\Database\QueryException
+        if ($tipe instanceof QueryException
             && (int) ($tipe->errorInfo[1] ?? 0) === INV44_KODE_LOCK_WAIT) {
             return true;
         }

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Models\Pasien;
 use App\Support\NikCipher;
 use Database\Seeders\DevFixtureSeeder;
 use Database\Seeders\LabSeeder;
@@ -161,7 +162,7 @@ test('the dev fixture seeder writes a NIK through the cipher, not into a column 
 
     // And the read path the API uses resolves the same digits off the same row,
     // so a fixture account is as usable as a registered one.
-    $dibaca = \App\Models\Pasien::query()->orderBy('id')->get();
+    $dibaca = Pasien::query()->orderBy('id')->get();
 
     foreach ($dibaca as $model) {
         expect($model->nik)->toMatch('/^[0-9]{16}$/');

@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
+use App\Services\Obat\ObatInteraksiService;
+use App\Services\PesananObat\ApotekStokService;
+use App\Services\Resep\ResepVerifikasiService;
 use App\Support\Rbac\RoleAssigner;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
@@ -109,7 +112,7 @@ final class DemoDataSeeder extends Seeder
      * patient who can book and check out, a doctor who can consult, prescribe
      * and open a medical record, and a pharmacist who can sign a prescription
      * so it becomes dispensable at all
-     * ({@see \App\Services\Resep\ResepVerifikasiService::siapDipenuhi()}).
+     * ({@see ResepVerifikasiService::siapDipenuhi()}).
      */
     public const AKUN_PASIEN = 'pasien';
 
@@ -243,7 +246,7 @@ final class DemoDataSeeder extends Seeder
 
     /**
      * `anafilaksis` is a `pasien_alergi.keparahan` member (`:280`) which
-     * {@see \App\Services\Obat\ObatInteraksiService} maps to the interaction
+     * {@see ObatInteraksiService} maps to the interaction
      * severity `kontraindikasi` - the ONLY severity that makes a doctor's
      * acknowledgement (`catatan_dodio`) MANDATORY. That is the override journey,
      * and an allergy the patient already has is the one interaction a fixture
@@ -598,7 +601,7 @@ final class DemoDataSeeder extends Seeder
      *
      * `UNIQUE KEY uq_stok (apotek_id, obat_id)` at `:840` is the only reason
      * this can be an `upsert` at all, and it is also the lock the guarded
-     * decrement in {@see \App\Services\PesananObat\ApotekStokService} addresses.
+     * decrement in {@see ApotekStokService} addresses.
      * `harga_jual` is copied from the catalogue row rather than invented, so the
      * order total a demo produces is the catalogue price.
      */
@@ -644,7 +647,7 @@ final class DemoDataSeeder extends Seeder
      * fabricated medical claim in a repository." This class holds to the same
      * rule and takes the *same* severity route without adding a drug/drug claim:
      * `pasien_alergi.keparahan = 'anafilaksis'` maps to the interaction severity
-     * `kontraindikasi` in {@see \App\Services\Obat\ObatInteraksiService}, which
+     * `kontraindikasi` in {@see ObatInteraksiService}, which
      * is the only severity that makes the doctor's acknowledgement MANDATORY -
      * which is the override journey F3 could not exercise.
      */

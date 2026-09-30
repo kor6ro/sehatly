@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
+use App\Models\Konsultasi;
 use App\Support\NikCipher;
 use App\Support\NikMasker;
+use DateTimeInterface;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use DateTimeInterface;
 use Illuminate\Support\Carbon;
 
 /**
@@ -49,7 +50,7 @@ use Illuminate\Support\Carbon;
  * is exactly right for all of them. `terkirim_at` on the chat resource is the same
  * argument.
  *
- * @property-read \App\Models\Konsultasi $resource
+ * @property-read Konsultasi $resource
  */
 class KonsultasiResource extends JsonResource
 {

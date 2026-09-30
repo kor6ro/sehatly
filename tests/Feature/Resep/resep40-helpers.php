@@ -8,8 +8,8 @@ use App\Models\ResepItem;
 use App\Models\ResepVerifikasi;
 use App\Models\User;
 use App\Support\Rbac\RoleAssigner;
+use App\Support\Schema\SchemaSpec;
 use App\Support\Schema\SqlSchemaParser;
-use Database\Seeders\RbacSeeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
@@ -147,7 +147,7 @@ function rx40Obat(string $namaGenerik, array $ubah = []): int
 }
 
 /**
- * @param 'ringan'|'sedang'|'berat'|'kontraindikasi' $tingkat
+ * @param  'ringan'|'sedang'|'berat'|'kontraindikasi'  $tingkat
  */
 function rx40Interaksi(int $a, int $b, string $tingkat = 'berat', ?string $deskripsi = null): int
 {
@@ -160,7 +160,7 @@ function rx40Interaksi(int $a, int $b, string $tingkat = 'berat', ?string $deskr
 }
 
 /**
- * @param 'ringan'|'sedang'|'berat'|'anafilaksis' $keparahan
+ * @param  'ringan'|'sedang'|'berat'|'anafilaksis'  $keparahan
  */
 function rx40Alergi(int $pasienId, string $nama, string $keparahan = 'ringan'): int
 {
@@ -201,7 +201,7 @@ function rx40As(User $user): array
  * routes through the API would therefore have to assert the thing it is
  * setting up, and these tests are about what happens AFTER the row exists.
  *
- * @param list<int>  $obatIds
+ * @param  list<int>  $obatIds
  */
 function rx40Resep(int $pasienId, int $dokterId, array $obatIds, string $status = 'aktif', array $ubah = []): Resep
 {
@@ -257,7 +257,7 @@ function rx40Resep(int $pasienId, int $dokterId, array $obatIds, string $status 
     return $resep;
 }
 
-function rx40Spec(): App\Support\Schema\SchemaSpec
+function rx40Spec(): SchemaSpec
 {
     return (new SqlSchemaParser)->parseFile(base_path('telemedicine_test.sql'));
 }

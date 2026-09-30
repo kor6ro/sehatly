@@ -10,7 +10,6 @@ use App\Http\Requests\PesananObat\StokObatRequest;
 use App\Http\Resources\PesananObatResource;
 use App\Http\Resources\StokObatResource;
 use App\Models\MasterObat;
-use App\Models\PesananObat;
 use App\Models\User;
 use App\Services\Pasien\PasienRecordAccess;
 use App\Services\PesananObat\PesananObatService;

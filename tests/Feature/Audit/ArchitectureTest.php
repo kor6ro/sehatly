@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Models\User;
 use App\Services\Audit\AuditColumnPolicy;
 use App\Services\Audit\AuditLogWriter;
 use App\Support\NikMasker;
@@ -196,7 +197,7 @@ test('a write outside any authenticated request records a null actor, not a gues
 test('the authenticated actor is recorded when there is one', function () {
     $userId = audUserRow();
 
-    $this->actingAs(App\Models\User::query()->whereKey($userId)->firstOrFail());
+    $this->actingAs(User::query()->whereKey($userId)->firstOrFail());
 
     $pasien = audPasienModel();
     $row = audOne('pasien', (int) $pasien->getKey());

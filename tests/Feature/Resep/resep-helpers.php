@@ -5,8 +5,8 @@ declare(strict_types=1);
 use App\Models\Konsultasi;
 use App\Models\User;
 use App\Support\Rbac\RoleAssigner;
+use App\Support\Schema\SchemaSpec;
 use App\Support\Schema\SqlSchemaParser;
-use Database\Seeders\RbacSeeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
@@ -132,7 +132,7 @@ function rx39Obat(string $namaGenerik, array $ubah = []): int
 }
 
 /**
- * @param 'ringan'|'sedang'|'berat'|'kontraindikasi' $tingkat
+ * @param  'ringan'|'sedang'|'berat'|'kontraindikasi'  $tingkat
  */
 function rx39Interaksi(int $a, int $b, string $tingkat = 'berat', ?string $deskripsi = null): int
 {
@@ -145,7 +145,7 @@ function rx39Interaksi(int $a, int $b, string $tingkat = 'berat', ?string $deskr
 }
 
 /**
- * @param 'ringan'|'sedang'|'berat'|'anafilaksis' $keparahan
+ * @param  'ringan'|'sedang'|'berat'|'anafilaksis'  $keparahan
  */
 function rx39Alergi(int $pasienId, string $nama, string $keparahan = 'ringan'): int
 {
@@ -187,7 +187,7 @@ function rx39As(User $user): array
     return ['Authorization' => 'Bearer '.$token];
 }
 
-function rx39Spec(): App\Support\Schema\SchemaSpec
+function rx39Spec(): SchemaSpec
 {
     return (new SqlSchemaParser)->parseFile(base_path('telemedicine_test.sql'));
 }

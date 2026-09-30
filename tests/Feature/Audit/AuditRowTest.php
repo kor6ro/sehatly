@@ -2,9 +2,10 @@
 
 declare(strict_types=1);
 
+use App\Models\Pasien;
+use App\Observers\AuditObserver;
 use App\Services\Audit\AuditLogWriter;
 use App\Services\Audit\AuditObserverRegistrar;
-use App\Services\Audit\AuditScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
@@ -119,7 +120,7 @@ test('a delete writes data_lama and leaves data_baru null', function () {
 });
 
 test('a soft delete is still a delete, and it is logged as one', function () {
-    $pasien = App\Models\Pasien::query()->whereKey(audPasien())->firstOrFail();
+    $pasien = Pasien::query()->whereKey(audPasien())->firstOrFail();
 
     expect(in_array(SoftDeletes::class, class_uses_recursive($pasien), true))
         ->toBeTrue('this test is about a soft delete, so Pasien must use SoftDeletes');
@@ -175,7 +176,7 @@ test('every audited table produces a create, an update and a delete row', functi
         foreach ($verbs as $verb) {
             $listeners = $raw['eloquent.'.$verb.': '.$class] ?? [];
 
-            if (! in_array(App\Observers\AuditObserver::class.'@'.$verb, $listeners, true)) {
+            if (! in_array(AuditObserver::class.'@'.$verb, $listeners, true)) {
                 $missing[] = $class.'@'.$verb;
             }
         }

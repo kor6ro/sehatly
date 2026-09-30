@@ -11,6 +11,7 @@ use App\Support\ApiResponse;
 use Database\Seeders\RbacSeeder;
 use Illuminate\Cache\RateLimiter;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Filesystem\Filesystem;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Route as RoutingRoute;
@@ -838,7 +839,7 @@ test('AppServiceProvider is the only place a named limiter is registered', funct
     // `OpenApiDocumentBuilder` warns about when it reads the provider -- and the
     // generated contract names `x-ratelimit.limiter` from whatever the route table
     // says, so a limiter defined in two places has no single authority.
-    $files = app()->make(Illuminate\Filesystem\Filesystem::class);
+    $files = app()->make(Filesystem::class);
 
     $offenders = [];
 

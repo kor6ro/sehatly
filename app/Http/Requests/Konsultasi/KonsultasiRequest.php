@@ -79,6 +79,7 @@ abstract class KonsultasiRequest extends FormRequest
      * @var list<string>
      */
     public const PENGIRIM_TIPE = ['pasien', 'dokter', 'sistem'];
+
     /**
      * `authorize()` is ALWAYS `true`, for the reason in the class docblock.
      */

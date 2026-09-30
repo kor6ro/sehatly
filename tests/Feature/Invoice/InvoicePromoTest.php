@@ -13,6 +13,7 @@ use App\Support\Dokumen\NomorDokumen;
 use Database\Seeders\RbacSeeder;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -422,7 +423,7 @@ test('the DDL gives total no default while its four siblings default to zero', f
             'referensi_tipe' => 'booking',
             'referensi_id' => 1,
         ]);
-    }, Illuminate\Database\QueryException::class);
+    }, QueryException::class);
 
     expect((int) ($ditolak->errorInfo[1] ?? 0))->toBe(1364);
 });

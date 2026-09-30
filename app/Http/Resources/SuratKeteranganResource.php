@@ -6,8 +6,8 @@ namespace App\Http\Resources;
 
 use App\Models\Rujukan;
 use App\Models\SuratKeterangan;
+use App\Services\SuratKeterangan\SuratKeteranganService;
 use App\Support\NikCipher;
-use App\Support\NikMasker;
 use DateTimeInterface;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -22,7 +22,7 @@ use Illuminate\Support\Collection;
  *
  * `GET /api/v1/surat-keterangan/{nomor_surat}/verify` is a different capability with a
  * different audience and it publishes six fields from a hand-built array in
- * {@see \App\Services\SuratKeterangan\SuratKeteranganService::verifikasi()}, not this
+ * {@see SuratKeteranganService::verifikasi()}, not this
  * resource. The resource exists for the patient's own list and for the issuing doctor's
  * response, where the caller is already entitled to the letter. Reusing it on the
  * public route would publish the NIK, the letter body and the clinical period to any

@@ -82,8 +82,8 @@ use InvalidArgumentException;
  * an oversized value under `STRICT_TRANS_TABLES` is a 500 at settlement time
  * rather than at initiation time, which is the worst place to find out.
  *
- * @see \App\Services\Payment\PaymentGatewayService the contract
- * @see \App\Services\Payment\PaymentService the caller, and the dedupe
+ * @see PaymentGatewayService the contract
+ * @see PaymentService the caller, and the dedupe
  */
 final class MockPaymentGatewayService implements PaymentGatewayService
 {
@@ -164,7 +164,7 @@ final class MockPaymentGatewayService implements PaymentGatewayService
     {
         $jumlah = (string) $invoice->total;
 
-        if (! Preg_match('/^[1-9][0-9]{0,11}(\.[0-9]{1,2})?$/', $jumlah)) {
+        if (! preg_match('/^[1-9][0-9]{0,11}(\.[0-9]{1,2})?$/', $jumlah)) {
             // An invoice the patient cannot pay. `InvoiceService` refuses a
             // zero total already, so reaching this is a corrupted row rather
             // than a caller error - and a 422 naming `total` is more useful than

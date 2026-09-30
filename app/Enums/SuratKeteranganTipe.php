@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Enums;
 
+use App\Services\SuratKeterangan\SuratKeteranganService;
+
 /**
  * The four `surat_keterangan.tipe` values, in the DDL's own order.
  *
@@ -29,7 +31,7 @@ namespace App\Enums;
  * foreign key at `:601` and `:612`), and it is the only one of the four that requires
  * an approved `persetujuan_pdp` row of `jenis = 'berbagi_data_medis'`, because a
  * referral is the one letter type that hands clinical content to another facility.
- * See {@see \App\Services\SuratKeterangan\SuratKeteranganService}.
+ * See {@see SuratKeteranganService}.
  *
  * ## The fourth value has no counterpart anywhere in the schema
  *

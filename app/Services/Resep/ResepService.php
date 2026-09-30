@@ -109,7 +109,7 @@ final class ResepService
      * only refusal on this surface is the missing acknowledgement note, and
      * it leaves zero rows behind.
      *
-     * @param array<string, mixed> $data validated `StoreResepRequest` payload
+     * @param  array<string, mixed>  $data  validated `StoreResepRequest` payload
      * @return array{resep: Resep, warning: list<array<string, mixed>>, warning_grup: array<string, list<array<string, mixed>>>, diminta: bool, catatan: ?string}
      */
     public function buat(User $caller, int $konsultasiId, array $data): array
@@ -156,7 +156,7 @@ final class ResepService
      * and no price to copy: `harga_satuan` and `subtotal` are 0, which the
      * `NOT NULL DEFAULT 0` columns (`:778`-`:779`) accept honestly.
      *
-     * @param array<int, array<string, mixed>> $items
+     * @param  array<int, array<string, mixed>>  $items
      * @return list<array<string, mixed>>
      */
     private function siapkanItem(array $items): array
@@ -180,6 +180,7 @@ final class ResepService
 
             if ($galatRacikan !== null) {
                 $galat['items'][$i]['is_racikan'][] = $galatRacikan;
+
                 continue;
             }
 
@@ -188,11 +189,13 @@ final class ResepService
 
                 if ($obat === null) {
                     $galat['items'][$i]['obat_id'][] = 'Obat tidak ditemukan.';
+
                     continue;
                 }
 
                 if (! (bool) $obat->status_aktif) {
                     $galat['items'][$i]['obat_id'][] = 'Obat tidak aktif.';
+
                     continue;
                 }
 
@@ -211,6 +214,7 @@ final class ResepService
                     'harga_satuan' => $harga,
                     'subtotal' => $this->subtotal($harga, $jumlah),
                 ];
+
                 continue;
             }
 
@@ -222,6 +226,7 @@ final class ResepService
                 // left the name out. Filed on the field that is actually
                 // empty, which is the one the doctor can fill in.
                 $galat['items'][$i]['nama_obat'][] = 'Nama racikan wajib diisi.';
+
                 continue;
             }
 
@@ -259,8 +264,7 @@ final class ResepService
      * second-item error). Merging the nested map into the bag keeps every
      * index, so `errors.items.{i}.{field}` names the row that actually failed.
      *
-     * @param array<string, mixed> $galat
-     * @return never
+     * @param  array<string, mixed>  $galat
      */
     private function gagal(array $galat): never
     {
@@ -312,7 +316,7 @@ final class ResepService
     /**
      * The catalogue rows for every `obat_id` in the request, keyed by id.
      *
-     * @param array<int, array<string, mixed>> $items
+     * @param  array<int, array<string, mixed>>  $items
      * @return array<int, MasterObat>
      */
     private function katalog(array $items): array
@@ -348,7 +352,7 @@ final class ResepService
      * single substance to pair up (`resep_item.obat_id` NULL, `:770`) while
      * its snapshot text is still a name worth matching.
      *
-     * @param list<array<string, mixed>> $items
+     * @param  list<array<string, mixed>>  $items
      * @return list<array<string, mixed>>
      */
     private function peringatan(int $pasienId, array $items): array
@@ -441,7 +445,7 @@ final class ResepService
      * `docs/timezone-policy.md` classifies `tanggal_resep` as a wall clock
      * precisely because it is printed and dispensed against a local calendar date.
      *
-     * @param list<array<string, mixed>> $items
+     * @param  list<array<string, mixed>>  $items
      */
     private function tulisDenganNomorUnik(
         Konsultasi $sesi,

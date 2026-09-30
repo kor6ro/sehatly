@@ -29,7 +29,7 @@ use RuntimeException;
  * - {@see fromReferenceDdl()} is the parsed contract. `SqlSchemaParser` is
  *   reused rather than a second regex written here, so the DDL side is read with
  *   the same quote-aware grammar that `sehatly:verify-schema` already proves
-     *    non-vacuous, and `master_obat.bentuk_sediaan`'s two-line ENUM (`:713`-`:714`)
+ *    non-vacuous, and `master_obat.bentuk_sediaan`'s two-line ENUM (`:713`-`:714`)
  *   is one unit for free.
  *
  * ## The measured result, and why it is worth the second source

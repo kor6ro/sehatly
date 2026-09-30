@@ -217,6 +217,7 @@ final class SuratKeteranganService
         private readonly QrTokenGenerator $token,
         private readonly NomorDokumen $nomor,
     ) {}
+
     /**
      * Issue one letter for consultation `$konsultasiId`, signed by `$dokter`.
      *
@@ -302,10 +303,10 @@ final class SuratKeteranganService
      *
      * ## The token comparison is EXACT, in the application
      *
-* MySQL's default `utf8mb4_unicode_ci` collation is CASE-INSENSITIVE, so a bare
- * `where` predicate on the token column alone would accept `ABCDEF` for a stored
- * `abcdef` and would accept a case variant of a token. Both are forgeries of a
- * bearer secret.
+     * MySQL's default `utf8mb4_unicode_ci` collation is CASE-INSENSITIVE, so a bare
+     * `where` predicate on the token column alone would accept `ABCDEF` for a stored
+     * `abcdef` and would accept a case variant of a token. Both are forgeries of a
+     * bearer secret.
      * The value is therefore fetched by `nomor_surat` and compared with
      * {@see hash_equals()} on the raw strings, which is also constant-time - a
      * byte-by-byte early-exit comparison leaks how much of a guessed secret was right.

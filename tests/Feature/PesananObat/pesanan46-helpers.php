@@ -3,15 +3,15 @@
 declare(strict_types=1);
 
 use App\Models\Faskes;
-use App\Models\MasterObat;
 use App\Models\Pasien;
 use App\Models\Resep;
 use App\Models\ResepItem;
-use App\Models\ResepVerifikasi;
 use App\Models\User;
 use App\Support\Rbac\RoleAssigner;
+use App\Support\Schema\SchemaSpec;
 use App\Support\Schema\SqlSchemaParser;
 use Database\Seeders\RbacSeeder;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
@@ -246,7 +246,7 @@ function po46Stok(int $apotekId, int $obatId, int $jumlah, array $ubah = []): in
  * VARCHAR(100) NOT NULL` (`:758`) are the NOT NULL columns.
  *
  * @param  list<int>  $obatIds  catalogue drugs; an EMPTY list writes a racikan
- *                             line instead, which is `obat_id` NULL (`:770`)
+ *                              line instead, which is `obat_id` NULL (`:770`)
  * @param  array<string, mixed>  $ubah  extra `resep` columns, e.g. `apotek_id`
  * @param  array<string, mixed>  $ubahItem  extra `resep_item` columns
  */
@@ -409,7 +409,7 @@ function po46Dunia(int $jumlahStok = 100, int $jumlahResep = 10, string $tipeFas
 // DDL assertions
 // =====================================================================
 
-function po46Spec(): App\Support\Schema\SchemaSpec
+function po46Spec(): SchemaSpec
 {
     return (new SqlSchemaParser)->parseFile(base_path('telemedicine_test.sql'));
 }
@@ -681,7 +681,7 @@ function po46DiSisiLawan(callable $aksi): mixed
 function po46AdalahLockWait(Throwable $e): bool
 {
     for ($tipe = $e; $tipe !== null; $tipe = $tipe->getPrevious()) {
-        if ($tipe instanceof Illuminate\Database\QueryException
+        if ($tipe instanceof QueryException
             && (int) ($tipe->errorInfo[1] ?? 0) === PO46_KODE_LOCK_WAIT) {
             return true;
         }

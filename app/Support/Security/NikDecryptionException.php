@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Support\Security;
 
+use App\Support\NikCipher;
 use RuntimeException;
 
 /**
@@ -11,7 +12,7 @@ use RuntimeException;
  *
  * ## Every failure is a refusal, never a guess
  *
- * {@see \App\Support\NikCipher} decrypts into {@see mask} on a hot path, so the
+ * {@see NikCipher} decrypts into {@see mask} on a hot path, so the
  * tempting behaviour for a bad value is to answer `null` and publish a blank
  * NIK. That is the worst outcome available: a masked identity silently becomes
  * four bullets and a client renders it as a real person with no identifier. A
@@ -43,7 +44,7 @@ final class NikDecryptionException extends RuntimeException
             'Stored NIK payload is %d bytes, shorter than the %d-byte minimum a payload can be.'
             .' A ciphertext that was truncated on write cannot be decrypted.',
             $length,
-            \App\Support\NikCipher::PAYLOAD_HEADER_LENGTH + \App\Support\NikCipher::IV_LENGTH,
+            NikCipher::PAYLOAD_HEADER_LENGTH + NikCipher::IV_LENGTH,
         ));
     }
 

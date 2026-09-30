@@ -208,8 +208,8 @@ final class ApotekStokService
      * @param  int  $jumlah  how many units; `resep_item.jumlah` is
      *                       `SMALLINT UNSIGNED` (`:774`) so this is 1-65535
      *
-     * @throws StokTidakCukupException  when the pharmacy has no row for the
-     *                                   drug, or fewer than `$jumlah` units
+     * @throws StokTidakCukupException when the pharmacy has no row for the
+     *                                 drug, or fewer than `$jumlah` units
      */
     public function kurangi(int $apotekId, int $obatId, int $jumlah, string $namaObat): void
     {

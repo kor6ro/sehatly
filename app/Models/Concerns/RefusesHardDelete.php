@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Models\Concerns;
 
+use App\Models\RekamMedis;
 use Illuminate\Database\Eloquent\Model;
 use LogicException;
+use Tests\Feature\Audit\HardDeleteTest;
 
 /**
  * A medical record, and its four children, are never hard-deleted.
@@ -53,8 +55,8 @@ use LogicException;
  * privilege in the database, which is a migration and a privilege grant, not an
  * observer. It is recorded rather than left as an unstated gap.
  *
- * @see \App\Models\RekamMedis
- * @see \Tests\Feature\Audit\HardDeleteTest
+ * @see RekamMedis
+ * @see HardDeleteTest
  */
 trait RefusesHardDelete
 {

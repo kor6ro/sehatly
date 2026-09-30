@@ -286,7 +286,6 @@ final class ResepVerifikasiService
      * integrator who wonders why a "harmless" retry fails is told the truth
      * instead of guessing at a race.
      *
-     * @return never
      *
      * @throws ValidationException
      */

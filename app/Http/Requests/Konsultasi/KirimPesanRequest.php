@@ -6,6 +6,7 @@ namespace App\Http\Requests\Konsultasi;
 
 use App\Services\Konsultasi\KonsultasiService;
 use Closure;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\Rule;
 
 /**
@@ -63,7 +64,7 @@ class KirimPesanRequest extends KonsultasiRequest
                 'file',
                 'max:'.KonsultasiService::BERKAS_MAKS_KB,
                 function (string $attribute, mixed $value, Closure $fail): void {
-                    if (! $value instanceof \Illuminate\Http\UploadedFile) {
+                    if (! $value instanceof UploadedFile) {
                         return;
                     }
 

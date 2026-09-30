@@ -9,10 +9,12 @@ use App\Http\Requests\Referensi\IndexReferensiRequest;
 use App\Support\ApiResponse;
 use App\Support\Reference\ReferensiEndpoint;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\Response;
@@ -143,12 +145,12 @@ class ReferensiController extends Controller
      * conditional on the endpoint's own definition, so an endpoint with no parent simply
      * never emits one - there is no `WHERE 1=1` placeholder to be mistaken for a filter.
      *
-     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $model
-     * @return Builder<\Illuminate\Database\Eloquent\Model>
+     * @param  class-string<Model>  $model
+     * @return Builder<Model>
      */
     private function query(ReferensiEndpoint $endpoint, Request $request): Builder
     {
-        /** @var Builder<\Illuminate\Database\Eloquent\Model> $query */
+        /** @var Builder<Model> $query */
         $query = $endpoint->model::query();
 
         if ($endpoint->parent !== null && $request->filled($endpoint->parent)) {
@@ -194,8 +196,7 @@ class ReferensiController extends Controller
      * reads `data.kabupaten_kota` for one endpoint and `data.provinsi` for another, and
      * neither can be renamed without changing a URL.
      *
-     * @param  \Illuminate\Support\Collection<int, \Illuminate\Database\Eloquent\Model>  $rows
-     * @return AnonymousResourceCollection
+     * @param  Collection<int, Model>  $rows
      */
     private function collection(ReferensiEndpoint $endpoint, $rows): AnonymousResourceCollection
     {

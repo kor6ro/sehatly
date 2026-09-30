@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Enums;
 
+use App\Services\Resep\ResepVerifikasiService;
+
 /**
  * The three `resep_verifikasi.status` values, in the DDL's own order.
  *
@@ -32,7 +34,7 @@ namespace App\Enums;
  * "returned for correction" - the eight members at `telemedicine_test.sql:751`
  * -`:752` are all accounted for. A rejection therefore lands on `dibatalkan`,
  * the only terminal negative state, and it is FINAL - see
- * {@see \App\Services\Resep\ResepVerifikasiService::verifikasi()}.
+ * {@see ResepVerifikasiService::verifikasi()}.
  */
 enum ResepVerifikasiStatus: string
 {

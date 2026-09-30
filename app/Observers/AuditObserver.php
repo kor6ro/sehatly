@@ -4,14 +4,17 @@ declare(strict_types=1);
 
 namespace App\Observers;
 
+use App\Services\Audit\AuditColumnPolicy;
 use App\Services\Audit\AuditLogWriter;
+use App\Services\Audit\AuditObserverRegistrar;
+use App\Services\Audit\AuditScope;
 use Illuminate\Database\Eloquent\Model;
 
 /**
  * The global Eloquent observer behind every `audit_log` row.
  *
  * ONE class observes every sensitive model. `AppServiceProvider` calls
- * {@see \App\Services\Audit\AuditObserverRegistrar::registerAll()} at boot, and
+ * {@see AuditObserverRegistrar::registerAll()} at boot, and
  * the registrar walks the foreign-key closure outward from `pasien` and
  * `users` in the reference SQL, so coverage is a POLICY in one place rather
  * than an attribute to remember on each model. Nothing in a controller writes
@@ -35,9 +38,9 @@ use Illuminate\Database\Eloquent\Model;
  * the query builder, so no event can recurse back into this observer - and the
  * log tables are not in the audited set, so there is no log-of-log either.
  *
- * @see \App\Services\Audit\AuditLogWriter
- * @see \App\Services\Audit\AuditScope
- * @see \App\Services\Audit\AuditColumnPolicy
+ * @see AuditLogWriter
+ * @see AuditScope
+ * @see AuditColumnPolicy
  */
 final class AuditObserver
 {

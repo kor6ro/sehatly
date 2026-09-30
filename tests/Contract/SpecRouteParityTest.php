@@ -2,8 +2,7 @@
 
 declare(strict_types=1);
 
-use Tests\Contract\Support\ContractSpec;
-
+use Illuminate\Support\Facades\Route;
 /*
  |--------------------------------------------------------------------------
  | Bidirectional parity between docs/openapi.yaml and the route table
@@ -28,7 +27,7 @@ use Tests\Contract\Support\ContractSpec;
  | document.
  */
 
-use Illuminate\Support\Facades\Route;
+use Tests\Contract\Support\ContractSpec;
 use Tests\TestCase;
 
 uses(TestCase::class);

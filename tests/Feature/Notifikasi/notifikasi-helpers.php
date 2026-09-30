@@ -5,8 +5,10 @@ declare(strict_types=1);
 use App\Models\User;
 use App\Support\Rbac\RoleAssigner;
 use App\Support\WaktuIndonesia;
+use Illuminate\Foundation\Testing\TestCase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Testing\TestResponse;
 
 /*
 |--------------------------------------------------------------------------
@@ -110,7 +112,7 @@ function ntf5Dokter(int $userId): int
  * caches the resolved user - without it the second request in a test would be
  * the first request's account.
  */
-function ntf5As(User $user): Illuminate\Foundation\Testing\TestCase
+function ntf5As(User $user): TestCase
 {
     app('auth')->forgetGuards();
 
@@ -193,7 +195,7 @@ function ntf5Webhook(string $gateway, string $nomorReferensi, string $jumlah, st
  * `call()` with a raw `$content`, because the signature is over the BYTES and
  * `postJson()` would re-encode the array through a second encoder.
  */
-function ntf5Kirim(string $gateway, string $raw, array $server): Illuminate\Testing\TestResponse
+function ntf5Kirim(string $gateway, string $raw, array $server): TestResponse
 {
     return test()->call(
         'POST',

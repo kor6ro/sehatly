@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace App\Services\Payment;
 
+use App\Enums\PembayaranStatus;
 use App\Models\Invoice;
 use App\Models\MasterMetodePembayaran;
+use App\Support\Uang\Uang;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 /**
  * The seam between this application and whatever moves the money.
@@ -35,7 +38,7 @@ use Illuminate\Http\Request;
  *    `telemedicine_test.sql`, and inventing them in a controller would put a
  *    third party's schema into the middle of our Modules. The interface speaks
  *    in `nomor_referensi` (:963), `jumlah` (:962) and the three settlement
- *    outcomes of {@see \App\Enums\PembayaranStatus::SETTLE} - our names - and
+ *    outcomes of {@see PembayaranStatus::SETTLE} - our names - and
  *    the adapter translates.
  *
  * ## `createTransaction()` returns an ARRAY and not a DTO, deliberately
@@ -55,8 +58,8 @@ use Illuminate\Http\Request;
  * argument live in one place: this contract mints and verifies,
  * {@see PaymentService} applies exactly once.
  *
- * @see \App\Services\Payment\MockPaymentGatewayService
- * @see \App\Services\Payment\PaymentService
+ * @see MockPaymentGatewayService
+ * @see PaymentService
  */
 interface PaymentGatewayService
 {
@@ -114,10 +117,10 @@ interface PaymentGatewayService
      *                            it, because the admin fee in it was computed
      *                            once by `InvoiceService`.
      * @param  MasterMetodePembayaran  $metode  the method the patient chose.
-     *                                           Its `tipe` (:929) is what
-     *                                           decides `toko`'s shape, since
-     *                                           the schema maps no method to a
-     *                                           gateway.
+     *                                          Its `tipe` (:929) is what
+     *                                          decides `toko`'s shape, since
+     *                                          the schema maps no method to a
+     *                                          gateway.
      * @return array{gateway: string, nomor_referensi: string, jumlah: string, instruksi: list<string>, toko: array<string, string>}
      */
     public function createTransaction(Invoice $invoice, MasterMetodePembayaran $metode): array;
@@ -144,17 +147,17 @@ interface PaymentGatewayService
      *                            bytes; the implementation must not re-encode
      *                            the decoded body.
      * @return array{nomor_referensi: string, status: string, jumlah: string, gateway: string|null, payload: array<string, mixed>}
-     *         `status` is one of {@see \App\Enums\PembayaranStatus::SETTLE};
-     *         `jumlah` is a DECIMAL string parsed through
-     *         {@see \App\Support\Uang\Uang}, so a JSON number is a refusal and
-     *         not a rounding; `payload` is the decoded body VERBATIM, for
-     *         `pembayaran.webhook_payload` (:968).
+     *                                                                                                                             `status` is one of {@see PembayaranStatus::SETTLE};
+     *                                                                                                                             `jumlah` is a DECIMAL string parsed through
+     *                                                                                                                             {@see Uang}, so a JSON number is a refusal and
+     *                                                                                                                             not a rounding; `payload` is the decoded body VERBATIM, for
+     *                                                                                                                             `pembayaran.webhook_payload` (:968).
      *
-     * @throws TandaTanganWebhookTidakValid  on an absent, malformed or wrong
-     *                                        signature - a 401
-     * @throws \Illuminate\Validation\ValidationException  on a body that is
-     *         correctly signed but unusable, each message filed on the field it
-     *         came in on
+     * @throws TandaTanganWebhookTidakValid on an absent, malformed or wrong
+     *                                      signature - a 401
+     * @throws ValidationException on a body that is
+     *                             correctly signed but unusable, each message filed on the field it
+     *                             came in on
      */
     public function verifyWebhook(Request $request): array;
 }

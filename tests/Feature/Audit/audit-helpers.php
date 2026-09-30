@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Models\Booking;
 use App\Models\Konsultasi;
 use App\Models\KonsultasiChat;
+use App\Models\Pasien;
 use App\Models\RekamMedis;
 use App\Models\User;
 use App\Support\Schema\SchemaSpec;
@@ -380,9 +381,9 @@ if (! function_exists('audPasienModel')) {
      *
      * @param  array<string, mixed>  $extra
      */
-    function audPasienModel(array $extra = []): App\Models\Pasien
+    function audPasienModel(array $extra = []): Pasien
     {
-        $pasien = new App\Models\Pasien;
+        $pasien = new Pasien;
         $pasien->setAttribute('user_id', audUserRow());
         $pasien->setAttribute('jenis_kelamin', 'P');
         $pasien->setAttribute('tanggal_lahir', '1990-04-17');

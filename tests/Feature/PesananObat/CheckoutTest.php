@@ -3,19 +3,15 @@
 declare(strict_types=1);
 
 use App\Enums\PesananObatStatus;
-use Database\Seeders\RbacSeeder;
-use App\Models\MasterObat;
 use App\Models\PesananObat;
 use App\Models\Resep;
 use App\Services\PesananObat\ApotekStokService;
 use App\Services\PesananObat\PesananObatService;
 use App\Services\PesananObat\PesananObatStateMachine;
-use App\Services\PesananObat\StokTidakCukupException;
 use App\Support\Rbac\RbacCatalog;
-use App\Support\Schema\SqlSchemaParser;
+use Database\Seeders\RbacSeeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
 
 require_once __DIR__.'/pesanan46-helpers.php';
 
@@ -383,7 +379,7 @@ test('a verified prescription checks out, with an invoice and the first tracking
         ->and((string) $tracking[0]->waktu)->not->toBe('')
         ->and($tracking[0]->lokasi)->toBeNull();
 
-    $kolom = DB::select("SHOW COLUMNS FROM pesanan_obat_tracking");
+    $kolom = DB::select('SHOW COLUMNS FROM pesanan_obat_tracking');
 
     expect(array_map(static fn ($row): string => (string) $row->Field, $kolom))
         ->not->toContain('dibuat_at')

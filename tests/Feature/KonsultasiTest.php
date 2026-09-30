@@ -11,18 +11,17 @@ use App\Models\Pasien;
 use App\Models\User;
 use App\Services\Konsultasi\KonsultasiAccess;
 use App\Services\Konsultasi\KonsultasiChannelAccess;
-use App\Support\Rbac\RoleAssigner;
 use App\Support\Rbac\RbacCatalog;
-use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use App\Support\Rbac\RoleAssigner;
 use Database\Seeders\RbacSeeder;
-use Illuminate\Support\Carbon;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use PHPUnit\Framework\Assert;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 /*
 |--------------------------------------------------------------------------
@@ -144,7 +143,6 @@ function knsMulaiViaHttp(User $patient, int $dokterId, string $tipe = 'chat'): i
     return (int) $response->json('data.konsultasi.id');
 }
 
-
 // =====================================================================
 // Setup
 // =====================================================================
@@ -242,7 +240,6 @@ test('ten routes are registered under api/v1 with the expected verbs and guards'
         // guards it never declared reads as "expected to have none".
         'POST api/v1/konsultasi/{id}/resep' => ['tipe:dokter', 'permission:resep.buat'],
     ];
-
 
     foreach (array_keys($routes) as $key) {
         $middleware = $middlewareFor($key);
@@ -903,7 +900,7 @@ test('an attachment is written to the public disk and described by three columns
     $bookingId = knsBooking($patient['pasien']->getKey(), $doctor['dokter']);
     $id = (int) knsAs($patient['user'])->postJson('/api/v1/konsultasi/mulai', ['booking_id' => $bookingId])->json('data.konsultasi.id');
 
-    $berkas = Illuminate\Http\UploadedFile::fake()->create('foto-gejala.png', 120, 'image/png');
+    $berkas = UploadedFile::fake()->create('foto-gejala.png', 120, 'image/png');
 
     $response = knsAs($patient['user'])->post('/api/v1/konsultasi/'.$id.'/chat', [
         'tipe_pesan' => 'gambar',
@@ -945,7 +942,7 @@ test('an attachment is written to the public disk and described by three columns
     // records 1 KB rather than 0 - "0 KB" is not a fact about a file that exists.
     $tiny = knsAs($patient['user'])->post('/api/v1/konsultasi/'.$id.'/chat', [
         'tipe_pesan' => 'gambar',
-        'berkas' => Illuminate\Http\UploadedFile::fake()->create('kecil.png', 1, 'image/png'),
+        'berkas' => UploadedFile::fake()->create('kecil.png', 1, 'image/png'),
     ]);
 
     $tiny->assertCreated()->assertJsonPath('data.pesan.file_ukuran_kb', 1);
@@ -978,7 +975,7 @@ test('an oversize file of the wrong MIME carries TWO messages for the same field
         'tipe_pesan' => 'gambar',
         // 12 MB of PDF offered as an image: over `max` and of the wrong MIME, so
         // BOTH rules fail on the SAME field and both messages must survive.
-        'berkas' => Illuminate\Http\UploadedFile::fake()->create('besar.pdf', 12288, 'application/pdf'),
+        'berkas' => UploadedFile::fake()->create('besar.pdf', 12288, 'application/pdf'),
     ]);
 
     $response->assertStatus(422);
@@ -1022,7 +1019,7 @@ test('a file-backed message type requires a file of the right MIME, and a text t
     // `application/` prefix precisely so this is refused.
     $response = knsAs($patient['user'])->post('/api/v1/konsultasi/'.$id.'/chat', [
         'tipe_pesan' => 'gambar',
-        'berkas' => Illuminate\Http\UploadedFile::fake()->create('dokumen.pdf', 10, 'application/pdf'),
+        'berkas' => UploadedFile::fake()->create('dokumen.pdf', 10, 'application/pdf'),
     ]);
 
     $response->assertStatus(422)->assertJsonValidationErrors(['berkas']);
@@ -1031,7 +1028,7 @@ test('a file-backed message type requires a file of the right MIME, and a text t
     // And the same file IS accepted as a `dokumen`.
     knsAs($patient['user'])->post('/api/v1/konsultasi/'.$id.'/chat', [
         'tipe_pesan' => 'dokumen',
-        'berkas' => Illuminate\Http\UploadedFile::fake()->create('dokumen.pdf', 10, 'application/pdf'),
+        'berkas' => UploadedFile::fake()->create('dokumen.pdf', 10, 'application/pdf'),
     ])->assertCreated();
 
     // `tipe_pesan` outside the eight-value ENUM.

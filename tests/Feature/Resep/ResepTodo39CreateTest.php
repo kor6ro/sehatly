@@ -31,13 +31,13 @@ test('a kontraindikasi pair still produces a 201 with a populated warning payloa
     [$amox, $metformin] = rx39PasanganKontraindikasi();
     $akun = rx39DoctorAccount();
 
-    $respons = $this->withHeaders(rx39As($akun['user']))        ->postJson('/api/v1/konsultasi/'.$akun['sesi']->getKey().'/resep', [
-            'catatan_dodio' => 'Pasien memerlukan kedua obat; dosis metformin diturunkan.',
-            'items' => [
-                ['obat_id' => $amox, 'aturan_pakai' => '3 x 1 tablet', 'jumlah' => 10, 'satuan' => 'tablet'],
-                ['obat_id' => $metformin, 'aturan_pakai' => '1 x 1 tablet', 'jumlah' => 20, 'satuan' => 'tablet'],
-            ],
-        ]);
+    $respons = $this->withHeaders(rx39As($akun['user']))->postJson('/api/v1/konsultasi/'.$akun['sesi']->getKey().'/resep', [
+        'catatan_dodio' => 'Pasien memerlukan kedua obat; dosis metformin diturunkan.',
+        'items' => [
+            ['obat_id' => $amox, 'aturan_pakai' => '3 x 1 tablet', 'jumlah' => 10, 'satuan' => 'tablet'],
+            ['obat_id' => $metformin, 'aturan_pakai' => '1 x 1 tablet', 'jumlah' => 20, 'satuan' => 'tablet'],
+        ],
+    ]);
 
     $respons->assertCreated()
         ->assertJsonPath('success', true)
@@ -66,12 +66,12 @@ test('a berat pair without a note is a 201 and still carries the warning', funct
 
     $akun = rx39DoctorAccount();
 
-    $this->withHeaders(rx39As($akun['user']))        ->postJson('/api/v1/konsultasi/'.$akun['sesi']->getKey().'/resep', [
-            'items' => [
-                ['obat_id' => $amox, 'aturan_pakai' => '3 x 1 tablet', 'jumlah' => 10, 'satuan' => 'tablet'],
-                ['obat_id' => $metformin, 'aturan_pakai' => '1 x 1 tablet', 'jumlah' => 20, 'satuan' => 'tablet'],
-            ],
-        ])
+    $this->withHeaders(rx39As($akun['user']))->postJson('/api/v1/konsultasi/'.$akun['sesi']->getKey().'/resep', [
+        'items' => [
+            ['obat_id' => $amox, 'aturan_pakai' => '3 x 1 tablet', 'jumlah' => 10, 'satuan' => 'tablet'],
+            ['obat_id' => $metformin, 'aturan_pakai' => '1 x 1 tablet', 'jumlah' => 20, 'satuan' => 'tablet'],
+        ],
+    ])
         ->assertCreated()
         ->assertJsonPath('data.warning.0.tingkat', 'berat')
         ->assertJsonPath('data.warning.0.wajib_catatan_dokter', false)
@@ -85,13 +85,13 @@ test('acknowledged with a note: the pair is written, the note recorded, the warn
     $akun = rx39DoctorAccount();
     $catatan = 'Manfaat lebih besar daripada risiko; pasien diawasi ketat.';
 
-    $respons = $this->withHeaders(rx39As($akun['user']))        ->postJson('/api/v1/konsultasi/'.$akun['sesi']->getKey().'/resep', [
-            'catatan_dodio' => $catatan,
-            'items' => [
-                ['obat_id' => $amox, 'aturan_pakai' => '3 x 1 tablet', 'jumlah' => 10, 'satuan' => 'tablet'],
-                ['obat_id' => $metformin, 'aturan_pakai' => '1 x 1 tablet', 'jumlah' => 20, 'satuan' => 'tablet'],
-            ],
-        ]);
+    $respons = $this->withHeaders(rx39As($akun['user']))->postJson('/api/v1/konsultasi/'.$akun['sesi']->getKey().'/resep', [
+        'catatan_dodio' => $catatan,
+        'items' => [
+            ['obat_id' => $amox, 'aturan_pakai' => '3 x 1 tablet', 'jumlah' => 10, 'satuan' => 'tablet'],
+            ['obat_id' => $metformin, 'aturan_pakai' => '1 x 1 tablet', 'jumlah' => 20, 'satuan' => 'tablet'],
+        ],
+    ]);
 
     $respons->assertCreated()
         ->assertJsonPath('data.acknowledgement.diminta', true)
@@ -105,10 +105,10 @@ test('acknowledged with a note: the pair is written, the note recorded, the warn
     $respons->assertJsonCount(1, 'data.warning')
         ->assertJsonPath('data.warning.0.tingkat', 'kontraindikasi');
 
-    $this->withHeaders(rx39As($akun['user']))        ->postJson('/api/v1/konsultasi/'.$akun['sesi']->getKey().'/resep', [
-            'catatan_dokter' => 'Dilewati tanpa pengakuan.',
-            'items' => [['obat_id' => $amox, 'aturan_pakai' => '3 x 1 tablet', 'jumlah' => 10, 'satuan' => 'tablet']],
-        ])
+    $this->withHeaders(rx39As($akun['user']))->postJson('/api/v1/konsultasi/'.$akun['sesi']->getKey().'/resep', [
+        'catatan_dokter' => 'Dilewati tanpa pengakuan.',
+        'items' => [['obat_id' => $amox, 'aturan_pakai' => '3 x 1 tablet', 'jumlah' => 10, 'satuan' => 'tablet']],
+    ])
         ->assertStatus(422)
         ->assertJsonPath('errors.catatan_dokter.0', 'The catatan dokter field is prohibited.');
 });
@@ -123,7 +123,7 @@ test('refused without: a kontraindikasi pair with no note is a 422 and writes no
     ];
 
     foreach ([[], ['catatan_dodio' => null], ['catatan_dodio' => ''], ['catatan_dodio' => '   ']] as $tambahan) {
-        $this->withHeaders(rx39As($akun['user']))            ->postJson($path, array_merge(['items' => $items], $tambahan))
+        $this->withHeaders(rx39As($akun['user']))->postJson($path, array_merge(['items' => $items], $tambahan))
             ->assertStatus(422)
             ->assertJsonPath('success', false)
             ->assertJsonStructure(['success', 'message', 'errors' => ['catatan_dodio']]);
@@ -134,7 +134,7 @@ test('refused without: a kontraindikasi pair with no note is a 422 and writes no
 
     DB::table('obat_interaksi')->update(['tingkat' => 'berat']);
 
-    $this->withHeaders(rx39As($akun['user']))        ->postJson($path, ['items' => $items])
+    $this->withHeaders(rx39As($akun['user']))->postJson($path, ['items' => $items])
         ->assertCreated()
         ->assertJsonPath('data.acknowledgement.diminta', false);
 });
@@ -143,13 +143,13 @@ test('one blank note carries two messages on the same field', function (): void 
     [$amox, $metformin] = rx39PasanganKontraindikasi();
     $akun = rx39DoctorAccount();
 
-    $respons = $this->withHeaders(rx39As($akun['user']))        ->postJson('/api/v1/konsultasi/'.$akun['sesi']->getKey().'/resep', [
-            'catatan_dodio' => '   ',
-            'items' => [
-                ['obat_id' => $amox, 'aturan_pakai' => '3 x 1 tablet', 'jumlah' => 10, 'satuan' => 'tablet'],
-                ['obat_id' => $metformin, 'aturan_pakai' => '1 x 1 tablet', 'jumlah' => 20, 'satuan' => 'tablet'],
-            ],
-        ]);
+    $respons = $this->withHeaders(rx39As($akun['user']))->postJson('/api/v1/konsultasi/'.$akun['sesi']->getKey().'/resep', [
+        'catatan_dodio' => '   ',
+        'items' => [
+            ['obat_id' => $amox, 'aturan_pakai' => '3 x 1 tablet', 'jumlah' => 10, 'satuan' => 'tablet'],
+            ['obat_id' => $metformin, 'aturan_pakai' => '1 x 1 tablet', 'jumlah' => 20, 'satuan' => 'tablet'],
+        ],
+    ]);
 
     $respons->assertStatus(422);
 
@@ -168,15 +168,15 @@ test('an anafilaksis allergy also demands the note', function (): void {
 
     $items = [['obat_id' => $amox, 'aturan_pakai' => '3 x 1 tablet', 'jumlah' => 10, 'satuan' => 'tablet']];
 
-    $this->withHeaders(rx39As($akun['user']))        ->postJson('/api/v1/konsultasi/'.$akun['sesi']->getKey().'/resep', ['items' => $items])
+    $this->withHeaders(rx39As($akun['user']))->postJson('/api/v1/konsultasi/'.$akun['sesi']->getKey().'/resep', ['items' => $items])
         ->assertStatus(422)
         ->assertJsonPath('errors.catatan_dodio.0', 'Catatan pengakuan wajib diisi.')
         ->assertJsonPath('errors.catatan_dodio.1', 'Peringatan kontraindikasi memerlukan catatan dokter.');
 
-    $this->withHeaders(rx39As($akun['user']))        ->postJson('/api/v1/konsultasi/'.$akun['sesi']->getKey().'/resep', [
-            'catatan_dodio' => 'Alergi tercatat; manfaat dinilai lebih besar.',
-            'items' => $items,
-        ])
+    $this->withHeaders(rx39As($akun['user']))->postJson('/api/v1/konsultasi/'.$akun['sesi']->getKey().'/resep', [
+        'catatan_dodio' => 'Alergi tercatat; manfaat dinilai lebih besar.',
+        'items' => $items,
+    ])
         ->assertCreated()
         ->assertJsonPath('data.warning.0.sumber', 'alergi')
         ->assertJsonPath('data.warning.0.tingkat', 'kontraindikasi')
@@ -187,22 +187,22 @@ test('a racikan item is stored with obat_id null and yields no interaction warni
     $amox = rx39Obat('Amoxicillin', ['kelas_terapi' => 'Antibiotik']);
     $akun = rx39DoctorAccount();
 
-    $respons = $this->withHeaders(rx39As($akun['user']))        ->postJson('/api/v1/konsultasi/'.$akun['sesi']->getKey().'/resep', [
-            'items' => [[
-                'nama_obat' => 'Racikan Demam Herbal',
-                'kekuatan' => 'No. 10',
-                'aturan_pakai' => '1 x 1 sachet',
-                'jumlah' => 1,
-                'is_racikan' => true,
-                'racikan_nama' => 'Racikan Demam Herbal',
-                'satuan' => 'sachet',
-            ], [
-                'obat_id' => $amox,
-                'aturan_pakai' => '3 x 1 tablet',
-                'jumlah' => 10,
-                'satuan' => 'tablet',
-            ]],
-        ]);
+    $respons = $this->withHeaders(rx39As($akun['user']))->postJson('/api/v1/konsultasi/'.$akun['sesi']->getKey().'/resep', [
+        'items' => [[
+            'nama_obat' => 'Racikan Demam Herbal',
+            'kekuatan' => 'No. 10',
+            'aturan_pakai' => '1 x 1 sachet',
+            'jumlah' => 1,
+            'is_racikan' => true,
+            'racikan_nama' => 'Racikan Demam Herbal',
+            'satuan' => 'sachet',
+        ], [
+            'obat_id' => $amox,
+            'aturan_pakai' => '3 x 1 tablet',
+            'jumlah' => 10,
+            'satuan' => 'tablet',
+        ]],
+    ]);
 
     $respons->assertCreated()
         ->assertJsonPath('data.warning', [])
@@ -227,7 +227,7 @@ test('nama_obat is a snapshot that survives a catalogue rename', function (): vo
     $obat = rx39Obat('Amoxicillin', ['nama_brand' => 'Amoxsan', 'harga_jual' => '7500.00']);
     $akun = rx39DoctorAccount();
 
-    $respons = $this->withHeaders(rx39As($akun['user']))        ->postJson('/api/v1/konsultasi/'.$akun['sesi']->getKey().'/resep', rx39Body($obat, 12))
+    $respons = $this->withHeaders(rx39As($akun['user']))->postJson('/api/v1/konsultasi/'.$akun['sesi']->getKey().'/resep', rx39Body($obat, 12))
         ->assertCreated();
 
     expect($respons->json('data.resep.items.0.nama_obat'))->toBe('Amoxicillin')
@@ -246,7 +246,7 @@ test('berlaku_sampai is tanggal_resep plus 7 days, and neither is settable', fun
     $akun = rx39DoctorAccount();
     $path = '/api/v1/konsultasi/'.$akun['sesi']->getKey().'/resep';
 
-    $respons = $this->withHeaders(rx39As($akun['user']))        ->postJson($path, rx39Body($obat))
+    $respons = $this->withHeaders(rx39As($akun['user']))->postJson($path, rx39Body($obat))
         ->assertCreated();
 
     expect($respons->json('data.resep.berlaku_sampai'))->toBe('2026-03-18')
@@ -268,21 +268,21 @@ test('unknown, withdrawn or missing drugs are refused by name and write nothing'
     $akun = rx39DoctorAccount();
     $path = '/api/v1/konsultasi/'.$akun['sesi']->getKey().'/resep';
 
-    $this->withHeaders(rx39As($akun['user']))        ->postJson($path, ['items' => [[
-            'obat_id' => 999999, 'aturan_pakai' => '3 x 1 tablet', 'jumlah' => 10, 'satuan' => 'tablet',
-        ]]])
+    $this->withHeaders(rx39As($akun['user']))->postJson($path, ['items' => [[
+        'obat_id' => 999999, 'aturan_pakai' => '3 x 1 tablet', 'jumlah' => 10, 'satuan' => 'tablet',
+    ]]])
         ->assertStatus(422)
         ->assertJsonPath('errors.items.0.obat_id.0', 'Obat tidak ditemukan.');
 
     $nonaktif = rx39Obat('Obat Lama Sekali', ['status_aktif' => 0]);
 
-    $this->withHeaders(rx39As($akun['user']))        ->postJson($path, ['items' => [[
-            'obat_id' => $nonaktif, 'aturan_pakai' => '3 x 1 tablet', 'jumlah' => 10, 'satuan' => 'tablet',
-        ]]])
+    $this->withHeaders(rx39As($akun['user']))->postJson($path, ['items' => [[
+        'obat_id' => $nonaktif, 'aturan_pakai' => '3 x 1 tablet', 'jumlah' => 10, 'satuan' => 'tablet',
+    ]]])
         ->assertStatus(422)
         ->assertJsonPath('errors.items.0.obat_id.0', 'Obat tidak aktif.');
 
-    $this->withHeaders(rx39As($akun['user']))        ->postJson($path, ['items' => []])
+    $this->withHeaders(rx39As($akun['user']))->postJson($path, ['items' => []])
         ->assertStatus(422)
         ->assertJsonPath('errors.items.0', 'Prescription must contain at least one item.');
 
@@ -295,21 +295,21 @@ test('another doctor consultation is a 404 and a profile-less caller is a 403', 
     $asing = rx39DoctorAccount();
     $obat = rx39Obat('Amoxicillin');
 
-    $this->withHeaders(rx39As($asing['user']))        ->postJson('/api/v1/konsultasi/'.$milik['sesi']->getKey().'/resep', rx39Body($obat))
+    $this->withHeaders(rx39As($asing['user']))->postJson('/api/v1/konsultasi/'.$milik['sesi']->getKey().'/resep', rx39Body($obat))
         ->assertStatus(404)
         ->assertExactJson(['success' => false, 'message' => 'Resource not found.', 'errors' => []]);
 
     expect(DB::table('resep')->count())->toBe(0);
 
-    $this->withHeaders(rx39As($milik['user']))        ->postJson('/api/v1/konsultasi/'.$milik['sesi']->getKey().'/resep', rx39Body($obat))
+    $this->withHeaders(rx39As($milik['user']))->postJson('/api/v1/konsultasi/'.$milik['sesi']->getKey().'/resep', rx39Body($obat))
         ->assertCreated();
 
     $tanpaProfil = rx39Pengguna('dokter', 'dokter');
 
-    $this->withHeaders(rx39As($tanpaProfil))        ->postJson('/api/v1/konsultasi/1/resep', rx39Body($obat))
+    $this->withHeaders(rx39As($tanpaProfil))->postJson('/api/v1/konsultasi/1/resep', rx39Body($obat))
         ->assertStatus(403);
 
-    $this->withHeaders(rx39As($milik['pasienUser']))        ->postJson('/api/v1/konsultasi/'.$milik['sesi']->getKey().'/resep', rx39Body($obat))
+    $this->withHeaders(rx39As($milik['pasienUser']))->postJson('/api/v1/konsultasi/'.$milik['sesi']->getKey().'/resep', rx39Body($obat))
         ->assertStatus(403);
 });
 
@@ -317,7 +317,7 @@ test('nomor_resep fits the column and qr_token is a uuid', function (): void {
     $obat = rx39Obat('Amoxicillin');
     $akun = rx39DoctorAccount();
 
-    $respons = $this->withHeaders(rx39As($akun['user']))        ->postJson('/api/v1/konsultasi/'.$akun['sesi']->getKey().'/resep', rx39Body($obat))
+    $respons = $this->withHeaders(rx39As($akun['user']))->postJson('/api/v1/konsultasi/'.$akun['sesi']->getKey().'/resep', rx39Body($obat))
         ->assertCreated();
 
     $nomor = (string) $respons->json('data.resep.nomor_resep');

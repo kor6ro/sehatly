@@ -122,7 +122,7 @@ final class PesananObatStateMachine
      *
      * `menunggu_pembayaran` is absent because an order is not "advanced" INTO
      * it: it is born there by
-     * {@see \App\Services\PesananObat\PesananObatService::buat()}.
+     * {@see PesananObatService::buat()}.
      *
      * @var list<string>
      */

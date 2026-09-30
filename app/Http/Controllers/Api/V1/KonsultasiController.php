@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\KonsultasiStatus;
 use App\Events\KonsultasiMessageSent;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Konsultasi\KirimPesanRequest;
@@ -107,8 +108,8 @@ use Symfony\Component\HttpFoundation\Response;
  * `POST /mulai`, 404 on the three reads - and the reason is a fact about rows they
  * do not own rather than a fact about their role.
  *
- * @see \App\Services\Konsultasi\KonsultasiService for the lifecycle
- * @see \App\Enums\KonsultasiStatus for the six states and the ten legal edges
+ * @see KonsultasiService for the lifecycle
+ * @see KonsultasiStatus for the six states and the ten legal edges
  */
 class KonsultasiController extends Controller
 {

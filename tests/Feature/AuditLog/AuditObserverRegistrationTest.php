@@ -7,6 +7,7 @@ use App\Models\AuditLog;
 use App\Services\Audit\AuditLogWriter;
 use App\Services\Audit\AuditObserverRegistrar;
 use App\Services\Audit\AuditScope;
+use App\Support\Schema\SqlSchemaParser;
 use Illuminate\Database\Eloquent\Model;
 
 /*
@@ -220,7 +221,7 @@ test('no direct AuditLog model writes exist anywhere under app/', function (): v
 });
 
 test('the writer emits only aksi values the DDL allows', function (): void {
-    $spec = (new \App\Support\Schema\SqlSchemaParser)->parseFile(base_path('telemedicine_test.sql'));
+    $spec = (new SqlSchemaParser)->parseFile(base_path('telemedicine_test.sql'));
     $type = $spec->table('audit_log')->columns['aksi']->type;
 
     preg_match("/enum\((.*)\)/i", $type, $matches);

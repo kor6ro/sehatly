@@ -2,12 +2,13 @@
 
 declare(strict_types=1);
 
+use App\Models\Concerns\RefusesHardDelete;
 use App\Models\RekamMedis;
 use App\Models\RekamMedisDiagnosa;
 use App\Models\RekamMedisLampiran;
 use App\Models\RekamMedisPersetujuan;
 use App\Models\RekamMedisTindakan;
-use App\Models\Concerns\RefusesHardDelete;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
 
 require_once __DIR__.'/audit-helpers.php';
@@ -109,7 +110,7 @@ test('delete throws too, because rekam_medis has no soft-delete column to fall b
     $record = audRecord(audPasien(), audDokter());
 
     expect(audSpec()->table('rekam_medis')->columns)->not->toHaveKey('dihapus_at');
-    expect(in_array(Illuminate\Database\Eloquent\SoftDeletes::class, class_uses_recursive($record), true))
+    expect(in_array(SoftDeletes::class, class_uses_recursive($record), true))
         ->toBeFalse('rekam_medis is not a soft-deleting model, so delete() is destructive');
     expect($record->exists)->toBeTrue();
 

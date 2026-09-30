@@ -48,8 +48,8 @@ use App\Support\Schema\TableSpec;
  * masker: it is a column-specific presentation rule for a value that is not
  * NIK-shaped, and it delegates its masking characters to the same constant.
  *
- * @see \App\Services\Audit\AuditLogWriter
- * @see \App\Support\NikMasker
+ * @see AuditLogWriter
+ * @see NikMasker
  */
 final class AuditColumnPolicy
 {

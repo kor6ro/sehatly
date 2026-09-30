@@ -17,7 +17,9 @@ use Database\Seeders\ObatSeeder;
 use Database\Seeders\PenjaminSeeder;
 use Database\Seeders\RbacSeeder;
 use Database\Seeders\SpesialisasiSeeder;
+use Illuminate\Foundation\Testing\TestCase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Testing\TestResponse;
 use Tests\Support\FakeOtpSender;
 
 /*
@@ -275,7 +277,7 @@ function demo3cTokenAkun(string $nama): ?string
  * authenticated as the first request's account and a 403 would read as "the
  * guard refused them" when in fact the guard never ran.
  */
-function demo3cAs(?string $token = null): Illuminate\Foundation\Testing\TestCase
+function demo3cAs(?string $token = null): TestCase
 {
     app('auth')->forgetGuards();
 
@@ -373,7 +375,7 @@ function demo3cWebhook(string $gateway, string $nomorReferensi, string $jumlah, 
 /**
  * POST a signed webhook, with the RAW bytes the signature was computed over.
  */
-function demo3cKirim(string $badan, array $server, string $gateway): Illuminate\Testing\TestResponse
+function demo3cKirim(string $badan, array $server, string $gateway): TestResponse
 {
     return test()->call(
         'POST',

@@ -7,14 +7,15 @@ namespace App\Services\Booking;
 use App\Models\Dokter;
 use App\Models\DokterJadwal;
 use App\Models\DokterLibur;
+use App\Services\Dokter\DokterDirectoryService;
 use App\Support\Dokter\StrBerlaku;
 use App\Support\WaktuIndonesia;
-use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
+use Tests\Feature\Dokter\SlotAvailabilityTest;
 
 /**
  * The doctor's bookable-slot computation: four rules, subtracted from each other.
@@ -39,7 +40,7 @@ use InvalidArgumentException;
  * local datetime and never converts. A 23:30 slot is published as `23:30:00`,
  * not shifted to `16:30:00` by seven hours. {@see ZONA_WAKTU} is published so a
  * response can label the values, and
- * {@see \Tests\Feature\Dokter\SlotAvailabilityTest} asserts it is deliberately
+ * {@see SlotAvailabilityTest} asserts it is deliberately
  * NOT `config('app.timezone')`, which is UTC.
  *
  * ## Rule 1: working windows
@@ -94,7 +95,7 @@ use InvalidArgumentException;
  * row's own value is always present, so reading the doctor-level value would
  * ignore a per-row setting the DDL goes to the trouble of storing.
  *
- * {@see \Tests\Feature\Dokter\SlotAvailabilityTest} writes 20 into
+ * {@see SlotAvailabilityTest} writes 20 into
  * `dokter.durasi_default_menit` and 15 into the schedule row, and the boundary
  * assertions only pass when the schedule row wins -- so the distinction is
  * pinned by a fixture that would have to change to lose it.
@@ -207,7 +208,7 @@ use InvalidArgumentException;
  * `str_berlaku_sampai DATE NOT NULL` (`:414`). The boundary itself -- inclusive,
  * fail-closed on a NULL expiry -- is **not** decided here. It lives in
  * {@see StrBerlaku}, which todo 22 established and
- * {@see \App\Services\Dokter\DokterDirectoryService} already uses, so the
+ * {@see DokterDirectoryService} already uses, so the
  * codebase has one spelling of it rather than two that happen to agree today.
  *
  * **The reference day is the requested consultation date, not today.** The
@@ -218,7 +219,7 @@ use InvalidArgumentException;
  * licence lapsed. Same rule, applied to the day the answer is actually about.
  *
  * **The refusal is an empty list, not an exception.** That mirrors
- * {@see \App\Services\Dokter\DokterDirectoryService::find()}, which returns
+ * {@see DokterDirectoryService::find()}, which returns
  * `null` for STR-expired, unverified, absent and soft-deleted alike so an
  * unauthenticated caller cannot enumerate the licence state of every account.
  * An empty list is the same information-hiding. A caller that genuinely needs to
@@ -241,7 +242,7 @@ use InvalidArgumentException;
  * ending at exactly this instant is already over. `now` is `Carbon::now()`,
  * which honours `Carbon::setTestNow()`, and the "is this today" comparison is
  * made against the database's own calendar day for the reason
- * {@see \App\Services\Dokter\DokterDirectoryService} gives: `config/app.php` is
+ * {@see DokterDirectoryService} gives: `config/app.php` is
  * UTC while the schema stores naive wall clock, so a PHP-built date would
  * compare two different clocks and be a day out for seven hours every evening.
  * A future date is untouched by this rule.

@@ -2,10 +2,14 @@
 
 declare(strict_types=1);
 
+use App\Http\Resources\PasienResource;
 use App\Models\Dokter;
 use App\Models\MasterPromo;
+use App\Models\Pasien;
 use App\Services\Booking\SlotAvailabilityService;
+use App\Services\Invoice\PromoHitungan;
 use App\Services\Invoice\PromoService;
+use App\Support\Schema\SchemaSpec;
 use App\Support\Schema\SqlSchemaParser;
 use App\Support\WaktuIndonesia;
 use Illuminate\Support\Carbon;
@@ -145,7 +149,7 @@ const WALL_CLOCK = [
 |
 */
 
-function zonawaktuSpec(): App\Support\Schema\SchemaSpec
+function zonawaktuSpec(): SchemaSpec
 {
     static $spec = null;
 
@@ -500,11 +504,11 @@ it('round-trips pasien.tanggal_lahir as Y-m-d with no off-by-one-day', function 
     foreach (['1990-01-01', '2000-02-01', '2015-12-01'] as $lahir) {
         $id = zonawaktuPasienId($lahir);
 
-        $pasien = App\Models\Pasien::query()->findOrFail($id);
+        $pasien = Pasien::query()->findOrFail($id);
 
         expect($pasien->tanggal_lahir->format('Y-m-d'))->toBe($lahir);
 
-        $resource = (new App\Http\Resources\PasienResource($pasien))->toArray(request());
+        $resource = (new PasienResource($pasien))->toArray(request());
 
         expect($resource['tanggal_lahir'])->toBe($lahir)
             ->and($resource['tanggal_lahir'])->toMatch('/^\d{4}-\d{2}-\d{2}$/')
@@ -721,7 +725,7 @@ it('reports a promo starting one hour from now in Asia/Jakarta as inactive', fun
 
         expect($hitungan->ditolak())->toBeTrue();
         expect(array_column($hitungan->alasan, 'kode'))
-            ->toContain(App\Services\Invoice\PromoHitungan::KODE_BELUM_MULAI);
+            ->toContain(PromoHitungan::KODE_BELUM_MULAI);
     } finally {
         Carbon::setTestNow();
     }

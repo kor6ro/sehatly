@@ -269,7 +269,7 @@ class PromoService
      * no-op and why the lock is the whole correctness argument.
      *
      * @param  int|null  $pasienId  `null` for the total allowance, an id for
-     *                               this patient's own
+     *                              this patient's own
      * @param  bool  $kunci  take the row lock (the apply path) or not (the preview)
      */
     private function pemakaian(int $promoId, int $batas, ?int $pasienId, bool $kunci): int
