@@ -78,9 +78,10 @@ neither alone is sufficient, and the second without the first exits `2`.
 | `job_batches` | `0001_01_01_000002_create_jobs_table.php` | Laravel's `Bus::batch()` bookkeeping; ships with the same migration as `jobs` and cannot run without it. |
 | `failed_jobs` | `0001_01_01_000002_create_jobs_table.php` | Laravel's dead-letter table for failed queue jobs; part of the same migration as `jobs`. |
 | `personal_access_tokens` | `2026_09_26_222801_create_personal_access_tokens_table.php` | Sanctum's bearer-token table, published by `install:api` in todo 3. The `/api/v1` surface is bearer-token authenticated, so this table must exist. |
+| `sessions` | `2026_10_01_000080_create_sessions_table.php` | Laravel's `database` session store. `config/session.php` defaults to that driver, but the contract migrations only cover the 75 contract tables plus `cache` and `jobs`, so nothing created it: every server-side web route returned HTTP 500 until this migration. No test caught it because all tests exercise the stateless API and none boots `php artisan serve`. |
 
-Seven registered extras, verified against the live `telemedisin_db` after todo 7's
-`migrate:fresh`: all seven present, `0` `undocumented_extra_table`.
+Eight registered extras, verified against the live `telemedisin_db` after todo 7's
+`migrate:fresh`: all eight present, `0` `undocumented_extra_table`.
 
 **The seven are derived, not asserted.**
 `tests/Unit/Console/VerifySchemaCommandTest.php` reads this file, enumerates every table
