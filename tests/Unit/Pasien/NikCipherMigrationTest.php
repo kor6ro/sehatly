@@ -188,10 +188,28 @@ class NikCipherMigrationTest extends TestCase
         $id = (int) $pasien->getKey();
         $payload = (string) DB::table('pasien')->where('id', $id)->value('nik_cipher');
 
+        // How many rows are actually at stake, counted BEFORE the rollback. The
+        // refusal message names this number, and the test asserts the number it
+        // names is this one rather than hardcoding `1`: the Unit suite has no
+        // `RefreshDatabase`, so `pasien` also holds whatever the seeders wrote
+        // (and `contract.yml` runs `migrate:fresh --seed` before `artisan test`).
+        // A hardcoded count would make this test pass only against an EMPTY
+        // table, which is the one state a refusal is least interesting in.
+        $sadari = (int) DB::table('pasien')->whereNotNull('nik_cipher')
+            ->where('nik_cipher', '<>', '')->count();
+
         $ditolak = null;
 
         try {
-            Artisan::call('migrate:rollback', ['--step' => 1, '--force' => true]);
+            // By path, not `--step 1`. `--step 1` means "the newest migration",
+            // and `sessions` (000080) is newer than the NIK migration, so the
+            // step-based rollback undid THAT instead and this test went red the
+            // moment a second migration landed. Naming the file keeps the test
+            // about the NIK migration however many migrations follow it.
+            Artisan::call('migrate:rollback', [
+                '--path' => 'database/migrations/2026_10_01_000079_move_pasien_nik_to_nik_cipher_table.php',
+                '--force' => true,
+            ]);
         } catch (RuntimeException $e) {
             $ditolak = $e;
         }
@@ -201,8 +219,16 @@ class NikCipherMigrationTest extends TestCase
         // able to tell how many NIKs are at stake and what to do instead.
         $this->assertNotNull($ditolak, 'the rollback destroyed a stored NIK instead of refusing.');
         $this->assertStringContainsString('nik_cipher', $ditolak->getMessage());
-        $this->assertStringContainsString('1 `pasien` row', $ditolak->getMessage());
+        $this->assertStringContainsString(
+            $sadari.' `pasien` row',
+            $ditolak->getMessage(),
+            'the refusal does not name how many NIKs are at stake, or names the wrong number.',
+        );
         $this->assertStringContainsString('mysqldump', $ditolak->getMessage());
+
+        // The count is at least this test's own row, so a message that named `0`
+        // could not satisfy the line above.
+        $this->assertGreaterThanOrEqual(1, $sadari);
 
         // NOTHING was destroyed and NOTHING was altered: the payload is still
         // byte-for-byte what it was, and the column is still the one the DDL
@@ -238,7 +264,10 @@ class NikCipherMigrationTest extends TestCase
         $this->assertSame($sisa, $dihapus, 'the payload rows could not all be cleared.');
         $this->assertSame(0, DB::table('pasien')->whereNotNull('nik_cipher')->count());
 
-        $this->assertSame(0, Artisan::call('migrate:rollback', ['--step' => 1, '--force' => true]));
+        $this->assertSame(0, Artisan::call('migrate:rollback', [
+        '--path' => 'database/migrations/2026_10_01_000079_move_pasien_nik_to_nik_cipher_table.php',
+        '--force' => true,
+    ]));
 
         // The shape the DDL used to declare, restored: the name, the width, the
         // nullability, the comment and the UNIQUE are all back, and this reads
