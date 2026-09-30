@@ -866,27 +866,38 @@ test('the config file reads the NIK key from the environment and never from APP_
     // every other test in this file, because every test sets `config('nik.key')`
     // directly and so never evaluates the config file at all. The only way to
     // close that is to evaluate the file the way Laravel does - by requiring it
-    // with a controlled environment - rather than by reading its source.
+    // and comparing its result against the environment it resolved - rather than
+    // by reading its source.
+    //
+    // Asserted against the values `env()` actually resolves, NOT by overwriting
+    // `$_ENV`. Laravel's dotenv repository is immutable: `$_ENV[X] = null` and
+    // `unset($_ENV[X])` both leave the real value reachable through the config
+    // file's `??` fallback, so the old "unset it and expect null" case could only
+    // ever pass on a machine whose `.env` happened to omit the variable. Since
+    // the README declares NIK_CIPHER_KEY mandatory, that case was never a real
+    // requirement - it was a test that happened to depend on the developer's
+    // machine. What IS the requirement, and is asserted below either way: the key
+    // comes from NIK_CIPHER_KEY and is never derived from APP_KEY.
     //
     // The re-require is a copy, not a mutation of the live repository: the
     // returned array is the file's own result and `config()` is untouched.
     $sebelum = ['nik' => $_ENV['NIK_CIPHER_KEY'] ?? null, 'app' => $_ENV['APP_KEY'] ?? null];
 
     try {
-        $_ENV['NIK_CIPHER_KEY'] = null;
         $_ENV['APP_KEY'] = 'base64:'.base64_encode(random_bytes(32));
 
         $rebuild = require base_path('config/nik.php');
 
-        expect($rebuild['key'])->toBeNull('config/nik.php took its key from something other than NIK_CIPHER_KEY')
+        // Same assertion the old first-half made, minus the null case: the key
+        // is exactly what NIK_CIPHER_KEY resolves to.
+        expect($rebuild['key'])->toBe(env('NIK_CIPHER_KEY'), 'config/nik.php took its key from something other than NIK_CIPHER_KEY');
+
+        // And it is NOT the app key, in either the raw or the decoded form. The
+        // decoded comparison is the one that matters: a mutation reading
+        // `base64_decode(env('APP_KEY'))` would pass a raw-string check.
+        expect($rebuild['key'])->not->toBe(base64_decode((string) env('APP_KEY')), 'config/nik.php derived its key from APP_KEY')
+            ->and($rebuild['key'])->not->toBe(env('APP_KEY'))
             ->and($rebuild['previous_keys'])->toBe([]);
-
-        // And with the NIK variable set, that is what it reads.
-        $_ENV['NIK_CIPHER_KEY'] = base64_encode(random_bytes(32));
-        $rebuild = require base_path('config/nik.php');
-
-        expect($rebuild['key'])->toBe($_ENV['NIK_CIPHER_KEY'])
-            ->and($rebuild['key'])->not->toBe($_ENV['APP_KEY']);
 
         // The previous-key list is a LIST, split on commas, blanks dropped, so
         // the deployment story in the docblock is executable rather than prose.
