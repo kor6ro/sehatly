@@ -140,12 +140,19 @@ return new class extends Migration
             );
         }
 
+        // The shape, in the mirror image of `up()`: rename FIRST, because a
+        // `MODIFY` names the column it restates and the column does not exist
+        // under the target name until the rename has run. Widening the name
+        // first and narrowing the type second is the order that works, and it is
+        // the order the first draft of this method had backwards - the test
+        // `test_down_reverses_the_shape_on_an_empty_table_and_up_puts_it_forward`
+        // failed with MySQL 1054 `Unknown column 'nik'` before it was fixed.
         Schema::table('pasien', function (Blueprint $table): void {
-            $table->char('nik', 16)->nullable()->comment(self::COMMENT)->change();
+            $table->renameColumn('nik_cipher', 'nik');
         });
 
         Schema::table('pasien', function (Blueprint $table): void {
-            $table->renameColumn('nik_cipher', 'nik');
+            $table->char('nik', 16)->nullable()->comment(self::COMMENT)->change();
         });
 
         // The index the DDL declared, restored after the rename so it is created

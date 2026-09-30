@@ -14,6 +14,7 @@ use App\Services\Booking\BookingService;
 use App\Services\Booking\SlotAvailabilityService;
 use App\Support\Dokter\StrBerlaku;
 use App\Support\Dokumen\NomorDokumen;
+use App\Support\NikCipher;
 use App\Support\NikMasker;
 use App\Support\Rbac\RbacCatalog;
 use App\Support\Rbac\RoleAssigner;
@@ -95,14 +96,26 @@ function bkuUser(string $nama, string $tipe = 'pasien'): int
 
 /**
  * A `pasien` row. `jenis_kelamin` (:225), `tanggal_lahir` (:226) and
- * `alamat_lengkap` (:234) are the NOT NULL columns with no default. `nik` is
- * `CHAR(16) NULL UNIQUE` (:222) and is written only by the tests that need a
- * masking assertion.
+ * `alamat_lengkap` (:234) are the NOT NULL columns with no default.
+ *
+ * `nik` is NOT a column any more: telemedicine_test.sql:222 is
+ * `nik_cipher TEXT` since the NIK cipher migration. A caller still passes
+ * `['nik' => $sixteen]` and the helper ENCRYPTS it, because the query builder
+ * does not run Eloquent mutators and writing the plaintext into the payload
+ * column would produce a row no resource can read.
  *
  * @param  array<string, mixed>  $ubah
  */
 function bkuPasienRow(int $userId, array $ubah = []): int
 {
+    $nik = $ubah['nik'] ?? null;
+
+    unset($ubah['nik']);
+
+    if ($nik !== null) {
+        $ubah['nik_cipher'] = NikCipher::encrypt((string) $nik);
+    }
+
     return (int) DB::table('pasien')->insertGetId(array_merge([
         'user_id' => $userId,
         'jenis_kelamin' => 'P',

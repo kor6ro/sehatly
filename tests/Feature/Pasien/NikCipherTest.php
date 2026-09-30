@@ -30,20 +30,23 @@ use Illuminate\Support\Str;
 | ## The design in one paragraph
 |
 | A NIK is protected by TWO columns of DIFFERENT widths, because the single
-| `pasien.nik CHAR(16)` the DDL declares (telemedicine_test.sql:222) cannot
-| satisfy two incompatible requirements at once:
+| `pasien.nik CHAR(16)` the DDL used to declare (telemedicine_test.sql:222)
+| cannot satisfy two incompatible requirements at once:
 |
 |   - the value must be REVERSIBLE, because `PasienResource` publishes a
 |     masked NIK of the shape four-digits then a run then four-digits, and a
 |     one-way function can never produce the trailing four digits. This forces
-|     an ENCRYPTION, whose stored form is 72 characters here;
+|     an ENCRYPTION, whose stored form is 88 characters here;
 |   - the value must be UNIQUE-COMPARABLE, because the DDL puts UNIQUE on the
 |     column and two patients sharing one identity is a data-integrity defect
 |     the schema is required to reject.
 |
 | So the ciphertext goes in a `TEXT` column and a 16-character HMAC-SHA-256
-| blind index goes in a `CHAR(16)` UNIQUE column. Neither replaces the other,
-| and `CHAR(16)` holds neither of them correctly - see the 1406 tests.
+| blind index would go in a `CHAR(16)` UNIQUE column. Neither replaces the other,
+| and `CHAR(16)` holds neither of them correctly - see the 1406 tests. **Only the
+| first of the two has been migrated**; read the scope-change section at the
+| bottom of this file before reading the rest of it as a description of the
+| schema.
 |
 | ## Why the index is an HMAC OF THE PLAINTEXT and not a hash OF THE CIPHERTEXT
 |
@@ -82,12 +85,34 @@ use Illuminate\Support\Str;
 | ## The temporary tables, and the CHAR(16) proof
 |
 | `CHAR(16)` cannot hold ciphertext and this suite proves it by letting MySQL
-| say so: a real 1406 out of the real `pasien.nik` column, at
-| telemedicine_test.sql:222. The UNIQUE experiment needs the PROPOSED shape,
-| which does not exist, so it runs in a MySQL TEMPORARY table - reported by
+| say so. It USED to raise the 1406 out of the real `pasien.nik` column at
+| telemedicine_test.sql:222; that column is now `nik_cipher TEXT`, so the proof
+| runs against a temporary `CHAR(16)` column and the real column is asserted to
+| STORE the payload. The UNIQUE experiment needs the PROPOSED shape, which still
+| does not exist, so it too runs in a MySQL TEMPORARY table - reported by
 | NEITHER `information_schema.TABLES` NOR `information_schema.STATISTICS`, and
 | asserted as such, so the experiment leaves no residue in the database the
-| parity verifier reads. No migration, no index and no constraint is added.
+| parity verifier reads.
+|
+| ## CHANGED BY THE AUTHORISED SCOPE CHANGE: half of this design is NOT shipped
+|
+| Todo 50 proposed TWO columns. Migration 2026_10_01_000079 landed ONE of them,
+| because the product owner authorised the migration without the blind index
+| ("migrasi ulang aja tanpa blind dulu gapapa"). Concretely, as of that commit:
+|
+|   - `pasien.nik_cipher TEXT` EXISTS. The cipher is on the write and read path
+|     through `App\Models\Pasien::nik()` and `App\Support\NikCipher`.
+|   - `pasien.nik_index` DOES NOT EXIST. No `nik_hash`, no `nik_cipher_index`,
+|     no `UNIQUE` over the identifier, and no index of any kind over the NIK.
+|
+| Every test below that exercises `index()`, `indexMatches()` or the UNIQUE
+| experiment therefore tests a CAPABILITY of `NikCipher` that the schema does not
+| currently use. They are kept, deliberately: they are the specification the
+| deferred migration has to satisfy, and deleting them would leave the deferred
+| work with no executable definition of done. What they no longer prove is that
+| the deployed schema enforces anything - and
+| `tests/Feature/Pasien/NikCipherStorageTest.php` asserts the cost of the deferral
+| directly, including that a duplicate NIK can no longer be refused.
 */
 
 // ------------------------------------------------------------------ helpers
@@ -130,9 +155,26 @@ function t50UserRow(): int
  * (:225), `tanggal_lahir` (:226) and `alamat_lengkap` (:234). Written through
  * the builder rather than the model so a fixture cannot fire the global
  * `AuditObserver` and pollute the audit assertions that already exist.
+ *
+ * CHANGED BY THE NIK CIPHER MIGRATION. A caller still passes `['nik' => $sixteen]`
+ * exactly as before and the helper ENCRYPTS it into `nik_cipher` on the way to
+ * the database. The query builder does not run Eloquent mutators, so without
+ * this a caller would hand a plaintext NIK to the one column whose job is to
+ * hold a payload, and every assertion downstream would be measuring a state the
+ * application can no longer produce.
+ *
+ * @param  array<string, mixed>  $extra
  */
 function t50PasienRow(array $extra = []): int
 {
+    $nik = $extra['nik'] ?? null;
+
+    unset($extra['nik']);
+
+    if ($nik !== null) {
+        $extra['nik_cipher'] = NikCipher::encrypt((string) $nik);
+    }
+
     return (int) DB::table('pasien')->insertGetId(array_merge([
         'user_id' => t50UserRow(),
         'jenis_kelamin' => 'P',
@@ -441,9 +483,40 @@ test('the HMAC index makes the DDL UNIQUE fire on a duplicate NIK and a cipherte
 
 // ----------------------------------------- the CHAR(16) impossibility, in SQL
 
-test('MySQL refuses the payload in the declared CHAR(16) column with error 1406', function (): void {
-    // The column, read from the LIVE database rather than from the DDL text, so
-    // this asserts where the application actually writes.
+test('MySQL refuses the payload in a CHAR(16) column with error 1406, and the real column is no longer one', function (): void {
+    // CHANGED BY THE NIK CIPHER MIGRATION, and the change is the whole point.
+    //
+    // This test used to read the LIVE `pasien.nik` column, assert it was
+    // `char(16)`, and let MySQL refuse an 88-character payload with a real 1406
+    // out of the real table. That was the proof the DDL could not hold the
+    // payload, and it is why the column was renamed and widened. So the proof
+    // is now split in two and both halves are still executed:
+    //
+    //   - a TEMPORARY `CHAR(16)` column still refuses the payload with 1406, so
+    //     the arithmetic argument has not quietly stopped being true;
+    //   - the live `pasien` column is `text` and STORES the payload, so the
+    //     application actually writes what the cipher produces.
+    //
+    // The temporary table is used rather than the real one because the real one
+    // is no longer `CHAR(16)`; the next test already asserts that a temporary
+    // table is invisible to `sehatly:verify-schema`, so nothing is left behind.
+    t50Temp(
+        't50_char16_probe',
+        'id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, char16 CHAR(16) NULL',
+    );
+
+    $payload = NikCipher::encrypt(t50Nik());
+
+    expect(strlen($payload))->toBe(88)->toBeGreaterThan(16);
+
+    [$ditolak, , $kode] = t50Coba(static fn () => DB::table('t50_char16_probe')->insert(['char16' => $payload]));
+
+    expect($ditolak)->toBeTrue('MySQL accepted an 88-character payload into CHAR(16)')
+        ->and($kode)->toBe(1406);
+
+    expect(DB::table('t50_char16_probe')->count())->toBe(0, 'something was written despite the refusal');
+
+    // THE LIVE COLUMN, read from the database rather than from the DDL text.
     // Every `information_schema` label is ALIASED, because the server returns
     // those column names uppercased and `$row->data_type` is then an undefined
     // property rather than a wrong value.
@@ -451,45 +524,36 @@ test('MySQL refuses the payload in the declared CHAR(16) column with error 1406'
         'select data_type as tipe, character_maximum_length as panjang, is_nullable as boleh_null'
         .' from information_schema.columns'
         .' where table_schema = database() and table_name = ? and column_name = ?',
+        ['pasien', 'nik_cipher'],
+    );
+    $lama = DB::selectOne(
+        'select column_name as kolom from information_schema.columns'
+        .' where table_schema = database() and table_name = ? and column_name = ?',
         ['pasien', 'nik'],
     );
 
     expect($kolom)->not->toBeNull()
-        ->and($kolom->tipe)->toBe('char')
-        ->and((int) $kolom->panjang)->toBe(16)
-        ->and($kolom->boleh_null)->toBe('YES');
+        ->and($kolom->tipe)->toBe('text')
+        ->and((int) $kolom->panjang)->toBe(65535)
+        ->and($kolom->boleh_null)->toBe('YES')
+        ->and($lama)->toBeNull('the plaintext column is still there, so there are two again');
 
-    // The UNIQUE the DDL puts on that column, read out of information_schema.
-    $unique = DB::select(
-        'select index_name as nama, column_name as kolom from information_schema.statistics'
-        .' where table_schema = database() and table_name = ? and non_unique = 0',
-        ['pasien'],
-    );
-    $unikNik = array_values(array_filter($unique, static fn ($baris): bool => $baris->kolom === 'nik'));
-
-    expect($unikNik)->toHaveCount(1);
-
-    $payload = NikCipher::encrypt(t50Nik());
-
-    expect(strlen($payload))->toBe(88)
-        ->toBeGreaterThan(16);
-
-    // THE PROOF: a real insert into the REAL `pasien.nik` column carrying a
-    // real payload, refused by MySQL itself.
+    // And the real table ACCEPTS the payload, byte for byte, through the real
+    // column. A `CHAR(16)` would have raised 1406 one paragraph ago, so this is
+    // the same insert with a different answer.
     $userId = t50UserRow();
-    [$ditolak, , $kode] = t50Coba(static fn () => DB::table('pasien')->insert([
+    DB::table('pasien')->insert([
         'user_id' => $userId,
         'jenis_kelamin' => 'P',
         'tanggal_lahir' => '1990-04-17',
         'alamat_lengkap' => 'Jl. Nik 50 No. 2',
-        'nik' => $payload,
-    ]));
+        'nik_cipher' => $payload,
+    ]);
 
-    expect($ditolak)->toBeTrue('MySQL accepted an 88-character payload into CHAR(16)')
-        ->and($kode)->toBe(1406);
+    $tersimpan = DB::table('pasien')->where('user_id', $userId)->value('nik_cipher');
 
-    // Nothing was written, so this is a refusal and not a silent truncation.
-    expect(DB::table('pasien')->where('user_id', $userId)->exists())->toBeFalse();
+    expect($tersimpan)->toBe($payload)
+        ->and($tersimpan)->not->toContain(t50Nik());
 });
 
 test('a CHAR(16) probe column raises 1406 while a TEXT column stores the payload unchanged', function (): void {

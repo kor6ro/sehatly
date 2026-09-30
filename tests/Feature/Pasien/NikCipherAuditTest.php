@@ -16,6 +16,29 @@ use Illuminate\Support\Facades\DB;
 | project: a single wrong word in a method name shipped here as a 500 with a
 | stack trace, and a `referensi` / `referensi` slip once cost 48 test failures.
 |
+| ## The reference SQL is no longer read-only, and that was a DECISION
+|
+| Everything below used to assert that `telemedicine_test.sql` was law: a fixed
+| SHA-256, `pasien.nik CHAR(16) NULL UNIQUE`, and two NIK columns both of type
+| `CHAR(16)`. The product owner authorised changing ONE of them - "migrasi ulang
+| aja tanpa blind dulu gapapa" - and three assertions moved with it:
+|
+|   - the digest, recorded in `the DDL changed by exactly the ONE authorised
+|     line` with the old value beside the new one, so a later scope-fidelity
+|     audit reads an authorised deviation rather than an unexplained edit;
+|   - `pasien.nik`, now `nik_cipher TEXT` with no UNIQUE, because a `TEXT`
+|     payload is unique per row by construction and the blind index that would
+|     have carried the constraint was deferred;
+|   - the "two NIK columns" sweep, which now finds one encrypted column and one
+|     plaintext `CHAR(16)` - `pasien_anggota_keluarga.nik`, which the
+|     authorisation did NOT cover, asserted as still plaintext so the gap stays
+|     visible rather than living in prose.
+|
+| Nothing else here was weakened. The byte gate, the citation bounds and the
+| token audit are the machinery that decides whether an authorised change stayed
+| authorised, so they were EXTENDED to cover the files the migration authored
+| rather than edited down to accommodate them.
+|
 | ## Why RAW BYTES and not a decoded string
 |
 | `file_get_contents()` returns a byte string and this file walks it with
@@ -65,6 +88,13 @@ const T50_AUDIT_FILES = [
     'config/nik.php',
     'tests/Feature/Pasien/NikCipherTest.php',
     'tests/Feature/Pasien/NikCipherAuditTest.php',
+    // Added with the NIK cipher migration. The gate is only worth anything if it
+    // covers the files the migration authored, and the model in particular is
+    // the one that now holds a cipher call site.
+    'app/Models/Pasien.php',
+    'database/migrations/2026_10_01_000079_move_pasien_nik_to_nik_cipher_table.php',
+    'tests/Feature/Pasien/NikCipherStorageTest.php',
+    'tests/Unit/Pasien/NikCipherMigrationTest.php',
 ];
 
 beforeEach(function (): void {
@@ -115,7 +145,7 @@ test('every authored file is byte-identical ASCII, read as RAW BYTES', function 
     // actually read the files.
     expect($pelanggaran)->toBe([])
         ->and($total)->toBeGreaterThan(40000)
-        ->and(count(T50_AUDIT_FILES))->toBe(13);
+        ->and(count(T50_AUDIT_FILES))->toBe(17);
 });
 
 test('every DDL citation in the authored files points at a line that EXISTS', function (): void {
@@ -156,65 +186,82 @@ test('every DDL citation in the authored files points at a line that EXISTS', fu
         ->and($citasi)->toBeGreaterThan(15);
 });
 
-test('the schema holds exactly two NIK columns, and both are the CHAR(16) this todo confronts', function (): void {
+test('the schema holds exactly two NIK columns, and only the patient one is encrypted', function (): void {
     // THE DDL DELIVERABLE, asserted rather than described: a sweep of all 75
-    // parsed tables for a column named `nik`. If a third appears, this fails and
-    // the cipher has to be told about it.
+    // parsed tables for a column that stores a national identity number. If a
+    // third appears, this fails and the cipher has to be told about it.
+    //
+    // CHANGED BY THE AUTHORISED SCOPE CHANGE, and the change is the point of the
+    // rewrite. This test used to assert that BOTH columns were `CHAR(16)` and
+    // that `pasien.nik` carried a UNIQUE. `pasien.nik` is now `nik_cipher TEXT`
+    // with no UNIQUE, because the product owner authorised the migration without
+    // the blind index. `pasien_anggota_keluarga.nik` is UNCHANGED and still
+    // `CHAR(16)` plaintext: the authorisation was for one column and
+    // `telemedicine_test.sql:263` was not it. That gap is asserted here so it
+    // cannot be forgotten, rather than left in prose.
     $spec = (new SqlSchemaParser)->parseFile(base_path('telemedicine_test.sql'));
 
     expect($spec->tableNames())->toHaveCount(75);
 
     $ditemukan = [];
+    $enkripsi = [];
 
     foreach ($spec->tables as $table) {
         foreach ($table->columns as $column) {
-            if ($column->name !== 'nik') {
-                continue;
+            if ($column->name === 'nik') {
+                $ditemukan[$table->name] = $column;
             }
 
-            $ditemukan[$table->name] = $column;
+            if ($column->name === 'nik_cipher') {
+                $enkripsi[$table->name] = $column;
+            }
         }
     }
 
     ksort($ditemukan);
+    ksort($enkripsi);
 
-    expect(array_keys($ditemukan))->toBe(['pasien', 'pasien_anggota_keluarga'])
-        ->and($ditemukan['pasien']->type)->toBe('char(16)')
-        ->and($ditemukan['pasien']->nullable)->toBeTrue()
+    expect(array_keys($ditemukan))->toBe(['pasien_anggota_keluarga'])
+        ->and(array_keys($enkripsi))->toBe(['pasien'])
         ->and($ditemukan['pasien_anggota_keluarga']->type)->toBe('char(16)')
-        ->and($ditemukan['pasien_anggota_keluarga']->nullable)->toBeTrue();
+        ->and($ditemukan['pasien_anggota_keluarga']->nullable)->toBeTrue()
+        ->and($enkripsi['pasien']->type)->toBe('text')
+        ->and($enkripsi['pasien']->nullable)->toBeTrue();
 
     // The declared line numbers, read out of the parser rather than trusted from
     // the plan. `telemedicine_test.sql:222` and `:263` are what this todo's
     // whole argument turns on, so they are checked against the file.
     $garis = file(base_path('telemedicine_test.sql'), FILE_IGNORE_NEW_LINES);
 
-    expect($garis[$ditemukan['pasien']->line - 1])
-        ->toContain("nik CHAR(16) NULL UNIQUE")
+    expect($garis[$enkripsi['pasien']->line - 1])
+        ->toContain('nik_cipher TEXT NULL')
         ->toContain('WAJIB dienkripsi')
         ->and($garis[$ditemukan['pasien_anggota_keluarga']->line - 1])
         ->toBe('  nik CHAR(16) NULL,');
 
-    // AND THE WIDTH CLAIM, from the DDL rather than from a comment: 16
-    // characters, and a payload of 88. `TEXT` is the only type in the file's
-    // vocabulary that can hold the second one, and the plan's own rule - never
-    // encrypt a value into a column narrower than its ciphertext - therefore
-    // makes `CHAR(16)` an arithmetic impossibility rather than a bad default.
-    expect($ditemukan['pasien']->type)->toBe('char(16)')
-        ->and(strlen(NikCipher::encrypt('3273123456780001')))->toBeGreaterThan(16)
+    // AND THE WIDTH CLAIM, from the DDL rather than from a comment: the payload
+    // is 88 characters and the column is the one type in the file's vocabulary
+    // that can hold it. The plan's own rule - never encrypt a value into a
+    // column narrower than its ciphertext - is what made `CHAR(16)` an
+    // arithmetic impossibility, and it is satisfied now.
+    expect(strlen(NikCipher::encrypt('3273123456780001')))->toBeGreaterThan(16)
+        ->and($enkripsi['pasien']->type)->toBe('text')
         ->and(NikCipher::COL_PAYLOAD)->toBe('nik_cipher')
         ->and(NikCipher::COL_INDEX)->toBe('nik_index');
 
-    // The UNIQUE the blind index has to preserve is authored on the column
-    // itself, so the parser records it as a single-column UNIQUE index.
+    // THE UNIQUE IS GONE, on both sides of the comparison, and that is the
+    // cost of deferring the blind index: the DDL can no longer reject two
+    // patients sharing one national identity, and a `TEXT` payload is unique per
+    // row by construction so a constraint over it would mean nothing.
     $unik = array_values(array_filter(
         $spec->table('pasien')->indexes,
-        static fn ($index): bool => $index->type === 'UNIQUE' && $index->columns === ['nik'],
+        static fn ($index): bool => $index->type === 'UNIQUE'
+            && array_intersect($index->columns, ['nik', 'nik_cipher', NikCipher::COL_INDEX]) !== [],
     ));
 
-    expect($unik)->toHaveCount(1)
-        // And the family table has NO unique on `nik`, which is why that table
-        // gets no blind index: the linkage cost with no integrity benefit.
+    expect($unik)->toBe([])
+        // And the family table never had one, which is why that table gets no
+        // blind index either: the linkage cost with no integrity benefit.
         ->and(array_values(array_filter(
             $spec->table('pasien_anggota_keluarga')->indexes,
             static fn ($index): bool => $index->columns === ['nik'],
@@ -229,7 +276,10 @@ test('every column this todo names resolves against the parsed DDL, table by tab
     $spec = (new SqlSchemaParser)->parseFile(base_path('telemedicine_test.sql'));
 
     $kolomYangDipakai = [
-        'pasien' => ['id', 'user_id', 'nomor_rm', 'nik', 'nomor_kk', 'jenis_kelamin', 'tanggal_lahir', 'alamat_lengkap'],
+        // `nik` was `nik` before the authorised change; `pasien` no longer has a
+        // column of that name, and a token audit that still named it would be
+        // auditing a table that does not exist.
+        'pasien' => ['id', 'user_id', 'nomor_rm', 'nik_cipher', 'nomor_kk', 'jenis_kelamin', 'tanggal_lahir', 'alamat_lengkap'],
         'pasien_anggota_keluarga' => [
             'id', 'pasien_id', 'hubungan_id', 'nik', 'nama_lengkap',
             'jenis_kelamin', 'tanggal_lahir', 'no_telepon', 'catatan_alergi', 'dibuat_at',
@@ -320,18 +370,27 @@ test('the ENUM bucket is separate, and this todo writes no ENUM at all', functio
         ->and(count($ambigu))->toBeGreaterThan(3)
         // And the negative claim, which is the one that would fail if somebody
         // tried to model a NIK as an ENUM to make masking "work".
-        ->and($spec->table('pasien')->columns['nik']->type)->toBe('char(16)');
+        ->and($spec->table('pasien')->columns['nik_cipher']->type)->toBe('text');
 });
 
-test('the DDL file is byte-identical and this todo added no table, index or constraint', function (): void {
+test('the DDL changed by exactly the ONE authorised line, and the migration made the schema match it', function (): void {
     // The whole reason the cipher could not simply be pointed at a new column is
-    // that the reference SQL is read-only law. Asserting the digest makes the
-    // claim checkable by the next executor rather than a promise in prose.
+    // that the reference SQL was read-only law, and the digest made that claim
+    // checkable by the next executor. The product owner then authorised a change
+    // to that file, so the digest moved - and the new one is recorded here with
+    // the reason, so a scope-fidelity audit reading this file later sees an
+    // authorised deviation rather than an unexplained edit.
+    //
+    //   before  aefe2247e00f09acb02235168ac289cdfa74f762d604ada71f68e328574b27f5
+    //   after   277475461e8ed1bf14c624bbccc1d71c73b3b7e6610c02fbeb920886a0c35931
+    //
+    // The ONLY difference is line 222, which is asserted below by content and by
+    // line count. Everything else in the 1349-line file is byte-identical.
     expect(hash_file('sha256', base_path('telemedicine_test.sql')))
-        ->toBe('aefe2247e00f09acb02235168ac289cdfa74f762d604ada71f68e328574b27f5');
+        ->toBe('277475461e8ed1bf14c624bbccc1d71c73b3b7e6610c02fbeb920886a0c35931');
 
-    // No table named after the proposed columns exists: if a migration had
-    // already landed them, this todo's finding would be stale.
+    // No table named after the proposed columns exists. Still true, and still
+    // worth saying: the payload is a COLUMN, not a table.
     $tables = DB::select(
         'select table_name as nama from information_schema.tables where table_schema = database()'
         .' and table_name in (?, ?)',
@@ -340,18 +399,40 @@ test('the DDL file is byte-identical and this todo added no table, index or cons
 
     expect($tables)->toBe([]);
 
-    // And `pasien` carries no index on a column that does not exist, which is
-    // the shape a half-applied migration would leave behind.
+    // The live schema now carries the column the DDL names, at the type it
+    // names, and NOTHING indexed over it - neither the payload nor the deferred
+    // blind index. The DDL UNIQUE is gone from the live table too, which is the
+    // cost of deferring the index rather than a half-applied migration.
+    $kolom = DB::selectOne(
+        'select data_type as tipe, is_nullable as boleh_null from information_schema.columns'
+        .' where table_schema = database() and table_name = ? and column_name = ?',
+        ['pasien', NikCipher::COL_PAYLOAD],
+    );
+
+    expect($kolom)->not->toBeNull('the migration did not create the column the DDL names')
+        ->and($kolom->tipe)->toBe('text')
+        ->and($kolom->boleh_null)->toBe('YES');
+
     $indexes = DB::select(
         'select column_name as kolom from information_schema.statistics'
         .' where table_schema = database() and table_name = ?',
         ['pasien'],
     );
-    $kolom = array_unique(array_map(static fn ($baris): string => $baris->kolom, $indexes));
+    $sembunyi = array_unique(array_map(static fn ($baris): string => $baris->kolom, $indexes));
 
-    expect(in_array(NikCipher::COL_INDEX, $kolom, true))->toBeFalse()
-        ->and(in_array(NikCipher::COL_PAYLOAD, $kolom, true))->toBeFalse()
-        ->and(in_array('nik', $kolom, true))->toBeTrue('the DDL UNIQUE on pasien.nik is the one this todo preserves');
+    expect(in_array(NikCipher::COL_INDEX, $sembunyi, true))->toBeFalse('a blind index was left behind')
+        ->and(in_array(NikCipher::COL_PAYLOAD, $sembunyi, true))->toBeFalse('an index over the payload was left behind')
+        ->and(in_array('nik', $sembunyi, true))->toBeFalse('an index over the old plaintext column survived');
+
+    // The line count, which is what makes "one line" a measurement rather than a
+    // promise: the change renamed a column and did not add or remove one.
+    $garis = file(base_path('telemedicine_test.sql'), FILE_IGNORE_NEW_LINES);
+    $pasien = (new SqlSchemaParser)->parseFile(base_path('telemedicine_test.sql'))->table('pasien');
+
+    expect(count($garis))->toBe(1349)
+        ->and($pasien->columns[NikCipher::COL_PAYLOAD]->line)->toBe(222)
+        ->and(count($pasien->columns))->toBe(31)
+        ->and(substr_count((string) file_get_contents(base_path('telemedicine_test.sql')), 'nik_cipher'))->toBe(1);
 
     // `mobile/` is a later todo's concern and must not exist yet.
     expect(is_dir(base_path('mobile')))->toBeFalse();

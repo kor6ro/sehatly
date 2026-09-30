@@ -17,6 +17,7 @@ use App\Models\User;
 use App\Services\Audit\AuditColumnPolicy;
 use App\Services\Auth\OtpSender;
 use App\Services\Auth\OtpService;
+use App\Support\NikCipher;
 use App\Support\NikMasker;
 use Database\Seeders\RbacSeeder;
 use Illuminate\Database\Eloquent\Model;
@@ -420,7 +421,7 @@ test('deleting a Booking writes one delete row', function (): void {
 // Redaction: NIK masked, password hash absent, PHI never snapshotted
 // =====================================================================
 
-test('a Pasien NIK never appears verbatim in any audit row, only its masked form', function (): void {
+test('a Pasien NIK never appears in any audit row, in any form', function (): void {
     $nik = '3273010101900001';
     $kk = '3273010101900016';
 
@@ -433,12 +434,39 @@ test('a Pasien NIK never appears verbatim in any audit row, only its masked form
     $maskedKk = NikMasker::mask($kk);
     expect($maskedNik)->not->toBe($nik);
 
+    // `al43PasienModel` writes `$row->nik = $nik`, which since the NIK cipher
+    // migration is a MUTATOR that encrypts into `pasien.nik_cipher`. So this
+    // test now proves the whole chain: a plaintext NIK handed to the model
+    // produces an encrypted column, and an encrypted column produces an audit
+    // row that holds no NIK at all.
+    $payload = (string) DB::table('pasien')->where('id', $pasien->getKey())->value('nik_cipher');
+
+    expect($payload)->toBeString()
+        ->and($payload)->not->toBe($nik, 'the model stored the plaintext')
+        ->and(NikCipher::decrypt($payload))->toBe($nik);
+
     foreach ($rows as $row) {
         $whole = al43WholeRow($row);
         expect($whole)->not->toContain($nik, 'raw NIK leaked into audit row '.$row->id);
         expect($whole)->not->toContain($kk, 'raw nomor_kk leaked into audit row '.$row->id);
-        expect($whole)->toContain((string) $maskedNik);
-        expect($whole)->toContain((string) $maskedKk);
+        // Neither the payload nor its own bytes: an append-only table that
+        // held a decryptable second copy of every patient identity would be the
+        // same breach one column over.
+        expect($whole)->not->toContain($payload, 'the ciphertext payload leaked into audit row '.$row->id);
+        expect($whole)->not->toContain((string) base64_decode($payload, true));
+
+        // CHANGED BY THE NIK CIPHER MIGRATION. This used to assert the MASKED
+        // NIK was present, on the theory that a masked form still correlates
+        // rows without holding the value. That is true of `nomor_kk`, which is
+        // still a `CHAR(16)` allow-listed column, and it is no longer true of the
+        // NIK: `nik_cipher` is `TEXT`, so `AuditColumnPolicy` gate 1 denies it as
+        // unbounded free text and gate 2 denies it again on the word `cipher`. The
+        // NIK is DROPPED, which is a stricter outcome than the one this test was
+        // written to prove - an auditor loses NIK correlation and the log loses
+        // every copy of the identity.
+        expect($whole)->not->toContain($maskedNik, 'a masked NIK is in the audit row, so the column was not denied')
+            ->and($whole)->not->toContain('nik_cipher')
+            ->and($whole)->toContain((string) $maskedKk);
     }
 });
 

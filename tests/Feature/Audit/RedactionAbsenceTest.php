@@ -98,21 +98,34 @@ test('a NIK is never stored in an audit row, in any of the three identifier colu
     $whole = audWholeRow($row);
 
     // Absence from the whole row, not from a key we expected.
-    expect(audFindInRow($row, $nik))->toBe([], 'pasien.nik');
+    expect(audFindInRow($row, $nik))->toBe([], 'pasien.nik_cipher');
     expect(audFindInRow($row, $kk))->toBe([], 'pasien.nomor_kk');
     expect(audFindInRow($row, $ihs))->toBe([], 'pasien.nomor_ihs_satusehat');
     expect($whole)->not->toContain('nik_cipher');
 
-    // Not merely dropped: the masked form is stored, so an auditor can still
-    // correlate one NIK across rows without ever holding the NIK.
+    // CHANGED BY THE NIK CIPHER MIGRATION, and it is a STRICTER property.
+    //
+    // This used to read "not merely dropped: the masked form is stored, so an
+    // auditor can still correlate one NIK across rows". That is still true of
+    // `nomor_kk` and `nomor_ihs_satusehat`, and it is no longer true of the NIK
+    // itself: `pasien.nik_cipher` is `TEXT`, so `AuditColumnPolicy` gate 1 denies
+    // it as unbounded free text and gate 2 denies it a second time on the word
+    // `cipher` in its name. So the NIK is DROPPED from the audit row entirely -
+    // no key, no masked value, no payload. An auditor loses the ability to
+    // correlate a NIK across rows, and gains the guarantee that an append-only
+    // table holds no second copy of a patient identity at all.
+    //
+    // Nothing here had to change to make that happen: the policy is derived from
+    // the DDL, so the column's new type moved the gate by itself. That is the
+    // argument for computing the allow-list instead of writing it down.
     $payload = audPayload($row, 'data_baru');
 
-    expect($payload['nik'])->toBe(NikMasker::mask($nik));
-    expect($payload['nik'])->not->toBe($nik);
-    expect($payload['nomor_kk'])->toBe(NikMasker::mask($kk));
-    expect($payload['nomor_ihs_satusehat'])->toBe(NikMasker::mask($ihs));
+    expect($payload)->not->toHaveKey('nik', 'the NIK key is present, so the column was not denied')
+        ->and($payload)->not->toHaveKey('nik_cipher')
+        ->and($payload['nomor_kk'])->toBe(NikMasker::mask($kk))
+        ->and($payload['nomor_ihs_satusehat'])->toBe(NikMasker::mask($ihs));
 
-    // And the row still says enough to be useful: the demographics a breach
+    // The row still says enough to be useful: the demographics a breach
     // officer would ask about, none of which is an identifier.
     expect($payload)->toHaveKeys(['tanggal_lahir', 'jenis_kelamin', 'rhesus']);
 });
