@@ -10,6 +10,7 @@ use App\Models\Resep;
 use App\Models\ResepItem;
 use App\Models\ResepVerifikasi;
 use App\Models\User;
+use App\Services\Notifikasi\NotificationService;
 use App\Services\Obat\ObatInteraksiService;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Carbon;
@@ -121,6 +122,7 @@ final class ResepVerifikasiService
         private readonly ResepAccess $akses,
         private readonly ResepStateMachine $mesin,
         private readonly ObatInteraksiService $interaksi,
+        private readonly NotificationService $notifikasi,
     ) {}
 
     /**
@@ -416,6 +418,19 @@ final class ResepVerifikasiService
                 }
 
                 $resep->refresh()->setRelation('resepVerifikasi', $baris);
+
+                // F3-05. `resepSiap` fires on the ADVANCING outcomes only, which
+                // is exactly the `$hasil->maju()` set the walk above already
+                // decided. The service's own prose is "Resep Anda sudah
+                // diverifikasi dan siap", so this is the only domain event that
+                // makes that sentence true: a `ditolak` verification closes the
+                // prescription for good, and a patient told their prescription
+                // is READY after a rejection has been told a falsehood.
+                $penerima = $resep->pasien?->user;
+
+                if ($hasil->maju() && $penerima !== null) {
+                    $this->notifikasi->resepSiap($penerima, (int) $resep->getKey());
+                }
 
                 $setelah = $this->peringatan($resep);
 

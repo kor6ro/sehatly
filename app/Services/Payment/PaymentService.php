@@ -12,6 +12,7 @@ use App\Models\MasterMetodePembayaran;
 use App\Models\Pembayaran;
 use App\Models\PesananObat;
 use App\Models\Resep;
+use App\Services\Notifikasi\NotificationService;
 use App\Support\Uang\Uang;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -185,6 +186,7 @@ final class PaymentService
 
     public function __construct(
         private readonly PaymentGatewayService $gateway,
+        private readonly NotificationService $notifikasi,
     ) {}
 
     // =================================================================
@@ -390,6 +392,17 @@ final class PaymentService
                 $invoice->status = InvoiceStatus::setelahLunas();
                 $invoice->lunas_at = $sekarang;
                 $invoice->save();
+
+                // F3-05. Written here, INSIDE the transaction, and ONLY on the
+                // `$lunas` branch - so a `gagal` or `kedaluwarsa` outcome tells
+                // the patient nothing, and the duplicate branch above has
+                // already returned before this line is reachable, so a retried
+                // delivery cannot notify twice.
+                $penerima = $invoice->pasien?->user;
+
+                if ($penerima !== null) {
+                    $this->notifikasi->pembayaranSelesai($penerima, (int) $invoice->getKey());
+                }
             }
 
             return [

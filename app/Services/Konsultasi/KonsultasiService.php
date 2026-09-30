@@ -12,6 +12,7 @@ use App\Models\KonsultasiChat;
 use App\Models\Pasien;
 use App\Models\User;
 use App\Services\Dokter\DokterDirectoryService;
+use App\Services\Notifikasi\NotificationService;
 use App\Support\Rbac\RbacCatalog;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -262,6 +263,7 @@ final class KonsultasiService
     public function __construct(
         private readonly KonsultasiAccess $access,
         private readonly DokterDirectoryService $directory,
+        private readonly NotificationService $notifikasi,
     ) {}
 
     /**
@@ -489,6 +491,21 @@ final class KonsultasiService
         $pesan->file_nama = $fileNama;
         $pesan->file_ukuran_kb = $fileKb;
         $pesan->save();
+
+        // F3-05. The recipient is the OTHER side, read off `$sisi` rather than
+        // off `users.tipe` - a doctor's account can author the `dokter` side of
+        // a transcript, and it is the SIDE that decides who is waiting. A
+        // system line never reaches this method ({@see TIPE_PESAN_SISTEM} is
+        // refused above), so there is no "nobody is waiting on it" case here.
+        $penerima = $sisi === 'pasien' ? $konsultasi->dokter?->user : $konsultasi->pasien?->user;
+
+        if ($penerima !== null) {
+            $this->notifikasi->pesanBaru(
+                $penerima,
+                (int) $konsultasi->getKey(),
+                (int) $caller->getKey(),
+            );
+        }
 
         return $pesan->setRelation('konsultasi', $konsultasi);
     }

@@ -11,6 +11,7 @@ use App\Models\DokterJadwal;
 use App\Models\Invoice;
 use App\Models\Pasien;
 use App\Models\User;
+use App\Services\Notifikasi\NotificationService;
 use App\Services\Pasien\PasienRecordAccess;
 use App\Support\Dokter\StrBerlaku;
 use App\Support\Dokumen\NomorDokumen;
@@ -67,6 +68,7 @@ class BookingService
         private readonly SlotAvailabilityService $slot,
         private readonly NomorDokumen $nomor,
         private readonly PasienRecordAccess $access,
+        private readonly NotificationService $notifikasi,
     ) {}
 
     /**
@@ -105,10 +107,17 @@ class BookingService
 
             $this->pastikanKapasitas($dokter, $tanggal, $slotMulai, $slotSelesai, $kuota);
 
-            return $this->simpanDenganNomorUnik(
+            $booking = $this->simpanDenganNomorUnik(
                 $pasien, $pembuat, $dokter, $jadwal, $data,
                 $tanggal, $slotMulai, $slotSelesai, $faskesId,
             );
+
+            // F3-05. The write is INSIDE this transaction on purpose, so a
+            // rollback of the booking takes the notification with it: an inbox
+            // row about a booking that does not exist is worse than no row.
+            $this->notifikasi->bookingDibuat($pasien->user, (int) $booking->getKey());
+
+            return $booking;
         });
     }
 
@@ -189,7 +198,26 @@ class BookingService
                 ->where('referensi_id', $booking->getKey())
                 ->update(['status' => 'dibatalkan']);
 
-            return $booking->refresh();
+            $booking = $booking->refresh();
+
+            // F3-05. The recipient is the OTHER party. A cancellation is
+            // something the person who did not ask for it is usually unhappy
+            // about, and the actor already knows - telling them would be noise
+            // in their own inbox. `pasien.user_id` and `dokter.user_id` are both
+            // NOT NULL with a real foreign key to `users`, so both exist.
+            $untuk = $pembuat->tipe === 'pasien'
+                ? $booking->dokter?->user
+                : $booking->pasien?->user;
+
+            if ($untuk !== null) {
+                $this->notifikasi->bookingDibatalkan(
+                    $untuk,
+                    (int) $booking->getKey(),
+                    $alasan === null || trim($alasan) === '' ? 'Tanpa alasan.' : $alasan,
+                );
+            }
+
+            return $booking;
         });
     }
 
