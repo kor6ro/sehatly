@@ -337,21 +337,34 @@ test('a drifted description is repaired without renumbering the row', function (
 
 // ------------------------------------------------- why insert-ignore, not delete
 
-test('every statement a re-run issues is an insert', function (): void {
+test('every statement a re-run issues is a read or an insert', function (): void {
     $this->seed(RbacSeeder::class);
     $before = rbacKernelSnapshot();
 
     $sql = seedRbacAndCaptureSql($this);
 
-    $notInserts = array_values(array_filter(
+    // `select` is expected and required: the two `pluck()` calls are how the
+    // seeder resolves `roles.id` and `permissions.id` by natural key, which is
+    // what lets it keep a pre-existing row's id. The property under test is that
+    // nothing is rewritten or emptied.
+    $neitherReadNorInsert = array_values(array_filter(
         $sql,
         static fn (string $statement): bool => ! str_starts_with(strtolower(ltrim($statement)), 'insert')
+            && ! str_starts_with(strtolower(ltrim($statement)), 'select')
     ));
 
     // Stronger than "no DELETE and no UPDATE", and it is the property that
-    // matters: a re-run adds nothing and removes nothing. It also rules out the
-    // delete-then-insert shape, which would satisfy every other test in this file.
-    expect($notInserts)->toBe([], 'A re-run must not rewrite or empty a table it already seeded: '.implode(' | ', $notInserts));
+    // matters: a re-run adds nothing, removes nothing and changes no id. It also
+    // rules out the delete-then-insert shape, which would satisfy every other
+    // test in this file.
+    expect($neitherReadNorInsert)->toBe([], 'A re-run must not rewrite or empty a table it already seeded: '.implode(' | ', $neitherReadNorInsert));
+
+    // The two reads are the natural-key lookups, and they are what makes the id
+    // stability above work rather than an accident.
+    expect(array_values(array_filter(
+        $sql,
+        static fn (string $statement): bool => str_starts_with(strtolower(ltrim($statement)), 'select')
+    )))->toBe(['select `id`, `nama` from `roles`', 'select `id`, `kode` from `permissions`']);
 
     // The join write is an insert-ignore. It is the only form that is a no-op on
     // a duplicate composite primary key without putting a broad `IGNORE` in front

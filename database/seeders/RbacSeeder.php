@@ -54,21 +54,56 @@ use RuntimeException;
  *
  * The same reasoning means this seeder is correct on its own after
  * `migrate:fresh --seed` and also after `db:seed --class=RbacSeeder` into a database
- * whose `roles` rows came from somewhere else. It is *not* re-runnable against a
- * populated `roles` table - see the next section.
+ * whose `roles` rows came from somewhere else.
  *
- * ## It does not truncate, and why that is the right call
+ * ## It is idempotent, and it still does not truncate
  *
- * {@see DatabaseSeeder} owns the reset: it empties every table this seeder tree
- * writes, with `FOREIGN_KEY_CHECKS` disabled, before any insert. This seeder
- * therefore does what the other nine do - a pure insert - and running
- * `php artisan db:seed --class=RbacSeeder` against an already-seeded database fails
- * with MySQL 1062 on `roles.nama`'s `UNIQUE`. That is the documented, intentional
- * behaviour of this seeder tree (see `DatabaseSeeder`'s class docblock, "Consequence
- * for running an individual seeder"): the supported entry points are
- * `migrate:fresh --seed` and `db:seed`. A seeder that silently emptied `roles` on a
- * direct invocation would be able to delete every grant in the system as a side
- * effect of a command that reads like a read.
+ * The F2 gate raised a BLOCKER on the previous version of this file, and it was
+ * right. All three writes were plain `DB::table()->insert()` calls, so a second
+ * run against a populated database died with MySQL **1062** on `roles.nama`.
+ * {@see DatabaseSeeder} owns the reset, so the whole 1,153-test green result was
+ * conditional on `RefreshDatabase` rolling each test's seed back - a deliverable
+ * whose acceptance includes `migrate --seed` could not ship a seeder that fails
+ * on the second run. `DatabaseSeeder`'s own docblock called the failure
+ * "intentional"; it is now fixed rather than documented, and
+ * `tests/Feature/RbacSeederIdempotencyTest.php` pins it.
+ *
+ * **The three tables get three different treatments, chosen per table rather than
+ * uniformly**, because "already seeded" means different things on each:
+ *
+ * | Table | Statement | Why that one |
+ * | --- | --- | --- |
+ * | `roles` | `upsert` keyed on `nama`, updating `deskripsi` only | a duplicate `nama` is **not** proof of a correct row - the `deskripsi` beside it can be stale, and a seeder that leaves stale admin-facing copy in place while reporting success is worse than one that repairs it |
+ * | `permissions` | `upsert` keyed on `kode`, updating `nama` only | same, and `nama` is *derived* from `kode` by {@see RbacCatalog::displayNameFor()}, so a mismatch is drift by definition |
+ * | `role_permissions` | `insertOrIgnore` | the row is nothing but its own composite primary key. A duplicate pair therefore means "already granted" and there is no third column that *could* be updated; writing the two key columns back to the values they already hold would be pure churn across 69 rows |
+ *
+ * **Neither upsert touches `id`.** `role_permissions` and `user_roles` both
+ * reference `roles.id`, and `user_roles` is the one table this seeder tree never
+ * writes, so renumbering a role would silently re-point a real application's
+ * grants at a different role. The `role_permissions` ids are read back by natural
+ * key after the upsert, exactly as before, so a row that already existed keeps the
+ * id its grants already point at.
+ *
+ * **Why `insertOrIgnore` and not a no-op `upsert` for the join table.**
+ * `Illuminate\Database\Query\Builder::upsert()` cannot express one safely: an empty
+ * `$update` array short-circuits to a plain `insert()` (which is the bug), and
+ * omitting `$update` derives it from the inserted columns and then binds the
+ * *column names* as the values - `` `role_id` = 'role_id' `` - which would set the
+ * key to 0. `insertOrIgnore` is the only form here that is a no-op on a duplicate
+ * key without that footgun.
+ *
+ * The residual, stated rather than hidden: `INSERT IGNORE` is a broad ignore, and
+ * that is bounded here only because the two values are `(int)` casts of ids read
+ * back from the two parent tables this seeder wrote in the same run, so a dangling
+ * foreign key or a truncation is not expressible. It also means a grant **removed**
+ * from {@see RbacCatalog::ROLE_PERMISSIONS} is not retro-removed by a re-run; that
+ * still needs `db:seed` or `migrate:fresh --seed`, which truncate first.
+ *
+ * **Nothing here empties a table.** {@see DatabaseSeeder} still owns the reset, and
+ * a direct `db:seed --class=RbacSeeder` still cannot delete a grant: every statement
+ * this seeder issues is an insert, which
+ * `tests/Feature/RbacSeederIdempotencyTest.php` reads out of the query log rather
+ * than taking on trust.
  *
  * ## It writes no `user_roles` rows
  *
@@ -135,9 +170,9 @@ class RbacSeeder extends Seeder
     /**
      * Run the database seeds.
      *
-     * Must run after `migrate` and inside {@see DatabaseSeeder}'s reset, which is
-     * why the three inserts are plain and unreset. `role_permissions` needs both
-     * parents, hence the strict order.
+     * Re-runnable: the two parent tables are upserted on their natural key and the
+     * join table is insert-ignored, so this is correct on an empty table and on a
+     * populated one. `role_permissions` needs both parents, hence the strict order.
      *
      * @throws RuntimeException if a catalogue code is granted to no role
      */
@@ -151,7 +186,7 @@ class RbacSeeder extends Seeder
 
         $rows = $this->rolePermissionRows($roleIds, $permissionIds);
 
-        DB::table('role_permissions')->insert($rows);
+        DB::table('role_permissions')->insertOrIgnore($rows);
     }
 
     /**
@@ -161,6 +196,11 @@ class RbacSeeder extends Seeder
      * that; they are written in Indonesian because the rest of the seeded master
      * data is (`master_agama`, `artikel_kategori`) and this string is admin-facing
      * copy in the same product.
+     *
+     * Upserted on `nama` - the `UNIQUE` the DDL fixes - and updating `deskripsi`
+     * only, so a re-run repairs a stale description without renumbering a row
+     * that `user_roles` grants may already point at. See the class docblock for why
+     * this is not `insertOrIgnore`.
      */
     private function seedRoles(): void
     {
@@ -173,7 +213,7 @@ class RbacSeeder extends Seeder
             ];
         }
 
-        DB::table('roles')->insert($rows);
+        DB::table('roles')->upsert($rows, ['nama'], ['deskripsi']);
     }
 
     /**
@@ -183,6 +223,10 @@ class RbacSeeder extends Seeder
      * label is a MySQL error rather than a silent bad row. Each `nama` is
      * {@see RbacCatalog::PERMISSIONS}' value, which `RbacCatalogTest` asserts equals
      * `RbacCatalog::displayNameFor()` of its own `kode`.
+     *
+     * Upserted on `kode`, updating `nama` only - the same reasoning as
+     * {@see seedRoles()}, and `nama` is the derived column, so a mismatch here is
+     * drift rather than an intentional override.
      */
     private function seedPermissions(): void
     {
@@ -195,7 +239,7 @@ class RbacSeeder extends Seeder
             ];
         }
 
-        DB::table('permissions')->insert($rows);
+        DB::table('permissions')->upsert($rows, ['kode'], ['nama']);
     }
 
     /**

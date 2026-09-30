@@ -64,6 +64,14 @@ use Illuminate\Support\Facades\DB;
  * invocation would be more dangerous, because it would empty a developer's data
  * with no indication that it had.
  *
+ * **The nine DDL seeders behave that way; {@see RbacSeeder} is the exception.**
+ * It is idempotent - upsert on `roles.nama` / `permissions.kode`, insert-ignore on
+ * the `role_permissions` composite key - so it can be re-run any number of times
+ * against a populated database without emptying a table or raising 1062. It still
+ * issues nothing but inserts, so a direct invocation still cannot delete a grant;
+ * see its class docblock, "It is idempotent, and it still does not truncate", and
+ * `tests/Feature/RbacSeederIdempotencyTest.php`.
+ *
  * ## The order below is FK-SAFE, and it is not the same as the DDL's order
  *
  * `telemedicine_test.sql` section `[16]` lists its 15 inserts in a reading order
