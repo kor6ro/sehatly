@@ -153,7 +153,7 @@ paths:
       responses:
         200:
           description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
-          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/PaginatedEnvelope' } } }
         401:
           description: 'Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`.'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
@@ -625,7 +625,7 @@ paths:
       responses:
         200:
           description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
-          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/PaginatedEnvelope' } } }
         404:
           description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
@@ -650,7 +650,7 @@ paths:
       responses:
         200:
           description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
-          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/PaginatedEnvelope' } } }
         422:
           description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
           content: { application/json: { schema: { $ref: '#/components/schemas/ValidationErrorEnvelope' } } }
@@ -807,7 +807,7 @@ paths:
       responses:
         200:
           description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
-          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/PaginatedEnvelope' } } }
         401:
           description: 'Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`.'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
@@ -898,7 +898,7 @@ paths:
       responses:
         201:
           description: 'Created. `data` holds the created resource.'
-          content: { application/json: { schema: { $ref: '#/components/schemas/PaginatedEnvelope' } } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
         422:
           description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
           content: { application/json: { schema: { $ref: '#/components/schemas/ValidationErrorEnvelope' } } }
@@ -1162,7 +1162,7 @@ paths:
       responses:
         200:
           description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
-          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/PaginatedEnvelope' } } }
         404:
           description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
@@ -1857,7 +1857,7 @@ paths:
       responses:
         200:
           description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
-          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/PaginatedEnvelope' } } }
         401:
           description: 'Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`.'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
@@ -1889,7 +1889,7 @@ paths:
       responses:
         200:
           description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
-          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/PaginatedEnvelope' } } }
         401:
           description: 'Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`.'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
@@ -2040,7 +2040,7 @@ paths:
       responses:
         200:
           description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
-          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/PaginatedEnvelope' } } }
         422:
           description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
           content: { application/json: { schema: { $ref: '#/components/schemas/ValidationErrorEnvelope' } } }
@@ -2063,7 +2063,7 @@ paths:
       responses:
         200:
           description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
-          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/PaginatedEnvelope' } } }
         404:
           description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
@@ -2083,7 +2083,7 @@ paths:
       responses:
         200:
           description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
-          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/PaginatedEnvelope' } } }
         422:
           description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
           content: { application/json: { schema: { $ref: '#/components/schemas/ValidationErrorEnvelope' } } }
@@ -2106,7 +2106,7 @@ paths:
       responses:
         200:
           description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
-          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/PaginatedEnvelope' } } }
         422:
           description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
           content: { application/json: { schema: { $ref: '#/components/schemas/ValidationErrorEnvelope' } } }
@@ -2244,7 +2244,7 @@ paths:
       responses:
         200:
           description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
-          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/PaginatedEnvelope' } } }
         422:
           description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
           content: { application/json: { schema: { $ref: '#/components/schemas/ValidationErrorEnvelope' } } }
@@ -2267,7 +2267,7 @@ paths:
       responses:
         200:
           description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
-          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/PaginatedEnvelope' } } }
         422:
           description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
           content: { application/json: { schema: { $ref: '#/components/schemas/ValidationErrorEnvelope' } } }
@@ -2290,7 +2290,7 @@ paths:
       responses:
         200:
           description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
-          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/PaginatedEnvelope' } } }
         422:
           description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
           content: { application/json: { schema: { $ref: '#/components/schemas/ValidationErrorEnvelope' } } }
@@ -2313,7 +2313,7 @@ paths:
       responses:
         200:
           description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
-          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/PaginatedEnvelope' } } }
         422:
           description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
           content: { application/json: { schema: { $ref: '#/components/schemas/ValidationErrorEnvelope' } } }
@@ -2336,7 +2336,7 @@ paths:
       responses:
         200:
           description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
-          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/PaginatedEnvelope' } } }
         422:
           description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
           content: { application/json: { schema: { $ref: '#/components/schemas/ValidationErrorEnvelope' } } }
@@ -2791,9 +2791,9 @@ components:
           type: boolean
           const: true
         data:
-          type: array
-          items: { type: object }
-          description: 'The page of rows.'
+          type: object
+          description: 'The page, keyed by the RESOURCE NAME -- `{"dokter":[...]}` and `{"provinsi":[...]}` rather than a bare list, because the key is what tells a client which resource it is reading. Every list controller wraps its collection in exactly one such key, so the object is the shape the application actually answers.'
+          additionalProperties: true
         message:
           type: string
         meta:
@@ -2816,7 +2816,7 @@ components:
           minimum: 1
         per_page:
           type: integer
-          minimum: 1
+          minimum: 0
         total:
           type: integer
           minimum: 0

@@ -12,31 +12,26 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
  | ## Read this before reading the pass count
  |
  | Driving the live application against the generated document turned up real
- | disagreements. In every case below the DOCUMENT is the wrong side, and the
- | fix belongs to `App\Support\OpenApi\OpenApiDocumentBuilder` (the generator) --
- | which this todo is forbidden to edit. Nothing here has been "fixed" by relaxing
- | an assertion or by editing `docs/openapi.yaml`, because a conformance suite
- | that agrees with a wrong spec is worse than no suite: it manufactures
- | confidence nobody checked.
+ | disagreements. Findings 1-4 were the GENERATOR's fault: an envelope rule that
+ | could not tell "does not page" from "pages without being asked", `data` typed as
+ | an array where the application answers an object, `meta` required on a write that
+ | sends none, and a `per_page` floor of 1 where the application truthfully sends 0.
+ | F-007 corrected `App\Support\OpenApi\OpenApiDocumentBuilder`, regenerated the
+ | document, and rewrote these four blocks to assert the CORRECTED document - each
+ | still validated against a live response, so they cannot pass against a document
+ | that was merely edited by hand.
  |
- | ## Why these tests are GREEN
+ | Findings 5, 6 and 7 remain OPEN. Their tests are tripwires: they pass while the
+ | document publishes the wrong claim and go red the moment somebody fixes it
+ | without updating `docs/contract-conformance.md`, which is the behaviour a
+ | tripwire should have.
  |
- | Each test asserts TWO things: what the application really does, and that the
- | document still publishes the claim that is wrong. They pass while the defect
- | exists, and they FAIL THE MOMENT the generator is corrected -- which is the
- | behaviour a tripwire should have. A silent divergence fixed without updating
- | `docs/contract-conformance.md` will turn these red.
+ | ## Each open finding names which side is wrong
  |
- | The alternative -- leaving them failing -- would have meant shipping a red
- | suite, and a red suite gets disabled. That is strictly worse than a green
- * suite that names its own known defects.
- |
- | ## Each finding names which side is wrong
- |
- | `spec_is_wrong` in the name of every test is deliberate. If a future executor
- | concludes the APPLICATION is the wrong side, the correct action is to change
- * the test name and the reasoning with it, so the file cannot quietly assert a
- | conclusion it no longer holds.
+ | `finds_the_spec_...` in the name of an open finding is deliberate. If a future
+ | executor concludes the APPLICATION is the wrong side, the correct action is to
+ | change the test name and the reasoning with it, so the file cannot quietly assert
+ | a conclusion it no longer holds.
  */
 
 use Tests\Contract\Support\ContractSpec;
@@ -47,31 +42,25 @@ uses(TestCase::class, RefreshDatabase::class);
 
 /*
  |--------------------------------------------------------------------------
- | Finding 1: SuccessEnvelope forbids `meta`, but 16 operations send one
+ | Finding 1 (RESOLVED by F-007): list responses publish the meta envelope
  |--------------------------------------------------------------------------
  |
  | `SuccessEnvelope` declares `additionalProperties: false` and has no `meta`
- | property at all. Sixteen operations publish it for a 2xx and their controllers
- | pass a meta block to `ApiResponse::success()`, so every one of them answers a
- | body its own published schema rejects.
+ | property; sixteen operations publish a meta block in their body. The generator
+ | used to choose `PaginatedEnvelope` only when the FormRequest rules contained
+ | `page` or `per_page`, so a GET route with no FormRequest - and an endpoint that
+ | answers `singlePageMeta()` - was published as a three-key envelope its own body
+ | violated.
  |
- | The cause is in the generator, not the controllers. `envelopeFor()` chooses
- | `PaginatedEnvelope` only when the operation's FormRequest rules contain `page`
- | or `per_page`. A GET route has no FormRequest, and an endpoint that lists a
- * bounded set answers `singlePageMeta()` -- so the generator sees no pagination
- | rule, concludes "not paginated", and publishes the three-key envelope. The
- | rule it is using cannot tell "does not page" from "pages without asking".
- |
- | THE APPLICATION IS RIGHT. `ApiResponse`'s own docblock states that a response
- | which is a list but is deliberately not paginated "carries the same keys with
- | the degenerate values current_page = 1 and last_page = 1", and names
- | `GET /api/v1/auth/devices` as the case. Every client already parses one list
- * envelope. The document is the side that is wrong.
+ | F-007 makes the rule the controller method's own source: an action that calls
+ | `ApiResponse::pageMeta()` or `ApiResponse::singlePageMeta()` publishes
+ | `PaginatedEnvelope`, and nothing else does. These tests assert the corrected
+ | document AND the live body, so a hand-edit to `docs/openapi.yaml` cannot satisfy
+ | them.
  */
-it('finds_the_spec_publishes_a_three_key_envelope_for_operations_that_answer_with_meta', function (): void {
-    // Live-proven subset: the ten anonymous operations below are driven for real
-    // and each is checked to (a) send `meta` and (b) publish an envelope that
-    // cannot accept it.
+it('publishes_the_meta_envelope_for_operations_that_answer_with_meta', function (): void {
+    // Live-proven: the ten anonymous operations below are driven for real and each
+    // is checked to send `meta` AND to validate against its published schema.
     $liveProof = [
         'get /api/v1/master-spesialisasi',
         'get /api/v1/referensi/agama',
@@ -97,33 +86,23 @@ it('finds_the_spec_publishes_a_three_key_envelope_for_operations_that_answer_wit
         ['object' => $body] = LiveRequest::decode($response);
 
         // (a) The application really does send `meta`.
-        // `property_exists` rather than `toHaveProperty('meta', $message)`: Pest's
-        // second argument is the expected VALUE, so a sentence there would assert
-        // that `meta` EQUALS that sentence and fail on a correct response.
-        expect(property_exists($body, 'meta'))->toBeTrue(
-            "{$key} answers a top-level meta block"
-        );
+        expect(property_exists($body, 'meta'))->toBeTrue("{$key} answers a top-level meta block");
 
-        // (b) And the document publishes a schema that cannot accept it.
-        $ref = ContractSpec::schemaRefFor($spec[$key], '200');
-        expect($ref)->toBe('#/components/schemas/SuccessEnvelope');
+        // (b) And the document now publishes the envelope that accepts it.
+        expect(ContractSpec::schemaRefFor($spec[$key], '200'))
+            ->toBe('#/components/schemas/PaginatedEnvelope');
 
-        $schema = ContractSpec::resolveRef((string) $ref);
-        expect($schema['additionalProperties'])->toBeFalse();
-        expect($schema['properties'])->not->toHaveKey('meta');
-
-        $violations = LiveRequest::validateAgainstDocument($response, $spec[$key]);
-        expect($violations)->not->toBeEmpty(
-            "{$key}: the document's published 200 schema must reject the live body, or this finding is stale"
-        );
+        // (c) So the live body validates clean against its own published schema.
+        expect(LiveRequest::validateAgainstDocument($response, $spec[$key]))
+            ->toBe([], "{$key}: the published 200 schema must accept the live body");
     }
 });
 
-it('names_all_sixteen_operations_the_document_describes_without_the_meta_they_send', function (): void {
+it('publishes_the_meta_envelope_for_all_sixteen_single_page_meta_operations', function (): void {
     // The full set, from the controllers' own `ApiResponse::success(...)` calls
-    // rather than from the document. Recorded here so the number in
-    // `docs/contract-conformance.md` is test-enforced: adding a seventeenth
-    // single-page-meta endpoint makes this fail and forces the doc to move.
+    // rather than from the document. Recorded here so the coverage document's
+    // number is test-enforced: adding a seventeenth single-page-meta endpoint makes
+    // this fail and forces the doc to move.
     $singlePageMetaOperations = [
         // Live-verified by the test above.
         'get /api/v1/master-spesialisasi',
@@ -155,32 +134,28 @@ it('names_all_sixteen_operations_the_document_describes_without_the_meta_they_se
 
         $ref = ContractSpec::schemaRefFor($spec[$key], '200');
 
-        expect($ref)->toBe('#/components/schemas/SuccessEnvelope', "{$key} publishes SuccessEnvelope");
+        expect($ref)->toBe('#/components/schemas/PaginatedEnvelope', "{$key} publishes PaginatedEnvelope");
     }
 });
 
 /*
  |--------------------------------------------------------------------------
- | Finding 2: PaginatedEnvelope says `data` is an array; it is an object
+ | Finding 2 (RESOLVED by F-007): PaginatedEnvelope types `data` as an object
  |--------------------------------------------------------------------------
  |
- | `PaginatedEnvelope` declares `data` as `type: array`. Every paginated endpoint
+ | `PaginatedEnvelope` declared `data: {type: array}`. Every paginated endpoint
  | answers `data` as a JSON OBJECT keyed by the resource name -- `{"dokter":[]}`,
- * `{"provinsi":[]}` -- because each controller wraps the collection in a named
- | key so a client knows which resource it is reading. A generated client typed
- | from this schema would read `List<dynamic>` and be handed a map.
+ | `{"provinsi":[]}` -- because each controller wraps its collection in a named key
+ | so the client knows which resource it is reading. A client typed from the old
+ | schema read `List<dynamic>` and was handed a map.
  |
- | This is the most consequential finding for the mobile team: it is the one
- | that produces a model which compiles and then misbehaves at runtime.
- |
- | THE APPLICATION IS RIGHT, and both sides of the codebase agree with each
- | other: every controller wraps its collection in a data key, and
- * `ApiResponse` is handed an array, not a collection. Only the generator's
- * envelope template disagrees.
+ | F-007 publishes `data` as an object with `additionalProperties: true`, and the
+ | tests below drive the anonymous paginated reads and assert the live object
+ | validates instead of asserting that it is rejected.
  */
-it('finds_the_spec_types_paginated_data_as_an_array_while_every_endpoint_answers_an_object', function (): void {
+it('types_paginated_data_as_the_object_every_endpoint_answers', function (): void {
     $schema = ContractSpec::resolveRef('#/components/schemas/PaginatedEnvelope');
-    expect($schema['properties']['data']['type'])->toBe('array');
+    expect($schema['properties']['data']['type'])->toBe('object');
 
     // Live-proven on the two paginated reads an anonymous caller can reach.
     $cases = [
@@ -209,16 +184,13 @@ it('finds_the_spec_types_paginated_data_as_an_array_while_every_endpoint_answers
         expect(ContractSpec::schemaRefFor($spec[$key], '200'))
             ->toBe('#/components/schemas/PaginatedEnvelope');
 
-        // And that schema cannot accept the object.
-        $violations = LiveRequest::validateAgainstDocument($response, $spec[$key]);
-        expect($violations)->not->toBeEmpty(
-            "{$key}: the document's published 200 schema must reject the live data object, or this finding is stale"
-        );
-        expect(implode("\n", $violations))->toContain('#/data');
+        // And that schema now accepts the object.
+        expect(LiveRequest::validateAgainstDocument($response, $spec[$key]))
+            ->toBe([], "{$key}: the published 200 schema must accept the live data object");
     }
 });
 
-it('names_all_fourteen_operations_the_document_types_as_paginated', function (): void {
+it('types_every_meta_operation_as_paginated', function (): void {
     $paginated = [];
 
     foreach (ContractSpec::specOperations() as $key => $operation) {
@@ -231,38 +203,44 @@ it('names_all_fourteen_operations_the_document_types_as_paginated', function ():
 
     sort($paginated);
 
-    expect($paginated)->toHaveCount(14);
+    // Twenty-nine after F-007: the fourteen that were already paginated, plus the
+    // sixteen the old rule published as three-key envelopes, minus the one write the
+    // old rule wrongly paginated. Re-measured on the regenerated document; the
+    // membership below stops the count drifting silently.
+    expect($paginated)->toHaveCount(29);
 
-    // And the app's own `data` is an object on every one of them, so all
-    // fourteen are affected, not just the six that were driven live.
     expect($paginated)->toContain('get /api/v1/dokter @200');
     expect($paginated)->toContain('get /api/v1/obat @200');
     expect($paginated)->toContain('get /api/v1/notifikasi @200');
+    expect($paginated)->toContain('get /api/v1/auth/devices @200');
+    expect($paginated)->toContain('get /api/v1/pasien/surat-keterangan @200');
+    expect($paginated)->not->toContain('post /api/v1/konsultasi/{id}/chat/baca @201');
 });
 
 /*
  |--------------------------------------------------------------------------
- | Finding 3: PaginatedEnvelope REQUIRES meta; one operation sends none
+ | Finding 3 (RESOLVED by F-007): the chat-read write is not a list
  |--------------------------------------------------------------------------
  |
- | The mirror image of Finding 2. `PaginatedEnvelope` lists `meta` in `required`,
- * so a response without it cannot validate. `POST /konsultasi/{id}/chat/baca`
- | publishes `PaginatedEnvelope` for its 201 and its controller calls
- | `ApiResponse::success([...])` with no meta block at all.
- *
- | It is published as paginated because its `TandaiDibacaRequest` is the ONE
- | request body in the project that carries `page`/`per_page`, so the generator's
- * rule selects the paginated envelope -- while the endpoint answers a write's
- * result (a consultation id and a count), which is not a list at all.
+ | `PaginatedEnvelope` lists `meta` in `required`, so a response without it cannot
+ | validate. `POST /konsultasi/{id}/chat/baca` used to publish `PaginatedEnvelope`
+ | for its 201 while its controller calls `ApiResponse::success([...])` with no meta
+ | block at all - because its `TandaiDibacaRequest` is the ONE request body in the
+ | project carrying `page`/`per_page`, and the old rule read that as "is a list".
+ |
+ | The endpoint answers a write's result (a consultation id and a count), and F-007
+ | makes the rule the action's `pageMeta()`/`singlePageMeta()` call instead, so it
+ | publishes `SuccessEnvelope` and its own body validates.
  */
-it('finds_the_spec_requires_meta_on_a_write_that_sends_none', function (): void {
+it('publishes_the_three_key_envelope_for_the_chat_read_write', function (): void {
     $operation = ContractSpec::specOperations()['post /api/v1/konsultasi/{id}/chat/baca'];
 
     expect(ContractSpec::schemaRefFor($operation, '201'))
-        ->toBe('#/components/schemas/PaginatedEnvelope');
+        ->toBe('#/components/schemas/SuccessEnvelope');
 
-    $schema = ContractSpec::resolveRef('#/components/schemas/PaginatedEnvelope');
-    expect($schema['required'])->toContain('meta');
+    $schema = ContractSpec::resolveRef('#/components/schemas/SuccessEnvelope');
+    expect($schema['additionalProperties'])->toBeFalse();
+    expect($schema['properties'])->not->toHaveKey('meta');
 
     // Verified by reading `KonsultasiController::chatBaca()`, which calls
     // `ApiResponse::success([...])` with three arguments. Reaching a real 201
@@ -273,27 +251,20 @@ it('finds_the_spec_requires_meta_on_a_write_that_sends_none', function (): void 
 
 /*
  |--------------------------------------------------------------------------
- | Finding 4: PaginatedMeta promises per_page >= 1; the application sends 0
+ | Finding 4 (RESOLVED by F-007): per_page has a floor of 0
  |--------------------------------------------------------------------------
  |
- | `PaginatedMeta.per_page` declares `minimum: 1`. `ApiResponse::singlePageMeta()`
- | sets `per_page` to the ROW COUNT, so a deliberately-unpaginated list with no
- | rows answers `per_page: 0` -- which its own published schema rejects.
- *
- | THE APPLICATION IS RIGHT and the schema is wrong: `per_page` on a single-page
- * list IS the number of rows, and zero rows is a truthful zero. The generator's
- * docblock shows the same reasoning about `maximum` -- it removed an upper bound
- * because `singlePageMeta()` reports the row count -- and then left the LOWER
- * bound at 1 without noticing that the same row count can be zero.
- *
- * Reachable whenever a single-page reference list is empty. On a fully seeded
- * deployment most are populated, so this is a latent defect rather than a
- * constant one, which is exactly why a suite that only ever looks at a seeded
- * database would never have found it.
+ | `PaginatedMeta.per_page` declared `minimum: 1`, but `ApiResponse::singlePageMeta()`
+ | sets `per_page` to the ROW COUNT, so a deliberately-unpaginated list with no rows
+ | truthfully answers `per_page: 0` - which its own published schema rejected.
+ |
+ | F-007 lowers the floor to 0. This is reachable whenever a single-page reference
+ | list is empty, which is the state `RefreshDatabase` leaves `master_provinsi` in,
+ | so the assertion below is a real unseeded response rather than a constructed one.
  */
-it('finds_the_schema_per_page_floor_of_one_the_application_breaks_on_an_empty_list', function (): void {
+it('accepts_per_page_zero_on_an_empty_single_page_list', function (): void {
     $schema = ContractSpec::resolveRef('#/components/schemas/PaginatedMeta');
-    expect($schema['properties']['per_page']['minimum'])->toBe(1);
+    expect($schema['properties']['per_page']['minimum'])->toBe(0);
 
     // `master_provinsi` is empty under RefreshDatabase, so this is the real
     // unseeded response rather than a constructed one.
@@ -304,10 +275,11 @@ it('finds_the_schema_per_page_floor_of_one_the_application_breaks_on_an_empty_li
 
     expect((int) $body->meta->total)->toBe(0);
     expect((int) $body->meta->per_page)->toBe(0);
-    expect($body->meta->per_page)->toBeLessThan(1);
 
-    $violations = LiveRequest::validateAgainstDocument($response, ContractSpec::specOperations()['get /api/v1/referensi/provinsi']);
-    expect($violations)->not->toBeEmpty();
+    expect(LiveRequest::validateAgainstDocument(
+        $response,
+        ContractSpec::specOperations()['get /api/v1/referensi/provinsi'],
+    ))->toBe([]);
 });
 
 /*

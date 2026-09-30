@@ -187,6 +187,14 @@ jobs:
       - name: Schema parity
         run: php artisan sehatly:verify-schema
 
+      - name: Contract conformance
+        # `composer contract` is the third thing that must agree with the
+        # application: the re-exported ENUM catalogue, the re-exported OpenAPI
+        # document, and the live-response conformance suite that drives the real
+        # routes. F-007 added it here because the suite lived outside
+        # `phpunit.xml`'s testsuites and therefore outside `php artisan test`.
+        run: composer contract
+
       - name: Test suite
         run: php artisan test
 

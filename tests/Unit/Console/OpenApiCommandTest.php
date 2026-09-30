@@ -501,7 +501,10 @@ test('the envelope schemas model meta as a top-level sibling and 422 as many mes
     expect(array_keys($paginated))->toEqual(['success', 'data', 'message', 'meta']);
     expect($paginated['meta'])->toBe(['$ref' => '#/components/schemas/PaginatedMeta']);
     expect($schemas['PaginatedEnvelope']['required'])->toEqual(['success', 'data', 'message', 'meta']);
-    expect($paginated['data']['type'])->toBe('array', 'a paginated envelope\'s data is a list, not an object');
+    // F-007: `data` is an OBJECT keyed by the resource name (`{"dokter":[...]}`),
+    // which is what every list controller answers. It was `array`, a shape no
+    // endpoint sends.
+    expect($paginated['data']['type'])->toBe('object');
 
     // A non-paginated envelope has NO `meta` at all, and says so with
     // `additionalProperties: false` -- which is what makes "this response is not

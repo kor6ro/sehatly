@@ -6,6 +6,7 @@ namespace App\Support\OpenApi;
 
 use Illuminate\Cache\RateLimiter;
 use Illuminate\Http\Request as HttpRequest;
+use ReflectionMethod;
 use ReflectionObject;
 use Symfony\Component\Yaml\Yaml;
 
@@ -456,27 +457,68 @@ final class OpenApiDocumentBuilder
     /**
      * Which envelope an operation's success response carries.
      *
-     * Detected from the LIVE rules rather than from a maintained list of which
-     * endpoints paginate: the project makes `?page=&per_page=` with a 100 cap
-     * mandatory on every list endpoint, so a list endpoint's `FormRequest`
-     * declares those two rules and a non-list's does not. A list endpoint's
-     * response carries `meta`, so publishing it as `SuccessEnvelope` -- which
-     * declares `additionalProperties: false` and has no `meta` -- would hand a
-     * generated client a type that its own server cannot satisfy.
+     * ## The rule is the controller's SOURCE, not its FormRequest rules
+     *
+     * Whether an operation carries `meta` is a fact about the action, and the only
+     * place that fact exists is the action's body: every list response here calls
+     * `ApiResponse::pageMeta()` or `ApiResponse::singlePageMeta()` as the fourth
+     * argument. The previous rule - "the FormRequest declares `page` or `per_page`"
+     * - could not tell "does not page" from "pages without being asked" (a GET route
+     * has no FormRequest, so a single-page list was published as a three-key
+     * envelope its own body violates), and it read a WRITE whose request happens to
+     * carry `page`/`per_page` as a list (`POST /konsultasi/{id}/chat/baca`, which
+     * sends no `meta`). Reading the reflected method's lines is exact for both.
+     *
+     * A method that cannot be reflected (a closure route, a missing action) answers
+     * `false` and publishes the plain three-key envelope - the shape that exists for
+     * every operation that is not a list.
+     *
+     * @see publishesMeta()
      */
     private function envelopeFor(array $operation): string
     {
-        return $this->isPaginated($operation) ? 'PaginatedEnvelope' : 'SuccessEnvelope';
+        return $this->publishesMeta($operation) ? 'PaginatedEnvelope' : 'SuccessEnvelope';
     }
 
     /**
+     * Does this operation's action emit a `meta` block?
+     *
+     * `pageMeta()` and `singlePageMeta()` are the only two producers in the
+     * application - `ApiResponse`'s docblock names both - so the check reads the
+     * reflected controller method's own lines for either call.
+     *
      * @param  array<string, mixed>  $operation
      */
-    private function isPaginated(array $operation): bool
+    private function publishesMeta(array $operation): bool
     {
-        $rules = $operation['rules'];
+        $action = (string) ($operation['action'] ?? '');
 
-        return array_key_exists('page', $rules) || array_key_exists('per_page', $rules);
+        if (! str_contains($action, '@')) {
+            return false;
+        }
+
+        [$class, $method] = explode('@', $action, 2);
+
+        if (! class_exists($class) || ! method_exists($class, $method)) {
+            return false;
+        }
+
+        $reflection = new ReflectionMethod($class, $method);
+        $file = $reflection->getFileName();
+
+        if (! is_string($file) || ! is_readable($file)) {
+            return false;
+        }
+
+        $lines = file($file);
+
+        $source = implode('', array_slice(
+            $lines === false ? [] : $lines,
+            $reflection->getStartLine() - 1,
+            $reflection->getEndLine() - $reflection->getStartLine() + 1,
+        ));
+
+        return str_contains($source, 'pageMeta(') || str_contains($source, 'singlePageMeta(');
     }
 
     /**
@@ -545,7 +587,15 @@ final class OpenApiDocumentBuilder
                     .'pagination cannot renumber the three keys every existing client already reads.',
                 'properties' => [
                     'success' => ['type' => 'boolean', 'const' => true],
-                    'data' => ['type' => 'array', 'items' => $unenveloped, 'description' => 'The page of rows.'],
+                    'data' => [
+                        'type' => 'object',
+                        'description' => 'The page, keyed by the RESOURCE NAME -- `{"dokter":[...]}` and '
+                            .'`{"provinsi":[...]}` rather than a bare list, because the key is what tells a '
+                            .'client which resource it is reading. Every list controller wraps its collection '
+                            .'in exactly one such key, so the object is the shape the application actually '
+                            .'answers.',
+                        'additionalProperties' => true,
+                    ],
                     'message' => ['type' => 'string'],
                     'meta' => ['$ref' => '#/components/schemas/PaginatedMeta'],
                 ],
@@ -569,7 +619,11 @@ final class OpenApiDocumentBuilder
                     // account with 150 devices reports `per_page: 150` and a
                     // `maximum: 100` would describe a response the server
                     // produces.
-                    'per_page' => ['type' => 'integer', 'minimum' => 1],
+                    // The floor is 0, not 1. `singlePageMeta()` sets `per_page` to
+                    // the ROW COUNT for a deliberately unpaginated list, so an empty
+                    // one truthfully answers `per_page: 0`; the previous floor of 1
+                    // rejected the application's own response.
+                    'per_page' => ['type' => 'integer', 'minimum' => 0],
                     'total' => ['type' => 'integer', 'minimum' => 0],
                     'from' => ['type' => ['integer', 'null'], 'minimum' => 1],
                     'to' => ['type' => ['integer', 'null'], 'minimum' => 1],

@@ -43,17 +43,20 @@ It uses `DatabaseTransactions`, not `RefreshDatabase`, so it never runs
 | Real routes with **no** document entry | **0** |
 | Real routes with **no** spec entry at all | **0** |
 | Operations driven live for at least one status | **74 / 74 (100%)** |
-| Live responses validated against their published `$ref` | **57 / 74 (77%)** |
-| Live responses that **fail** that validation | **17 / 74 (23%)** |
-| Of those failures, how many are explained findings | **17 / 17 (100%)** |
-| Tests / assertions | **201 / 2669** |
+| Live responses validated against their published `$ref` | **72 / 74 (97%)** |
+| Live responses that **fail** that validation | **2 / 74 (3%)** |
+| Of those failures, how many are explained findings | **2 / 2 (100%)** |
+| Tests / assertions | **201 / 2707** |
 | Skipped tests | **0** |
 
-Read the 77% carefully. It is not 77% conformance. It is: **every operation was
-driven against the live application, and 17 of those live responses do not match
-the schema the document publishes for them.** All 17 are Findings 1, 2 and 6
-below. None has been fixed by relaxing a test, and none has been fixed by editing
-`docs/openapi.yaml`.
+F-007 resolved Findings 1-4 by correcting the generator, so the 17 live-response
+failures this table used to report are down to **2**: the QR verifier's
+undocumented 422 (Finding 5) and the payment webhook's undocumented 401 (Finding 6).
+Both are `docs/openapi.yaml` omissions that the application is right about, both are
+still asserted as tripwires in `tests/Contract/ContractDivergenceTest.php`, and
+neither was "fixed" by relaxing a test or by hand-editing the document - the document
+is regenerated from `App\Support\OpenApi\OpenApiDocumentBuilder`, and the resolved
+findings are asserted against LIVE responses, not against the file.
 
 ---
 
@@ -82,7 +85,7 @@ and this suite exists to prevent exactly that.
 | --- | --- | --- |
 | Success `2xx` body | 49 bearer operations | Reaching them needs a **real Sanctum token for a role-bearing account** and, for the clinical writes, seeded business data: a consultation, a party to it, a doctor row, an invoice. **This suite minted no role-bearing token for any role.** `pasien`, `dokter`, `apoteker`, `admin`, `superadmin` — none was minted. |
 | `403` | all 49 | Same reason. A 403 needs a *valid* token for an account that lacks a grant, which is the mirror of the 401 case and cannot be reached anonymously. |
-| `429` | 3 | Reaching it means exhausting a rate limit. `tests/Feature/Security/RateLimitingTest.php` (todo 52) owns that behaviour; duplicating it here would be a second test asserting the same thing in a second place. |
+| `429` | 9 | Reaching it means exhausting a rate limit. F-002 mounted the limiters, so nine routes publish a 429; `tests/Feature/Security/RateLimitingTest.php` (todo 52) proves each ceiling through a probe and `tests/Feature/Security/RouteThrottlingTest.php` (F-002) drives three real routes to a 429. Duplicating that here would be a third test asserting the same behaviour. |
 | `500` per operation | 73 of 74 | Provoking a real 500 on each route would mean corrupting state deliberately. One representative route proves the envelope; it does not prove each controller sanitises its own faults. |
 | `201` success | the 4 anonymous writes | A register/verify/refresh success is the full OTP flow, which is `tests/Feature/Auth/AuthFlowTest.php`'s subject, not this suite's. |
 
@@ -95,93 +98,62 @@ published envelope must wait for a suite that mints role tokens.
 
 ## Findings
 
-Seven. In every case the **document is the wrong side**, and the fix belongs to
-`App\Support\OpenApi/OpenApiDocumentBuilder` — which this todo is forbidden to
-edit. Each is asserted in `tests/Contract/ContractDivergenceTest.php`, where it
-**passes while the defect exists and goes red the moment the generator is
-corrected**, so a divergence cannot be silently fixed without revisiting this
-file.
+Seven were found. **Findings 1-4 are RESOLVED (F-007)**: the fault was in
+`App\Support\OpenApi/OpenApiDocumentBuilder`, the generator was corrected, the
+document regenerated, and the four blocks in
+`tests/Contract/ContractDivergenceTest.php` now assert the corrected document
+against LIVE responses. Each of those blocks therefore fails if the document is
+hand-edited back or the generator regresses.
 
-### Finding 1 — `SuccessEnvelope` forbids `meta`; 16 operations send one
+**Findings 5, 6 and 7 remain OPEN.** In each of those the document is the wrong
+side, and their tests are tripwires: they pass while the defect exists and go red
+the moment somebody corrects the generator without updating this file. Each names
+the operation it affects, so the remaining live-response failures in the headline
+table are exactly Finding 5's one operation and Finding 6's one.
 
-`SuccessEnvelope` declares `additionalProperties: false` and has no `meta`
-property. Sixteen operations publish it for a `2xx` while their controllers pass
-a meta block to `ApiResponse::success()`.
+### Finding 1 — RESOLVED: `SuccessEnvelope` forbade `meta` on 16 operations
 
-The cause is in the generator, not the controllers. `envelopeFor()` selects
-`PaginatedEnvelope` only when the operation's `FormRequest` rules contain `page`
-or `per_page`. A GET route has no `FormRequest`, and an endpoint that lists a
-bounded set answers `singlePageMeta()` — so the generator sees no pagination
-rule, concludes "not paginated", and publishes the three-key envelope. **The rule
-cannot distinguish "does not page" from "pages without being asked".**
+Sixteen operations send a top-level `meta` while the document published a
+three-key `SuccessEnvelope` for them. The generator chose the paginated envelope
+only when the operation's `FormRequest` rules contained `page`/`per_page`, which
+cannot distinguish "does not page" from "pages without being asked".
 
-The application is right: `ApiResponse`'s own docblock states that a list which
-is deliberately unpaginated "carries the same keys with the degenerate values
-`current_page = 1` and `last_page = 1`", and names `GET /api/v1/auth/devices` as
-the case.
+F-007 replaces that rule with the action's own source: an action calling
+`ApiResponse::pageMeta()` or `ApiResponse::singlePageMeta()` publishes
+`PaginatedEnvelope`. All sixteen now do, asserted live for the ten anonymous ones
+in `ContractDivergenceTest`.
 
-**Live-proven (10):** `GET /master-spesialisasi`, `GET /referensi/agama`,
-`GET /referensi/enums`, `GET /referensi/golongan-darah`,
-`GET /referensi/hubungan-keluarga`, `GET /referensi/metode-pembayaran`,
-`GET /referensi/pendidikan`, `GET /referensi/provinsi`,
-`GET /referensi/spesialisasi`, `GET /referensi/status-pernikahan`.
+### Finding 2 — RESOLVED: `PaginatedEnvelope.data` is an object
 
-**Code-read (6):** `GET /auth/devices`, `GET /dokter/{dokter}/jadwal`,
-`GET /dokter/{dokter}/slot`, `GET /konsultasi/{id}/chat`,
-`GET /pdp/persetujuan`, `GET /pasien/surat-keterangan`.
+`PaginatedEnvelope` typed `data` as an array while every paginated endpoint
+answers a JSON **object** keyed by resource name — `{"dokter":[]}`,
+`{"provinsi":[]}` — because each controller wraps its collection in a named key.
+A client generated from the old schema read `List<dynamic>` and was handed a map.
 
-### Finding 2 — `PaginatedEnvelope` types `data` as an array; it is an object
+F-007 publishes `data` as `{type: object, additionalProperties: true}`. The
+twenty-nine operations now publishing `PaginatedEnvelope` are asserted in
+`ContractDivergenceTest`, six of them against live anonymous responses.
 
-**This is the most consequential finding for the mobile team**: it is the one
-that yields a model which compiles and then misbehaves at runtime.
+### Finding 3 — RESOLVED: the chat-read write publishes the three-key envelope
 
-`PaginatedEnvelope` declares `data: {type: array}`. Every paginated endpoint
-answers `data` as a JSON **object** keyed by resource name — `{"dokter":[]}`,
-`{"provinsi":[]}` — because each controller wraps its collection in a named key
-so the client knows which resource it is reading. A client typed from this schema
-reads `List<dynamic>` and is handed a map.
+`PaginatedEnvelope` requires `meta`, and `POST /konsultasi/{id}/chat/baca`
+published it for its `201` while the controller sends no `meta` at all. It was
+classified as paginated because its `TandaiDibacaRequest` is the one request body
+carrying `page`/`per_page`.
 
-Both sides of the codebase agree with each other and disagree with the
-generator: every controller wraps its collection, and `ApiResponse` receives an
-array, not a collection.
+F-007's source rule reads the action, not the body, so the write now publishes
+`SuccessEnvelope`. Asserted as a code fact (reaching a real `201` needs a
+consultation and a grant).
 
-**Affected: all 14** operations publishing `PaginatedEnvelope`.
-**Live-proven (6):** `GET /dokter`, `GET /referensi/icd10`,
-`GET /referensi/icd9cm`, `GET /referensi/kabupaten-kota`,
-`GET /referensi/kecamatan`, `GET /referensi/kelurahan`.
+### Finding 4 — RESOLVED: `PaginatedMeta.per_page` floors at 0
 
-### Finding 3 — `PaginatedEnvelope` **requires** `meta`; one write sends none
+`PaginatedMeta.per_page` declared `minimum: 1`, but `ApiResponse::singlePageMeta()`
+sets `per_page` to the row count, so an empty single-page list truthfully answers
+`per_page: 0` and its own schema rejected it. Reachable whenever a single-page
+reference list is empty, which `RefreshDatabase` reproduces for `master_provinsi`.
 
-The mirror of Finding 2. `PaginatedEnvelope` lists `meta` in `required`.
-`POST /api/v1/konsultasi/{id}/chat/baca` publishes it for its `201` and its
-controller calls `ApiResponse::success([...])` with no meta at all.
-
-It is published as paginated because its `TandaiDibacaRequest` is the **one**
-request body in the project carrying `page`/`per_page` — so the generator's rule
-selects the paginated envelope — while the endpoint answers a write's result (a
-consultation id and a count), which is not a list.
-
-*Code-read, not live: reaching a real `201` needs a consultation and a grant.*
-
-### Finding 4 — `PaginatedMeta` promises `per_page >= 1`; the application sends 0
-
-`PaginatedMeta.per_page` declares `minimum: 1`. `ApiResponse::singlePageMeta()`
-sets `per_page` to the **row count**, so a deliberately-unpaginated list with no
-rows answers `per_page: 0` — which its own published schema rejects.
-
-The application is right and the schema is wrong: on a single-page list
-`per_page` *is* the number of rows, and zero rows is a truthful zero. The
-generator's own docblock shows the same reasoning about `maximum` — it removed an
-upper bound precisely because `singlePageMeta()` reports the row count — and then
-left the **lower** bound at `1` without noticing the same row count can be zero.
-
-Live-proven on eight operations: `GET /referensi/agama`, `referensi/golongan-darah`,
-`referensi/hubungan-keluarga`, `referensi/metode-pembayaran`, `referensi/pendidikan`,
-`referensi/provinsi`, `referensi/spesialisasi`, `referensi/status-pernikahan`,
-and `GET /master-spesialisasi`.
-
-**Reachable whenever a single-page reference list is empty.** A suite that only
-ever looked at a fully seeded database would never have found it.
+F-007 lowers the floor to 0, and `ContractDivergenceTest` asserts the live empty
+`GET /referensi/provinsi` validates.
 
 ### Finding 5 — the QR verifier needs an **unpublished** parameter and answers an **undocumented** 422
 

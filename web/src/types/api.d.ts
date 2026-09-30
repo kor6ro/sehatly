@@ -1134,8 +1134,10 @@ export interface components {
         PaginatedEnvelope: {
             /** @constant */
             success: true;
-            /** @description The page of rows. */
-            data: Record<string, never>[];
+            /** @description The page, keyed by the RESOURCE NAME -- `{"dokter":[...]}` and `{"provinsi":[...]}` rather than a bare list, because the key is what tells a client which resource it is reading. Every list controller wraps its collection in exactly one such key, so the object is the shape the application actually answers. */
+            data: {
+                [key: string]: unknown;
+            };
             message: string;
             meta: components["schemas"]["PaginatedMeta"];
         };
@@ -2348,7 +2350,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SuccessEnvelope"];
+                    "application/json": components["schemas"]["PaginatedEnvelope"];
                 };
             };
             /** @description Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`. */
@@ -2687,7 +2689,7 @@ export interface operations {
                     "application/json": components["schemas"]["ValidationErrorEnvelope"];
                 };
             };
-            /** @description Rate limited. This operation is limited to 5 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}`. */
+            /** @description Rate limited. This operation is limited to 5 request(s) per 300 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}`. */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -2746,6 +2748,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ValidationErrorEnvelope"];
+                };
+            };
+            /** @description Rate limited. This operation is limited to 30 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client. */
@@ -2877,6 +2888,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ValidationErrorEnvelope"];
+                };
+            };
+            /** @description Rate limited. This operation is limited to 10 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client. */
@@ -3125,7 +3145,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SuccessEnvelope"];
+                    "application/json": components["schemas"]["PaginatedEnvelope"];
                 };
             };
             /** @description Resource not found. Also answers a `{placeholder}` outside the route's own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`. */
@@ -3163,7 +3183,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SuccessEnvelope"];
+                    "application/json": components["schemas"]["PaginatedEnvelope"];
                 };
             };
             /** @description Resource not found. Also answers a `{placeholder}` outside the route's own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`. */
@@ -3406,7 +3426,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SuccessEnvelope"];
+                    "application/json": components["schemas"]["PaginatedEnvelope"];
                 };
             };
             /** @description Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`. */
@@ -3506,6 +3526,15 @@ export interface operations {
                     "application/json": components["schemas"]["ValidationErrorEnvelope"];
                 };
             };
+            /** @description Rate limited. This operation is limited to 60 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
             /** @description Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client. */
             500: {
                 headers: {
@@ -3537,7 +3566,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PaginatedEnvelope"];
+                    "application/json": components["schemas"]["SuccessEnvelope"];
                 };
             };
             /** @description Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`. */
@@ -3952,7 +3981,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SuccessEnvelope"];
+                    "application/json": components["schemas"]["PaginatedEnvelope"];
                 };
             };
             /** @description Resource not found. Also answers a `{placeholder}` outside the route's own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`. */
@@ -5141,7 +5170,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SuccessEnvelope"];
+                    "application/json": components["schemas"]["PaginatedEnvelope"];
                 };
             };
             /** @description Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`. */
@@ -5197,7 +5226,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SuccessEnvelope"];
+                    "application/json": components["schemas"]["PaginatedEnvelope"];
                 };
             };
             /** @description Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`. */
@@ -5423,6 +5452,15 @@ export interface operations {
                     "application/json": components["schemas"]["ValidationErrorEnvelope"];
                 };
             };
+            /** @description Rate limited. This operation is limited to 20 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
             /** @description Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client. */
             500: {
                 headers: {
@@ -5449,7 +5487,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SuccessEnvelope"];
+                    "application/json": components["schemas"]["PaginatedEnvelope"];
                 };
             };
             /** @description Resource not found. Also answers a `{placeholder}` outside the route's own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`. */
@@ -5496,7 +5534,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SuccessEnvelope"];
+                    "application/json": components["schemas"]["PaginatedEnvelope"];
                 };
             };
             /** @description Resource not found. Also answers a `{placeholder}` outside the route's own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`. */
@@ -5534,7 +5572,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SuccessEnvelope"];
+                    "application/json": components["schemas"]["PaginatedEnvelope"];
                 };
             };
             /** @description Resource not found. Also answers a `{placeholder}` outside the route's own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`. */
@@ -5581,7 +5619,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SuccessEnvelope"];
+                    "application/json": components["schemas"]["PaginatedEnvelope"];
                 };
             };
             /** @description Resource not found. Also answers a `{placeholder}` outside the route's own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`. */
@@ -5863,7 +5901,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SuccessEnvelope"];
+                    "application/json": components["schemas"]["PaginatedEnvelope"];
                 };
             };
             /** @description Resource not found. Also answers a `{placeholder}` outside the route's own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`. */
@@ -5910,7 +5948,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SuccessEnvelope"];
+                    "application/json": components["schemas"]["PaginatedEnvelope"];
                 };
             };
             /** @description Resource not found. Also answers a `{placeholder}` outside the route's own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`. */
@@ -5957,7 +5995,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SuccessEnvelope"];
+                    "application/json": components["schemas"]["PaginatedEnvelope"];
                 };
             };
             /** @description Resource not found. Also answers a `{placeholder}` outside the route's own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`. */
@@ -6004,7 +6042,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SuccessEnvelope"];
+                    "application/json": components["schemas"]["PaginatedEnvelope"];
                 };
             };
             /** @description Resource not found. Also answers a `{placeholder}` outside the route's own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`. */
@@ -6051,7 +6089,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SuccessEnvelope"];
+                    "application/json": components["schemas"]["PaginatedEnvelope"];
                 };
             };
             /** @description Resource not found. Also answers a `{placeholder}` outside the route's own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`. */
@@ -6520,6 +6558,15 @@ export interface operations {
                     "application/json": components["schemas"]["ValidationErrorEnvelope"];
                 };
             };
+            /** @description Rate limited. This operation is limited to 5 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
             /** @description Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client. */
             500: {
                 headers: {
@@ -6664,6 +6711,15 @@ export interface operations {
             };
             /** @description Resource not found. Also answers a `{placeholder}` outside the route's own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Rate limited. This operation is limited to 60 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}`. */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
