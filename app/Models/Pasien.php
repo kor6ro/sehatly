@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Support\NikCipher;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -20,6 +22,7 @@ use Illuminate\Support\Carbon;
  * @property int|null $user_id
  * @property string|null $nomor_rm
  * @property string|null $nik
+ * @property string|null $nik_cipher
  * @property string|null $nomor_kk
  * @property string|null $nomor_ihs_satusehat
  * @property string|null $jenis_kelamin
@@ -290,5 +293,59 @@ class Pasien extends Model
             'is_meninggal' => 'boolean',
             'tanggal_meninggal' => 'date',
         ];
+    }
+
+    /**
+     * The NIK, as a VIRTUAL attribute over the `nik_cipher` payload column.
+     *
+     * ## Why there are two names for one value
+     *
+     * The column is `nik_cipher` because a 16-character column cannot hold an
+     * 88-character payload, and the payload is what actually sits on disk. `nik`
+     * is not a column: it is the name the read path has always used, and it is
+     * kept as the model's read/write name so `PasienResource` and the five other
+     * resources publish a masked NIK without any of them knowing a cipher exists.
+     *
+     *   - READ  `$pasien->nik` decrypts `nik_cipher`; `$pasien->nik_cipher` is
+     *     the payload, untouched.
+     *   - WRITE `$pasien->nik = $plaintext` encrypts into `nik_cipher`; a null
+     *     or blank string stores null rather than a payload of nothing.
+     *
+     * The value is encrypted on the way IN, never on the way out, so a plaintext
+     * NIK exists only in the memory of the request that received it. Every
+     * response goes through {@see NikCipher::mask()}.
+     *
+     * ## Why this cannot leak through `toArray()` or `toJson()`
+     *
+     * Eloquent adds a mutated attribute to `attributesToArray()` only when the
+     * key is ALREADY in the raw attribute array, and `nik` never is - it is
+     * virtual. So a serialised `Pasien` carries `nik_cipher` (a payload) and
+     * never a plaintext NIK, which is the opposite of what a mutator with this
+     * name usually does. `tests/Feature/Pasien/NikCipherStorageTest.php` asserts
+     * it, because the whole point of the attribute is that the plaintext exists
+     * nowhere but in the accessor.
+     *
+     * ## Why a read of a row this migration did not write RAISES
+     *
+     * `NikCipher::decrypt()` authenticates before it decrypts and raises
+     * `NikDecryptionException` on anything that is not a payload it wrote. A
+     * plaintext `CHAR(16)` value reinterpreted as a payload therefore fails
+     * loudly instead of publishing a mask built from bytes nobody chose. That is
+     * the intended behaviour and it is why the owner was able to authorise a
+     * re-migration with no backfill: the old rows are unreadable, not
+     * silently mangled.
+     */
+    protected function nik(): Attribute
+    {
+        return Attribute::make(
+            get: fn (mixed $value, array $attributes): ?string => NikCipher::decrypt(
+                isset($attributes['nik_cipher']) ? (string) $attributes['nik_cipher'] : null,
+            ),
+            set: fn (mixed $value): array => [
+                'nik_cipher' => $value === null || trim((string) $value) === ''
+                    ? null
+                    : NikCipher::encrypt((string) $value),
+            ],
+        );
     }
 }

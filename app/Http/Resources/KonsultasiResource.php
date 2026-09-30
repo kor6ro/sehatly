@@ -82,7 +82,7 @@ class KonsultasiResource extends JsonResource
             'diubah_at' => $this->resource->diubah_at?->toISOString(),
             'pasien' => $this->whenLoaded('pasien', fn (): array => [
                 'id' => $this->resource->pasien->getKey(),
-                'nik' => NikCipher::mask($this->resource->pasien->nik_cipher, $this->resource->pasien->nik),
+                'nik' => NikCipher::mask($this->resource->pasien->nik_cipher),
                 'nama_lengkap' => $this->resource->pasien->user?->nama_lengkap,
             ]),
             'dokter' => $this->whenLoaded('dokter', fn (): array => [

@@ -219,7 +219,7 @@ CREATE TABLE pasien (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   user_id BIGINT UNSIGNED NOT NULL UNIQUE,
   nomor_rm VARCHAR(20) NULL UNIQUE COMMENT 'Nomor rekam medis aplikasi: RM-YYYYMM-XXXXXX',
-  nik CHAR(16) NULL UNIQUE COMMENT 'WAJIB dienkripsi (application-level/TDE) sesuai UU PDP',
+  nik_cipher TEXT NULL COMMENT 'WAJIB dienkripsi (application-level/TDE) sesuai UU PDP',
   nomor_kk CHAR(16) NULL,
   nomor_ihs_satusehat VARCHAR(50) NULL UNIQUE COMMENT 'Nomor Induk Satu Sehat (Kemenkes)',
   jenis_kelamin ENUM('L','P') NOT NULL,

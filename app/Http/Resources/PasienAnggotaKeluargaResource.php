@@ -61,13 +61,18 @@ class PasienAnggotaKeluargaResource extends JsonResource
                 'hubungan',
                 fn (): ?string => $this->resource->hubungan?->nama,
             ),
-            // `nik_cipher` is the PROPOSED encrypted column and does not exist yet,
-            // so it reads as null and the legacy plaintext column is what gets
-            // masked. Note that this table gets NO blind index: its `nik`
-            // (telemedicine_test.sql:263) carries no UNIQUE, so an index here would
-            // buy no integrity guarantee and would still link every relative of
-            // every patient. See `App\Support\NikCipher`.
-            'nik' => NikCipher::mask($this->resource->nik_cipher, $this->resource->nik),
+            // This table is OUT OF SCOPE for the NIK cipher migration and says so.
+            // `pasien_anggota_keluarga.nik` is still a plaintext `CHAR(16)`
+            // (telemedicine_test.sql:263) because the owner authorised ONE column,
+            // and it was `pasien.nik`. The value is therefore still masked on the
+            // way out - `NikCipher::mask()` with no payload falls through to the
+            // shared masker - but it is still stored in the clear, which is a
+            // known gap and not an oversight.
+            //
+            // This table also gets NO blind index, for the reason NikCipher gives:
+            // its `nik` carries no UNIQUE, so an index there would link every
+            // relative of every patient and buy no integrity guarantee.
+            'nik' => NikCipher::mask(null, $this->resource->nik),
             'nama_lengkap' => $this->resource->nama_lengkap,
             'jenis_kelamin' => $this->resource->jenis_kelamin,
             'tanggal_lahir' => $this->resource->tanggal_lahir?->toDateString(),
