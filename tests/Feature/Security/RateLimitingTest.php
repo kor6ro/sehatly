@@ -473,6 +473,7 @@ test('every limiter this application names is registered with its documented cei
         'webhook-payment' => [60, 60],
         'promo-validasi' => [20, 60],
         'chat' => [60, 60],
+        'notifikasi-baca' => [10, 60],
     ];
 
     $read = [];

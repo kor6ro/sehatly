@@ -158,6 +158,8 @@ test('setiap limiter F-002 menempel pada route yang benar', function (): void {
         ['POST', 'api/v1/resep/{id}/checkout', 'throttle:checkout'],
         ['POST', 'api/v1/webhook/payment/{gateway}', 'throttle:webhook-payment'],
         ['POST', 'api/v1/promo/validasi', 'throttle:promo-validasi'],
+        ['PUT', 'api/v1/notifikasi/{id}/baca', 'throttle:notifikasi-baca'],
+        ['PUT', 'api/v1/notifikasi/baca-semua', 'throttle:notifikasi-baca'],
     ];
 
     foreach ($peta as [$method, $uri, $limiter]) {
@@ -168,15 +170,16 @@ test('setiap limiter F-002 menempel pada route yang benar', function (): void {
         }
     }
 
-    expect($peta)->toHaveCount(7);
+    expect($peta)->toHaveCount(9);
 });
 
-test('limiter yang terpasang tepat sepuluh, dan tiga tetap sengaja unmounted', function (): void {
+test('limiter yang terpasang tepat sebelas, dan tiga tetap sengaja unmounted', function (): void {
     $terpasang = rltTerpasang();
 
-    // The inventory with F-002 applied: the three that were already mounted, plus
-    // the seven F-002 added. A name disappearing is a limiter that stopped being
-    // mounted; a name appearing is a limiter nobody recorded here.
+    // The inventory with F-002 and F-009 applied: the three that were already
+    // mounted, the seven F-002 added, and `notifikasi-baca`. A name disappearing is a
+    // limiter that stopped being mounted; a name appearing is a limiter nobody
+    // recorded here.
     expect($terpasang)->toBe([
         'auth-login',
         'auth-login-ip',
@@ -186,6 +189,7 @@ test('limiter yang terpasang tepat sepuluh, dan tiga tetap sengaja unmounted', f
         'booking',
         'chat',
         'checkout',
+        'notifikasi-baca',
         'promo-validasi',
         'webhook-payment',
     ]);

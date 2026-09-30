@@ -90,6 +90,15 @@ use Symfony\Component\HttpFoundation\Response;
 class NotifikasiController extends Controller
 {
     /**
+     * Rows one `baca-semua` transaction touches.
+     *
+     * 500 keeps each transaction short and each batch small enough that a lock held
+     * by one chunk does not span the whole inbox, while still turning an O(unread)
+     * round-trip count into O(unread / 500).
+     */
+    private const BACA_SEMUA_PER_BATCH = 500;
+
+    /**
      * `GET /api/v1/notifikasi` - the caller's notifications, newest first.
      *
      * Newest first by `dibuat_at DESC, id DESC`: `dibuat_at` is
@@ -185,43 +194,53 @@ class NotifikasiController extends Controller
      * reports `0` rather than the inbox size - and a client can use that to tell
      * "everything is already read" from "I have nothing".
      *
-     * Each row is saved individually rather than through one builder `update`,
-     * because the builder form fires no Eloquent event and would leave the whole
-     * operation unaudited. That makes this an N-query loop, which is the price of
-     * an append-only `audit_log` per change; the alternative is a log that says
-     * something happened without saying what.
+     * ## Chunked, because an inbox has no upper bound
+     *
+     * The first implementation read every unread id and then re-fetched each row one
+     * at a time: O(unread) round trips inside one request, which a 10 000-row inbox
+     * turns into 10 001 statements. This walks the unread rows with `chunkById()` -
+     * `BACA_SEMUA_PER_BATCH` at a time, ordered by the primary key so the walk is
+     * stable while rows are updated - and wraps each chunk in its own transaction, so
+     * a failure late in a large inbox leaves the earlier chunks committed.
+     *
+     * ## The save still goes through the MODEL, per row
+     *
+     * `Notifikasi` is in `AuditScope`'s person closure, so the global `AuditObserver`
+     * audits it; a builder `->update(['dibaca_at' => ...])` fires no Eloquent event
+     * and would be the one write in this table leaving no `audit_log` row. Chunking
+     * changes how many statements the READ costs, not how the write is recorded: one
+     * `save()` per changed row, one audit row per change.
      */
     public function bacaSemua(Request $request): JsonResponse
     {
         $userId = (int) $this->user($request)->getKey();
+        $ditandai = 0;
 
-        // The id list is read FIRST and the rows are then re-fetched one by one,
-        // so no query builder write can bypass the model event. `dibaca_at` is
-        // `DATETIME NULL` (:1044), so `whereNull` is the unread predicate the
-        // index `idx_notif (user_id, dibaca_at)` (:1047) is built for.
-        $ids = DB::table('notifikasi')
+        // `dibaca_at DATETIME NULL` (:1044) is the unread state, and
+        // `idx_notif (user_id, dibaca_at)` (:1047) is the index the predicate is
+        // built for. `chunkById` needs the primary key in the ordering, which is why
+        // `orderBy('id')` is explicit rather than inherited.
+        Notifikasi::query()
             ->where('user_id', $userId)
             ->whereNull('dibaca_at')
             ->orderBy('id')
-            ->pluck('id')
-            ->all();
+            ->chunkById(self::BACA_SEMUA_PER_BATCH, function ($rows) use (&$ditandai): void {
+                DB::transaction(function () use ($rows, &$ditandai): void {
+                    foreach ($rows as $baris) {
+                        // A concurrent read or single-row write can have stamped it
+                        // between the chunk SELECT and this save. Saving again would
+                        // overwrite the FIRST read instant, which the single-row
+                        // endpoint also refuses to do.
+                        if ($baris->dibaca_at !== null) {
+                            continue;
+                        }
 
-        $ditandai = 0;
-
-        foreach ($ids as $id) {
-            $baris = Notifikasi::query()
-                ->where('user_id', $userId)
-                ->whereKey((int) $id)
-                ->first();
-
-            if ($baris === null || $baris->dibaca_at !== null) {
-                continue;
-            }
-
-            $baris->dibaca_at = now();
-            $baris->save();
-            $ditandai++;
-        }
+                        $baris->dibaca_at = now();
+                        $baris->save();
+                        $ditandai++;
+                    }
+                });
+            });
 
         return ApiResponse::success(
             ['ditandai' => $ditandai],

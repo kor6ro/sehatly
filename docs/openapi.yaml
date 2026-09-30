@@ -1251,9 +1251,14 @@ paths:
       x-middleware:
         - 'auth:sanctum'
         - 'permission:notifikasi.lihat'
+        - 'throttle:notifikasi-baca'
       x-auth:
         scheme: sanctum
         transport: bearer
+      x-ratelimit:
+        limiter: notifikasi-baca
+        max: 10
+        decay_seconds: 60
       requestBody:
         required: false
         description: "This endpoint does not field-validate its body. The payload is provider-specific and verified by signature, so no property list can be published for it. A `422` is therefore not among this operation's responses."
@@ -1271,6 +1276,9 @@ paths:
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
         404:
           description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        429:
+          description: 'Rate limited. This operation is limited to 10 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}`.'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
         500:
           description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
@@ -1294,9 +1302,14 @@ paths:
       x-middleware:
         - 'auth:sanctum'
         - 'permission:notifikasi.lihat'
+        - 'throttle:notifikasi-baca'
       x-auth:
         scheme: sanctum
         transport: bearer
+      x-ratelimit:
+        limiter: notifikasi-baca
+        max: 10
+        decay_seconds: 60
       requestBody:
         required: false
         description: "This endpoint does not field-validate its body. The payload is provider-specific and verified by signature, so no property list can be published for it. A `422` is therefore not among this operation's responses."
@@ -1314,6 +1327,9 @@ paths:
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
         404:
           description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        429:
+          description: 'Rate limited. This operation is limited to 10 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}`.'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
         500:
           description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'

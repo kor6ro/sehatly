@@ -268,14 +268,18 @@ test('the five routes are registered with exactly the guards this todo claims', 
         ->and(pd47Guards($routes, 'POST api/v1/pdp/persetujuan'))
         ->toBe(['api', 'auth:sanctum']);
 
-    // The three notification routes carry `permission:notifikasi.lihat`.
+    // The notification routes carry `permission:notifikasi.lihat`. The two writes
+    // also carry the F-009 throttle: both write rows, and the bulk one writes every
+    // unread row the caller owns, so the budget is per user and shared between them.
+    expect(pd47Guards($routes, 'GET api/v1/notifikasi'))
+        ->toBe(['api', 'auth:sanctum', 'permission:notifikasi.lihat']);
+
     foreach ([
-        'GET api/v1/notifikasi',
         'PUT api/v1/notifikasi/{id}/baca',
         'PUT api/v1/notifikasi/baca-semua',
     ] as $diumi) {
         expect(pd47Guards($routes, $diumi))
-            ->toBe(['api', 'auth:sanctum', 'permission:notifikasi.lihat']);
+            ->toBe(['api', 'auth:sanctum', 'permission:notifikasi.lihat', 'throttle:notifikasi-baca']);
     }
 
     // `pdp.kelola` is a catalogue code with NO consumer, and that is a decision

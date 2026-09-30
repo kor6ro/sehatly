@@ -77,6 +77,9 @@ class AppServiceProvider extends ServiceProvider
     /** Webhook calls allowed per gateway and address in a minute. */
     private const WEBHOOK_PER_MENIT = 60;
 
+    /** Bulk notification sweeps allowed per user in a minute (F-009). */
+    private const NOTIFIKASI_BACA_PER_MENIT = 10;
+
     /**
      * The `user_otp.tujuan` values whose code may be irreversibly burned.
      *
@@ -304,9 +307,10 @@ class AppServiceProvider extends ServiceProvider
      *
      * ## The inventory, and where each one is mounted
      *
-     * F-002 mounted seven of the ten entries that had no route: a registered limiter
-     * protects nobody until a route names it, and before F-002 ten of the thirteen
-     * were unowned. The `mounted on` column is the route the
+     * F-002 mounted seven of the ten entries that had no route, and F-009 added one
+     * more (`notifikasi-baca`). A registered limiter protects nobody until a route
+     * names it, and before F-002 ten of the thirteen were unowned. The `mounted on`
+     * column is the route the
      * `->middleware('throttle:...')` line sits on, and
      * `tests/Feature/Security/RouteThrottlingTest.php` reads the mounted set back
      * out of the route table so the table and `routes/api.php` cannot drift.
@@ -341,6 +345,11 @@ class AppServiceProvider extends ServiceProvider
      * | `webhook-payment` | gateway + client IP | 60 | 60 s | `POST /webhook/payment/{gateway}` |
      * | `promo-validasi` | user id | 20 | 60 s | `POST /promo/validasi` |
      * | `chat` | consultation id | 60 | 60 s | `POST /konsultasi/{id}/chat` |
+     * | `notifikasi-baca` | user id | 10 | 60 s | `PUT /notifikasi/{id}/baca`, `PUT /notifikasi/baca-semua` |
+     *
+     * `notifikasi-baca` was added by F-009 beside the chunked bulk read, and shares
+     * the budget with the single-row read: both are "mark read", and a caller has no
+     * reason to spend the same budget faster one row at a time.
      *
      * ## `auth-login` keys on the IDENTIFIER, not on identifier + IP
      *
@@ -581,6 +590,18 @@ class AppServiceProvider extends ServiceProvider
                 1,
             );
         });
+
+        // `PUT /notifikasi/baca-semua` writes every unread row the caller owns, in
+        // chunks, so the budget is per user and small: ten sweeps a minute is more
+        // than any client needs, and the endpoint's cost is proportional to the
+        // inbox. The single-row read shares the budget - both are "mark read", and a
+        // caller has no reason to spend it faster one row at a time.
+        RateLimiter::for('notifikasi-baca', fn (Request $request): Limit|SymfonyResponse => $this->guard(
+            'notifikasi-baca',
+            $this->userKey('notifikasi-baca', $request),
+            self::NOTIFIKASI_BACA_PER_MENIT,
+            1,
+        ));
     }
 
     /**

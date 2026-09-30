@@ -1291,9 +1291,9 @@ Route::get('notifikasi', [NotifikasiController::class, 'index'])
 
 Route::put('notifikasi/{id}/baca', [NotifikasiController::class, 'baca'])
     ->whereNumber('id')
-    ->middleware(['auth:sanctum', 'permission:notifikasi.lihat'])
+    ->middleware(['auth:sanctum', 'permission:notifikasi.lihat', 'throttle:notifikasi-baca'])
     ->name('notifikasi.baca');
 
 Route::put('notifikasi/baca-semua', [NotifikasiController::class, 'bacaSemua'])
-    ->middleware(['auth:sanctum', 'permission:notifikasi.lihat'])
+    ->middleware(['auth:sanctum', 'permission:notifikasi.lihat', 'throttle:notifikasi-baca'])
     ->name('notifikasi.baca-semua');
