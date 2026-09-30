@@ -266,14 +266,20 @@ test('the full run is clean, and every informational row is a registered extra',
     expect($json['ok'])->toBeTrue();
     expect($json['drift_count'])->toBe(0);
 
-    // `discrepancy_count` is **not** 0 and never will be while the seven
-    // registered extra tables exist: they are reported as informational rather
-    // than suppressed, which is the whole point of the registry. The invariant
-    // is that every informational row IS a registered extra - no deferrals, and
+    // `discrepancy_count` is **not** 0 and never will be while any registered
+    // extra table exists: the extras are reported as informational rather than
+    // suppressed, which is the whole point of the registry. The invariant is
+    // that every informational row IS a registered extra - no deferrals, and
     // nothing else slipping through as "informational".
+    //
+    // The COUNT is deliberately not a literal. It was `toHaveCount(7)` and went
+    // red when `sessions` was registered as the eighth framework extra - a red
+    // suite for a change that is exactly what the registry exists to absorb.
+    // What matters is the agreement asserted below: the registry, the
+    // informational row count and the discrepancy count name the same set.
     $registered = array_keys(ExtraTableRegistry::fromMarkdown(base_path('docs/schema-notes.md')));
 
-    expect($registered)->toHaveCount(7);
+    expect($registered)->not->toBeEmpty();
     expect($json['notes_registry']['registered_extra_tables'])->toBe(count($registered));
     expect($json['discrepancy_count'])->toBe(count($registered));
     expect($json['discrepancy_count'] - $json['drift_count'])->toBe(count($registered));
