@@ -683,8 +683,9 @@ class AppServiceProvider extends ServiceProvider
      *   with nothing exposed.
      * - `X-RateLimit-Limit` and `X-RateLimit-Remaining` mirror what the framework
      *   puts on an ALLOWED response, so a client sees the same pair on both sides of
-     *   the boundary. They are NOT safelisted, so `config/cors.php` should expose
-     *   them; that is a finding rather than a change here.
+     *   the boundary. They are NOT safelisted, so `config/cors.php` exposes them
+     *   (F-011), which is what lets a browser client read the pair on a 429 as well
+     *   as on an allowed response.
      */
     private function throttleResponse(string $key, int $maxAttempts): SymfonyResponse
     {

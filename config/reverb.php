@@ -101,16 +101,16 @@ return [
     | remote lookup: an app id that is not in this array cannot connect, which
     | is what makes "remove the key to revoke the client" a one-line change.
     |
-    | `allowed_origins => ['*']` is the vendor default and is a real exposure,
-    | not a placeholder. Reverb authenticates the *connection* with the app
-    | key, but the browser sends the websocket handshake with an `Origin` the
-    | server does not check, so any page on any origin can attempt a
-    | connection. It is not a data leak on its own - a connection still has to
-    | pass `/api/broadcasting/auth` before it joins a private channel - but it
-    | does let an arbitrary site spend a client's connection budget. Narrowing
-    | it is a deployment concern and is called out in the todo 31 evidence
-    | rather than silently changed here, because the correct list depends on
-    | the deployed SPA origin and is not knowable from the repository.
+     | `allowed_origins` is now `REVERB_ALLOWED_ORIGINS` (F-011), a comma-separated
+     | list whose default is still the vendor's `*`. The default is a real exposure,
+     | not a placeholder: Reverb authenticates the *connection* with the app key, but
+     | the browser sends the websocket handshake with an `Origin` the server does not
+     | check, so any page on any origin can attempt a connection. It is not a data
+     | leak on its own - a connection still has to pass `/api/broadcasting/auth`
+     | before it joins a private channel - but it does let an arbitrary site spend a
+     | client's connection budget. A deployment sets the SPA's origin here; the
+     | default stays permissive only because the correct list is not knowable from
+     | the repository.
     |
     */
     'apps' => [
@@ -128,7 +128,7 @@ return [
                     'scheme' => env('REVERB_SCHEME', 'https'),
                     'useTLS' => env('REVERB_SCHEME', 'https') === 'https',
                 ],
-                'allowed_origins' => ['*'],
+                'allowed_origins' => explode(',', (string) env('REVERB_ALLOWED_ORIGINS', '*')),
                 'ping_interval' => env('REVERB_APP_PING_INTERVAL', 60),
                 'activity_timeout' => env('REVERB_APP_ACTIVITY_TIMEOUT', 30),
                 'max_connections' => env('REVERB_APP_MAX_CONNECTIONS'),

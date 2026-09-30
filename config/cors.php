@@ -52,7 +52,14 @@ return [
 
     'allowed_headers' => ['*'],
 
-    'exposed_headers' => [],
+    /*
+    | `Retry-After` is in the CORS-safelisted response-header set, so a browser can
+    | already read it. `X-RateLimit-Limit` and `X-RateLimit-Remaining` are NOT
+    | safelisted, and `AppServiceProvider`'s throttle refusal puts them on every 429
+    | (F-011): without this list a browser client sees the status and the body but
+    | not the numbers, so it cannot render "try again in 42 s" or back off smoothly.
+    */
+    'exposed_headers' => ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'Retry-After'],
 
     'max_age' => 0,
 
