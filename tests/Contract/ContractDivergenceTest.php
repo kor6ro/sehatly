@@ -356,7 +356,9 @@ it('finds_the_qr_verifier_answering_an_undocumented_422_for_an_unpublished_param
  |--------------------------------------------------------------------------
  |
  | `POST /api/v1/webhook/payment/{gateway}` publishes `security: []` and
- * `201, 404, 500`. An unsigned request answers a 401 the document does not list.
+ * `201, 404, 429, 500` (the 429 was added by F-002, which mounted
+ * `throttle:webhook-payment` on the route). An unsigned request answers a 401 the
+ * document does not list.
  *
  | `security: []` is accurate about the Sanctum token -- there is none, and
  | `MockPaymentGatewayService::verifyWebhook()` says so -- but it is misleading
@@ -372,7 +374,7 @@ it('finds_the_webhook_declared_anonymous_answering_an_undocumented_401', functio
     $operation = ContractSpec::specOperations()['post /api/v1/webhook/payment/{gateway}'];
 
     expect(ContractSpec::isAnonymous($operation))->toBeTrue();
-    expect(ContractSpec::documentedStatuses($operation))->toBe(['201', '404', '500']);
+    expect(ContractSpec::documentedStatuses($operation))->toBe(['201', '404', '429', '500']);
 
     // No signature header: `verifyWebhook()` checks the header FIRST, before the
     // body is touched, and raises `TandaTanganWebhookTidakValid` -- a 401.

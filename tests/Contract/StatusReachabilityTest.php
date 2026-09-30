@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Route;
 use Tests\Contract\Support\ContractSpec;
 /*
  |--------------------------------------------------------------------------
@@ -161,10 +162,13 @@ it('publishes 401 and 403 together, or neither, on every bearer operation', func
 });
 
 it('publishes 429 only where a named rate limiter is registered', function (): void {
-    // Exactly three operations publish a 429, each carrying an `x-ratelimit`
-    // block naming the limiter read at export time. A 429 with no named limiter
-    // would tell a client to handle a throttle whose budget it cannot reason
-    // about; a named limiter with no 429 is the harmless direction.
+    // As many operations publish a 429 as there are routes carrying a named
+    // limiter, each with an `x-ratelimit` block naming the limiter read at export
+    // time. A 429 with no named limiter would tell a client to handle a throttle
+    // whose budget it cannot reason about; a named limiter with no 429 is the
+    // harmless direction. The count is DERIVED from the route table rather than
+    // written down: it was the literal 3 until F-002 mounted six more, and a
+    // literal here makes a correct change look like a broken contract.
     $throttled = [];
 
     foreach (ContractSpec::specOperations() as $key => $operation) {
@@ -173,7 +177,16 @@ it('publishes 429 only where a named rate limiter is registered', function (): v
         }
     }
 
-    expect($throttled)->toHaveCount(3);
+    $routed = collect(Route::getRoutes()->getRoutes())
+        ->filter(fn ($route): bool => str_starts_with($route->uri(), 'api/v1'))
+        ->filter(fn ($route): bool => collect($route->gatherMiddleware())
+            ->contains(fn ($middleware): bool => is_string($middleware) && str_starts_with($middleware, 'throttle:')))
+        ->map(fn ($route): string => $route->uri())
+        ->unique()
+        ->count();
+
+    expect($routed)->toBeGreaterThan(0, 'no route carries a limiter, so the 429 publication is vacuous');
+    expect($throttled)->toHaveCount($routed);
 
     foreach ($throttled as $key => $limit) {
         expect($limit)->toBeArray("{$key} publishes an x-ratelimit block");
