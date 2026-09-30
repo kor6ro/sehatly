@@ -132,7 +132,7 @@ export function ChatWindow({
                 <EmptyState
                     compact
                     title="Belum ada pesan"
-                    description="Riwayat dari GET /api/v1/konsultasi/{id}/chat masih kosong. Pesan pertama akan muncul di sini untuk kedua pihak sekaligus."
+                    description="Belum ada pesan. Pesan pertama akan muncul di sini untuk Anda dan dokter."
                 />
             ) : (
                 <ol
@@ -167,7 +167,7 @@ export function ChatWindow({
                         rows={2}
                         value={draft}
                         disabled={disabled || kirim.isPending}
-                        placeholder="Tulis pesan untuk Patienten atau Dokter."
+                        placeholder="Tulis pesan untuk dokter."
                         onChange={(event) => {
                             setDraft(event.target.value);
                         }}
@@ -373,32 +373,14 @@ function RealtimeStrip({
 
             <span>{label}</span>
 
-            <span className="tabular-nums">
-                duplikat ditahan: {stats.duplicateSuppressedCount}
-            </span>
-
-            {stats.resyncCount > 0 ? (
-                <span className="tabular-nums">
-                    resync: {stats.resyncCount}
-                </span>
-            ) : null}
-
-            {/**
-             * `unidentifiedEventCount` is rendered whenever it is non-zero, and the
-             * copy says what it means rather than showing a bare number: a frame
-             * arrived with no `id`, so it could not be deduplicated. Silence there
-             * would be indistinguishable from "no messages", which is precisely the
-             * failure mode `dedupe.ts` refuses to risk.
-             */}
-            {stats.unidentifiedEventCount > 0 ? (
-                <span className="text-warning">
-                    {stats.unidentifiedEventCount} pesan tanpa id tidak dapat
-                    dideduplikasi
-                </span>
-            ) : null}
+            {stats.connected ? null : (
+                <span>Pesan tetap tersimpan dan dimuat ulang dari server.</span>
+            )}
 
             {stats.lastFailure === null ? null : (
-                <span className="text-destructive">{stats.lastFailure}</span>
+                <span className="text-destructive">
+                    Sambungan terputus. Coba hubungkan ulang.
+                </span>
             )}
 
             <Button

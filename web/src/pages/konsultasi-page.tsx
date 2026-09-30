@@ -225,7 +225,7 @@ export function KonsultasiPage() {
         <>
             <PageHeader
                 title={`Konsultasi #${konsultasi.id}`}
-                description="Dibaca dari GET /api/v1/konsultasi/{id}, dengan transcript dari GET /api/v1/konsultasi/{id}/chat."
+                description="Percakapan Anda dengan dokter. Riwayat pesan dimuat ulang dari server."
                 action={<KonsultasiStatusBadge status={konsultasi.status} />}
             />
 
@@ -240,8 +240,8 @@ export function KonsultasiPage() {
                             </CardTitle>
 
                             <CardDescription>
-                                Kanal privat private-konsultasi.{konsultasi.id},
-                                diotorisasi oleh KonsultasiChannelAccess.
+                                Pesan hanya dapat dilihat oleh Anda dan dokter
+                                yang menangani konsultasi ini.
                             </CardDescription>
                         </CardHeader>
 
