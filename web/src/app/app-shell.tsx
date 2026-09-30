@@ -1,4 +1,5 @@
-import { NavLink, Outlet, useNavigate } from 'react-router';
+import type { LucideIcon } from 'lucide-react';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import {
     CalendarDays,
     ClipboardCheck,
@@ -36,6 +37,8 @@ import {
     SidebarMenuItem,
     SidebarProvider,
     SidebarSeparator,
+    SidebarTrigger,
+    useSidebar,
 } from '@/components/ui/sidebar';
 
 /**
@@ -49,12 +52,30 @@ import {
  * void with a `<Toaster />` rendered and never fed. Mounting it here is what makes the
  * existing `sonner.tsx` relocation work at all.
  *
- * ## Why the nav is a hand-written list and not `SidebarMenuButton`'s collapsed variant
+ * ## Why the nav is a hand-written list and not a generated one
  *
- * There are four destinations and no nested sections, so a generated nav would be four
- * lines of configuration plus a component to interpret it. A list is the honest amount of
- * machinery for this many items, and the patient-only entries are filtered on
+ * There are thirteen destinations and no nested sections, so a generated nav would be
+ * thirteen lines of configuration plus a component to interpret it. A list is the honest
+ * amount of machinery for this many items, and the patient-only entries are filtered on
  * `user.tipe === 'pasien'` so a non-patient account is not offered a 403.
+ *
+ * ## No destination carries a made-up id (F3-06)
+ *
+ * Six of the links used to end in a hardcoded `/1` - `/konsultasi/1`, `/rekam-medis/1`,
+ * `/checkout/1`, `/pesanan/1`, `/pembayaran/1` and the doctor's `/konsultasi/1/resep`. Id
+ * `1` is a row in somebody else's tenant, so every one of them was a 404 card for every
+ * other account. Each now points at the id-free index route beside it, and each of those
+ * resolves the caller's own real ids from `GET /api/v1/pasien/resep` or says plainly that
+ * the API publishes no list. See `lib/api/tujuan.ts` for the resolver and
+ * `.omo/evidence/F3B-web-robustness.md` for the two destinations that need a backend
+ * change and therefore do not have one.
+ *
+ * ## This is the same markup on a phone as on a desktop (F3-04)
+ *
+ * `components/ui/sidebar.tsx` renders this exact subtree into a Radix `Sheet` below
+ * 768 px, so the drawer cannot drift from the sidebar: there is one nav, rendered twice by
+ * the kit. What the shell adds is {@link MobileNavBar} - the trigger the kit expects and
+ * this shell never rendered.
  */
 export function AppShell() {
     return (
@@ -72,6 +93,8 @@ function SignedInLayout() {
             <AppSidebar />
 
             <SidebarInset>
+                <MobileNavBar />
+
                 <main className="flex flex-1 flex-col gap-6 p-4 md:p-6">
                     <Outlet />
                 </main>
@@ -82,9 +105,116 @@ function SignedInLayout() {
     );
 }
 
+/**
+ * The navigation bar that only exists below the `md` breakpoint.
+ *
+ * ## F3-04: at 390 px the sidebar was not rendered and nothing replaced it
+ *
+ * `components/ui/sidebar.tsx` is the shadcn sidebar, and below 768 px it renders its
+ * content into a Radix `Sheet` that is **closed** until something opens it. The kit ships
+ * `SidebarTrigger` for exactly that, and this shell rendered none - so on a phone the whole
+ * menu was mounted and invisible, and a patient could reach three of thirteen destinations
+ * by typing a URL. Measured at 390 px before this fix: no `aside`, no
+ * `[data-sidebar="trigger"]`, and no open `dialog`.
+ *
+ * The fix is the kit's own trigger in the kit's own `Sheet`, not a hand-rolled drawer: a
+ * second navigation surface would be a second visual language on the one screen a phone
+ * user lives in.
+ *
+ * ## `md:hidden`, so a desktop is unchanged
+ *
+ * From 768 px up the fixed sidebar is visible again and a trigger would be a second,
+ * redundant way to open the same panel, so the bar disappears rather than sitting there
+ * offering a duplicate control.
+ *
+ * ## The notification bell stays in the sidebar footer, and is NOT duplicated here
+ *
+ * Two bells would be two live `GET /notifikasi` subscriptions with two unread counts on one
+ * screen. Inside the sheet the footer is one scroll away, and a phone drawer is a
+ * full-height panel, so nothing is hidden by leaving the bell there.
+ */
+function MobileNavBar() {
+    return (
+        <div
+            data-slot="mobile-nav"
+            className="bg-background sticky top-0 z-20 flex h-14 shrink-0 items-center gap-3 border-b border-border px-3 md:hidden"
+        >
+            <SidebarTrigger className="size-9 shrink-0" />
+
+            <span className="text-sm font-semibold">Sehatly</span>
+        </div>
+    );
+}
+
+/**
+ * Whether a destination is the one the user is looking at.
+ *
+ * A path-segment comparison rather than a bare `startsWith`, so `/checkout` does not light
+ * up while the user reads `/checkout/12`, and `/dashboard` - the one destination that is a
+ * sibling of nothing - cannot match a path that merely begins with the same letters.
+ *
+ * `NavLink` still emits its own `aria-current`, so assistive technology is unaffected; this
+ * only drives the visible `data-active` styling `SidebarMenuButton` applies, which without
+ * it marked nothing at all.
+ */
+function tujuanAktif(pathname: string, tujuan: string): boolean {
+    if (tujuan === '/dashboard') {
+        return pathname === '/dashboard';
+    }
+
+    return pathname === tujuan || pathname.startsWith(`${tujuan}/`);
+}
+
+/**
+ * One destination, in the shape both the fixed panel and the mobile `Sheet` need.
+ *
+ * `onClick` is the mobile half of the fix and is inert on a desktop: closing a `Sheet`
+ * nobody opened is a state write on state that is already `false`.
+ */
+function MenuLink({
+    to,
+    icon: Ikon,
+    label,
+    pathname,
+    onNavigate,
+}: {
+    to: string;
+    icon: LucideIcon;
+    label: string;
+    pathname: string;
+    onNavigate: () => void;
+}) {
+    return (
+        <SidebarMenuItem>
+            <SidebarMenuButton asChild isActive={tujuanAktif(pathname, to)}>
+                <NavLink to={to} onClick={onNavigate}>
+                    <Ikon />
+
+                    {label}
+                </NavLink>
+            </SidebarMenuButton>
+        </SidebarMenuItem>
+    );
+}
+
 function AppSidebar() {
     const navigate = useNavigate();
+    const location = useLocation();
     const me = useQuery(meOptions());
+    const { setOpenMobile } = useSidebar();
+
+    const pathname = location.pathname;
+
+    /**
+     * Navigating from the mobile drawer has to close it.
+     *
+     * The `Sheet` does not close itself on a link click, so without this the user picks a
+     * destination, the page changes behind a panel that is still covering it, and the only
+     * way forward is the overlay.
+     */
+    const tutupDrawer = (): void => {
+        setOpenMobile(false);
+    };
 
     const signOut = useMutation({
         mutationFn: async () => {
@@ -134,47 +264,39 @@ function AppSidebar() {
                     <SidebarGroupLabel>Pasien</SidebarGroupLabel>
 
                     <SidebarMenu>
-                        <SidebarMenuItem>
-                            <SidebarMenuButton asChild>
-                                <NavLink to="/dashboard">
-                                    <ClipboardList />
-
-                                    Dashboard
-                                </NavLink>
-                            </SidebarMenuButton>
-                        </SidebarMenuItem>
+                        <MenuLink
+                            to="/dashboard"
+                            icon={ClipboardList}
+                            label="Dashboard"
+                            pathname={pathname}
+                            onNavigate={tutupDrawer}
+                        />
 
                         {isPasien ? (
                             <>
-                                <SidebarMenuItem>
-                                    <SidebarMenuButton asChild>
-                                        <NavLink to="/profil">
-                                            <ClipboardList />
+                                <MenuLink
+                                    to="/profil"
+                                    icon={ClipboardList}
+                                    label="Profil"
+                                    pathname={pathname}
+                                    onNavigate={tutupDrawer}
+                                />
 
-                                            Profil
-                                        </NavLink>
-                                    </SidebarMenuButton>
-                                </SidebarMenuItem>
+                                <MenuLink
+                                    to="/profil/keluarga"
+                                    icon={HeartPulse}
+                                    label="Anggota keluarga"
+                                    pathname={pathname}
+                                    onNavigate={tutupDrawer}
+                                />
 
-                                <SidebarMenuItem>
-                                    <SidebarMenuButton asChild>
-                                        <NavLink to="/profil/keluarga">
-                                            <HeartPulse />
-
-                                            Anggota keluarga
-                                        </NavLink>
-                                    </SidebarMenuButton>
-                                </SidebarMenuItem>
-
-                                <SidebarMenuItem>
-                                    <SidebarMenuButton asChild>
-                                        <NavLink to="/profil/alergi">
-                                            <ShieldAlert />
-
-                                            Alergi
-                                        </NavLink>
-                                    </SidebarMenuButton>
-                                </SidebarMenuItem>
+                                <MenuLink
+                                    to="/profil/alergi"
+                                    icon={ShieldAlert}
+                                    label="Alergi"
+                                    pathname={pathname}
+                                    onNavigate={tutupDrawer}
+                                />
                             </>
                         ) : null}
                     </SidebarMenu>
@@ -184,15 +306,13 @@ function AppSidebar() {
                     <SidebarGroupLabel>Umum</SidebarGroupLabel>
 
                     <SidebarMenu>
-                        <SidebarMenuItem>
-                            <SidebarMenuButton asChild>
-                                <NavLink to="/dokter">
-                                    <Stethoscope />
-
-                                    Direktori dokter
-                                </NavLink>
-                            </SidebarMenuButton>
-                        </SidebarMenuItem>
+                        <MenuLink
+                            to="/dokter"
+                            icon={Stethoscope}
+                            label="Direktori dokter"
+                            pathname={pathname}
+                            onNavigate={tutupDrawer}
+                        />
                     </SidebarMenu>
                 </SidebarGroup>
 
@@ -208,169 +328,154 @@ function AppSidebar() {
                     <SidebarGroupLabel>Booking</SidebarGroupLabel>
 
                     <SidebarMenu>
-                        <SidebarMenuItem>
-                            <SidebarMenuButton asChild>
-                                <NavLink to="/booking">
-                                    <CalendarDays />
+                        <MenuLink
+                            to="/booking"
+                            icon={CalendarDays}
+                            label="Booking saya"
+                            pathname={pathname}
+                            onNavigate={tutupDrawer}
+                        />
 
-                                    Booking saya
-                                </NavLink>
-                            </SidebarMenuButton>
-                        </SidebarMenuItem>
-
-                        <SidebarMenuItem>
-                            <SidebarMenuButton asChild>
-                                <NavLink to="/dokter/booking">
-                                    <ClipboardCheck />
-
-                                    Booking masuk
-                                </NavLink>
-                            </SidebarMenuButton>
-                        </SidebarMenuItem>
+                        <MenuLink
+                            to="/dokter/booking"
+                            icon={ClipboardCheck}
+                            label="Booking masuk"
+                            pathname={pathname}
+                            onNavigate={tutupDrawer}
+                        />
                     </SidebarMenu>
                 </SidebarGroup>
 
                 {/**
-                 * Module 3's two screens. Both are here rather than filtered by
-                 * account type because each one is a real surface for both sides:
-                 * `GET /konsultasi/{id}` and `GET /rekam-medis/{id}` are readable by
-                 * the patient, the doctor, and `admin`/`superadmin`, and the SOAP form
-                 * and the record editor are gated inside the page on `user.tipe`
-                 * rather than here. Hiding a link a signed-in account is entitled to
-                 * follow would be a worse failure than showing one whose content
-                 * explains the refusal.
+                 * Module 3's two screens, and the two that needed the F3-06 fix. Both point
+                 * at an id-free index route now: `/konsultasi` and `/rekam-medis` resolve
+                 * the caller's own ids from their prescription history, or say that there
+                 * are none. `/1` is a row in another tenant's database.
+                 *
+                 * Both are here rather than filtered by account type because each one is a
+                 * real surface for both sides: `GET /konsultasi/{id}` and
+                 * `GET /rekam-medis/{id}` are readable by the patient, the doctor, and
+                 * `admin`/`superadmin`, and the SOAP form and the record editor are gated
+                 * inside the page on `user.tipe` rather than here. Hiding a link a
+                 * signed-in account is entitled to follow would be a worse failure than
+                 * showing one whose content explains the refusal.
                  */}
                 <SidebarGroup>
                     <SidebarGroupLabel>Konsultasi</SidebarGroupLabel>
 
                     <SidebarMenu>
-                        <SidebarMenuItem>
-                            <SidebarMenuButton asChild>
-                                <NavLink to="/konsultasi/1">
-                                    <MessagesSquare />
+                        <MenuLink
+                            to="/konsultasi"
+                            icon={MessagesSquare}
+                            label="Konsultasi"
+                            pathname={pathname}
+                            onNavigate={tutupDrawer}
+                        />
 
-                                    Konsultasi
-                                </NavLink>
-                            </SidebarMenuButton>
-                        </SidebarMenuItem>
-
-                        <SidebarMenuItem>
-                            <SidebarMenuButton asChild>
-                                <NavLink to="/rekam-medis/1">
-                                    <FileHeart />
-
-                                    Rekam medis
-                                </NavLink>
-                            </SidebarMenuButton>
-                        </SidebarMenuItem>
+                        <MenuLink
+                            to="/rekam-medis"
+                            icon={FileHeart}
+                            label="Rekam medis"
+                            pathname={pathname}
+                            onNavigate={tutupDrawer}
+                        />
                     </SidebarMenu>
                 </SidebarGroup>
 
                 {/**
-                 * Module 4's four screens, split by who each one is for rather than
-                 * rendered for everyone.
+                 * Module 4's screens, split by who each one is for rather than rendered
+                 * for everyone.
                  *
                  * The prescription composer and the pharmacy queue are the two genuinely
                  * single-audience screens here: `POST /konsultasi/{id}/resep` carries
                  * `tipe:dokter` and `POST /resep/{id}/verifikasi` carries `tipe:apoteker`, so
-                 * showing either to the wrong account type costs a 403 screen. The detail
-                 * and the history are shown more widely - `resep.lihat` is held by `pasien`,
-                 * `dokter`, `apoteker` AND `superadmin` - and their content explains the
-                 * refusal for whoever cannot act on it, which is the server's contract
-                 * rather than a client-side guess.
+                 * showing either to the wrong account type costs a 403 screen. The history
+                 * is patient-owned data, so it is offered to the patient alone.
+                 *
+                 * "Tulis resep" points at `/konsultasi` and no longer at
+                 * `/konsultasi/1/resep`: a prescription hangs off a consultation, and id `1`
+                 * is not this doctor's consultation. The index is where a consultation
+                 * would be chosen; its content states the limit for a doctor, who has no
+                 * prescription history to derive one from.
                  */}
                 <SidebarGroup>
                     <SidebarGroupLabel>Resep</SidebarGroupLabel>
 
                     <SidebarMenu>
                         {isDokter ? (
-                            <SidebarMenuItem>
-                                <SidebarMenuButton asChild>
-                                    <NavLink to="/konsultasi/1/resep">
-                                        <Pill />
-
-                                        Tulis resep
-                                    </NavLink>
-                                </SidebarMenuButton>
-                            </SidebarMenuItem>
+                            <MenuLink
+                                to="/konsultasi"
+                                icon={Pill}
+                                label="Tulis resep"
+                                pathname={pathname}
+                                onNavigate={tutupDrawer}
+                            />
                         ) : null}
 
                         {isApotek ? (
-                            <SidebarMenuItem>
-                                <SidebarMenuButton asChild>
-                                    <NavLink to="/apotek/resep">
-                                        <ClipboardCheck />
-
-                                        Antrean apoteker
-                                    </NavLink>
-                                </SidebarMenuButton>
-                            </SidebarMenuItem>
+                            <MenuLink
+                                to="/apotek/resep"
+                                icon={ClipboardCheck}
+                                label="Antrean apoteker"
+                                pathname={pathname}
+                                onNavigate={tutupDrawer}
+                            />
                         ) : null}
 
                         {isPasien ? (
-                            <SidebarMenuItem>
-                                <SidebarMenuButton asChild>
-                                    <NavLink to="/pasien/resep">
-                                        <Pill />
-
-                                        Riwayat resep
-                                    </NavLink>
-                                </SidebarMenuButton>
-                            </SidebarMenuItem>
+                            <MenuLink
+                                to="/pasien/resep"
+                                icon={Pill}
+                                label="Riwayat resep"
+                                pathname={pathname}
+                                onNavigate={tutupDrawer}
+                            />
                         ) : null}
                     </SidebarMenu>
                 </SidebarGroup>
 
                 {/**
                  * Module 5. Shown to every signed-in account rather than filtered by type,
-                 * because the four routes behind them are four different surfaces and only
-                 * the checkout and payment writes are `pasien`-gated: `GET /pesanan-obat/{id}`
-                 * also serves `apoteker` and `admin`, and `GET /notifikasi` serves every
-                 * account holding `notifikasi.lihat`. Hiding a link an account may follow
-                 * would be a worse failure than showing one whose content explains the
-                 * refusal.
+                 * because the routes behind them are different surfaces and only the
+                 * checkout write is `pasien`-gated: `GET /pesanan-obat/{id}` also serves
+                 * `apoteker` and `admin`. Hiding a link an account may follow would be a
+                 * worse failure than showing one whose content explains the refusal.
                  *
-                 * The two id-carrying links point at a PLACEHOLDER id, the same trade-off
-                 * the consultation entries above leave in place: there is no order-list
-                 * endpoint and no invoice-list endpoint, so the real link to a specific
-                 * order is the one the checkout screen supplies. See
-                 * `.omo/evidence/task-48-sehatly.md`.
+                 * All three point at index routes. `/pesanan` and `/pembayaran` cannot be
+                 * resolved from anything: the API publishes no order list and no invoice
+                 * list, so those pages say so and point at the checkout confirmation, which
+                 * is the only moment a patient is given an order number. The previous
+                 * `/pesanan/1` and `/pembayaran/1` were 404 cards for everyone else.
                  */}
                 <SidebarGroup>
                     <SidebarGroupLabel>Obat dan pembayaran</SidebarGroupLabel>
 
                     <SidebarMenu>
                         {isPasien ? (
-                            <SidebarMenuItem>
-                                <SidebarMenuButton asChild>
-                                    <NavLink to="/checkout/1">
-                                        <Package />
-
-                                        Checkout resep
-                                    </NavLink>
-                                </SidebarMenuButton>
-                            </SidebarMenuItem>
+                            <MenuLink
+                                to="/checkout"
+                                icon={Package}
+                                label="Checkout resep"
+                                pathname={pathname}
+                                onNavigate={tutupDrawer}
+                            />
                         ) : null}
 
-                        <SidebarMenuItem>
-                            <SidebarMenuButton asChild>
-                                <NavLink to="/pesanan/1">
-                                    <Package />
+                        <MenuLink
+                            to="/pesanan"
+                            icon={Package}
+                            label="Lacak pesanan"
+                            pathname={pathname}
+                            onNavigate={tutupDrawer}
+                        />
 
-                                    Lacak pesanan
-                                </NavLink>
-                            </SidebarMenuButton>
-                        </SidebarMenuItem>
-
-                        <SidebarMenuItem>
-                            <SidebarMenuButton asChild>
-                                <NavLink to="/pembayaran/1">
-                                    <ClipboardCheck />
-
-                                    Bayar
-                                </NavLink>
-                            </SidebarMenuButton>
-                        </SidebarMenuItem>
+                        <MenuLink
+                            to="/pembayaran"
+                            icon={ClipboardCheck}
+                            label="Bayar"
+                            pathname={pathname}
+                            onNavigate={tutupDrawer}
+                        />
                     </SidebarMenu>
                 </SidebarGroup>
             </SidebarContent>

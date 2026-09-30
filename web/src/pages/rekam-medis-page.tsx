@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useParams } from 'react-router';
-import { Eye, PenLine } from 'lucide-react';
+import { Link, useParams } from 'react-router';
+import { Eye, FileHeart, PenLine } from 'lucide-react';
 import { ApiError } from '@/lib/http';
 import { meOptions } from '@/lib/api/me';
 import { rekamMedisOptions } from '@/lib/api/rekam-medis';
@@ -83,6 +83,35 @@ export function RekamMedisPage() {
     }
 
     if (rekam.isError) {
+        /**
+         * The same 404 split `konsultasi-page.tsx` and `checkout-page.tsx` make, for the
+         * same reason: `RekamMedisAccess` answers 404 rather than 403 so a record's
+         * existence is not leaked across tenants, and the F3-06 fix is that this branch no
+         * longer falls through to `ErrorState` and pairs the Indonesian heading with
+         * Laravel's English "Resource not found.".
+         */
+        if (rekam.error instanceof ApiError && rekam.error.isNotFound) {
+            return (
+                <>
+                    <PageHeader title="Rekam medis" />
+
+                    <NotFoundState
+                        title="Rekam medis tidak ditemukan"
+                        detail="Id tersebut tidak ada atau bukan milik pihak yang berhak. Daftar rekam medis milik akun ini ada di halaman Rekam medis."
+                        action={
+                            <Button asChild variant="outline" size="sm">
+                                <Link to="/rekam-medis">
+                                    <FileHeart aria-hidden />
+
+                                    Daftar rekam medis saya
+                                </Link>
+                            </Button>
+                        }
+                    />
+                </>
+            );
+        }
+
         return (
             <>
                 <PageHeader title="Rekam medis" />

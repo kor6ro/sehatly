@@ -1,7 +1,13 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useParams } from 'react-router';
-import { Loader2, Play, Receipt, Stethoscope } from 'lucide-react';
+import { Link, useParams } from 'react-router';
+import {
+    Loader2,
+    MessagesSquare,
+    Play,
+    Receipt,
+    Stethoscope,
+} from 'lucide-react';
 import { ApiError } from '@/lib/http';
 import { formatRupiah, formatWaktu } from '@/lib/format';
 import {
@@ -156,6 +162,36 @@ export function KonsultasiPage() {
     }
 
     if (sesi.isError) {
+        /**
+         * A 404 means a row that is not the caller's or is not there at all -
+         * `KonsultasiAccess` answers 404 rather than 403 precisely so existence is not
+         * leaked across tenants - so the card says only that, in Indonesian, and offers no
+         * retry, because asking again cannot change it. The F3-06 fix: this used to fall
+         * through to `ErrorState`, which pairs the Indonesian heading with Laravel's own
+         * English "Resource not found."
+         */
+        if (sesi.error instanceof ApiError && sesi.error.isNotFound) {
+            return (
+                <>
+                    <PageHeader title="Konsultasi" />
+
+                    <NotFoundState
+                        title="Konsultasi tidak ditemukan"
+                        detail="Id tersebut tidak ada atau bukan milik pihak yang berhak. Daftar konsultasi milik akun ini ada di halaman Konsultasi."
+                        action={
+                            <Button asChild variant="outline" size="sm">
+                                <Link to="/konsultasi">
+                                    <MessagesSquare aria-hidden />
+
+                                    Daftar konsultasi saya
+                                </Link>
+                            </Button>
+                        }
+                    />
+                </>
+            );
+        }
+
         return (
             <>
                 <PageHeader title="Konsultasi" />

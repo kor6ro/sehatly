@@ -180,8 +180,18 @@ function Sidebar({
     return (
       <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
         <SheetHeader className="sr-only">
-          <SheetTitle>Sidebar</SheetTitle>
-          <SheetDescription>Displays the mobile sidebar.</SheetDescription>
+          {/*
+            Indonesian, and localized deliberately rather than left as the registry's
+            English. This is the accessible name of the panel that F3-04 made the ONLY way
+            to navigate on a phone, so it is the one string in this file a screen-reader
+            user meets first. `web/tests/e2e/app-shell-robustness.spec.ts` asserts the
+            drawer by its `data-sidebar` hooks, not by this text, so nothing in the suite
+            depends on the wording.
+          */}
+          <SheetTitle>Menu navigasi</SheetTitle>
+          <SheetDescription>
+            Daftar tujuan yang tersedia di dalam aplikasi.
+          </SheetDescription>
         </SheetHeader>
         <SheetContent
           data-sidebar="sidebar"
@@ -267,7 +277,7 @@ function SidebarTrigger({
       {...props}
     >
       {isMobile || state === "collapsed" ? <PanelLeftOpenIcon /> : <PanelLeftCloseIcon />}
-      <span className="sr-only">Toggle sidebar</span>
+      <span className="sr-only">Buka atau tutup menu navigasi</span>
     </Button>
   )
 }
@@ -279,10 +289,10 @@ function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
     <button
       data-sidebar="rail"
       data-slot="sidebar-rail"
-      aria-label="Toggle sidebar"
+      aria-label="Buka atau tutup menu navigasi"
       tabIndex={-1}
       onClick={toggleSidebar}
-      title="Toggle sidebar"
+      title="Buka atau tutup menu navigasi"
       className={cn(
         "hover:after:bg-sidebar-border absolute inset-y-0 z-20 hidden w-4 -translate-x-1/2 transition-all ease-linear group-data-[side=left]:-right-4 group-data-[side=right]:left-0 after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] sm:flex",
         "in-data-[side=left]:cursor-w-resize in-data-[side=right]:cursor-e-resize",

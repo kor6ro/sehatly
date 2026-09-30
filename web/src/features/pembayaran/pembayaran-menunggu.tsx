@@ -13,7 +13,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Field, FieldInput, FormErrorSummary } from '@/components/form/field';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { SkeletonRows } from '@/components/states/loading-state';
-import { ErrorState } from '@/components/states/error-state';
+import {
+    ErrorState,
+    ForbiddenState,
+    NotFoundState,
+} from '@/components/states/error-state';
 import { MetodePembayaranPicker } from '@/features/pembayaran/metode-pembayaran-picker';
 import { PaymentInstructions } from '@/features/pembayaran/payment-instructions';
 import { PromoInput } from '@/features/pembayaran/promo-input';
@@ -70,6 +74,26 @@ export function PembayaranMenunggu({ pesananId }: { pesananId: number }) {
     }
 
     if (pesanan.isError) {
+        /**
+         * The 404/403 split `order-tracking.tsx` already makes for this same endpoint, and
+         * for the same reason: 404 is how `GET /pesanan-obat/{id}` refuses another account's
+         * row without leaking that it exists, and neither status is fixed by a retry.
+         */
+        if (pesanan.error instanceof ApiError && pesanan.error.isNotFound) {
+            return (
+                <NotFoundState
+                    title="Pesanan tidak ditemukan"
+                    detail="Id tersebut tidak ada atau bukan milik pihak yang berhak. Nomor pesanan diberikan setelah checkout berhasil."
+                />
+            );
+        }
+
+        if (pesanan.error instanceof ApiError && pesanan.error.isForbidden) {
+            return (
+                <ForbiddenState detail="Endpoint ini hanya untuk akun pasien, apoteker, admin, atau superadmin." />
+            );
+        }
+
         return (
             <ErrorState
                 error={pesanan.error}

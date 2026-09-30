@@ -1,5 +1,6 @@
 import { createBrowserRouter } from 'react-router';
 import { AppShell } from '@/app/app-shell';
+import { RouteErrorBoundary } from '@/app/error-boundary';
 import { NotFoundPage, RequireAuth, RootPage } from '@/app/guards';
 import { RootLayout } from '@/app/root-layout';
 import { LoginPage } from '@/pages/login-page';
@@ -15,12 +16,21 @@ import { MyBookingsPage } from '@/pages/my-bookings-page';
 import { BookingCreatePage } from '@/pages/booking-create-page';
 import { DoctorBookingsPage } from '@/pages/doctor-bookings-page';
 import { KonsultasiPage } from '@/pages/konsultasi-page';
+import {
+    KonsultasiIndexPage,
+    RekamMedisIndexPage,
+} from '@/pages/rekam-dan-konsultasi-index-page';
 import { RekamMedisPage } from '@/pages/rekam-medis-page';
 import { ResepComposePage } from '@/pages/resep-compose-page';
 import { ResepDetailPage } from '@/pages/resep-detail-page';
 import { ApotekQueuePage } from '@/pages/apotek-queue-page';
 import { PasienRiwayatResepPage } from '@/pages/pasien-resep-page';
+import { CheckoutIndexPage } from '@/pages/checkout-index-page';
 import { CheckoutPage } from '@/pages/checkout-page';
+import {
+    PembayaranIndexPage,
+    PesananIndexPage,
+} from '@/pages/pesanan-dan-pembayaran-index-page';
 import { PesananPage } from '@/pages/pesanan-page';
 import { PembayaranPage } from '@/pages/pembayaran-page';
 import { NotifikasiPage } from '@/pages/notifikasi-page';
@@ -38,6 +48,23 @@ import { NotifikasiPage } from '@/pages/notifikasi-page';
  * API is public and a pre-authentication browse page is the case the controller's own
  * docblock names explicitly.
  *
+ * ## Every route carries its own `errorElement`, and that is not boilerplate
+ *
+ * F3-01: `/konsultasi/:id` threw during render and React replaced the whole document with
+ * a stack trace, taking the sidebar - the only way out of a signed-in screen - with it.
+ *
+ * The fix is per-leaf on purpose. `errorElement` catches the error of the route it is
+ * declared on and of that route's children, and an error that no leaf claims bubbles to the
+ * nearest ancestor that does - REPLACING that ancestor's element. So an `errorElement` on
+ * the `AppShell` route, which looks like the tidier single place to put it, would destroy
+ * the sidebar on every page failure and reproduce the defect exactly. Declaring it on all
+ * twenty-six leaves means a page failure replaces one `<Outlet />`'s content and nothing
+ * else. The full two-boundary argument is in `app/error-boundary.tsx`.
+ *
+ * `web/tests/e2e/app-shell-robustness.spec.ts` walks this table in a real browser and fails
+ * if any route takes the shell with it, so a route added later without an `errorElement`
+ * is a failing test rather than a silent regression.
+ *
  * ## Inertia is not involved anywhere
  *
  * Todo 30 strips the Laravel-side Inertia scaffold. Nothing here reads a server-provided
@@ -49,46 +76,81 @@ import { NotifikasiPage } from '@/pages/notifikasi-page';
 export const router = createBrowserRouter([
     {
         element: <RootLayout />,
+        /**
+         * The backstop for `RootLayout` itself. It is the parent of every route below, so
+         * it only ever sees an error that no leaf claimed - which, with twenty-six leaves
+         * carrying an `errorElement`, means an error in the layout rather than in a page.
+         */
+        errorElement: <RouteErrorBoundary />,
         children: [
             {
                 path: '/',
                 element: <RootPage />,
+                errorElement: <RouteErrorBoundary />,
             },
 
             {
                 path: '/login',
                 element: <LoginPage />,
+                errorElement: <RouteErrorBoundary />,
             },
             {
                 path: '/register',
                 element: <RegisterPage />,
+                errorElement: <RouteErrorBoundary />,
             },
             {
                 path: '/otp',
                 element: <OtpPage />,
+                errorElement: <RouteErrorBoundary />,
             },
 
             // Public, because `DokterController` is public by the plan's instruction.
             {
                 path: '/dokter',
                 element: <DoctorDirectoryPage />,
+                errorElement: <RouteErrorBoundary />,
             },
             {
                 path: '/dokter/:id',
                 element: <DoctorDetailPage />,
+                errorElement: <RouteErrorBoundary />,
             },
 
             // Everything a patient record belongs behind.
             {
                 element: <RequireAuth />,
+                errorElement: <RouteErrorBoundary />,
                 children: [
                     {
                         element: <AppShell />,
+                        /**
+                         * Deliberately NOT an `errorElement`. A page failure is caught by
+                         * the page's own leaf, so the failure never reaches this route and
+                         * this element is never replaced. Declaring one here would be the
+                         * tidy-looking mistake that recreates F3-01.
+                         */
                         children: [
-                            { path: '/dashboard', element: <DashboardPage /> },
-                            { path: '/profil', element: <ProfilePage /> },
-                            { path: '/profil/keluarga', element: <FamilyPage /> },
-                            { path: '/profil/alergi', element: <AllergyPage /> },
+                            {
+                                path: '/dashboard',
+                                element: <DashboardPage />,
+                                errorElement: <RouteErrorBoundary />,
+                            },
+                            {
+                                path: '/profil',
+                                element: <ProfilePage />,
+                                errorElement: <RouteErrorBoundary />,
+                            },
+                            {
+                                path: '/profil/keluarga',
+                                element: <FamilyPage />,
+                                errorElement: <RouteErrorBoundary />,
+                            },
+                            {
+                                path: '/profil/alergi',
+                                element: <AllergyPage />,
+                                errorElement: <RouteErrorBoundary />,
+                            },
 
                             /**
                              * Module 2. All three sit inside `RequireAuth` and therefore
@@ -103,14 +165,20 @@ export const router = createBrowserRouter([
                              * `/booking/:dokterId` has a parameter, and the literal is
                              * registered first so it is never swallowed by the parameter.
                              */
-                            { path: '/booking', element: <MyBookingsPage /> },
+                            {
+                                path: '/booking',
+                                element: <MyBookingsPage />,
+                                errorElement: <RouteErrorBoundary />,
+                            },
                             {
                                 path: '/booking/:dokterId',
                                 element: <BookingCreatePage />,
+                                errorElement: <RouteErrorBoundary />,
                             },
                             {
                                 path: '/dokter/booking',
                                 element: <DoctorBookingsPage />,
+                                errorElement: <RouteErrorBoundary />,
                             },
 
                             /**
@@ -124,14 +192,32 @@ export const router = createBrowserRouter([
                              * `KonsultasiPage` is the only screen that opens a
                              * WebSocket, so it is also the only one that pays the
                              * reconnect cost.
+                             *
+                             * The two id-free index routes below it are the fix for F3-06.
+                             * The sidebar used to link `/konsultasi/1` and
+                             * `/rekam-medis/1`, which is an error page for every account
+                             * that does not own row 1; each index resolves the caller's own
+                             * real ids and says so plainly when there are none.
                              */
+                            {
+                                path: '/konsultasi',
+                                element: <KonsultasiIndexPage />,
+                                errorElement: <RouteErrorBoundary />,
+                            },
                             {
                                 path: '/konsultasi/:id',
                                 element: <KonsultasiPage />,
+                                errorElement: <RouteErrorBoundary />,
+                            },
+                            {
+                                path: '/rekam-medis',
+                                element: <RekamMedisIndexPage />,
+                                errorElement: <RouteErrorBoundary />,
                             },
                             {
                                 path: '/rekam-medis/:id',
                                 element: <RekamMedisPage />,
+                                errorElement: <RouteErrorBoundary />,
                             },
 
                             /**
@@ -148,18 +234,22 @@ export const router = createBrowserRouter([
                             {
                                 path: '/konsultasi/:id/resep',
                                 element: <ResepComposePage />,
+                                errorElement: <RouteErrorBoundary />,
                             },
                             {
                                 path: '/resep/:id',
                                 element: <ResepDetailPage />,
+                                errorElement: <RouteErrorBoundary />,
                             },
                             {
                                 path: '/apotek/resep',
                                 element: <ApotekQueuePage />,
+                                errorElement: <RouteErrorBoundary />,
                             },
                             {
                                 path: '/pasien/resep',
                                 element: <PasienRiwayatResepPage />,
+                                errorElement: <RouteErrorBoundary />,
                             },
 
                             /**
@@ -176,23 +266,47 @@ export const router = createBrowserRouter([
                              * `/checkout/:resepId` and `/pesanan/:id` are two-segment
                              * paths for two different nouns, and neither is a prefix of
                              * the other, so both are distinct routes rather than one
-                             * shadowing the other.
+                             * shadowing the other. Their id-free siblings
+                             * (`/checkout`, `/pesanan`, `/pembayaran`) are the other half
+                             * of the F3-06 fix: the sidebar used to point every account at
+                             * id `1`, and a literal and a parameter at the same position
+                             * are two distinct routes, so the destination the nav can
+                             * honestly offer is a separate page.
                              */
+                            {
+                                path: '/checkout',
+                                element: <CheckoutIndexPage />,
+                                errorElement: <RouteErrorBoundary />,
+                            },
                             {
                                 path: '/checkout/:resepId',
                                 element: <CheckoutPage />,
+                                errorElement: <RouteErrorBoundary />,
+                            },
+                            {
+                                path: '/pesanan',
+                                element: <PesananIndexPage />,
+                                errorElement: <RouteErrorBoundary />,
                             },
                             {
                                 path: '/pesanan/:id',
                                 element: <PesananPage />,
+                                errorElement: <RouteErrorBoundary />,
+                            },
+                            {
+                                path: '/pembayaran',
+                                element: <PembayaranIndexPage />,
+                                errorElement: <RouteErrorBoundary />,
                             },
                             {
                                 path: '/pembayaran/:pesananId',
                                 element: <PembayaranPage />,
+                                errorElement: <RouteErrorBoundary />,
                             },
                             {
                                 path: '/notifikasi',
                                 element: <NotifikasiPage />,
+                                errorElement: <RouteErrorBoundary />,
                             },
                         ],
                     },
@@ -202,6 +316,7 @@ export const router = createBrowserRouter([
             {
                 path: '*',
                 element: <NotFoundPage />,
+                errorElement: <RouteErrorBoundary />,
             },
         ],
     },
