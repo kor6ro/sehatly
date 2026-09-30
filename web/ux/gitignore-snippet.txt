@@ -1,0 +1,6 @@
+# Materi riset UX pihak ketiga (jangan di-commit)
+web/ux/refs/
+web/ux/evidence/**/*.png
+web/ux/evidence/**/*.jpg
+web/ux/evidence/**/*.jpeg
+web/ux/evidence/**/*.webp
