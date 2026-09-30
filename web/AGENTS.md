@@ -52,7 +52,7 @@ Letakkan file ini di `web/AGENTS.md`. Aturan di sini mengikat setiap perubahan U
 2. Screenshot di 390 px dan 1280 px.
 3. Kritik hasil terhadap `web/src/styles/app.css` dan larangan di atas. Tulis daftar masalah singkat.
 4. Perbaiki, ulangi maksimal 2 kali.
-5. Jalankan `npm run types:check` dan `npm run test:unit`. Untuk alur kritis jalankan juga `npm run test:e2e`.
+5. Jalankan `npm run types:check` dan `npm run test:unit`. Untuk alur kritis jalankan juga `npm run test:e2e`. Sertakan cek aksesibilitas otomatis dengan helper `web/tests/e2e/a11y.ts` (`@axe-core/playwright`) di setiap AC yang menyentuh layar; axe adalah subset WCAG, tetap sertakan pemeriksaan keyboard/screen-reader manual.
 
 ## Cara melapor
 Setelah selesai, laporkan: file yang berubah, token yang dipakai, screenshot yang diambil, dan hal yang belum bisa diverifikasi.

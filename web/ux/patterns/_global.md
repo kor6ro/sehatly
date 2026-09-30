@@ -189,7 +189,8 @@ Setiap implementasi flow wajib memenuhi, di luar AC spesifik flow:
    untuk retryable; `ForbiddenState`/`NotFoundState` untuk sisanya).
 2. **Offline** ditangani sesuai §7 #1 (setelah diputuskan).
 3. **Target sentuh ≥ 44 px**, kontras ≥ 4,5:1, fokus keyboard terlihat, semua input berlabel —
-   divalidasi otomatis dengan `@axe-core/playwright` di AC (menunggu persetujuan dependensi).
+   divalidasi otomatis dengan `@axe-core/playwright` (dev-dependency disetujui & dipasang 2026-10-01;
+   helper `web/tests/e2e/a11y.ts`). axe = subset WCAG; tetap jalankan pemeriksaan manual.
 4. **Status = teks + ikon + warna**, tidak pernah warna saja.
 5. **Tidak ada data sensitif** di toast/URL/judul tab/notifikasi.
 6. **Copy Bahasa Indonesia** tenang dan jelas; istilah mengikuti §2; tanpa lorem ipsum; data
