@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Tests\Unit;
 
 use App\Support\Rbac\RbacCatalog;
+use Database\Seeders\DemoDataSeeder;
+use Database\Seeders\RbacSeeder;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -139,12 +141,66 @@ class RbacMigrateFreshSeedTest extends TestCase
         $this->assertCount(69, $actual);
     }
 
-    public function test_no_user_roles_row_is_seeded(): void
+    public function test_no_role_is_granted_to_an_account_outside_the_demo_set(): void
     {
+        // CHANGED BY F3-02, and the change is stated rather than hidden.
+        //
+        // This test used to assert that `user_roles` is EMPTY after
+        // `migrate:fresh --seed`, on the rule that the RBAC kernel assigns roles
+        // at runtime through `RoleAssigner` and no seeder ever does it. **That
+        // rule is no longer true and cannot be**: `DemoDataSeeder` grants `pasien`,
+        // `dokter` and `apoteker` to three named demo accounts, because a doctor
+        // and a pharmacist who hold no role are 403 on every route they exist to
+        // use - which is exactly the BLOCKER (F3-02) the demo seeder removes.
+        //
+        // What SURVIVES, and is asserted below, is the part that was actually
+        // load-bearing: the RBAC kernel itself grants nothing, and the only
+        // grants in the tree belong to the accounts `DemoDataSeeder::namaAkun()`
+        // names. A count of zero would have been the wrong assertion; a count of
+        // exactly three, on exactly the right users, is a stronger one.
+        $demo = [];
+
+        foreach (DemoDataSeeder::namaAkun() as $nama) {
+            $akun = DemoDataSeeder::akun($nama);
+
+            $userId = (int) DB::table('users')->where('no_telepon', $akun['no_telepon'])->value('id');
+
+            $this->assertGreaterThan(0, $userId, "The demo account [{$nama}] has no users row after migrate:fresh --seed.");
+
+            $demo[] = $userId;
+        }
+
         $this->assertSame(
-            0,
+            3,
             DB::table('user_roles')->count(),
-            'The seeder tree must not assign roles to accounts; that is RoleAssigner\'s job at runtime.'
+            'Exactly the three demo accounts may hold a role after migrate:fresh --seed, and nobody else does.',
+        );
+
+        $penerima = DB::table('user_roles')->orderBy('user_id')->pluck('user_id')->map(static fn ($id): int => (int) $id)->all();
+
+        sort($demo);
+        sort($penerima);
+
+        $this->assertSame($demo, $penerima, 'A role was granted to an account outside the demo set.');
+    }
+
+    public function test_the_rbac_kernel_alone_grants_no_role(): void
+    {
+        // The half of the changed test above that is about the KERNEL rather than
+        // about the tree, and which no later seeder can take away from it:
+        // `RbacSeeder` writes `roles`, `permissions` and `role_permissions` and
+        // nothing else. Re-running it on the seeded database must not create a
+        // single grant, which is the same property
+        // `RbacSeederIdempotencyTest` measures through the query log.
+        $sebelum = DB::table('user_roles')->count();
+
+        $exit = Artisan::call('db:seed', ['--class' => RbacSeeder::class, '--force' => true]);
+
+        $this->assertSame(0, $exit, 'RbacSeeder exited non-zero: '.Artisan::output());
+        $this->assertSame(
+            $sebelum,
+            DB::table('user_roles')->count(),
+            'RbacSeeder created a user_roles row, which is RoleAssigner\'s job and never the kernel\'s.',
         );
     }
 
@@ -168,23 +224,75 @@ class RbacMigrateFreshSeedTest extends TestCase
 
     public function test_the_todo_18_development_fixtures_still_land(): void
     {
-        // The 7 tables DevFixtureSeeder writes, at the counts its own code produces.
+        // The 7 tables DevFixtureSeeder writes.
         //
-        // **`lab_paket_item` is 7, not 3.** Its `$map` links three kode to
-        // `Medical Check Up Dasar`, two to `Cek Gula & Kolesterol` and two to
-        // `Fungsi Hati Lengkap`; the `lab_paket_item` docblock in
-        // `database/seeders/LabSeeder.php` and the row-count table in
-        // `database/seeders/DatabaseSeeder.php` both said 3 before todo 4 corrected
-        // the latter, so the number is stated here from the measured insert and not
-        // inherited from either prose comment. See
-        // `.omo/evidence/task-4-sehatly.md`, finding 2.
-        $this->assertSame(5, DB::table('users')->count());
-        $this->assertSame(2, DB::table('pasien')->count());
-        $this->assertSame(3, DB::table('dokter')->count());
-        $this->assertSame(2, DB::table('faskes')->count());
-        $this->assertSame(4, DB::table('dokter_spesialisasi')->count());
+        // **CHANGED BY F3-02.** This used to assert exact table COUNTS - 5 users,
+        // 2 patients, 3 doctors, 2 facilities, 4 specialisation links - and those
+        // counts are exactly what adding a second fixture seeder to the chain
+        // changes. The test's own docblock says why it exists: *"adding two
+        // seeders to a chain is exactly the change that silently drops somebody
+        // else's rows"*. A COUNT cannot survive that, and weakening it to `>=`
+        // would throw away the property it was written to protect.
+        //
+        // So the assertion is now by NATURAL KEY, which is strictly stronger:
+        // `DevFixtureSeeder`'s own five accounts are pinned by their emails, its
+        // two patients by their `nomor_rm`, its three doctors by their
+        // `nomor_str` and its two facilities by their `kode_faskes`. A seeder that
+        // dropped or renumbered one of them fails here, and adding a THIRD fixture
+        // seeder later will not.
+        $this->assertSame(
+            ['doker1.dev@example.test', 'doker2.dev@example.test', 'doker3.dev@example.test', 'pasien1.dev@example.test', 'pasien2.dev@example.test'],
+            DB::table('users')->where('email', 'like', '%.dev@example.test')->orderBy('email')->pluck('email')->all(),
+            'DevFixtureSeeder\'s five accounts did not all land after migrate:fresh --seed.',
+        );
+
+        $this->assertSame(
+            ['RM-202601-000001', 'RM-202601-000002'],
+            DB::table('pasien')->whereIn('nomor_rm', ['RM-202601-000001', 'RM-202601-000002'])->orderBy('nomor_rm')->pluck('nomor_rm')->all(),
+        );
+
+        $this->assertSame(
+            ['STR-DEV-0001', 'STR-DEV-0002', 'STR-DEV-0003'],
+            DB::table('dokter')->whereIn('nomor_str', ['STR-DEV-0001', 'STR-DEV-0002', 'STR-DEV-0003'])->orderBy('nomor_str')->pluck('nomor_str')->all(),
+        );
+
+        $this->assertSame(
+            ['FASKES-DEV-001', 'FASKES-DEV-002'],
+            DB::table('faskes')->whereIn('kode_faskes', ['FASKES-DEV-001', 'FASKES-DEV-002'])->orderBy('kode_faskes')->pluck('kode_faskes')->all(),
+        );
+
+        // The two tables no other seeder writes, so the counts still hold as
+        // counts.
         $this->assertSame(7, DB::table('lab_paket_item')->count());
         $this->assertSame(2, DB::table('obat_interaksi')->count());
+    }
+
+    public function test_the_f3c_demo_accounts_land_too(): void
+    {
+        // The other half of the change above: the chain now ALSO produces three
+        // loginable demo accounts and the relationships the four unreachable
+        // journeys need. Counting them is the assertion that the documented boot
+        // path produces a usable system, which is the whole point of F3-02.
+        $this->assertSame(3, DemoDataSeeder::namaAkun() === [] ? 0 : count(DemoDataSeeder::namaAkun()));
+
+        foreach (DemoDataSeeder::namaAkun() as $nama) {
+            $akun = DemoDataSeeder::akun($nama);
+
+            $this->assertSame(1, DB::table('users')->where('no_telepon', $akun['no_telepon'])->count());
+            $this->assertTrue(
+                password_verify($akun['kata_sandi'], (string) DB::table('users')->where('no_telepon', $akun['no_telepon'])->value('kata_sandi_hash')),
+                "The demo account [{$nama}] does not authenticate with its published password.",
+            );
+        }
+
+        $dokterId = (int) DB::table('dokter')->where('nomor_str', 'STR-DEMO-0001')->value('id');
+
+        $this->assertGreaterThan(0, $dokterId, 'The demo doctor did not land.');
+        $this->assertSame(1, DB::table('pasien')->where('nomor_rm', 'RM-DEMO-000001')->count());
+        $this->assertSame(1, DB::table('faskes')->where('kode_faskes', 'FASKES-DEMO-001')->count());
+        $this->assertSame(7, DB::table('dokter_jadwal')->where('dokter_id', $dokterId)->count());
+        $this->assertSame(2, DB::table('apotek_stok')->count());
+        $this->assertSame(1, DB::table('pasien_alergi')->count());
     }
 
     public function test_the_seeded_superadmin_holds_every_permission_live(): void

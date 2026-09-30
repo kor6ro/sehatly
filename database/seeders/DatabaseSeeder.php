@@ -93,10 +93,16 @@ use Illuminate\Support\Facades\DB;
  * | 9 | {@see ArtikelKategoriSeeder} | no | `artikel.kategori_id` (FK `:1089`); `artikel` is never seeded |
  * | 10 | {@see RbacSeeder} | no | `role_permissions` (FKs `:167`-`:168`), `user_roles` (FK `:176`) |
  * | **11** | **{@see DevFixtureSeeder}** | - | **must be last**: it reads 2, 3, 7 and 8 back and writes `users`, `pasien`, `faskes`, `dokter`, `dokter_spesialisasi`, `lab_paket_item`, `obat_interaksi` |
+ * | **12** | **{@see DemoDataSeeder}** | `OBT-0002`, `OBT-0005`, `UMUM`, kode `31` | `users`, `user_roles`, `pasien`, `dokter`, `dokter_spesialisasi`, `dokter_jadwal`, `faskes`, `apotek_stok`, `pasien_alergi` - the three accounts the four unreachable journeys need, plus the schedule, pharmacy and stock that have no public API at all |
  *
  * `RbacSeeder` sits between the two groups because it has no dependency on either:
- * it writes only `roles`, `permissions` and `role_permissions` and resolves every id
- * by natural key, so it reads nothing. Its position is for readability.
+ * it writes only `roles`, `permissions` and `role_permissions`, resolves every id
+ * by natural key, and reads nothing. Its position is for readability.
+ *
+ * `DemoDataSeeder` is last because it depends on EVERYTHING: it grants roles, so
+ * it needs `roles`; it stocks `master_obat` rows, so it needs `ObatSeeder`; it
+ * links a `master_spesialisasi`, so it needs `SpesialisasiSeeder`; and it names a
+ * province on the demo pharmacy, so it needs `MasterWilayahSeeder`.
  *
  * ## Row totals
  *
@@ -105,7 +111,8 @@ use Illuminate\Support\Facades\DB;
  * | `telemedicine_test.sql` section `[16]` (9 seeders) | 15 | **151** |
  * | {@see RbacSeeder} (no DDL source) | 3 | **98** |
  * | {@see DevFixtureSeeder} (no DDL source) | 7 | **25** |
- * | **total written** | **25** | **274** |
+ * | {@see DemoDataSeeder} (no DDL source) | 9 | **22** |
+ * | **total written** | **31** | **296** |
  *
  * **The 26th owned table, `user_roles`, is written by nobody in this tree.** It is
  * listed in `SEEDED_TABLES` so a re-seed clears a developer's manual grants, and
@@ -113,6 +120,16 @@ use Illuminate\Support\Facades\DB;
  * an application action taken through {@see RoleAssigner}, which
  * todo 20 wires into registration. "Owned" here means "emptied by this chain", not
  * "populated by it".
+ *
+ * **The 27th-30th owned tables (`pasien_alergi`, `apotek_stok`, `dokter_jadwal`,
+ * and `user_roles` again) were added by F3-02, and the statement above is the one
+ * claim in this paragraph that is now FALSE.** {@see DemoDataSeeder} DOES grant
+ * roles - to exactly three named demo accounts, which is what makes the doctor,
+ * the pharmacist and the patient reachable at all. The `RbacSeeder` half of the
+ * claim still holds: the RBAC kernel itself grants nothing, and
+ * `RbacSeederIdempotencyTest` still proves it. What changed is that a seeder in
+ * this tree may now write `user_roles`, and it may only ever do so for accounts
+ * {@see DemoDataSeeder::namaAkun()} names.
  *
  * The **151** is derived by parsing the DDL's own INSERT tuples - 15 statements,
  * one per table - and every per-table count is recorded in the individual
@@ -211,6 +228,17 @@ class DatabaseSeeder extends Seeder
         'users',
         // Owned by the seed tree but written by nobody in it (todo 4)
         'user_roles',
+        // 4 demo-data tables (F3-02). APPENDED, children first, and this is the
+        // reason the list is not alphabetical: the three entries above truncate
+        // `users`, `dokter` and `faskes`, and `dokter_jadwal`, `apotek_stok` and
+        // `pasien_alergi` all carry a real foreign key onto one of them.
+        // `TRUNCATE` runs with `FOREIGN_KEY_CHECKS = 0`, so it does NOT cascade -
+        // leaving these three untruncated would strand their rows against parent
+        // ids that the re-seed then reassigns to different accounts. They are
+        // listed so the reset is COMPLETE, which is what "owns" means here.
+        'pasien_alergi',
+        'apotek_stok',
+        'dokter_jadwal',
     ];
 
     /**
@@ -247,6 +275,18 @@ class DatabaseSeeder extends Seeder
 
         // --- NOT from the DDL: development fixtures, and they must be last -----
         $this->call(DevFixtureSeeder::class);
+
+        // --- NOT from the DDL: the DEMO accounts (F3-02) ----------------------
+        //
+        // LAST of all, because it is the only seeder in the chain that needs
+        // everything above it: `RbacSeeder` for the roles it grants,
+        // `SpesialisasiSeeder` and `ObatSeeder` for the specialisation and the
+        // stocked drugs, and `MasterWilayahSeeder` for the province the demo
+        // pharmacy names. It is IDEMPOTENT - every write resolves on a
+        // DDL-declared natural key - so it can also be run on its own any number
+        // of times against a populated database, exactly like `RbacSeeder` and
+        // for exactly the reason F2 raised.
+        $this->call(DemoDataSeeder::class);
     }
 
     /**
