@@ -30,3 +30,6 @@ yarn-error.log
 
 # OpenCode session bookkeeping — regenerated every session, never part of the product
 .omo/run-continuation/
+
+# Playwright MCP artifacts (screenshots, traces, snapshots) — tool output, not product
+.playwright-mcp/
