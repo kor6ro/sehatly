@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Auth;
 
+use App\Support\KontakMasker;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -53,26 +54,13 @@ final class LogOtpSender implements OtpSender
      * phone number or an email address into a file that is shipped off-box by every
      * log shipper in the stack.
      *
-     * A phone number keeps its first three and last two characters; an address keeps
-     * its first character and its domain. Anything shorter than eight characters is
-     * reported in full only when it is not plausibly a phone number or an address --
-     * which for this sender means never, because the only two destinations in this
-     * schema are `users.no_telepon` and `users.email`.
+     * The RULE now lives in {@see KontakMasker}, because F-005's `FonnteOtpSender`
+     * logs the same masked destination and two copies of a masking rule is two places
+     * for the next edit to get wrong. This method stays so the call site and its
+     * reasoning read where they always did.
      */
     private function mask(string $tujuan): string
     {
-        if (str_contains($tujuan, '@')) {
-            [$local, $domain] = explode('@', $tujuan, 2);
-
-            return $local[0].'***@'.$domain;
-        }
-
-        $length = strlen($tujuan);
-
-        if ($length <= 5) {
-            return str_repeat('*', $length);
-        }
-
-        return substr($tujuan, 0, 3).str_repeat('*', $length - 5).substr($tujuan, -2);
+        return KontakMasker::mask($tujuan);
     }
 }

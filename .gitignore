@@ -33,3 +33,11 @@ yarn-error.log
 
 # Playwright MCP artifacts (screenshots, traces, snapshots) — tool output, not product
 .playwright-mcp/
+
+# Firebase service-account JSON and local credential files (F-005). The path is an
+# env value; these patterns catch the names Google's console downloads under so a
+# credential cannot be committed by accident.
+*firebase-adminsdk*.json
+*service-account*.json
+firebase-credentials.json
+storage/app/private/firebase/

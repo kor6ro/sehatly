@@ -4,16 +4,17 @@ namespace App\Providers;
 
 use App\Services\Audit\AuditObserverRegistrar;
 use App\Services\Audit\AuditScope;
-use App\Services\Auth\LogOtpSender;
 use App\Services\Auth\OtpSender;
 use App\Services\Auth\OtpService;
-use App\Services\Notifikasi\LogPushDispatcher;
+use App\Services\Auth\PemilihPengirimOtp;
+use App\Services\Notifikasi\PemilihPengirimPush;
 use App\Services\Notifikasi\PushDispatcher;
 use App\Services\Payment\MockPaymentGatewayService;
 use App\Services\Payment\PaymentGatewayService;
 use App\Services\SuratKeterangan\QrTokenGenerator;
 use App\Services\SuratKeterangan\StrQrTokenGenerator;
 use App\Support\ApiResponse;
+use App\Support\Security\PenjagaPengirimanProduksi;
 use App\Support\Security\PenjagaRahasiaWebhook;
 use Carbon\CarbonImmutable;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -158,6 +159,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->pastikanRahasiaWebhook();
+        PenjagaPengirimanProduksi::pastikan($this->app);
         $this->configureDefaults();
         $this->configureOtpDelivery();
         $this->configureRateLimiting();
@@ -222,16 +224,22 @@ class AppServiceProvider extends ServiceProvider
     /**
      * Bind the OTP delivery channel.
      *
-     * The only shipped implementation is {@see LogOtpSender}, because the plan forbids
-     * adding a real SMS provider. Binding the interface rather than injecting
-     * `LogOtpSender` directly into `OtpService` is what makes the substitution a
-     * one-line change: a deployment that adds a gateway replaces this binding and
-     * nothing else. A test that needs to read the generated code replaces the same
-     * binding, which is why `AuthFlowTest` never has to parse a log file.
+     * Two implementations, chosen by `config('otp.driver')` (F-005): {@see LogOtpSender},
+     * which writes the code to the log and is the only driver allowed in
+     * `local`/`testing`, and {@see FonnteOtpSender}, the prototype WhatsApp channel.
+     * Binding the interface rather than injecting a concrete class into `OtpService`
+     * is what makes the choice a deployment value: the service never learns which
+     * channel is in use, and a test substitutes the same binding.
+     *
+     * `PenjagaPengirimanProduksi` refuses to boot with `log` outside local/testing, so
+     * the choice cannot silently be "the log" in production.
      */
     private function configureOtpDelivery(): void
     {
-        $this->app->bind(OtpSender::class, LogOtpSender::class);
+        $this->app->bind(
+            OtpSender::class,
+            PemilihPengirimOtp::kelas((string) config('otp.driver')),
+        );
     }
 
     /**
@@ -902,21 +910,24 @@ class AppServiceProvider extends ServiceProvider
     /**
      * The push transport for `NotificationService`.
      *
-     * Bound here rather than injected by concrete type because
-     * `PushDispatcher` is a contract with one implementation today and a real
-     * FCM client tomorrow, and the choice of transport is a deployment decision
-     * like the OTP sender's - which is why {@see configureOtpDelivery()} exists
-     * in the same provider for the same reason.
+     * Two implementations, chosen by `config('push.driver')` (F-005):
+     * {@see LogPushDispatcher}, which records a delivery line and is the only driver
+     * allowed in `local`/`testing`, and {@see FcmPushDispatcher}, which posts to
+     * Firebase Cloud Messaging HTTP v1. The choice is a deployment value, exactly like
+     * the OTP sender's.
      *
-     * The log is the delivery record because `notifikasi` cannot hold one: no
-     * `dikirim_at`, no `status_kirim`, no `channel`.
+     * The log remains the delivery record in local/testing because `notifikasi` cannot
+     * hold one: no `dikirim_at`, no `status_kirim`, no `channel`. Outside those
+     * environments `PenjagaPengirimanProduksi` refuses to boot with it.
      *
-     * @see LogPushDispatcher for the limitation
      * @see PushDispatcher for the contract
      */
     private function configureNotificationPush(): void
     {
-        $this->app->bind(PushDispatcher::class, LogPushDispatcher::class);
+        $this->app->bind(
+            PushDispatcher::class,
+            PemilihPengirimPush::kelas((string) config('push.driver')),
+        );
     }
 
     /**
