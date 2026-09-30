@@ -14,6 +14,7 @@ use App\Services\Payment\PaymentGatewayService;
 use App\Services\SuratKeterangan\QrTokenGenerator;
 use App\Services\SuratKeterangan\StrQrTokenGenerator;
 use App\Support\ApiResponse;
+use App\Support\Security\PenjagaRahasiaWebhook;
 use Carbon\CarbonImmutable;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Foundation\Http\Events\RequestHandled;
@@ -153,12 +154,28 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $this->pastikanRahasiaWebhook();
         $this->configureDefaults();
         $this->configureOtpDelivery();
         $this->configureRateLimiting();
         $this->configureSecurityHeaders();
         $this->configureAuditObservers();
         $this->configureNotificationPush();
+    }
+
+    /**
+     * Refuse to boot outside `local`/`testing` while a payment webhook secret is the
+     * shipped default.
+     *
+     * The guard is a separate class so the refusal is directly testable and so this
+     * provider keeps the one job it has here - calling it first, before anything else
+     * in `boot()`, which is what makes the failure land on the first console command
+     * rather than on the first forged delivery. The full argument is in
+     * {@see PenjagaRahasiaWebhook}.
+     */
+    private function pastikanRahasiaWebhook(): void
+    {
+        PenjagaRahasiaWebhook::pastikan($this->app);
     }
 
     /**
