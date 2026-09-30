@@ -51,6 +51,16 @@ import { Button } from '@/components/ui/button';
  * for a render-time throw: the component that threw is remounted from scratch. "Kembali ke
  * dashboard" is the escape hatch, and it is a real client-side navigation rather than a
  * reload so the session in `sessionStorage` is not disturbed.
+ *
+ * ## The card claims nothing it cannot guarantee
+ *
+ * An earlier draft of this file told the reader that the menu beside the screen was still
+ * usable. Removing the leaf `errorElement` from one route to prove the guard fails showed
+ * why that sentence is a lie: the error then bubbles to the nearest ancestor that HAS one,
+ * the shell is replaced, and the card renders alone in the document. The claim is therefore
+ * not in the copy. What is true in every case is the two links below it, and the
+ * "the sidebar survives" property is proved by a test rather than asserted by a sentence -
+ * see `web/tests/e2e/app-shell-robustness.spec.ts`.
  */
 
 /**
@@ -98,11 +108,6 @@ function ErrorCard({
 
                 <AlertDescription>
                     <p data-slot="route-error-detail">{toError(error).message}</p>
-
-                    <p className="text-xs">
-                        Data Anda tidak hilang. Menu di sisi layar tetap bisa dipakai, dan
-                        halaman lain bisa dibuka seperti biasa.
-                    </p>
 
                     {actions}
                 </AlertDescription>
