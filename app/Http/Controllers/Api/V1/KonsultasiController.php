@@ -23,7 +23,9 @@ use App\Services\Pasien\PasienRecordAccess;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
+use Throwable;
 
 /**
  * Seven routes, one state machine, and one ownership rule.
@@ -269,13 +271,37 @@ class KonsultasiController extends Controller
      *
      * The event forwards whatever array it is given, so the socket body is the REST
      * body character for character and the two cannot drift.
+     *
+     * ## A dead broadcaster must not fail a write that already committed (F-003)
+     *
+     * `KonsultasiMessageSent` is `ShouldBroadcastNow`, so the send is inline and can
+     * throw when Reverb is unreachable. This method runs AFTER the service has
+     * committed its rows, so letting that throwable escape answers 500 for a write
+     * the database has already accepted - and a client that retries the 500 reads a
+     * 422 that looks like a business refusal for a session it just created. The
+     * outage is recorded and the response stays a success. The measurement is in
+     * `.omo/evidence`/`docs/verification-report.md` section 6.1, and
+     * `RealtimeGagalTest` is the wire-level proof, because `phpunit.xml` pins
+     * `BROADCAST_CONNECTION=null` and would otherwise never reach a broadcaster
+     * that can fail.
+     *
+     * Nothing from the chat body is logged: the line names the consultation, the
+     * chat row and the throwable, and the body is what the log must not copy.
      */
     private function siarkan(Request $request, KonsultasiChat $pesan): void
     {
         /** @var array<string, mixed> $payload */
         $payload = (new KonsultasiChatResource($pesan))->resolve($request);
 
-        KonsultasiMessageSent::dispatch((int) $payload['konsultasi_id'], $payload);
+        try {
+            KonsultasiMessageSent::dispatch((int) $payload['konsultasi_id'], $payload);
+        } catch (Throwable $e) {
+            Log::warning('konsultasi.siaran_gagal', [
+                'konsultasi_id' => (int) $payload['konsultasi_id'],
+                'chat_id' => (int) $pesan->getKey(),
+                'galat' => $e::class.': '.$e->getMessage(),
+            ]);
+        }
     }
 
     /**
