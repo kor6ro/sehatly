@@ -31,7 +31,7 @@ export function ApotekQueuePage() {
         <>
             <PageHeader
                 title="Antrean verifikasi resep"
-                description="POST /api/v1/resep/{id}/verifikasi. Satu resep hanya dapat diverifikasi sekali, dan penolakan bersifat final."
+                description="Satu resep hanya dapat diverifikasi sekali, dan penolakan bersifat final."
             />
 
             {boleh ? (

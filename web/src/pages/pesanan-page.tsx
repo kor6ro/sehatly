@@ -26,7 +26,7 @@ export function PesananPage() {
         <>
             <PageHeader
                 title="Lacak pesanan obat"
-                description="GET /api/v1/pesanan-obat/{id}. Status pesanan dan riwayat pengiriman dibaca apa adanya dari server."
+                description="Status pesanan dan riwayat pengiriman obat Anda."
             />
 
             <OrderTracking pesananId={pesananId} />

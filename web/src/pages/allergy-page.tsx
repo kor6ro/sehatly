@@ -66,7 +66,7 @@ export function AllergyPage() {
             <>
                 <PageHeader
                     title="Alergi"
-                    description="Memuat dari GET /api/v1/pasien/alergi."
+                    description="Memuat daftar alergi."
                 />
 
                 <SkeletonRows rows={4} />
@@ -215,8 +215,7 @@ export function AllergyPage() {
 
                         <DialogDescription>
                             Data {deleting?.nama_alergen ?? 'alergi ini'} akan dihapus
-                            permanen. Tabel `pasien_alergi` tidak memiliki kolom soft delete,
-                            jadi baris ini tidak dapat dipulihkan.
+                            permanen dan tidak dapat dipulihkan kembali.
                         </DialogDescription>
                     </DialogHeader>
 

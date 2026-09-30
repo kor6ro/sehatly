@@ -61,9 +61,9 @@ export function CheckoutForm({
                 </CardTitle>
 
                 <CardDescription>
-                    POST /api/v1/resep/{resep.id}/checkout. Stok dibaca dari
-                    GET /api/v1/obat/{'{id}'}/stok dan divalidasi ulang di dalam transaksi
-                    checkout, jadi angka di layar adalah pembacaan, bukan reservasi.
+                    Rincian pesanan dari resep ini. Stok tiap apotek diperiksa
+                    ulang saat checkout berlangsung, jadi angka di layar adalah
+                    perkiraan, bukan penahanan stok.
                 </CardDescription>
             </CardHeader>
 
@@ -121,9 +121,10 @@ export function CheckoutForm({
                 </div>
 
                 <p className="text-muted-foreground text-xs">
-                    Angka ini dijumlahkan dari `resep_item.subtotal` yang dipublikasikan
-                    server. Diskon, biaya admin, dan biaya kirim dihitung pada invoice dan
-                    ditetapkan server saat checkout; tidak ada perhitungannya di layar ini.
+                    Angka ini adalah jumlah subtotal seluruh baris resep. Diskon,
+                    biaya admin, dan biaya kirim dihitung pada invoice dan
+                    ditetapkan saat checkout; tidak ada perhitungannya di layar
+                    ini.
                 </p>
 
                 {stok.kandidat.length === 0 && !stok.sedangMemuat ? (
@@ -135,9 +136,10 @@ export function CheckoutForm({
 
                         Tidak ada apotek aktif yang punya cukup stok untuk
                         {stok.tanpaApotek.length === 0
-                            ? ' prescription ini'
+                            ? ' resep ini'
                             : `: ${stok.tanpaApotek.join(', ')}`}
-                        . Server akan menolak checkout dengan 422 pada `apotek_id`.
+                        . Checkout belum dapat diproses tanpa apotek yang punya
+                        stok cukup.
                     </p>
                 ) : (
                     <Field
@@ -145,7 +147,7 @@ export function CheckoutForm({
                         required
                         slot="checkout-apotek"
                         errors={alasanApotek}
-                        hint="Daftar apotek diambil dari alternatif pada GET /api/v1/obat/{id}/stok. Tidak ada endpoint yang mendaftar apotek."
+                        hint="Daftar apotek menampilkan apotek yang masih memiliki stok obat ini."
                     >
                         <FieldSelect
                             value={apotekId}

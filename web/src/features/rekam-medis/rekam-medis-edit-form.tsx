@@ -135,8 +135,8 @@ export function RekamMedisEditForm({ rekam }: { rekam: RekamMedis }) {
 
                 <CardDescription>
                     {draft
-                        ? 'PUT /api/v1/rekam-medis/{id} hanya berlaku pada status draft. Setelah ditandatangani, ubah dalam bentuk amandemen.'
-                        : 'Catatan yang sudah ditandatangani tidak dapat diubah in place. Server menjawab 422 pada PUT dan menunjuk ke /amandemen.'}
+                        ? 'Perubahan hanya berlaku pada catatan berstatus draf. Setelah ditandatangani, ubah dalam bentuk amandemen.'
+                        : 'Catatan yang sudah ditandatangani tidak dapat diubah langsung. Perubahan hanya dapat dilakukan sebagai amandemen.'}
                 </CardDescription>
             </CardHeader>
 

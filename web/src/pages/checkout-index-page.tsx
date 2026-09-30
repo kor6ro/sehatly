@@ -61,11 +61,11 @@ export function CheckoutIndexPage() {
         <>
             <PageHeader
                 title="Checkout resep"
-                description="POST /api/v1/resep/{id}/checkout. Sumber daftarnya adalah GET /api/v1/pasien/resep, jadi setiap baris di bawah milik akun ini."
+                description="Resep yang siap dipesan. Setiap baris di bawah ini milik akun Anda."
             />
 
             {user !== null && user.tipe !== 'pasien' ? (
-                <ForbiddenState detail="Resep adalah data milik akun pasien. Akun dokter, apoteker, admin, dan superadmin tidak memiliki baris pasien, jadi server menjawab 403 untuk riwayat resep." />
+                <ForbiddenState detail="Resep adalah data milik akun pasien. Akun dokter, apoteker, admin, dan superadmin tidak memiliki data pasien, sehingga riwayat resep tidak dapat dimuat." />
             ) : riwayat.isPending ? (
                 <SkeletonRows rows={4} />
             ) : riwayat.isError ? (

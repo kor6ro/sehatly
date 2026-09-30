@@ -92,7 +92,7 @@ export function ResepComposePage() {
         <>
             <PageHeader
                 title={`Resep untuk konsultasi #${konsultasiId}`}
-                description="POST /api/v1/konsultasi/{id}/resep. Peringatan kontraindikasi dihitung server-side dan memerlukan pengakuan tertulis sebelum resep tersimpan."
+                description="Peringatan kontraindikasi selalu diperiksa dan memerlukan pengakuan tertulis sebelum resep tersimpan."
             />
 
             {boleh ? (

@@ -46,7 +46,7 @@ export function OrderTracking({ pesananId }: { pesananId: number }) {
     if (pesanan.isError) {
         if (pesanan.error instanceof ApiError && pesanan.error.isForbidden) {
             return (
-                <ForbiddenState detail="Endpoint ini hanya untuk akun pasien, apoteker, admin, atau superadmin." />
+                <ForbiddenState detail="Halaman ini hanya untuk akun pasien, apoteker, admin, atau superadmin." />
             );
         }
 
@@ -117,7 +117,7 @@ export function OrderTracking({ pesananId }: { pesananId: number }) {
             {trail.length === 0 ? (
                 <EmptyState
                     title="Belum ada riwayat"
-                    description="Endpoint ini hanya mengembalikan tracking pada respons detail. Pesanan yang baru dibuat belum punya baris riwayat selain baris pertama."
+                    description="Pesanan yang baru dibuat belum memiliki langkah tercatat selain langkah pertamanya."
                 />
             ) : (
                 <ol data-slot="tracking-timeline" className="flex flex-col">

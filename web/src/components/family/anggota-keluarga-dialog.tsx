@@ -203,8 +203,8 @@ export function AnggotaKeluargaDialog({
 
                     <DialogDescription>
                         {isEdit
-                            ? 'Perubahan dikirim ke PUT /api/v1/pasien/anggota-keluarga/{id}. Kolom NIK dikosongkan karena nilai yang disimpan dimasking oleh server.'
-                            : 'Data dikirim ke POST /api/v1/pasien/anggota-keluarga.'}
+                            ? 'Perubahan Anda akan disimpan. Kolom NIK dikosongkan karena nilai tersimpan tidak ditampilkan kembali.'
+                            : 'Anggota keluarga baru akan ditambahkan pada data Anda.'}
                     </DialogDescription>
                 </DialogHeader>
 

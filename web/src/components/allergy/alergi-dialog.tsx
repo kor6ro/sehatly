@@ -163,8 +163,8 @@ export function AlergiDialog({
 
                     <DialogDescription>
                         {isEdit
-                            ? 'Perubahan dikirim ke PUT /api/v1/pasien/alergi/{id}.'
-                            : 'Data dikirim ke POST /api/v1/pasien/alergi.'}
+                            ? 'Perubahan Anda akan disimpan pada data alergi.'
+                            : 'Alergi baru akan ditambahkan pada data Anda.'}
                         {' '}Nama alergen bebas teks dan tidak dicocokkan dengan katalog obat.
                     </DialogDescription>
                 </DialogHeader>

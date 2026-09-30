@@ -73,7 +73,7 @@ export function FamilyPage() {
             <>
                 <PageHeader
                     title="Anggota keluarga"
-                    description="Memuat dari GET /api/v1/pasien/anggota-keluarga."
+                    description="Memuat anggota keluarga."
                 />
 
                 <SkeletonRows rows={5} />
@@ -113,7 +113,7 @@ export function FamilyPage() {
         <>
             <PageHeader
                 title="Anggota keluarga"
-                description="Keluarga yang didaftarkan pada akun ini. Data dibaca dari GET /api/v1/pasien/anggota-keluarga."
+                description="Keluarga yang didaftarkan pada akun ini."
                 action={
                     <Button
                         type="button"
@@ -220,8 +220,7 @@ export function FamilyPage() {
 
                         <DialogDescription>
                             Data {deleting?.nama_lengkap ?? 'anggota keluarga ini'} akan
-                            dihapus permanen. Tabel `pasien_anggota_keluarga` tidak memiliki
-                            kolom soft delete, jadi baris ini tidak dapat dipulihkan.
+                            dihapus permanen dan tidak dapat dipulihkan kembali.
                         </DialogDescription>
                     </DialogHeader>
 
@@ -344,7 +343,7 @@ function FamilyRow({
                 )}
 
                 <p className="text-muted-foreground text-xs">
-                    Hubungan tersedia: {HUBUNGAN_KELUARGA.length} label dari tabel master.
+                    Hubungan tersedia: {HUBUNGAN_KELUARGA.length} pilihan hubungan keluarga.
                 </p>
             </CardContent>
         </Card>

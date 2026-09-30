@@ -74,7 +74,7 @@ export function RekamMedisPage() {
             <>
                 <PageHeader
                     title="Rekam medis"
-                    description="Memuat dokumen. Setiap pembacaan tercatat pada akses_rekam_medis_log."
+                    description="Memuat dokumen. Setiap pembacaan dicatat demi keamanan data Anda."
                 />
 
                 <SkeletonRows rows={6} />
@@ -146,7 +146,7 @@ export function RekamMedisPage() {
         <>
             <PageHeader
                 title={`Rekam medis #${data.id}`}
-                description="Dibaca dari GET /api/v1/rekam-medis/{id}. Setiap pembacaan tercatat pada akses_rekam_medis_log."
+                description="Rincian rekam medis ini. Setiap kali dibuka, aksesnya dicatat demi keamanan data Anda."
                 action={
                     bolehUbah ? (
                         <Button

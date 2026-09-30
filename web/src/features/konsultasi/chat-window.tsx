@@ -192,8 +192,7 @@ export function ChatWindow({
 
             {disabled ? (
                 <p className="text-muted-foreground text-xs">
-                    Percakapan ini sudah ditutup. Endpoint POST /chat menolak
-                    menulis pada konsultasi yang tidak berlangsung.
+                    Percakapan ini sudah ditutup dan tidak lagi menerima pesan baru.
                 </p>
             ) : null}
         </section>

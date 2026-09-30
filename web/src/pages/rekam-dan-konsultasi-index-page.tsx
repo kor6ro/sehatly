@@ -62,8 +62,8 @@ export function KonsultasiIndexPage() {
             label="Konsultasi"
             tujuan="/konsultasi"
             keDaftar={daftarKonsultasi}
-            deskripsi="Nomor konsultasi diturunkan dari resep milik akun ini, dibaca dari GET /api/v1/pasien/resep. Server belum menyediakan endpoint daftar konsultasi."
-            tolakDetail="Daftar ini disusun dari resep milik akun pasien, jadi akun dokter tidak bisa membacanya. Server juga belum menyediakan endpoint daftar konsultasi, sehingga nomor konsultasi tidak dapat ditemukan dari halaman ini."
+            deskripsi="Daftar nomor konsultasi dari resep milik akun ini."
+            tolakDetail="Daftar ini disusun dari resep milik akun pasien, sehingga akun dokter tidak dapat melihat daftar konsultasi dari halaman ini."
             kosong={{
                 judul: 'Belum ada konsultasi',
                 detail: 'Konsultasi dimulai dari booking yang sudah dibayar. Setelah sesi pertama dimulai, nomor konsultasi Anda akan tampil di sini.',
@@ -85,8 +85,8 @@ export function RekamMedisIndexPage() {
             label="Rekam medis"
             tujuan="/rekam-medis"
             keDaftar={daftarRekamMedis}
-            deskripsi="Nomor rekam medis diturunkan dari resep milik akun ini, dibaca dari GET /api/v1/pasien/resep. Server belum menyediakan endpoint daftar rekam medis."
-            tolakDetail="Daftar ini disusun dari resep milik akun pasien, jadi akun dokter tidak bisa membacanya. Server juga belum menyediakan endpoint daftar rekam medis, sehingga nomor rekam medis tidak dapat ditemukan dari halaman ini."
+            deskripsi="Daftar nomor rekam medis dari resep milik akun ini."
+            tolakDetail="Daftar ini disusun dari resep milik akun pasien, sehingga akun dokter tidak dapat melihat daftar rekam medis dari halaman ini."
             kosong={{
                 judul: 'Belum ada rekam medis',
                 detail: 'Rekam medis ditulis dokter pada sesi konsultasi yang sedang berjalan, lalu dapat dibuka kembali dari halaman ini.',
@@ -177,8 +177,8 @@ function DaftarTurunan({
                                     </CardTitle>
 
                                     <CardDescription>
-                                        Data dibaca dari {tujuan}/{'{id}'} milik akun ini.
-                                        Server menjawab 404 untuk baris milik akun lain.
+                                        Data ini hanya milik akun Anda dan tidak
+                                        dapat dibuka dari akun lain.
                                     </CardDescription>
                                 </CardHeader>
 

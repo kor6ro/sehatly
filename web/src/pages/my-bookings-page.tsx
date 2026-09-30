@@ -51,7 +51,7 @@ export function MyBookingsPage() {
                 void list.refetch();
             }}
             headerTitle="Booking saya"
-            headerDescription="Semua booking pada akun ini, dibaca dari GET /api/v1/pasien/booking."
+            headerDescription="Semua booking pada akun ini."
             headerAction={
                 <Button asChild variant="outline">
                     <Link to="/dokter">

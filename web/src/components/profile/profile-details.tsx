@@ -213,9 +213,9 @@ export function ReferenceIdsNotice({ profile }: { profile: PasienProfile }) {
             </dl>
 
             <p className="text-muted-foreground text-xs">
-                Nilai ini tertaut ke tabel master. API modul 1 hanya menyediakan endpoint
-                referensi untuk spesialisasi dokter, sehingga pilihan untuk kolom di atas
-                belum dapat ditampilkan dan tidak diubah dari halaman ini.
+                Nilai ini berasal dari data referensi. Hanya spesialisasi dokter yang dapat
+                dipilih, sehingga pilihan untuk kolom di atas belum dapat ditampilkan dan
+                tidak dapat diubah dari halaman ini.
             </p>
         </section>
     );

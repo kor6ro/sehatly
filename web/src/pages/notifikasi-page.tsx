@@ -44,7 +44,7 @@ export function NotifikasiPage() {
         <>
             <PageHeader
                 title="Notifikasi"
-                description="GET /api/v1/notifikasi. Jumlah belum dibaca ada di meta.unread dan tidak sama dengan total halaman."
+                description="Jumlah notifikasi yang belum dibaca berbeda dengan total notifikasi di halaman ini."
                 action={
                     <>
                         <Button

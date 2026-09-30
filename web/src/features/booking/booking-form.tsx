@@ -406,10 +406,9 @@ export function BookingForm({
                          * local object URL, nothing the server could not later resolve.
                          */}
                         <p className="text-muted-foreground text-xs">
-                            API ini tidak menyediakan endpoint unggah berkas, sehingga
-                            lampiran diisi dengan nama berkas dan URL yang sudah Anda
-                            unggah sendiri. Aturan server: nama maksimal 150 karakter dan
-                            URL harus valid.
+                            Lampiran diisi dengan nama berkas dan URL yang sudah Anda
+                            unggah sendiri. Nama maksimal 150 karakter dan URL harus
+                            valid.
                         </p>
 
                         <div className="flex flex-col gap-3">

@@ -125,7 +125,7 @@ export function DashboardPage() {
                         </CardTitle>
 
                         <CardDescription>
-                            Data ini berasal dari `GET /api/v1/me`.
+                            Data akun Anda yang terdaftar di Sehatly.
                         </CardDescription>
                     </CardHeader>
 
@@ -216,7 +216,7 @@ export function DashboardPage() {
 
             {user.pasien === undefined ? (
                 <ForbiddenState
-                    detail="Akun ini tidak memiliki data pasien. Halaman profil, anggota keluarga, dan alergi akan menolak akses karena setiap endpoint thereof menjawab 403 untuk akun tanpa baris pasien."
+                    detail="Akun ini tidak memiliki data pasien. Halaman profil, anggota keluarga, dan alergi hanya dapat dibuka oleh akun yang memiliki data pasien."
                 />
             ) : null}
         </>

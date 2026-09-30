@@ -90,7 +90,7 @@ export function PembayaranMenunggu({ pesananId }: { pesananId: number }) {
 
         if (pesanan.error instanceof ApiError && pesanan.error.isForbidden) {
             return (
-                <ForbiddenState detail="Endpoint ini hanya untuk akun pasien, apoteker, admin, atau superadmin." />
+                <ForbiddenState detail="Halaman ini hanya untuk akun pasien, apoteker, admin, atau superadmin." />
             );
         }
 
@@ -120,8 +120,8 @@ export function PembayaranMenunggu({ pesananId }: { pesananId: number }) {
                     </CardTitle>
 
                     <CardDescription>
-                        GET /api/v1/pesanan-obat/{order.id}. Status pesanan dibaca dari
-                        server dan ditampilkan apa adanya.
+                        Ringkasan pesanan obat ini. Status dan total di bawah
+                        ditampilkan apa adanya dari data pesanan.
                     </CardDescription>
                 </CardHeader>
 
@@ -152,24 +152,23 @@ export function PembayaranMenunggu({ pesananId }: { pesananId: number }) {
                     </div>
 
                     <p className="text-muted-foreground text-xs">
-                        Total ini adalah barang plus kirim. Diskon dan biaya admin ada di
-                        invoice, dan invoice hanya dipublikasikan sebagai bagian dari
-                        respons pembayaran di bawah.
+                        Total ini adalah barang plus kirim. Diskon dan biaya
+                        admin ada di invoice, yang baru muncul setelah pembayaran
+                        dimulai di bawah.
                     </p>
 
                     {lunas ? (
                         <Alert data-slot="pesanan-sudah-terbayar" variant="default">
                             <ShieldCheck aria-hidden />
 
-                            <AlertTitle>Server sudah mencatat settlement</AlertTitle>
+                            <AlertTitle>Pembayaran sudah dikonfirmasi</AlertTitle>
 
                             <AlertDescription>
                                 <p>
-                                    Status pesanan sudah tidak lagi{' '}
-                                    <code>menunggu_pembayaran</code>, dan transisi itu hanya
-                                    ditulis sekali pada pengiriman webhook pertama. Kiriman
-                                    ulang answered dengan <code>duplicate: true</code> tanpa
-                                    menulis apa pun.
+                                    Status pesanan sudah berubah dari menunggu
+                                    pembayaran. Konfirmasi ini hanya dicatat satu
+                                    kali, sehingga pengulangan tidak mengubah apa
+                                    pun.
                                 </p>
                             </AlertDescription>
                         </Alert>
@@ -183,8 +182,9 @@ export function PembayaranMenunggu({ pesananId }: { pesananId: number }) {
                         <CardTitle>Mulai pembayaran</CardTitle>
 
                         <CardDescription>
-                            POST /api/v1/invoice/{'{id}'}/bayar. Id invoice tidak
-                            dipublikasikan endpoint mana pun, jadi harus diisi di sini.
+                            Masukkan nomor tagihan untuk melanjutkan pembayaran.
+                            Nilai ini tidak ditampilkan otomatis di halaman lain,
+                            jadi harus diisi di sini.
                         </CardDescription>
                     </CardHeader>
 
@@ -199,7 +199,7 @@ export function PembayaranMenunggu({ pesananId }: { pesananId: number }) {
                                     ? bayar.error.fieldErrors('metode_id')
                                     : []
                             }
-                            hint="Tidak ada GET /invoice/{id} dan respons checkout tidak memuat invoice_id, jadi nilai ini tidak bisa ditemukan dari API. Lihat .omo/evidence/task-48-sehatly.md."
+                            hint="Nomor tagihan harus diisi manual karena nilainya tidak ditampilkan di halaman lain."
                         >
                             <FieldInput
                                 data-slot="payment-invoice-id"

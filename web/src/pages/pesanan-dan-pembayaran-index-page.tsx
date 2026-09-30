@@ -31,7 +31,7 @@ export function PesananIndexPage() {
     return (
         <DaftarBelumTersedia
             judul="Lacak pesanan obat"
-            deskripsi="GET /api/v1/pesanan-obat/{id}. Server belum menyediakan endpoint daftar pesanan, jadi halaman ini tidak dapat menampilkan nomor pesanan milik akun ini."
+            deskripsi="Daftar nomor pesanan milik akun ini belum tersedia di halaman ini."
             detail="Nomor pesanan diberikan oleh server setelah checkout berhasil. Buka riwayat resep, pilih resep yang sudah diverifikasi, lalu tekan Checkout untuk mendapat nomor pesanan dan membuka halaman lacaknya."
             aksi={
                 <Button asChild variant="outline" size="sm">
@@ -46,8 +46,8 @@ export function PembayaranIndexPage() {
     return (
         <DaftarBelumTersedia
             judul="Pembayaran"
-            deskripsi="POST /api/v1/invoice/{id}/bayar. Server belum menyediakan endpoint daftar invoice, dan id invoice tidak dipublikasikan pada respons manapun."
-            detail="Pembayaran dilakukan untuk sebuah pesanan. Nomor pesanan diberikan setelah checkout berhasil, lalu halaman pembayaran menanyakan id invoice yang memang tidak bisa ditemukan dari API."
+            deskripsi="Daftar tagihan pembayaran milik akun ini belum tersedia di halaman ini."
+            detail="Pembayaran dilakukan untuk sebuah pesanan. Nomor pesanan diberikan setelah checkout berhasil, lalu halaman pembayaran menanyakan nomor tagihan yang memang tidak dapat ditemukan dari halaman ini."
             aksi={
                 <Button asChild variant="outline" size="sm">
                     <Link to="/checkout">Lihat resep yang bisa dipesan</Link>

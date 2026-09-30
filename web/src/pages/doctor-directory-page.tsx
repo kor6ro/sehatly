@@ -94,7 +94,7 @@ export function DoctorDirectoryPage() {
         <>
             <PageHeader
                 title="Direktori dokter"
-                description="Daftar dokter yang memenuhi syarat: terverifikasi, aktif, tersedia untuk telemedisin, dan STR masih berlaku. Sumber: GET /api/v1/dokter."
+                description="Daftar dokter yang memenuhi syarat: terverifikasi, aktif, tersedia untuk telemedisin, dan STR masih berlaku."
             />
 
             {/**
@@ -363,7 +363,7 @@ function asDirectoryError(error: unknown): unknown {
     if (error instanceof ApiError && error.isUnauthorized) {
         return new ApiError(
             error.status,
-            'Direktori dokter seharusnya dapat diakses tanpa masuk. Endpoint ini menjawab 401, yang menunjukkan ada masalah pada konfigurasi akses.',
+            'Direktori dokter seharusnya dapat diakses tanpa masuk. Pesan ini menunjukkan ada masalah pada konfigurasi akses.',
         );
     }
 

@@ -351,9 +351,7 @@ export function KonsultasiPage() {
                                 <Stethoscope aria-hidden className="mt-0.5 size-3" />
 
                                 Form SOAP hanya ditampilkan untuk akun dokter.
-                                Endpointnya memakai tipe:dokter dan
-                                permission:konsultasi.selesai, sehingga pasien
-                                tetap tidak dapat menulisnya meski melalui API.
+                                Pasien tidak dapat menulis catatan ini.
                             </p>
                         )}
 

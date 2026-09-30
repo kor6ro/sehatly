@@ -32,7 +32,7 @@ export function PembayaranPage() {
         <>
             <PageHeader
                 title="Pembayaran"
-                description="POST /api/v1/invoice/{id}/bayar. Status settlement dibaca dari pesanan, karena tidak ada endpoint untuk membaca invoice."
+                description="Status pembayaran terakhir diambil dari pesanan Anda."
             />
 
             <PembayaranMenunggu pesananId={Number(pesananId)} />

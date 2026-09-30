@@ -64,8 +64,8 @@ export function RekamMedisView({
                     </CardTitle>
 
                     <CardDescription>
-                        Dibaca dari GET /api/v1/rekam-medis/{rekam.id}. Setiap
-                        pembacaan tercatat pada akses_rekam_medis_log.
+                        Rincian rekam medis ini. Setiap kali dibuka, aksesnya
+                        dicatat demi keamanan data Anda.
                     </CardDescription>
                 </CardHeader>
 
@@ -245,7 +245,7 @@ function RantaiVersi({
     if (rantai.length === 0) {
         return (
             <p className="text-muted-foreground text-sm">
-                Rantai versi tidak dimuat pada respons ini.
+                Rantai versi tidak termuat pada tampilan ini.
             </p>
         );
     }

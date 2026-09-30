@@ -113,17 +113,15 @@ export function PaymentInstructions({ data }: { data: MulaiPembayaranData }) {
                 <Alert data-slot="payment-idempotensi">
                     <Copy aria-hidden />
 
-                    <AlertTitle>Status pembayaran tidak bisa dibaca lewat endpoint lain</AlertTitle>
+                    <AlertTitle>Status pembayaran hanya dapat dikonfirmasi penyedia pembayaran</AlertTitle>
 
                     <AlertDescription>
                         <p>
-                            Tidak ada `GET /invoice/{'{id}'}`. Konfirmasi hanya sampai lewat
-                            `POST /webhook/payment/{'{gateway}'}`, yang tanpa autentikasi dan
-                            ditandatangani HMAC, jadi tidak pernah dipanggil dari browser.
-                            Layar ini karena itu tidak mengarang status berbayar: ia
-                            membaca `pesanan_obat.status` dari
-                            `GET /pesanan-obat/{'{id}'}`, satu-satunya tanda settlement
-                            yang benar-benar dipublikasikan server.
+                            Konfirmasi pembayaran hanya diterima dari penyedia
+                            pembayaran dan tidak pernah dikirim dari peramban. Karena
+                            itu layar ini tidak menebak status berbayar: status dibaca
+                            dari pesanan Anda, satu-satunya tanda pembayaran yang
+                            tersedia.
                         </p>
                     </AlertDescription>
                 </Alert>

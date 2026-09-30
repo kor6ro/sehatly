@@ -56,10 +56,10 @@ export function CheckoutPage() {
             <>
                 <PageHeader
                     title="Checkout resep"
-                    description="POST /api/v1/resep/{id}/checkout, diizinkan oleh permission:pesanan.buat."
+                    description="Halaman untuk menyiapkan pesanan obat dari resep."
                 />
 
-                <ForbiddenState detail="Endpoint ini hanya untuk akun pasien. Akun dokter, apoteker, dan admin tidak memegang izin pesanan.buat." />
+                <ForbiddenState detail="Halaman ini hanya untuk akun pasien." />
             </>
         );
     }
@@ -68,7 +68,7 @@ export function CheckoutPage() {
         <>
             <PageHeader
                 title="Checkout resep"
-                description="POST /api/v1/resep/{id}/checkout. Resep harus sudah diverifikasi apoteker dan belum melewati tanggal berlaku."
+                description="Resep harus sudah diverifikasi apoteker dan belum melewati tanggal berlaku."
             />
 
             {resep.isPending ? (
@@ -97,7 +97,7 @@ export function CheckoutPage() {
                             <code data-slot="checkout-status-resep">
                                 {resep.data.data.resep.status}
                             </code>
-                            . Server menolak checkout dengan 422 selama resep belum
+                            . Checkout belum dapat dilakukan selama resep belum
                             diverifikasi atau sudah kedaluwarsa, jadi form tidak ditawarkan.
                         </p>
                     </AlertDescription>

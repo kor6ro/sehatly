@@ -179,8 +179,8 @@ export function ResepComposer({
                 <CardTitle>Resep elektronik</CardTitle>
 
                 <CardDescription>
-                    Ditulis lewat POST /api/v1/konsultasi/{konsultasiId}/resep. Peringatan
-                    interaksi obat dihitung server-side dan tidak pernah disembunyikan.
+                    Resep ditulis pada konsultasi yang sedang berlangsung. Peringatan
+                    interaksi obat selalu ditampilkan, tidak pernah disembunyikan.
                 </CardDescription>
             </CardHeader>
 

@@ -77,7 +77,9 @@ export function SoapForm({ konsultasi }: { konsultasi: Konsultasi }) {
                  */
                 dispatchFlash({
                     level: 'error',
-                    message: `Server mengembalikan 200 tetapi kolom berikut tidak tersimpan: ${hilang.join(', ')}.`,
+                    message: `Beberapa kolom tidak tersimpan: ${hilang
+                        .map((kolom) => LABEL_SOAP[kolom])
+                        .join(', ')}.`,
                 });
 
                 return;
@@ -105,9 +107,8 @@ export function SoapForm({ konsultasi }: { konsultasi: Konsultasi }) {
                 </CardTitle>
 
                 <CardDescription>
-                    Enam kolom yang ditulis doctor-only melalui PUT
-                    /api/v1/konsultasi/{konsultasi.id}/selesai. Field yang dikosongkan
-                    dipertahankan, bukan dihapus.
+                    Enam kolom yang hanya dapat diisi dokter ketika konsultasi
+                    ditutup. Kolom yang dikosongkan dipertahankan, bukan dihapus.
                 </CardDescription>
             </CardHeader>
 
@@ -180,10 +181,9 @@ const LABEL_SOAP: Record<(typeof KOLOM_SOAP)[number], string> = {
 const HINT_SOAP: Record<(typeof KOLOM_SOAP)[number], string> = {
     catatan_subjektif: 'Maksimum 16000 karakter.',
     catatan_objektif: 'Maksimum 16000 karakter.',
-    catatan_asessment:
-        'Nama kolom di server adalah catatan_asessment, mengikuti telemedicine_test.sql:550.',
+    catatan_asessment: 'Maksimum 16000 karakter.',
     catatan_plan: 'Maksimum 16000 karakter.',
-    diagnosis_kerja: 'Maksimum 255 karakter, mengikuti VARCHAR(255) di skema.',
+    diagnosis_kerja: 'Maksimum 255 karakter.',
     saran_tindak_lanjut: 'Maksimum 16000 karakter.',
 };
 

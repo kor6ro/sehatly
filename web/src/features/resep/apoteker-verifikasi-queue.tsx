@@ -88,9 +88,8 @@ export function ApotekerVerifikasiQueue({
                     </CardTitle>
 
                     <CardDescription>
-                        Masukkan id resep. Tidak ada endpoint yang mendaftar antrean
-                        apoteker, jadi antrean dibuka satu per satu - lihat temuan di
-                        .omo/evidence/task-41-sehatly.md.
+                        Masukkan id resep. Antrean tidak dapat ditampilkan di
+                        halaman ini, jadi setiap resep dibuka satu per satu.
                     </CardDescription>
                 </CardHeader>
 
@@ -250,9 +249,8 @@ function AntreanResep({
                     </CardTitle>
 
                     <CardDescription>
-                        POST /api/v1/resep/{resepId}/verifikasi. Satu resep hanya dapat
-                        diverifikasi sekali: `resep_verifikasi.resep_id` UNIQUE, jadi
-                        jawaban kedua selalu 422.
+                        Satu resep hanya dapat diverifikasi sekali, dan setiap
+                        keputusan bersifat final.
                     </CardDescription>
                 </CardHeader>
 
@@ -265,8 +263,7 @@ function AntreanResep({
                             className="text-muted-foreground text-sm"
                         >
                             Resep berstatus &quot;{resep.status}&quot; tidak dapat
-                            diverifikasi. Server akan menjawab 422, jadi pilihan tidak
-                            ditawarkan.
+                            diverifikasi, sehingga pilihan ini tidak ditawarkan.
                         </p>
                     )}
 

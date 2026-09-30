@@ -103,7 +103,7 @@ export function ResepDetailPage() {
         <>
             <PageHeader
                 title={`Resep ${data.nomor_resep}`}
-                description="Dibaca dari GET /api/v1/resep/{id}. Peringatan dihitung dari item yang tersimpan, bukan dari respons 201 yang dilihat dokter."
+                description="Rincian resep Anda. Peringatan dihitung dari resep yang tersimpan di sistem."
                 action={
                     bolehTulis ? (
                         <Button asChild variant="outline">

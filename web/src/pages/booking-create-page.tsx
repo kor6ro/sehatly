@@ -119,7 +119,7 @@ export function BookingCreatePage() {
         <>
             <PageHeader
                 title={`Booking dengan ${row.nama_lengkap}`}
-                description="Kirim ke POST /api/v1/booking. Tanggal, jam, tipe layanan, dan keluhan divalidasi penuh oleh server."
+                description="Lengkapi tanggal, jam, tipe layanan, dan keluhan sebelum mengirim booking."
                 action={
                     <Button asChild variant="outline">
                         <Link to="/booking">
@@ -163,7 +163,7 @@ export function BookingCreatePage() {
                         </p>
 
                         <p className="text-muted-foreground text-sm">
-                            Status awal adalah `menunggu_pembayaran`. Nomor antrean
+                            Status awal adalah menunggu pembayaran. Nomor antrean
                             belum ditetapkan oleh sistem, sehingga tidak
                             ditampilkan.
                         </p>
@@ -196,7 +196,7 @@ export function BookingCreatePage() {
                     void list.refetch();
                 }}
                 headerTitle="Booking terakhir"
-                headerDescription="Daftar booking pada akun ini, dibaca dari GET /api/v1/pasien/booking."
+                headerDescription="Daftar booking pada akun ini."
             />
         </>
     );

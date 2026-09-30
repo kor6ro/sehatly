@@ -70,9 +70,8 @@ export function ResepDetail({
                     </CardTitle>
 
                     <CardDescription>
-                        Dibaca dari GET /api/v1/resep/{resep.id}. Peringatan di bawah
-                        dihitung ulang dari item yang TERSIMPAN, bukan dari respons 201
-                        yang dilihat dokter.
+                        Rincian resep Anda. Peringatan di bawah dihitung dari item
+                        resep yang tersimpan di sistem.
                     </CardDescription>
                 </CardHeader>
 
@@ -110,7 +109,7 @@ export function ResepDetail({
 
                         {items.length === 0 ? (
                             <p className="text-muted-foreground text-sm">
-                                Item tidak dimuat pada respons ini.
+                                Item tidak termuat pada tampilan ini.
                             </p>
                         ) : (
                             <ul className="flex flex-col gap-2">

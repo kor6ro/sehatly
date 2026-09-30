@@ -68,7 +68,7 @@ export function DoctorBookingsPage() {
             meta={list.data?.meta}
             rows={list.data?.data.booking ?? []}
             headerTitle="Booking masuk"
-            headerDescription="Booking pada akun dokter ini, dibaca dari GET /api/v1/dokter/booking. Endpoint ini hanya dapat diakses akun bertipe dokter."
+            headerDescription="Booking yang masuk pada akun dokter ini."
             headerAction={
                 <span className="text-muted-foreground text-sm">
                     {me.data?.data.user.nama_lengkap ?? '-'}

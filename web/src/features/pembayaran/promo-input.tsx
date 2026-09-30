@@ -42,11 +42,10 @@ export function PromoInput({ invoiceId }: { invoiceId: number | null }) {
 
                 <AlertDescription>
                     <p>
-                        POST /api/v1/promo/validasi mewajibkan `invoice_id`, dan invoice
-                        baru dibuat oleh checkout. Tidak ada endpoint yang membuat invoice
-                        atas permintaan, jadi tidak ada id yang bisa divalidasi sebelum
-                        pesanan dibuat. Kode promo bisa dikirim sebagai `kode_promo` pada
-                        checkout dan hasilnya dibaca dari invoice.
+                        Pemeriksaan promo memerlukan nomor invoice, dan invoice baru
+                        dibuat setelah pesanan dikonfirmasi. Belum ada nomor yang bisa
+                        diperiksa sebelum pesanan dibuat. Masukkan kode promo saat
+                        checkout, lalu lihat hasilnya pada invoice.
                     </p>
                 </AlertDescription>
             </Alert>
@@ -66,9 +65,9 @@ export function PromoInput({ invoiceId }: { invoiceId: number | null }) {
                 </CardTitle>
 
                 <CardDescription>
-                    POST /api/v1/promo/validasi untuk invoice {invoiceId}. Perhitungan
-                    diskon, kuota, minimum transaksi, dan plafon diskon seluruhnya
-                    dikerjakan server.
+                    Pemeriksaan kode promo untuk invoice ini. Perhitungan diskon,
+                    kuota, minimum transaksi, dan plafon diskon seluruhnya dihitung
+                    oleh sistem.
                 </CardDescription>
             </CardHeader>
 

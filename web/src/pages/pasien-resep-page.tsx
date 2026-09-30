@@ -60,7 +60,7 @@ export function PasienRiwayatResepPage() {
         <>
             <PageHeader
                 title="Riwayat resep"
-                description="GET /api/v1/pasien/resep. Setiap resep menampilkan status, tanggal berlaku, dan kode QR verifikasi."
+                description="Setiap resep menampilkan status, tanggal berlaku, dan kode QR verifikasi."
             />
 
             <div className="flex flex-wrap gap-2">

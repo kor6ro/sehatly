@@ -43,7 +43,7 @@ export function ProfilePage() {
             <>
                 <PageHeader
                     title="Profil pasien"
-                    description="Memuat profil dari GET /api/v1/pasien/profil."
+                    description="Memuat profil Anda."
                 />
 
                 <SkeletonRows rows={6} />
@@ -82,7 +82,7 @@ export function ProfilePage() {
         <>
             <PageHeader
                 title="Profil pasien"
-                description="Data ini dibaca dari GET /api/v1/pasien/profil."
+                description="Profil pasien yang terdaftar pada akun ini."
                 action={
                     <Button
                         type="button"
