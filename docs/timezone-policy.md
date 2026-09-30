@@ -285,3 +285,30 @@ which is byte-frozen (`SHA-256 AEFE2247E00F...`).
   `TIMESTAMP` was *stored* correctly by MySQL (UTC-native), so pinning the session
   corrects the **read** and no data repair is needed. The three wall-clock `DATETIME`
   columns were stored the way they are meant to be stored and are untouched by either.
+
+---
+
+## Product decision: WIB only (F-010)
+
+The audit asked whether a facility operating on WITA (+08:00) or WIT (+09:00) is
+represented. It is not, and **that is now an explicit product decision rather than an
+open question**: the platform is WIB-only.
+
+What that means, stated so it cannot be mistaken for an oversight:
+
+- `App\Support\WaktuIndonesia::ZONA` is `Asia/Jakarta` and stays a constant. The schema
+  carries no zone column on `faskes`, `dokter_jadwal`, `booking` or `master_promo`, so
+  there is nowhere to hang a per-clinic zone without a DDL change, and the reference DDL
+  is frozen.
+- Every slot instant, promo window and prescription-validity comparison is therefore
+  computed on the Jakarta wall clock. A facility running on WITA or WIT would be wrong
+  by one or two hours, and the fix would be a per-`faskes` zone column plus a conversion
+  at every call site - not a config value.
+- The policy and its one helper (`App\Support\WaktuIndonesia`) are covered by
+  `tests/Feature/TimezonePolicyTest.php`, and nothing in the application offers a second
+  zone.
+
+The condition for revisiting this is a product one: the day the platform onboards a
+facility outside WIB, this document and `WaktuIndonesia` change together, and the DDL
+gains the zone column first. Until then, a WITA/WIT wall clock passed to this API is a
+bug in the caller and not a feature request.
