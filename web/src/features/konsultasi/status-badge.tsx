@@ -45,7 +45,14 @@ const KONSULTASI: Record<StatusKonsultasi, Treatment> = {
     },
     berlangsung: {
         icon: CircleCheck,
-        className: 'text-success-foreground bg-success border-transparent',
+        /**
+         * `text-foreground` rather than `text-success-foreground` in light mode:
+         * white on `--success` measures 3.62:1, below the 4.5:1 floor for the
+         * badge's 12px label. The dark ink keeps the same green fill at 5.23:1,
+         * and dark mode keeps the light-on-green pairing the token defines.
+         */
+        className:
+            'text-foreground bg-success border-transparent dark:text-success-foreground',
     },
     menunggu_resep: {
         icon: Clock,
@@ -53,7 +60,13 @@ const KONSULTASI: Record<StatusKonsultasi, Treatment> = {
     },
     selesai: {
         icon: FileSignature,
-        className: 'text-muted-foreground bg-muted border-transparent',
+        /**
+         * `text-foreground/70`, not `text-muted-foreground`: the latter measures
+         * about 4.2:1 on `--muted`, under the 4.5:1 floor at this size. 70% ink
+         * keeps the quiet, de-emphasised register at 7.3:1 in light mode and
+         * still passes in dark mode.
+         */
+        className: 'text-foreground/70 bg-muted border-transparent',
     },
     dibatalkan: {
         icon: Ban,
@@ -76,7 +89,7 @@ const STATUS_DOKUMEN: Record<StatusDokumen, Treatment> = {
     },
     diamendemen: {
         icon: CircleSlash,
-        className: 'text-muted-foreground bg-muted border-dashed',
+        className: 'text-foreground/70 bg-muted border-dashed',
     },
 };
 

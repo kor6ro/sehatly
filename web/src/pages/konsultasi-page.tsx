@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router';
 import {
@@ -6,22 +6,30 @@ import {
     MessagesSquare,
     Play,
     Receipt,
-    Stethoscope,
 } from 'lucide-react';
 import { ApiError } from '@/lib/http';
 import { formatRupiah, formatWaktu } from '@/lib/format';
 import {
     fetchRiwayatPesan,
     konsultasiOptions,
+    konsultasiQueryKey,
     riwayatPesanOptions,
     tandaiPesanDibaca,
     TIPE_KONSULTASI_LABEL,
 } from '@/lib/api/konsultasi';
+import { konsultasiTerkunci } from '@/lib/api/konsultasi-status';
 import { meOptions } from '@/lib/api/me';
 import { isEmptyPage, isPastLastPage } from '@/lib/api/pagination';
+import { useDocumentTitle } from '@/hooks/use-document-title';
 import { useKonsultasiChannel } from '@/hooks/use-konsultasi-channel';
+import {
+    lawanDariBaca,
+    pilihBacaTerbaru,
+    sisiDariBaca,
+} from '@/lib/realtime/read-receipt';
 import { PageHeader } from '@/components/layout/page-header';
 import { Pagination } from '@/components/layout/pagination';
+import { OfflineBanner } from '@/components/offline-banner';
 import { SkeletonRows } from '@/components/states/loading-state';
 import { ErrorState, ForbiddenState, NotFoundState } from '@/components/states/error-state';
 import { EmptyState } from '@/components/states/empty-state';
@@ -29,6 +37,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { KonsultasiStatusBadge } from '@/features/konsultasi/status-badge';
 import { ChatWindow } from '@/features/konsultasi/chat-window';
+import { KeluarSesiDialog } from '@/features/konsultasi/keluar-sesi-dialog';
 import { SoapForm } from '@/features/konsultasi/soap-form';
 import { dispatchFlash } from '@/lib/flash';
 
@@ -113,10 +122,44 @@ export function KonsultasiPage() {
         [riwayat.data],
     );
 
+    const sayaUserId = saya.data?.data.user.id ?? null;
+
+    /**
+     * The tab title carries the numeric id and nothing else. `_global.md` §1.4
+     * allows a resource id in a route and §9 forbids medical content in a title,
+     * so "Konsultasi #47" is the whole allowed vocabulary.
+     */
+    useDocumentTitle(
+        sesi.data === undefined
+            ? 'Konsultasi'
+            : `Konsultasi #${sesi.data.data.konsultasi.id}`,
+    );
+
     const channel = useKonsultasiChannel(konsultasiId, {
         initial: halamanPesan,
         fetchHistory: ambilRiwayat,
+        sayaUserId,
     });
+
+    /**
+     * A reconnect re-reads the consultation, not just the transcript.
+     *
+     * `chat.dibaca` is the live read path; a socket that was down while the other
+     * party read would leave this screen's marker behind, and the `baca` block on
+     * `GET /konsultasi/{id}` is the REST fallback that closes that window. Keyed on
+     * the resync counter alone, so it fires once per recovery and never per render.
+     */
+    const jumlahResync = channel.stats.resyncCount;
+
+    useEffect(() => {
+        if (jumlahResync === 0) {
+            return;
+        }
+
+        void queryClient.invalidateQueries({
+            queryKey: [...konsultasiQueryKey, konsultasiId],
+        });
+    }, [jumlahResync, queryClient, konsultasiId]);
 
     const tandaiDibaca = useCallback(async () => {
         if (!Number.isInteger(konsultasiId)) {
@@ -218,15 +261,51 @@ export function KonsultasiPage() {
      */
     const bolehSoap = user?.tipe === 'dokter';
 
+    /**
+     * Whose screen this is, and therefore whose read marker matters.
+     *
+     * The `baca` block is authoritative because it carries both user ids; the
+     * profile type is the fallback for the brief window before it or `/me` lands.
+     * A patient's bubble is "Dibaca" when the DOCTOR's marker passed it, and vice
+     * versa.
+     */
+    const sisiSaya =
+        sisiDariBaca(konsultasi.baca, sayaUserId) ??
+        (user?.tipe === 'dokter' ? 'dokter' : user?.tipe === 'pasien' ? 'pasien' : null);
+
+    const lawan = lawanDariBaca(konsultasi.baca, sayaUserId);
+
+    const lawanLastReadAt = pilihBacaTerbaru(
+        lawan.lastReadAt,
+        channel.dibaca,
+        lawan.userId,
+    );
+
+    const labelLawan =
+        sisiSaya === 'dokter'
+            ? 'Pasien'
+            : sisiSaya === 'pasien'
+              ? 'Dokter'
+              : 'Peserta lain';
+
+    const namaLawan =
+        sisiSaya === 'dokter'
+            ? (konsultasi.pasien?.nama_lengkap ?? null)
+            : (konsultasi.dokter?.nama_lengkap ?? null);
+
     return (
         <>
             <PageHeader
                 title={`Konsultasi #${konsultasi.id}`}
-                description="Percakapan Anda dengan dokter. Riwayat pesan dimuat ulang dari server."
+                description={`${namaLawan ?? 'Ruang konsultasi Anda'} — ${
+                    TIPE_KONSULTASI_LABEL[konsultasi.tipe] ?? 'Chat'
+                }`}
                 action={<KonsultasiStatusBadge status={konsultasi.status} />}
             />
 
-            <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+            <OfflineBanner className="mt-4" />
+
+            <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
                 <div className="flex flex-col gap-4">
                     <Card>
                         <CardHeader>
@@ -256,7 +335,7 @@ export function KonsultasiPage() {
                                 <EmptyState
                                     compact
                                     title="Halaman ini di luar jangkauan"
-                                    description="Transkrip masih ada, tetapi halaman yang diminta melewati halaman terakhir. Kembali ke halaman pertama untuk membacanya."
+                                    description="Pesan masih tersimpan, tetapi halaman yang diminta melewati halaman terakhir. Kembali ke halaman pertama untuk membacanya."
                                     action={
                                         <Button
                                             type="button"
@@ -275,7 +354,11 @@ export function KonsultasiPage() {
                                 <EmptyState
                                     compact
                                     title="Belum ada pesan"
-                                    description="Tidak ada satu pun pesan pada konsultasi ini. Riwayat dibaca dari halaman pertama dan tidak difilter."
+                                    description={
+                                        sisiSaya === 'dokter'
+                                            ? 'Pasien belum menulis pesan. Pesan pertama akan muncul di sini.'
+                                            : 'Mulai dengan menyampaikan keluhan Anda. Pesan akan langsung diterima dokter.'
+                                    }
                                 />
                             ) : (
                                 <ChatWindow
@@ -285,6 +368,13 @@ export function KonsultasiPage() {
                                     stats={channel.stats}
                                     onResubscribe={channel.resubscribe}
                                     onMarkRead={tandaiDibaca}
+                                    disabled={konsultasiTerkunci(konsultasi.status)}
+                                    sayaUserId={sayaUserId}
+                                    sisiSaya={sisiSaya}
+                                    labelLawan={labelLawan}
+                                    lawanLastReadAt={lawanLastReadAt}
+                                    pengetik={channel.pengetik}
+                                    onMengetik={channel.kirimMengetik}
                                 />
                             )}
 
@@ -343,14 +433,12 @@ export function KonsultasiPage() {
                             }
                         />
 
-                        {bolehSoap ? null : (
-                            <p className="text-muted-foreground flex items-start gap-2 text-xs">
-                                <Stethoscope aria-hidden className="mt-0.5 size-3" />
-
-                                Form SOAP hanya ditampilkan untuk akun dokter.
-                                Pasien tidak dapat menulis catatan ini.
-                            </p>
-                        )}
+                        {sisiSaya === 'pasien' ? (
+                            <KeluarSesiDialog
+                                konsultasiId={konsultasi.id}
+                                className="mt-1 min-h-11 w-fit"
+                            />
+                        ) : null}
 
                         <Button
                             type="button"

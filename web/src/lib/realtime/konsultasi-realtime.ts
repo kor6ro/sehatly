@@ -1,16 +1,34 @@
 import type { KonsultasiPesan } from '@/lib/api/types';
 import { MessageDedupe } from '@/lib/realtime/dedupe';
 import { konsultasiChannel } from '@/lib/realtime/channel';
+import {
+    bacaDariPayload,
+    type RealtimeDibaca,
+} from '@/lib/realtime/read-receipt';
+import {
+    mengetikDariPayload,
+    type RealtimeMengetik,
+} from '@/lib/realtime/mengetik';
 import type {
     RealtimeFrame,
     RealtimeSignal,
     RealtimeSocket,
     RealtimeSocketListener,
+    RealtimeWhisperFrame,
     SubscriptionState,
 } from '@/lib/realtime/socket';
 
 /** The event name without a leading dot, matching `KonsultasiMessageSent::broadcastAs()`. */
 export const CHAT_PESAN_EVENT = 'chat.pesan';
+
+/** The read-marker event, matching `KonsultasiChatDibaca::broadcastAs()`. */
+export const CHAT_DIBACA_EVENT = 'chat.dibaca';
+
+/**
+ * The typing whisper name. Client-only: no server event, route, write or queue
+ * exists for it, by owner decision (F08 §12).
+ */
+export const CHAT_MENGETIK_EVENT = 'chat.mengetik';
 
 /** A gap the reconnect opened, and the rows that closed it. */
 export type RealtimeResync = {
@@ -85,6 +103,10 @@ export class KonsultasiRealtime implements RealtimeSocketListener {
 
     private readonly messageListeners = new Set<(message: KonsultasiPesan) => void>();
 
+    private readonly dibacaListeners = new Set<(dibaca: RealtimeDibaca) => void>();
+
+    private readonly mengetikListeners = new Set<(mengetik: RealtimeMengetik) => void>();
+
     private readonly changeListeners = new Set<() => void>();
 
     private resyncHandler: RealtimeResyncCallback | null = null;
@@ -136,6 +158,53 @@ export class KonsultasiRealtime implements RealtimeSocketListener {
         return () => {
             this.messageListeners.delete(listener);
         };
+    }
+
+    /**
+     * Subscribe to `chat.dibaca`, already shape-validated.
+     *
+     * Not deduplicated: the payload is a marker, not a row, and a repeated
+     * delivery of the same marker is harmless because the consumer keeps the
+     * later of two timestamps.
+     */
+    onDibaca(listener: (dibaca: RealtimeDibaca) => void): () => void {
+        this.dibacaListeners.add(listener);
+
+        return () => {
+            this.dibacaListeners.delete(listener);
+        };
+    }
+
+    /** Subscribe to the ephemeral `chat.mengetik` whisper, already shape-validated. */
+    onMengetik(listener: (mengetik: RealtimeMengetik) => void): () => void {
+        this.mengetikListeners.add(listener);
+
+        return () => {
+            this.mengetikListeners.delete(listener);
+        };
+    }
+
+    /**
+     * Send a typing whisper, but only on a CONFIRMED subscription.
+     *
+     * The broker's `pusher_internal:subscription_succeeded` is the gate: sending
+     * before it either falls into the transport's pre-subscribe warning or, on
+     * Reverb, is refused with "not a member of the specified channel". No error
+     * is surfaced - a typing hint that could not be sent is not a failure the
+     * user can act on.
+     */
+    kirimMengetik(konsultasiId: number, mengetik: RealtimeMengetik): void {
+        const channelName = konsultasiChannel(konsultasiId);
+        const subscription = this.subscriptions.get(channelName);
+
+        if (subscription === undefined || subscription.state !== 'confirmed') {
+            return;
+        }
+
+        this.socket.whisper(channelName, CHAT_MENGETIK_EVENT, {
+            user_id: mengetik.user_id,
+            at: mengetik.at,
+        });
     }
 
     /** Subscribe to counter and connection-state changes, for the status strip. */
@@ -340,11 +409,39 @@ export class KonsultasiRealtime implements RealtimeSocketListener {
     };
 
     onFrame = (frame: RealtimeFrame): void => {
-        if (frame.eventName !== CHAT_PESAN_EVENT) {
+        if (frame.eventName === CHAT_PESAN_EVENT) {
+            this.deliver(frame.data as KonsultasiPesan);
+
             return;
         }
 
-        this.deliver(frame.data);
+        if (frame.eventName === CHAT_DIBACA_EVENT) {
+            const dibaca = bacaDariPayload(frame.data);
+
+            if (dibaca === null) {
+                return;
+            }
+
+            for (const listener of [...this.dibacaListeners]) {
+                listener(dibaca);
+            }
+        }
+    };
+
+    onWhisper = (frame: RealtimeWhisperFrame): void => {
+        if (frame.eventName !== CHAT_MENGETIK_EVENT) {
+            return;
+        }
+
+        const mengetik = mengetikDariPayload(frame.data);
+
+        if (mengetik === null) {
+            return;
+        }
+
+        for (const listener of [...this.mengetikListeners]) {
+            listener(mengetik);
+        }
     };
 
     onSubscriptionState = (channelName: string, state: SubscriptionState): void => {
@@ -460,7 +557,8 @@ export class KonsultasiRealtime implements RealtimeSocketListener {
         try {
             await this.socket.subscribe({
                 channelName: subscription.channelName,
-                eventName: CHAT_PESAN_EVENT,
+                serverEvents: [CHAT_PESAN_EVENT, CHAT_DIBACA_EVENT],
+                whisperEvents: [CHAT_MENGETIK_EVENT],
             });
 
             subscription.lastFailure = null;

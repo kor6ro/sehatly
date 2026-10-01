@@ -1,7 +1,6 @@
 import type Echo from 'laravel-echo';
 import { applyAccessToken } from '@/lib/echo';
 import { PRIVATE_CHANNEL_PREFIX } from '@/lib/realtime/channel';
-import type { KonsultasiPesan } from '@/lib/api/types';
 
 export {
     PRIVATE_CHANNEL_PREFIX,
@@ -50,7 +49,21 @@ export type RealtimeFrame = {
     channelName: string;
     /** The event name without a leading dot, e.g. `chat.pesan`. */
     eventName: string;
-    data: KonsultasiPesan;
+    data: unknown;
+};
+
+/**
+ * One inbound CLIENT whisper, the Pusher `.client-*` counterpart of a frame.
+ *
+ * Whispers travel only between the subscribers of an already-authorized private
+ * channel and are never persisted, so `eventName` here is the logical name the
+ * caller passed to `.whisper()` - not the `client-` wire name.
+ */
+export type RealtimeWhisperFrame = {
+    channelName: string;
+    /** The whisper name without the `client-` prefix, e.g. `chat.mengetik`. */
+    eventName: string;
+    data: unknown;
 };
 
 /**
@@ -66,6 +79,7 @@ export type SubscriptionState = 'idle' | 'pending' | 'confirmed' | 'refused';
 export type RealtimeSocketListener = {
     onSignal: (signal: RealtimeSignal) => void;
     onFrame: (frame: RealtimeFrame) => void;
+    onWhisper: (frame: RealtimeWhisperFrame) => void;
     onSubscriptionState: (channelName: string, state: SubscriptionState) => void;
 };
 
@@ -73,8 +87,10 @@ export type RealtimeSocketListener = {
 export type RealtimeSubscribeRequest = {
     /** `konsultasi.5`, no prefix. */
     channelName: string;
-    /** The event name, no leading dot: `chat.pesan`. */
-    eventName: string;
+    /** Server-sent event names, no leading dot: `chat.pesan`, `chat.dibaca`. */
+    serverEvents: readonly string[];
+    /** Client whisper names, no `client-` prefix: `chat.mengetik`. */
+    whisperEvents: readonly string[];
 };
 
 export interface RealtimeSocket {
@@ -97,6 +113,15 @@ export interface RealtimeSocket {
 
     /** Drops the subscription and its listeners. Idempotent. */
     unsubscribe(channelName: string): void;
+
+    /**
+     * Sends a client whisper on a subscribed channel.
+     *
+     * Callers must not rely on a whisper being deliverable: the transport drops
+     * it when the channel is not subscribed, and nothing is persisted. A typing
+     * signal is a hint, never state.
+     */
+    whisper(channelName: string, eventName: string, data: Record<string, unknown>): void;
 
     /** The current handshake state of one channel. */
     subscriptionState(channelName: string): SubscriptionState;
@@ -131,6 +156,19 @@ export class EchoRealtimeSocket implements RealtimeSocket {
     private readonly states = new Map<string, SubscriptionState>();
 
     private readonly teardown = new Map<string, () => void>();
+
+    /**
+     * The Echo channel per logical name, kept for outgoing whispers.
+     *
+     * `whisper()` needs the live channel object, and Echo's `.private(name)` is
+     * NOT idempotent in the way this needs: it constructs another `PusherPrivateChannel`
+     * and re-subscribes it. Holding the one created by `subscribe()` is what makes
+     * a whisper go out on the subscription that was actually authorized.
+     */
+    private readonly channels = new Map<
+        string,
+        ReturnType<Echo<'reverb'>['private']>
+    >();
 
     constructor(echo: Echo<'reverb'>, listener: RealtimeSocketListener) {
         this.echo = echo;
@@ -201,7 +239,7 @@ export class EchoRealtimeSocket implements RealtimeSocket {
     async subscribe(request: RealtimeSubscribeRequest): Promise<void> {
         applyAccessToken();
 
-        const { channelName, eventName } = request;
+        const { channelName, serverEvents, whisperEvents } = request;
 
         if (this.teardown.has(channelName)) {
             return;
@@ -210,9 +248,27 @@ export class EchoRealtimeSocket implements RealtimeSocket {
         const channel = this.echo.private(channelName);
         const wire = `${PRIVATE_CHANNEL_PREFIX}${channelName}`;
 
-        const onFrame = (data: KonsultasiPesan): void => {
-            this.listener.onFrame({ channelName, eventName, data });
-        };
+        const boundFrames: Array<[string, (data: unknown) => void]> = [];
+
+        for (const eventName of serverEvents) {
+            const onFrame = (data: unknown): void => {
+                this.listener.onFrame({ channelName, eventName, data });
+            };
+
+            channel.listen(`.${eventName}`, onFrame);
+            boundFrames.push([eventName, onFrame]);
+        }
+
+        const boundWhispers: Array<[string, (data: unknown) => void]> = [];
+
+        for (const eventName of whisperEvents) {
+            const onWhisper = (data: unknown): void => {
+                this.listener.onWhisper({ channelName, eventName, data });
+            };
+
+            channel.listenForWhisper(eventName, onWhisper);
+            boundWhispers.push([eventName, onWhisper]);
+        }
 
         /**
          * `.subscribed()` and `.error()` are Echo's own wrappers around
@@ -243,15 +299,38 @@ export class EchoRealtimeSocket implements RealtimeSocket {
             );
         });
 
-        channel.listen(`.${eventName}`, onFrame);
-
         this.setState(channelName, 'pending');
 
+        this.channels.set(channelName, channel);
+
         this.teardown.set(channelName, () => {
-            channel.stopListening(`.${eventName}`, onFrame);
+            for (const [name, handler] of boundFrames) {
+                channel.stopListening(`.${name}`, handler);
+            }
+
+            for (const [name, handler] of boundWhispers) {
+                channel.stopListeningForWhisper(name, handler);
+            }
+
             channel.stopListening('pusher:subscription_succeeded');
             channel.stopListening('pusher:subscription_error');
         });
+    }
+
+    /**
+     * Send a client whisper on a channel this socket subscribed.
+     *
+     * Silent when the channel is unknown: Echo's own `whisper()` reaches into
+     * `pusher.channels.channels[name]` without a guard and throws a `TypeError`
+     * for a channel that was never created. A typing signal is not worth a page
+     * error, so an unknown channel is a no-op here.
+     */
+    whisper(
+        channelName: string,
+        eventName: string,
+        data: Record<string, unknown>,
+    ): void {
+        this.channels.get(channelName)?.whisper(eventName, data);
     }
 
     disconnect(): void {
@@ -264,6 +343,7 @@ export class EchoRealtimeSocket implements RealtimeSocket {
         this.teardown.get(channelName)?.();
         this.teardown.delete(channelName);
         this.states.delete(channelName);
+        this.channels.delete(channelName);
         this.echo.leave(channelName);
     }
 

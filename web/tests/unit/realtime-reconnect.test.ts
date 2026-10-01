@@ -81,6 +81,13 @@ class FakeTransport implements RealtimeSocket {
     /** When set, the next `subscribe` rejects, the way a refused channel does. */
     gagalkan: Error | null = null;
 
+    /** Every outgoing client whisper, in order. */
+    readonly whispers: Array<{
+        channelName: string;
+        eventName: string;
+        data: Record<string, unknown>;
+    }> = [];
+
     connect(): void {
         this.jejak.push('connect');
     }
@@ -102,6 +109,14 @@ class FakeTransport implements RealtimeSocket {
     unsubscribe(channelName: string): void {
         this.jejak.push(`unsubscribe ${channelName}`);
         this.states.delete(channelName);
+    }
+
+    whisper(
+        channelName: string,
+        eventName: string,
+        data: Record<string, unknown>,
+    ): void {
+        this.whispers.push({ channelName, eventName, data });
     }
 
     subscriptionState(channelName: string): SubscriptionState {

@@ -653,7 +653,7 @@ test.describe('Module 3 realtime consultation', () => {
 
             await expect(
                 transcript(pasien).locator('[data-slot="realtime-status"]'),
-            ).toContainText('Mode REST, tanpa realtime');
+            ).toContainText(/Koneksi terputus|Menghubungkan kanal|Mode pemulihan/);
 
             /**
              * The degradation the plan names: history still loads over REST, so the

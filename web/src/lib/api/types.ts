@@ -644,6 +644,29 @@ export type KonsultasiDokter = {
     nama_lengkap: string | null;
 };
 
+/**
+ * The `baca` block, F08's per-participant read marker.
+ *
+ * `KonsultasiResource` publishes BOTH sides in one flat block so one GET answers
+ * "how far has the other party read?" without a transcript scan. A client is one
+ * of the two parties and knows its own account id from `GET /me`, so the mapping
+ * is a comparison of `pasien_user_id` / `dokter_user_id` against that id plus the
+ * companion `*_last_read_at`.
+ *
+ * The two nullables mean two different things, and the companion id tells them
+ * apart: a null `*_user_id` means that profile row could not be resolved, while a
+ * non-null id with a null `*_last_read_at` means that participant has never read
+ * this consultation. `whenLoaded('konsultasiBaca')`, so the key is present on
+ * every `GET /konsultasi/{id}` (the access helper always loads it) and absent -
+ * never null - on a bare row.
+ */
+export type KonsultasiBaca = {
+    pasien_user_id: number | null;
+    pasien_last_read_at: Iso;
+    dokter_user_id: number | null;
+    dokter_last_read_at: Iso;
+};
+
 /** The nested `booking` block, or `null` for an instant consultation. */
 export type KonsultasiBooking = {
     id: number;
@@ -713,6 +736,8 @@ export type Konsultasi = {
     pasien?: KonsultasiPasien;
     dokter?: KonsultasiDokter;
     booking?: KonsultasiBooking | null;
+    /** F08's read markers; present whenever `konsultasiBaca` was loaded. */
+    baca?: KonsultasiBaca;
 };
 
 // ============================================================================
