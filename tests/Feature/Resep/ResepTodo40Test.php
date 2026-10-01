@@ -194,15 +194,19 @@ test('four routes ship, and the prefix filter the plan names answers three', fun
     // The plan's acceptance criterion says `route:list --path=api/v1/resep`
     // "lists 4 routes". It answered 3 through todo 45, because
     // `api/v1/pasien/resep` is a `pasien` path and a prefix filter cannot see
-    // it, and it answers 4 from todo 46 because `resep/{id}/checkout` IS under
-    // the prefix. The same defect todo 32 found for `konsultasi`, todo 33 for
-    // `rekam-medis` and todo 34 for `surat_keterangan`; the route ships and the
-    // count is recorded rather than satisfied by deleting an endpoint.
+    // it, and it answered 4 from todo 46 because `resep/{id}/checkout` IS under
+    // the prefix. F09 then registered `GET /api/v1/resep`, the one-segment
+    // pharmacist queue, whose path also starts with the prefix: the filter now
+    // answers 5 and the closed set todo 40 owns is unchanged (its four URIs are
+    // still the four it names). The same defect todo 32 found for `konsultasi`,
+    // todo 33 for `rekam-medis` and todo 34 for `surat_keterangan`; the route
+    // ships and the count is recorded rather than satisfied by deleting an
+    // endpoint.
     $terfilter = collect(Route::getRoutes()->getRoutes())
         ->filter(static fn ($route): bool => str_starts_with($route->uri(), 'api/v1/resep'))
         ->count();
 
-    expect($terfilter)->toBe(4);
+    expect($terfilter)->toBe(5);
 
     foreach (array_keys($routes) as $key) {
         // Pest's `toContain` is variadic, so a second argument is read as

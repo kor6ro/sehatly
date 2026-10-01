@@ -901,14 +901,18 @@ Route::middleware('auth:sanctum')->group(function (): void {
 | two-segment path and `pasien/resep` is a two-segment `pasien` path, so no
 | route above can swallow either and neither can swallow a path above.
 |
-| ## Four routes, and `route:list --path=api/v1/resep` answers THREE
+| ## Five routes, and `route:list --path=api/v1/resep` answers FOUR
 |
 | The plan's acceptance criterion says that filter "lists 4 routes". It answers
 | 3, because `api/v1/pasien/resep` is a `pasien` path and a prefix filter
 | cannot see it. This is the same class of defect todo 32 found for
 | `konsultasi`, todo 33 for `rekam-medis` and todo 34 for `surat_keterangan`;
 | the count is recorded rather than satisfied by deleting an endpoint, and the
-| test asserts the closed set of all four BY URI.
+| test asserts the closed set of all four BY URI. F09 then appended the
+| one-segment queue literal `GET /api/v1/resep`, whose path DOES start with the
+| prefix: the filter now answers 4 (the queue, the detail, the interaction
+| re-check and the verify write), the closed set is five (those four plus
+| `pasien/resep`), and `ResepTodo40Test` moves its prefix count to 5.
 |
 | `GET /pasien/resep` sits on THIS controller rather than on `PasienController`
 | for the reason todo 34 registered `GET /pasien/surat-keterangan` on
@@ -920,10 +924,19 @@ Route::middleware('auth:sanctum')->group(function (): void {
 |
 | | route | `permission:` | `tipe:` | who is refused, and why |
 | | --- | --- | --- | --- |
+| | `GET /resep` | `resep.verifikasi` | `apoteker` | patient, doctor (INCLUDING the prescriber), admin, perawat, kurir, superadmin; the queue exists to feed the verify write, so an account that cannot sign is not handed the worklist |
 | | `GET /resep/{id}` | `resep.lihat` | - | `admin` (holds no `resep.lihat`), `perawat`, `kurir`; another patient's row 404 |
 | | `GET /resep/{id}/cek-interaksi` | `resep.lihat` | - | same |
 | | `POST /resep/{id}/verifikasi` | `resep.verifikasi` | `apoteker` | patient, doctor (INCLUDING the prescriber), admin, perawat, kurir, superadmin |
 | | `GET /pasien/resep` | `resep.lihat` | - | a caller with no `pasien` row, 403 from `PasienRecordAccess` |
+|
+| The queue carries the SAME pair as the write it feeds, and that is the whole
+| argument for it: `resep.lihat` would have admitted the patient, the prescriber
+| and `superadmin`, so the queue would have become a second, wider read of every
+| patient's pending prescriptions. The two gates do different jobs -
+| `permission:resep.verifikasi` is the grant (held by `apoteker` and
+| `superadmin`), `tipe:apoteker` is the account type (which excludes
+| `superadmin` from signing) - and neither alone is the audience.
 |
 | `resep.lihat` and `resep.verifikasi` are both real codes in
 | `RbacCatalog::PERMISSIONS` with Indonesian verbs - "Lihat Resep" and "Verifikasi
@@ -954,6 +967,19 @@ Route::middleware('auth:sanctum')->group(function (): void {
 | of all four permanently. Reported as a data change in `app/Support/Rbac/`
 | plus a re-seed, and not this todo's to make.
 |
+| ## `GET /resep` is a ONE-SEGMENT literal and is registered FIRST
+|
+| Inside the `resep` prefix group the queue is `Route::get('/', ...)`, whose
+| URI is `api/v1/resep`. It cannot be swallowed by `resep/{id}` and cannot
+| swallow it: one pattern is a single segment and the other is two, and the
+| router compares whole paths, so no `whereNumber` is needed to tell them
+| apart. It is registered BEFORE the wildcard anyway - "literals before
+| wildcards" is the convention every block in this file states, and a reader
+| comparing this block with `route:list` should not have to prove the two
+| shapes disjoint to trust the order. `GET /resep/{id}` with an id that does
+| not exist is still the 404 it was, and `GET /resep` still answers the queue,
+| whichever order the table is read in.
+|
 | ## `whereNumber('id')` on every `{id}`
 |
 | `resep.id` and `resep_verifikasi.id` are `BIGINT UNSIGNED AUTO_INCREMENT`
@@ -980,6 +1006,20 @@ Route::middleware('auth:sanctum')->group(function (): void {
         ->name('pasien.resep.index');
 
     Route::prefix('resep')->name('resep.')->group(function (): void {
+        /*
+        | F09: the pharmacist verification queue, a ONE-SEGMENT literal. The
+        | `Route::get('/')` inside the prefix compiles to `api/v1/resep`; it
+        | cannot collide with the two-segment `{id}` route below, and it is
+        | registered first because literals precede wildcards in this file.
+        | The guard pair is the SAME as the verify write's - a pharmacist
+        | type AND the verification grant - so the patient, the doctor and
+        | `superadmin` never reach the controller. The disclosure surface is
+        | `ResepAntreanResource`, not `ResepResource`; see the block above.
+        */
+        Route::get('/', [ResepController::class, 'antrean'])
+            ->middleware(['tipe:apoteker', 'permission:resep.verifikasi'])
+            ->name('antrean');
+
         Route::get('{id}', [ResepController::class, 'show'])
             ->whereNumber('id')
             ->middleware('permission:resep.lihat')

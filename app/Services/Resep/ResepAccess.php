@@ -188,6 +188,59 @@ final class ResepAccess
     }
 
     /**
+     * The pharmacist's verification queue, newest first, paginated.
+     *
+     * ## NO tenant filter, and that is the definition of the queue
+     *
+     * {@see riwayat()} begins with `ownPasien()`; this method deliberately does
+     * not. `TIPE_APOTEK`'s own docblock gives the reason: a pharmacist's job is
+     * to see prescriptions they did not write, so the queue is the one read in
+     * this module that is intentionally cross-patient. There is no "whose row"
+     * question left to ask, which is why this method takes no `User`: the
+     * audience is settled by the route's `tipe:apoteker` +
+     * `permission:resep.verifikasi` pair - the SAME pair the verify write
+     * carries - and a `User` parameter re-checked here could only disagree with
+     * it (`TIPE_APOTEK` includes `superadmin`, which the route refuses).
+     *
+     * ## `$status` is one verifiable state, or null for both
+     *
+     * `aktif` and `diproses` are the only states a prescription can still be
+     * signed from ({@see ResepStateMachine::BISA_DIVERIFIKASI}), so the
+     * unfiltered queue is exactly that `whereIn`. The filter's closed set is
+     * enforced upstream in `AntreanResepRequest`; this method trusts the value
+     * it is handed the same way {@see riwayat()} trusts `RiwayatResepRequest`,
+     * and the `whereIn` shape means an out-of-set value could only ever narrow
+     * to one status and never widen the query.
+     *
+     * ## `withCount` and `with('resepVerifikasi')` are load-bearing
+     *
+     * `ResepAntreanResource` publishes `jumlah_item` and `terminal`, and
+     * `ResepStateMachine::terminal()` reads the eager-loaded verification for
+     * every non-terminal row - which is every row here. Both relations are
+     * loaded once for the page rather than once per row.
+     *
+     * The order is `tanggal_resep DESC, id DESC` for the reason {@see riwayat()}
+     * documents at length: `tanggal_resep` is the clinician's own `DATETIME`,
+     * and `id` breaks a tie so a burst cannot repeat or drop a row between two
+     * pages.
+     */
+    public function antrean(?string $status, int $perPage, int $page): LengthAwarePaginator
+    {
+        $query = Resep::query()
+            ->with('resepVerifikasi')
+            ->withCount('resepItem')
+            ->whereIn(
+                'status',
+                $status === null ? ResepStateMachine::BISA_DIVERIFIKASI : [$status],
+            )
+            ->orderByDesc('tanggal_resep')
+            ->orderByDesc('id');
+
+        return $query->paginate($this->pasien->perPage($perPage), ['*'], 'page', $page)
+            ->withQueryString();
+    }
+
+    /**
      * Has this prescription ALREADY been verified?
      *
      * The pre-check in front of the UNIQUE key, and the reason a 422 can be

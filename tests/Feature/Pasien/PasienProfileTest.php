@@ -1525,6 +1525,13 @@ test('the route table exposes the eight auth routes and the eleven patient route
         // reason the plan's own "lists 4 routes" for that filter is answered by
         // 3. `ResepTodo40Test` asserts the same four as their own closed set.
         'GET api/v1/pasien/resep',
+        // F09's pharmacist verification queue, registered INSIDE the `resep`
+        // group and before its `{id}` wildcard - one segment, so it cannot be
+        // swallowed by the two-segment detail route and cannot swallow it. It
+        // is listed here because this is a closed set over the whole `api/v1`
+        // surface, and a set that forgives a concurrently-wired route is the
+        // drift this assertion exists to catch.
+        'GET api/v1/resep',
         'GET api/v1/resep/{id}',
         'GET api/v1/resep/{id}/cek-interaksi',
         'POST api/v1/resep/{id}/verifikasi',
@@ -1714,6 +1721,15 @@ test('the route table exposes the eight auth routes and the eleven patient route
             'GET api/v1/resep/{id}' => ['permission:resep.lihat'],
             'GET api/v1/resep/{id}/cek-interaksi' => ['permission:resep.lihat'],
             'POST api/v1/resep/{id}/verifikasi' => ['tipe:apoteker', 'permission:resep.verifikasi'],
+            // F09's queue carries the SAME pair as the verify write it feeds,
+            // and the choice of `resep.verifikasi` over `resep.lihat` is the
+            // privacy decision stated rather than implied: `resep.lihat` is
+            // held by `pasien` and `dokter` too, and the queue is a
+            // cross-patient worklist, so a `resep.lihat` gate would have made
+            // it a second, wider read. `tipe:apoteker` is what refuses the
+            // `superadmin` that holds `resep.verifikasi`, exactly as on the
+            // write.
+            'GET api/v1/resep' => ['tipe:apoteker', 'permission:resep.verifikasi'],
             // Todo 44's one route, carrying NEITHER. `promo.validasi` IS a real
             // code in `RbacCatalog::PERMISSIONS`, but `ROLE_PERMISSIONS` grants
             // it to `admin` and `superadmin` and to nobody else - the `pasien`
@@ -1923,6 +1939,13 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         "'permission:notifikasi.lihat'",
         "'permission:notifikasi.lihat'",
         "'permission:notifikasi.lihat'",
+        // F09's queue contributes TWO more. The queue carries the verify
+        // write's pair, not `resep.lihat`: that code is held by `pasien` and
+        // `dokter` too, and the queue is cross-patient, so it would have made
+        // the queue a second, wider read. `tipe:apoteker` is what refuses the
+        // `superadmin` that holds `resep.verifikasi`.
+        "'permission:resep.verifikasi'",
+        "'tipe:apoteker'",
     ]);
 });
 

@@ -1382,7 +1382,7 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         "'permission:pembayaran.bayar'",
         "'permission:pembayaran.bayar'",
         // Todo 47's notification centre contributes THREE more, for THIRTY-FOUR
-        // in total. All three carry the same code and no `tipe:`:
+        // in total before F09. All three carry the same code and no `tipe:`:
         // `notifikasi.lihat` is granted to `pasien` and `superadmin`, so the
         // permission alone already refuses `perawat` and `kurir` - which are
         // real `users.tipe` values that hold no role, and so hold no grant.
@@ -1399,6 +1399,16 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         "'permission:notifikasi.lihat'",
         "'permission:notifikasi.lihat'",
         "'permission:notifikasi.lihat'",
+        // F09's pharmacist queue contributes TWO more, for THIRTY-SIX in total.
+        // `GET /api/v1/resep` carries the SAME pair as the verify write it
+        // feeds - `permission:resep.verifikasi` is the grant (held by
+        // `apoteker` and `superadmin`) and `tipe:apoteker` is the account type
+        // (which is what refuses the oversight account). It deliberately does
+        // NOT carry `resep.lihat`: that code is held by the patient and the
+        // doctor too, and the queue is a cross-patient worklist, so a
+        // `resep.lihat` gate would have made it a second, wider read.
+        "'permission:resep.verifikasi'",
+        "'tipe:apoteker'",
     ]);
 });
 

@@ -635,6 +635,16 @@ const List<String> apiv1rekamMedisidfinalMethods = <String>[
   'PUT',
 ];
 
+/// `/api/v1/resep`
+///
+/// Answers: GET (`resep.antrean`).
+const String apiv1resep = '/api/v1/resep';
+
+/// The HTTP methods `apiv1resep` answers.
+const List<String> apiv1resepMethods = <String>[
+  'GET',
+];
+
 /// `/api/v1/resep/{id}`
 ///
 /// Answers: GET (`resep.show`).

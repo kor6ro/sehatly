@@ -6,10 +6,12 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Obat\SearchObatRequest;
+use App\Http\Requests\Resep\AntreanResepRequest;
 use App\Http\Requests\Resep\RiwayatResepRequest;
 use App\Http\Requests\Resep\StoreResepRequest;
 use App\Http\Requests\Resep\VerifikasiResepRequest;
 use App\Http\Resources\MasterObatResource;
+use App\Http\Resources\ResepAntreanResource;
 use App\Http\Resources\ResepResource;
 use App\Http\Resources\ResepVerifikasiResource;
 use App\Models\Resep;
@@ -25,7 +27,7 @@ use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Four routes, and every rule lives in the services.
+ * Seven routes, and every rule lives in the services.
  *
  * ## The shapes
  *
@@ -33,6 +35,7 @@ use Symfony\Component\HttpFoundation\Response;
  * | --- | --- | --- | --- |
  * | `GET /api/v1/obat` | list | `{obat: [...]}` | yes |
  * | `POST /api/v1/konsultasi/{id}/resep` | one | `{resep, warning, warning_grup, acknowledgement}` | no |
+ * | `GET /api/v1/resep` | list | `{resep: [...]}` | yes |
  * | `GET /api/v1/resep/{id}` | one | `{resep, verifikasi, warning, warning_grup}` | no |
  * | `POST /api/v1/resep/{id}/verifikasi` | one | `{resep, verifikasi, warning, warning_grup, terminal}` | no |
  * | `GET /api/v1/resep/{id}/cek-interaksi` | one | `{resep_id, warning, warning_grup}` | no |
@@ -112,6 +115,83 @@ class ResepController extends Controller
             ],
             'Resep berhasil dibuat.',
             Response::HTTP_CREATED,
+        );
+    }
+
+    /**
+     * `GET /api/v1/resep` - the pharmacist's verification queue, newest first.
+     *
+     * ## WHAT THE QUEUE HOLDS: the TWO verifiable states, and nothing else
+     *
+     * `ResepStateMachine::BISA_DIVERIFIKASI` is `['aktif', 'diproses']`: a
+     * prescription arrives in `aktif` the moment it is written and the pharmacy
+     * takes it into `diproses` before signing it, so those two are the only
+     * states a pharmacist can still act on. The unfiltered queue is exactly
+     * that `whereIn`, and `AntreanResepRequest` accepts exactly those two
+     * values for `?status=`. Asking for `diverifikasi` or any later state is a
+     * **422**, not an empty page: those states have no queue semantics, and an
+     * empty page would read as "nothing to verify" - a different and wrong
+     * claim. The set is read from the state machine, so a ninth ENUM member or
+     * a new verification edge moves the queue without moving this method.
+     *
+     * ## WHY EACH GUARD IS THERE, and why a patient or doctor is refused
+     *
+     * | middleware | what it refuses |
+     * | --- | --- |
+     * | `auth:sanctum` | the anonymous caller, 401 before any query runs |
+     * | `tipe:apoteker` | patient, doctor (INCLUDING the prescriber), admin, perawat, kurir, superadmin |
+     * | `permission:resep.verifikasi` | any account without the verification grant |
+     *
+     * The pair is deliberately IDENTICAL to `POST /resep/{id}/verifikasi`'s,
+     * because the queue exists to feed that write: an account that cannot sign
+     * must not be handed the worklist. **A patient and a doctor already have
+     * their own reads** - `GET /pasien/resep` and `GET /resep/{id}` - and this
+     * queue is not a second, wider one: it lists EVERY patient's pending
+     * prescriptions, which is the one place in this module that is intended.
+     * A doctor is refused even for their own prescription because the queue is
+     * addressed by `tipe`, not by row: `dokter.user_id` and `users.tipe` are
+     * independent columns, and the route gate is the only place the "a
+     * pharmacist's worklist" question can be asked before a row is touched.
+     * `superadmin` holds `resep.verifikasi` in `RbacCatalog::ROLE_PERMISSIONS`
+     * and is refused anyway, because `tipe:apoteker` is what excludes oversight
+     * from signing prescriptions - the same asymmetry the verify write uses.
+     *
+     * ## NO tenant scope, and the disclosure surface is the minimum
+     *
+     * A pharmacist's job is to see prescriptions they did not write, so this is
+     * the one cross-patient read in the module (see
+     * {@see ResepAccess::antrean()}). It publishes
+     * {@see ResepAntreanResource}, not `ResepResource`: row identity, timing,
+     * status flags and an item COUNT - no `catatan_dokter`, no `items`, no
+     * `qr_token`, no `pasien_id`/`dokter_id`, and therefore no NIK, contact
+     * detail or medical history. The queue is an index; the clinical content is
+     * read on `GET /resep/{id}`, where `ResepAccess::untukBaca()` has already
+     * admitted the caller. The resource's docblock states the surface field by
+     * field, and the test asserts the exact key set plus a byte-scan of the
+     * response body.
+     *
+     * ## `meta` is a TOP-LEVEL SIBLING from `ApiResponse::pageMeta()`
+     *
+     * The same list envelope as `GET /pasien/resep`, with `?page=` and
+     * `?per_page=` capped at 100.
+     */
+    public function antrean(AntreanResepRequest $request): JsonResponse
+    {
+        $valid = $request->validated();
+
+        $hasil = $this->akses->antrean(
+            $valid['status'] ?? null,
+            (int) ($valid['per_page'] ?? 15),
+            (int) ($valid['page'] ?? 1),
+        );
+
+        return ApiResponse::success(
+            [
+                'resep' => ResepAntreanResource::collection($hasil->getCollection()),
+            ],
+            'Antrean verifikasi resep berhasil dimuat.',
+            Response::HTTP_OK,
+            ApiResponse::pageMeta($hasil),
         );
     }
 

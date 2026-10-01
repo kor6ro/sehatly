@@ -12,7 +12,7 @@ info:
     drift from the code: a route added, renamed or removed changes it on the next run, and
     `--check` fails until the regenerated file is committed.
 
-    This document describes 76 routes across 67 distinct paths, read from the live route table.
+    This document describes 77 routes across 68 distinct paths, read from the live route table.
 
     ## Envelopes
 
@@ -2604,6 +2604,43 @@ paths:
         500:
           description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+  /api/v1/resep:
+    get:
+      operationId: getApiV1Resep
+      summary: 'Read /api/v1/resep.'
+      tags:
+        - resep
+      security:
+        -
+          sanctum: []
+      x-route-name: resep.antrean
+      x-laravel-action: App\Http\Controllers\Api\V1\ResepController@antrean
+      x-middleware:
+        - 'auth:sanctum'
+        - 'tipe:apoteker'
+        - 'permission:resep.verifikasi'
+      x-auth:
+        scheme: sanctum
+        transport: bearer
+      responses:
+        200:
+          description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/PaginatedEnvelope' } } }
+        422:
+          description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ValidationErrorEnvelope' } } }
+        401:
+          description: 'Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        403:
+          description: 'Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        404:
+          description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        500:
+          description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
   '/api/v1/resep/{id}':
     parameters:
       -
@@ -3054,6 +3091,41 @@ components:
           - rekam_medis.status_dokumen
         tipe_kunjungan:
           - rekam_medis.tipe_kunjungan
+    AntreanResepRequestBody:
+      type: object
+      title: AntreanResepRequest
+      description: 'Request body for operations validated by `App\Http\Requests\Resep\AntreanResepRequest`. The properties below are read from that class''s `rules()` at generation time.'
+      x-form-request: App\Http\Requests\Resep\AntreanResepRequest
+      properties:
+        page:
+          type: integer
+          x-laravel-rule: [integer, 'min:1']
+        per_page:
+          type: integer
+          x-laravel-rule: [integer, 'min:1', 'max:100']
+        status:
+          type: string
+          enum: [aktif, diproses]
+          x-laravel-rule: [string, 'in:["aktif","diproses"]']
+      required: []
+      additionalProperties: false
+      x-enum-fields:
+        status:
+          - artikel.status
+          - booking.status
+          - home_care_pesanan.status
+          - invoice.status
+          - klaim_bpjs.status
+          - konsultasi.status
+          - lab_permintaan.status
+          - pasien_riwayat_penyakit.status
+          - pembayaran.status
+          - pesanan_obat.status
+          - refund.status
+          - resep.status
+          - resep_verifikasi.status
+          - rujukan.status
+          - users.status
     BayarInvoiceRequestBody:
       type: object
       title: BayarInvoiceRequest
