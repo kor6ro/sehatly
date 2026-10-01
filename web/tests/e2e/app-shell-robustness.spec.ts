@@ -34,7 +34,7 @@ import {
  * | --- | --- | --- |
  * | a route that throws is contained and the sidebar survives | F3-01 BLOCKER | the shell is gone, so `[data-sidebar="sidebar"]` never becomes visible and the navigation click cannot happen |
  * | no stack trace reaches the user | F3-01 BLOCKER | the body carries React's own error page |
- * | all thirteen destinations are reachable at 390 px | F3-04 MAJOR | there is no `[data-sidebar="trigger"]` to click |
+ * | all fourteen destinations are reachable at 390 px | F3-04 MAJOR | there is no `[data-sidebar="trigger"]` to click |
  * | no destination carries a hardcoded id | F3-06 MAJOR | a link is `/konsultasi/1` and 404s for this account |
  * | every destination renders inside the shell | F3-06 MAJOR | the shell is destroyed, or a raw English error card is shown |
  */
@@ -46,7 +46,7 @@ const DESKTOP = { width: 1280, height: 900 };
 const PONSEL = { width: 390, height: 844 };
 
 /**
- * The thirteen nav destinations a patient account is offered, as paths.
+ * The fourteen nav destinations a patient account is offered, as paths.
  *
  * Written out rather than counted, because "the drawer has links" would pass with the three
  * F3-04 measured. A destination added later fails here until this list is updated, which is
@@ -57,6 +57,7 @@ const TUJUAN_PASIEN: ReadonlyArray<string> = [
     '/profil',
     '/profil/keluarga',
     '/profil/alergi',
+    '/profil/privasi',
     '/dokter',
     '/booking',
     '/dokter/booking',
@@ -334,7 +335,7 @@ test.describe('App shell robustness (F3-01, F3-04, F3-06)', () => {
         );
     });
 
-    test('all thirteen destinations are reachable at 390 px', async ({ page }) => {
+    test('all fourteen destinations are reachable at 390 px', async ({ page }) => {
         test.setTimeout(180_000);
 
         await page.setViewportSize(DESKTOP);
@@ -349,7 +350,7 @@ test.describe('App shell robustness (F3-01, F3-04, F3-06)', () => {
          */
         const desktop = await tujuanSidebar(page);
 
-        expect(desktop, 'desktop harus menawarkan 13 tujuan').toHaveLength(13);
+        expect(desktop, 'desktop harus menawarkan 14 tujuan').toHaveLength(14);
         await page.setViewportSize(PONSEL);
 
         await expect(page.locator('[data-slot="mobile-nav"]')).toBeVisible();
@@ -386,7 +387,7 @@ test.describe('App shell robustness (F3-01, F3-04, F3-06)', () => {
             'drawer ponsel harus menawarkan tujuan yang sama persis dengan sidebar desktop',
         ).toEqual(desktop);
 
-        expect(ponsel, 'daftar tujuan yang dikumpulkan harus lengkap').toHaveLength(13);
+        expect(ponsel, 'daftar tujuan yang dikumpulkan harus lengkap').toHaveLength(14);
 
         for (const tujuan of TUJUAN_PASIEN) {
             await expect(

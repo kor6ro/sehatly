@@ -34,6 +34,9 @@ import {
 import { PesananPage } from '@/pages/pesanan-page';
 import { PembayaranPage } from '@/pages/pembayaran-page';
 import { NotifikasiPage } from '@/pages/notifikasi-page';
+import { PrivasiPage } from '@/pages/privasi-page';
+import { KebijakanPrivasiPage } from '@/pages/kebijakan-privasi-page';
+import { SyaratKetentuanPage } from '@/pages/syarat-ketentuan-page';
 
 /**
  * The route table.
@@ -117,6 +120,23 @@ export const router = createBrowserRouter([
                 errorElement: <RouteErrorBoundary />,
             },
 
+            /**
+             * F02's two static documents. They are public for the same reason `/dokter`
+             * is: registration links to them, and a prospective patient has no session
+             * yet. No endpoint serves document text, so there is no fetch to fail and
+             * nothing to gate.
+             */
+            {
+                path: '/kebijakan-privasi',
+                element: <KebijakanPrivasiPage />,
+                errorElement: <RouteErrorBoundary />,
+            },
+            {
+                path: '/syarat-ketentuan',
+                element: <SyaratKetentuanPage />,
+                errorElement: <RouteErrorBoundary />,
+            },
+
             // Everything a patient record belongs behind.
             {
                 element: <RequireAuth />,
@@ -149,6 +169,11 @@ export const router = createBrowserRouter([
                             {
                                 path: '/profil/alergi',
                                 element: <AllergyPage />,
+                                errorElement: <RouteErrorBoundary />,
+                            },
+                            {
+                                path: '/profil/privasi',
+                                element: <PrivasiPage />,
                                 errorElement: <RouteErrorBoundary />,
                             },
 

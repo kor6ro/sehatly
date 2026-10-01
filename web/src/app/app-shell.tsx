@@ -11,6 +11,7 @@ import {
     Package,
     Pill,
     ShieldAlert,
+    ShieldCheck,
     Stethoscope,
 } from 'lucide-react';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -293,6 +294,14 @@ function AppSidebar() {
                                     to="/profil/alergi"
                                     icon={ShieldAlert}
                                     label="Alergi"
+                                    pathname={pathname}
+                                    onNavigate={tutupDrawer}
+                                />
+
+                                <MenuLink
+                                    to="/profil/privasi"
+                                    icon={ShieldCheck}
+                                    label="Privasi dan data"
                                     pathname={pathname}
                                     onNavigate={tutupDrawer}
                                 />

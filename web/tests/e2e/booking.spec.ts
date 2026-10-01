@@ -127,11 +127,64 @@ async function daftarDanMasuk(page: import('@playwright/test').Page): Promise<vo
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 30_000 });
 }
 
+/**
+ * F02's mandatory gate stands in front of the booking form, so a freshly registered
+ * account must record the three required consents before it can book. This does what the
+ * screen does after the gate: read the ACTIVE version from `GET /pdp/dokumen` and post
+ * each decision with it - never an invented version.
+ *
+ * The write is idempotent by contract (a repeated identical decision answers 200 without
+ * writing), so 200 and 201 both mean "recorded".
+ */
+async function catatConsentWajib(page: import('@playwright/test').Page): Promise<void> {
+    const token = await page.evaluate(() => sessionStorage.getItem('sehatly.access_token'));
+
+    expect(token, 'sesi harus punya access token setelah verifikasi').not.toBeNull();
+
+    const headers = { Authorization: `Bearer ${token as string}` };
+
+    const dokumen = await page.request.get('/api/v1/pdp/dokumen', { headers });
+
+    expect(dokumen.status(), 'GET /pdp/dokumen harus 200').toBe(200);
+
+    const katalog = (await dokumen.json()) as {
+        data: { dokumen: Array<{ jenis: string; versi_dokumen: string }> };
+    };
+
+    const versi = new Map(
+        katalog.data.dokumen.map((baris) => [baris.jenis, baris.versi_dokumen]),
+    );
+
+    for (const jenis of [
+        'syarat_ketentuan',
+        'kebijakan_privasi',
+        'berbagi_data_medis',
+    ]) {
+        const respons = await page.request.post('/api/v1/pdp/persetujuan', {
+            headers,
+            data: { jenis, versi_dokumen: versi.get(jenis), disetujui: true },
+        });
+
+        expect(
+            [200, 201],
+            `consent ${jenis} harus tercatat, diterima ${respons.status()}`,
+        ).toContain(respons.status());
+    }
+}
+
 test.describe('Module 2 booking', () => {
+    /**
+     * Each test registers a fresh account through the real UI and, since F02, also records
+     * three consents before the form is reachable. On a cold Vite transform that setup
+     * alone can take 25 s, so the default 30 s budget is not enough for the walkthrough.
+     */
+    test.describe.configure({ timeout: 90_000 });
+
     test('books a slot, shows the server row, and the list refetch is the only source', async ({
         page,
     }) => {
         await daftarDanMasuk(page);
+        await catatConsentWajib(page);
 
         const tanggal = tanggalO();
         const jam = jamUnik();
@@ -292,6 +345,7 @@ test.describe('Module 2 booking', () => {
 
     test('a taken slot is refused inline and adds no row', async ({ page }) => {
         await daftarDanMasuk(page);
+        await catatConsentWajib(page);
 
         const tanggal = tanggalO();
         const jam = jamUnik();
@@ -362,6 +416,7 @@ test.describe('Module 2 booking', () => {
         page,
     }) => {
         await daftarDanMasuk(page);
+        await catatConsentWajib(page);
 
         const [respons] = await Promise.all([
             page.waitForResponse((r) =>
@@ -395,6 +450,7 @@ test.describe('Module 2 booking', () => {
         page,
     }) => {
         await daftarDanMasuk(page);
+        await catatConsentWajib(page);
 
         const [respons] = await Promise.all([
             page.waitForResponse((r) =>

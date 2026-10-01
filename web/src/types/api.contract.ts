@@ -54,6 +54,7 @@
  */
 
 import type { components, operations, paths } from './api';
+import type { JenisPersetujuanPdp } from '@/lib/api/types';
 
 type SuccessEnvelope = components['schemas']['SuccessEnvelope'];
 type PaginatedEnvelope = components['schemas']['PaginatedEnvelope'];
@@ -293,6 +294,25 @@ export type BookingStatusIsAClosedSet = Assert<
  */
 export type BookingStatusIsAString = Assert<
     BookingStatus extends string ? true : 'the-enum-catalogue-is-not-reachable'
+>;
+
+/**
+ * F02's hand-written `JenisPersetujuanPdp` union and the generated ENUM catalogue
+ * name the same five values, in both directions.
+ *
+ * The value is sent back to `POST /pdp/persetujuan` and is the key the screen renders
+ * slots with, so a spelling that drifted by one letter would be a 422 on a real click
+ * rather than a compile error. Both directions are checked because `extends` alone only
+ * catches a value the client invents.
+ */
+type JenisPdpGenerated = components['schemas']['EnumPersetujuanPdpJenis'];
+
+export type JenisPdpMatchesTheGeneratedCatalogue = Assert<
+    JenisPersetujuanPdp extends JenisPdpGenerated
+        ? JenisPdpGenerated extends JenisPersetujuanPdp
+            ? true
+            : 'the-generated-catalogue-has-values-the-client-does-not'
+        : 'the-client-has-values-the-generated-catalogue-does-not'
 >;
 
 export { messageCountOnFailure };

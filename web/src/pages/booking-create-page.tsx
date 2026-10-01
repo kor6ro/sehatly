@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useParams, useSearchParams } from 'react-router';
+import { Link, useLocation, useParams, useSearchParams } from 'react-router';
 import { ArrowLeft } from 'lucide-react';
 import { BookingForm } from '@/features/booking/booking-form';
 import { BookingList } from '@/features/booking/booking-list';
+import { ConsentGate } from '@/features/pdp/consent-gate';
 import { dokterDetailOptions } from '@/lib/api/dokter';
 import { bookingPasienOptions } from '@/lib/api/booking';
 import { ApiError } from '@/lib/http';
@@ -49,6 +50,7 @@ export function BookingCreatePage() {
      */
     const { dokterId: dokterIdParam } = useParams<{ dokterId: string }>();
     const [searchParams] = useSearchParams();
+    const location = useLocation();
 
     const [status, setStatus] = useState<StatusBooking | undefined>(undefined);
     const [page, setPage] = useState(1);
@@ -179,14 +181,16 @@ export function BookingCreatePage() {
                 </Card>
             )}
 
-            <BookingForm
-                dokterId={dokterId}
-                dokterNama={row.nama_lengkap}
-                biaya={row.biaya_konsultasi_online}
-                tanggalAwal={tanggalAwal}
-                onCreated={setDibuat}
-                jamAwal={jamAwal}
-            />
+            <ConsentGate kembaliKe={location.pathname + location.search}>
+                <BookingForm
+                    dokterId={dokterId}
+                    dokterNama={row.nama_lengkap}
+                    biaya={row.biaya_konsultasi_online}
+                    tanggalAwal={tanggalAwal}
+                    onCreated={setDibuat}
+                    jamAwal={jamAwal}
+                />
+            </ConsentGate>
 
             <BookingList
                 filters={{ page, per_page: PER_PAGE, ...(status === undefined ? {} : { status }) }}

@@ -1776,3 +1776,72 @@ export type Notifikasi = {
     dibaca_at: Iso;
     dibuat_at: Iso;
 };
+
+// ============================================================================
+// persetujuan_pdp (F02)
+// ============================================================================
+
+/**
+ * `persetujuan_pdp.jenis`, the five-value ENUM at `telemedicine_test.sql:1137-1138`.
+ *
+ * Written out rather than imported from `@/types/api`, for the reason every other union
+ * in this file is: the generated document types the REQUEST bodies, and a response type
+ * that reached into a request schema would break the day the request narrows. The
+ * contract test in `api.contract.ts` asserts this union and
+ * `components['schemas']['EnumPersetujuanPdpJenis']` are the same five values, so a
+ * drifted spelling fails `types:check` rather than rendering an empty slot.
+ *
+ * Order matters: the API publishes the checklist in DDL order, and the screen renders
+ * `data.persetujuan` in the order the server sent rather than re-sorting it.
+ */
+export type JenisPersetujuanPdp =
+    | 'syarat_ketentuan'
+    | 'kebijakan_privasi'
+    | 'berbagi_data_medis'
+    | 'pemasaran'
+    | 'komunikasi_tindak_lanjut';
+
+/**
+ * One checklist entry, `App\Http\Resources\PersetujuanPdpResource::untuk()`.
+ *
+ * `GET /api/v1/pdp/persetujuan` always publishes five of these - one per DDL ENUM member,
+ * whether or not a row exists - so a client never has to invent a "has this person
+ * answered yet" rule and the list never has a hole.
+ *
+ * `efektif` is **three-state**, and the difference is the point:
+ *
+ * | value | meaning |
+ * | --- | --- |
+ * | `null` | no decision has ever been recorded for this document |
+ * | `true` | the latest recorded decision approves it |
+ * | `false` | the latest recorded decision rejects or withdrew it |
+ *
+ * The other four keys are published as `null` for an unanswered slot rather than omitted,
+ * so "missing" and "null" are the same value on the wire.
+ */
+export type PersetujuanPdp = {
+    jenis: JenisPersetujuanPdp;
+    efektif: boolean | null;
+    /** The version the recorded decision was about, or `null` when there is none. */
+    versi_dokumen: string | null;
+    /** ISO-8601 UTC, the moment of the latest recorded decision. */
+    disetujui_at: Iso;
+    /** Published only to the account the row belongs to; shown inside collapsed detail. */
+    ip_address: string | null;
+};
+
+/**
+ * One active-document entry, `App\Support\Pdp\PdpDokumen::semua()`.
+ *
+ * `GET /api/v1/pdp/dokumen` is the server's version authority: it publishes the version
+ * currently in force per `jenis`, read from `config/pdp.php`, and the write path refuses
+ * any other version with a 422. The client therefore never invents a `versi_dokumen` - it
+ * echoes back exactly the `versi_dokumen` from this list.
+ */
+export type PdpDokumen = {
+    jenis: JenisPersetujuanPdp;
+    /** Zero-padded `v01`..`v99`, the only shape `PdpDokumen::POLA_VERSI` accepts. */
+    versi_dokumen: string;
+    /** `Y-m-d`, the calendar day the version took effect. Not an instant. */
+    berlaku_sejak: string;
+};

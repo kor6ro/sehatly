@@ -173,12 +173,20 @@ export function NotFoundState({
  * A 403 in a form context, where the whole screen is not a failure but the caller's
  * account type is wrong. Kept separate from {@link ErrorState} so a page can say it
  * without also offering a retry that cannot help.
+ *
+ * `title` is overridable because F02's mandatory-consent gate reuses this presentation
+ * for a second kind of refusal that is not about a role: a patient who has not yet
+ * approved the three required consents is entitled to act, and telling them their account
+ * "tidak berhak" would be false. The retry button stays absent in both cases because
+ * asking again changes nothing - the action is the link the caller passes in.
  */
 export function ForbiddenState({
+    title = 'Akun ini tidak berhak',
     detail = 'Akun ini tidak memiliki data pasien, sehingga halaman ini tidak dapat dibuka.',
     action,
     className,
 }: {
+    title?: string;
     detail?: string;
     action?: React.ReactNode;
     className?: string;
@@ -187,7 +195,7 @@ export function ForbiddenState({
         <Alert variant="destructive" data-slot="forbidden-state" className={className}>
             <ShieldAlert />
 
-            <AlertTitle>Akun ini tidak berhak</AlertTitle>
+            <AlertTitle>{title}</AlertTitle>
 
             <AlertDescription>
                 <p>{detail}</p>

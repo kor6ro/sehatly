@@ -20,6 +20,7 @@ import {
     NotFoundState,
 } from '@/components/states/error-state';
 import { MetodePembayaranPicker } from '@/features/pembayaran/metode-pembayaran-picker';
+import { ConsentGate } from '@/features/pdp/consent-gate';
 import { PaymentInstructions } from '@/features/pembayaran/payment-instructions';
 import { PromoInput } from '@/features/pembayaran/promo-input';
 import { RingkasanInvoice } from '@/features/pembayaran/invoice-summary';
@@ -282,8 +283,9 @@ export function PembayaranMenunggu({ pesananId }: { pesananId: number }) {
             </Card>
 
             {menungguPembayaran ? (
-                bayar.data === undefined ? (
-                    <Card data-slot="payment-mulai">
+                <ConsentGate kembaliKe={`/pembayaran/${order.id}`}>
+                    {bayar.data === undefined ? (
+                        <Card data-slot="payment-mulai">
                         <CardHeader>
                             <CardTitle>Mulai pembayaran</CardTitle>
 
@@ -397,7 +399,8 @@ export function PembayaranMenunggu({ pesananId }: { pesananId: number }) {
                     </Card>
                 ) : (
                     <PaymentInstructions data={bayar.data.data} />
-                )
+                )}
+                </ConsentGate>
             ) : null}
 
             {menungguPembayaran ? (

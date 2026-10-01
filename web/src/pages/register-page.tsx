@@ -267,6 +267,30 @@ export function RegisterPage() {
                     <FieldInput {...bind('alamat_lengkap')} />
                 </Field>
 
+                {/**
+                 * Owner decision F02 §12 #4: one line of notice and two links, and NO
+                 * checkbox. `AuthRequest` accepts no consent field, so a checkbox here
+                 * would collect a value the server never receives - an affirmative that
+                 * goes nowhere. Consent is recorded by F02, per kind, after login.
+                 */}
+                <p className="text-muted-foreground text-sm">
+                    Dengan mendaftar, Anda menyetujui{' '}
+                    <Link
+                        to="/syarat-ketentuan"
+                        className="text-primary underline-offset-4 hover:underline"
+                    >
+                        syarat dan ketentuan
+                    </Link>{' '}
+                    serta{' '}
+                    <Link
+                        to="/kebijakan-privasi"
+                        className="text-primary underline-offset-4 hover:underline"
+                    >
+                        kebijakan privasi
+                    </Link>{' '}
+                    Sehatly.
+                </p>
+
                 <Button type="submit" disabled={isSubmitting}>
                     {isSubmitting ? <Spinner /> : null}
 

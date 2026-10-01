@@ -240,6 +240,38 @@ async function pasangMock(page: Page, opsi: OpsiMock = {}): Promise<void> {
             });
         }
 
+        // F02's mandatory gate sits in front of the booking form, so this spec must answer
+        // the consent read; without it the catch-all's `{}` would block every scenario.
+        if (path === '/api/v1/pdp/persetujuan') {
+            return balasJson(route, 200, {
+                success: true,
+                message: 'Daftar persetujuan PDP berhasil dimuat.',
+                data: {
+                    persetujuan: [
+                        'syarat_ketentuan',
+                        'kebijakan_privasi',
+                        'berbagi_data_medis',
+                        'pemasaran',
+                        'komunikasi_tindak_lanjut',
+                    ].map((jenis) => ({
+                        jenis,
+                        efektif: true,
+                        versi_dokumen: 'v01',
+                        disetujui_at: '2026-01-01T00:00:00.000000Z',
+                        ip_address: null,
+                    })),
+                },
+                meta: {
+                    current_page: 1,
+                    last_page: 1,
+                    per_page: 5,
+                    total: 5,
+                    from: 1,
+                    to: 5,
+                },
+            });
+        }
+
         return balasJson(route, 200, {
             success: true,
             message: 'Berhasil.',

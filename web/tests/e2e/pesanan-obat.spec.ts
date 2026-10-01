@@ -132,6 +132,49 @@ async function masuk(page: Page): Promise<void> {
 }
 
 /**
+ * F02's mandatory gate stands in front of the payment start, so the seeded patient must
+ * have the three required consents recorded before this spec can pay. This does what the
+ * screen does after the gate: read the ACTIVE version from `GET /pdp/dokumen` and post
+ * each decision with it. The write is idempotent by contract, so 200 and 201 both mean
+ * "recorded" and a re-run of this spec does not fail on its own history.
+ */
+async function catatConsentWajib(page: Page): Promise<void> {
+    const token = await page.evaluate(() => sessionStorage.getItem('sehatly.access_token'));
+
+    expect(token, 'sesi harus punya access token setelah verifikasi').not.toBeNull();
+
+    const headers = { Authorization: `Bearer ${token as string}` };
+
+    const dokumen = await page.request.get('/api/v1/pdp/dokumen', { headers });
+
+    expect(dokumen.status(), 'GET /pdp/dokumen harus 200').toBe(200);
+
+    const katalog = (await dokumen.json()) as {
+        data: { dokumen: Array<{ jenis: string; versi_dokumen: string }> };
+    };
+
+    const versi = new Map(
+        katalog.data.dokumen.map((baris) => [baris.jenis, baris.versi_dokumen]),
+    );
+
+    for (const jenis of [
+        'syarat_ketentuan',
+        'kebijakan_privasi',
+        'berbagi_data_medis',
+    ]) {
+        const respons = await page.request.post('/api/v1/pdp/persetujuan', {
+            headers,
+            data: { jenis, versi_dokumen: versi.get(jenis), disetujui: true },
+        });
+
+        expect(
+            [200, 201],
+            `consent ${jenis} harus tercatat, diterima ${respons.status()}`,
+        ).toContain(respons.status());
+    }
+}
+
+/**
  * The network log, restricted to this feature's paths.
  *
  * Held as ONE array and read on demand, never spread at subscribe time: the `response`
@@ -270,6 +313,7 @@ test.describe('Module 5 checkout, payment, tracking and notifications', () => {
         const resepId = Number(wajib('SEHATLY_PASIEN_RESEP_ID'));
 
         await masuk(page);
+        await catatConsentWajib(page);
 
         // === 1. CHECKOUT: stock is read before anything is committed ====================
         await page.goto(`/checkout/${resepId}`);
