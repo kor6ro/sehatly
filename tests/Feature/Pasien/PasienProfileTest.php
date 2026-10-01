@@ -1468,21 +1468,27 @@ test('the route table exposes the eight auth routes and the eleven patient route
         'POST api/v1/konsultasi/{id}/chat',
         'POST api/v1/konsultasi/{id}/chat/baca',
         'PUT api/v1/konsultasi/{id}/selesai',
-        // Module 3 (medical record) wires FIVE routes, and the first of them is
-        // listed here under the `konsultasi` prefix rather than under `rekam-medis`
-        // because its PATH is a consultation path: `POST api/v1/konsultasi/{id}/rekam-medis`
-        // creates a draft record hanging off that consultation. It is listed in
-        // registration order like every other entry, and the four `rekam-medis` URIs
-        // follow it, which is the order `routes/api.php` registers them in.
+        // Module 3 (medical record) wires SEVEN routes after F10 appended two reads
+        // to todo 33's five, and the first of them is listed here under the
+        // `konsultasi` prefix rather than under `rekam-medis` because its PATH is a
+        // consultation path: `POST api/v1/konsultasi/{id}/rekam-medis` creates a
+        // draft record hanging off that consultation. It is listed in registration
+        // order like every other entry, and the six `rekam-medis` URIs follow it,
+        // which is the order `routes/api.php` registers them in: F10's one-segment
+        // list literal is registered BEFORE the `{id}` wildcard, so
+        // `GET api/v1/rekam-medis` comes before `GET api/v1/rekam-medis/{id}` and
+        // cannot be swallowed by it.
         //
         // The whole block was GENERATED from `Route::getRoutes()` and pasted, rather
         // than typed: three executors this month shipped a hand-typed literal in this
         // very assertion that had silently become a different string, and the comment
         // above the directory three is explicit that a closed set must not be widened
-        // by filtering. `RekamMedisTest` asserts the same five by URI as its own
+        // by filtering. `RekamMedisTest` asserts the same seven by URI as its own
         // closed set, so the two files cannot disagree about which routes exist.
         'POST api/v1/konsultasi/{id}/rekam-medis',
+        'GET api/v1/rekam-medis',
         'GET api/v1/rekam-medis/{id}',
+        'GET api/v1/rekam-medis/{id}/akses',
         'PUT api/v1/rekam-medis/{id}',
         'PUT api/v1/rekam-medis/{id}/final',
         'POST api/v1/rekam-medis/{id}/amandemen',

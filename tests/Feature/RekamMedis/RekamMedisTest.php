@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\Konsultasi;
+use App\Models\Pasien;
 use App\Models\RekamMedis;
 use App\Models\RekamMedisDiagnosa;
 use App\Models\RekamMedisLampiran;
@@ -21,6 +22,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Tests\Support\PasienFixture;
 
 /*
 |--------------------------------------------------------------------------
@@ -114,15 +116,18 @@ function rmdPengguna(string $tipe, ?string $role = null): User
  */
 function rmdPasien(int $userId, array $ubah = []): int
 {
-    return (int) DB::table('pasien')->insertGetId(array_merge([
+    return (int) DB::table('pasien')->insertGetId(PasienFixture::withNik(array_merge([
         'user_id' => $userId,
-        // `nik` is `CHAR(16) NULL UNIQUE` (:222), so it needs a value for the mask
-        // assertion to have something to mask.
+        // `nik_cipher` replaced `nik CHAR(16) NULL UNIQUE` (:222), so the value is
+        // a `NikCipher` payload rather than the 16 characters themselves. It still
+        // needs to be there for the mask assertion to have something to mask, and
+        // `PasienFixture` encrypts it with the same `NikCipher::encrypt()` the
+        // model mutator calls.
         'nik' => '327312345678'.str_pad((string) (1000 + random_int(0, 8999)), 4, '0', STR_PAD_LEFT),
         'jenis_kelamin' => 'P',
         'tanggal_lahir' => '1990-05-17',
         'alamat_lengkap' => 'Jl. Uji Rekam Medis No. 12, Jakarta',
-    ], $ubah));
+    ], $ubah)));
 }
 
 /**
@@ -435,23 +440,27 @@ test('the plan citations for this todo, checked against the file', function (): 
 // The route table
 // =====================================================================
 
-test('five routes are registered under api/v1 with the guards this todo chose', function (): void {
+test('seven routes are registered under api/v1 with the guards this todo chose', function (): void {
     $routes = collect(Route::getRoutes()->getRoutes())
         ->filter(fn ($route): bool => str_starts_with($route->uri(), 'api/v1/rekam-medis')
             || $route->uri() === 'api/v1/konsultasi/{id}/rekam-medis')
         ->keyBy(fn ($route): string => $route->methods()[0].' '.$route->uri())
         ->all();
 
-    // The plan's acceptance criterion says 5, and 5 ship. There is deliberately NO
-    // list route: the plan names five endpoints, so `route:list --path=api/v1/rekam-medis`
-    // must answer 5. The cost is that a patient cannot list their own records over
-    // HTTP, which the report states rather than papering over with a sixth route.
+    // Todo 33 shipped five routes and F10 appended the two reads: the patient's own
+    // list (`GET api/v1/rekam-medis`, a one-segment literal registered BEFORE the
+    // `{id}` wildcard) and the access history for one record
+    // (`GET api/v1/rekam-medis/{id}/akses`). The closed set is asserted by URI rather
+    // than by prefix, because `route:list --path=api/v1/rekam-medis` cannot see the
+    // create route that lives under `konsultasi`.
     expect(array_keys($routes))->toEqualCanonicalizing([
         'POST api/v1/konsultasi/{id}/rekam-medis',
+        'GET api/v1/rekam-medis',
+        'GET api/v1/rekam-medis/{id}',
+        'GET api/v1/rekam-medis/{id}/akses',
         'PUT api/v1/rekam-medis/{id}',
         'PUT api/v1/rekam-medis/{id}/final',
         'POST api/v1/rekam-medis/{id}/amandemen',
-        'GET api/v1/rekam-medis/{id}',
     ]);
 
     $middlewareFor = static function (string $key) use ($routes): array {
@@ -477,6 +486,15 @@ test('five routes are registered under api/v1 with the guards this todo chose', 
     // `KonsultasiController` makes exactly this argument for `GET /konsultasi/{id}`.
     expect($middlewareFor('GET api/v1/rekam-medis/{id}'))->not->toContain('permission:rekam_medis.lihat')
         ->and($middlewareFor('GET api/v1/rekam-medis/{id}'))->not->toContain('tipe:dokter');
+
+    // F10's two reads carry the SAME absence for the same reason: the list's
+    // audience is the patient whose `pasien_id` scopes the query, and the
+    // access-log read resolves through `RekamMedisAccess::sisiUntukBaca()`, the
+    // detail route's own resolver. A route gate cannot express either question.
+    expect($middlewareFor('GET api/v1/rekam-medis'))->not->toContain('permission:rekam_medis.lihat')
+        ->and($middlewareFor('GET api/v1/rekam-medis'))->not->toContain('tipe:dokter')
+        ->and($middlewareFor('GET api/v1/rekam-medis/{id}/akses'))->not->toContain('permission:rekam_medis.lihat')
+        ->and($middlewareFor('GET api/v1/rekam-medis/{id}/akses'))->not->toContain('tipe:dokter');
 
     // The three record writes are `tipe:dokter` plus the code that names the action.
     // An amendment is gated on `rekam_medis.final` and not on `rekam_medis.simpan`,
@@ -584,20 +602,20 @@ test('no code outside app/Services/RekamMedis reaches the rekam_medis tables', f
         }
 
         // Scan EXECUTABLE CODE ONLY.
-      //
-      // A docblock that NAMES a query is documentation, not code reaching the
-      // table. `RefusesHardDelete` writes `RekamMedis::query()->where(...)->delete()`
-      // in its own trait note, to record the query-builder delete it deliberately
-      // does NOT perform. Matching raw source made this guard fire on that prose,
-      // which is the A.15 defect class: a comment failing an assertion about code.
-      // Tokenising keeps the guard real - executable calls are still caught.
-      $source = (string) file_get_contents($path);
-      $source = implode('', array_map(
-          static fn (array|string $token): string => is_array($token)
-              ? ($token[0] === T_COMMENT || $token[0] === T_DOC_COMMENT ? '' : $token[1])
-              : $token,
-          token_get_all($source),
-      ));
+        //
+        // A docblock that NAMES a query is documentation, not code reaching the
+        // table. `RefusesHardDelete` writes `RekamMedis::query()->where(...)->delete()`
+        // in its own trait note, to record the query-builder delete it deliberately
+        // does NOT perform. Matching raw source made this guard fire on that prose,
+        // which is the A.15 defect class: a comment failing an assertion about code.
+        // Tokenising keeps the guard real - executable calls are still caught.
+        $source = (string) file_get_contents($path);
+        $source = implode('', array_map(
+            static fn (array|string $token): string => is_array($token)
+                ? ($token[0] === T_COMMENT || $token[0] === T_DOC_COMMENT ? '' : $token[1])
+                : $token,
+            token_get_all($source),
+        ));
 
         foreach ($pola as $satu) {
             if (str_contains($source, $satu)) {
@@ -1430,7 +1448,12 @@ test('the detail response publishes the whole record and no more', function (): 
     // through the PROJECT's own masker rather than through a hand-typed pattern - a
     // hand-typed regex is exactly the kind of literal that silently becomes a
     // different string, and the masker is the authority anyway.
-    $nik = (string) DB::table('pasien')->where('id', $akun['pasien'])->value('nik');
+    //
+    // Read through the MODEL, not through `DB::table()->value('nik')`: the column
+    // is `nik_cipher` and holds a payload, so the plaintext exists only after
+    // `Pasien`'s accessor decrypts it. Reading it that way also means this line
+    // asserts the real read path works, which is the thing the migration changed.
+    $nik = (string) Pasien::query()->findOrFail($akun['pasien'])->nik;
     $diterbitkan = (string) $body['data']['rekam_medis']['pasien']['nik'];
 
     expect($diterbitkan)->not->toBe($nik)
@@ -1493,4 +1516,381 @@ test('a change set that names no real column is refused with 422 and writes noth
 
     expect((array) DB::table('rekam_medis')->where('id', $row->getKey())->first())->toBe($sebelum)
         ->and(DB::table('rekam_medis')->where('pasien_id', $akun['pasien'])->count())->toBe(1);
+});
+
+// =====================================================================
+// F10: the patient's own list, and the access log of one record
+// =====================================================================
+
+/**
+ * The fields `RekamMedisDaftarResource` publishes, in order.
+ *
+ * Asserted by VALUE so a future widening of the list resource is visible instead of
+ * silent. No NIK, no contact detail, no SOAP note, no child collection and no
+ * `pasien_id`/`faskes_id`/`konsultasi_id` identity column is in this set.
+ *
+ * @var list<string>
+ */
+const RMD_KUNCI_DAFTAR = [
+    'id',
+    'uuid',
+    'tanggal_periksa',
+    'keluhan_utama',
+    'diagnosis_kerja',
+    'status_dokumen',
+    'versi',
+    'adalah_versi_terkini',
+    'dokter',
+];
+
+test('the patient list returns only the caller own records and no clinical detail', function (): void {
+    $akun = rmdPatientAccount();
+    $lain = rmdPatientAccount();
+
+    $milik = rmdRecord($akun['pasien'], $akun['dokter'], [
+        'keluhan_utama' => 'Batuk tiga hari',
+        'diagnosis_kerja' => 'ISPA',
+        'status_dokumen' => 'final',
+    ]);
+    rmdRecord($lain['pasien'], $lain['dokter'], ['keluhan_utama' => 'Batuk tiga hari']);
+
+    $response = rmdAs($akun['user'])->getJson('/api/v1/rekam-medis');
+
+    $response->assertOk()
+        ->assertJsonPath('success', true)
+        ->assertJsonPath('meta.total', 1);
+
+    $rows = $response->json('data.rekam_medis');
+
+    expect($rows)->toHaveCount(1)
+        ->and((int) $rows[0]['id'])->toBe((int) $milik->getKey())
+        ->and($rows[0]['uuid'])->toBe((string) $milik->uuid)
+        ->and($rows[0]['keluhan_utama'])->toBe('Batuk tiga hari')
+        ->and($rows[0]['diagnosis_kerja'])->toBe('ISPA')
+        ->and($rows[0]['status_dokumen'])->toBe('final')
+        ->and($rows[0]['versi'])->toBe(1)
+        ->and($rows[0]['adalah_versi_terkini'])->toBeTrue()
+        ->and($rows[0]['dokter']['nama_lengkap'])->toBe($akun['dokterUser']->nama_lengkap)
+        ->and(array_keys($rows[0]))->toBe(RMD_KUNCI_DAFTAR)
+        ->and($rows[0])->not->toHaveKey('pasien_id')
+        ->and($rows[0])->not->toHaveKey('pasien')
+        ->and($rows[0])->not->toHaveKey('subjektif')
+        ->and($rows[0])->not->toHaveKey('ran');
+
+    // The raw body names no NIK column and no contact column, and the foreign
+    // patient's record is simply not in it.
+    $raw = (string) $response->getContent();
+
+    expect($raw)->not->toContain('nik')
+        ->and($raw)->not->toContain('no_telepon')
+        ->and($raw)->not->toContain('kata_sandi_hash')
+        ->and($raw)->not->toContain('akses_rekam_medis_log')
+        ->and($raw)->not->toContain('pengakses_user_id');
+
+    // `meta` is a top-level sibling, never nested inside `data`.
+    $body = json_decode($raw, true);
+
+    expect($body)->toHaveKeys(['success', 'data', 'message', 'meta'])
+        ->and($body['data'])->not->toHaveKey('meta');
+});
+
+test('a patient account with no pasien row is refused 403 on the list', function (): void {
+    // A `pasien`-typed account with NO `pasien` row: the refusal is about the
+    // caller, which is why it is a 403 and not an empty list.
+    $user = rmdPengguna('pasien', 'pasien');
+
+    $response = rmdAs($user)->getJson('/api/v1/rekam-medis');
+
+    $response->assertStatus(403)->assertJsonPath('success', false);
+});
+
+test('the q filter searches keluhan_utama and diagnosis_kerja, only within the caller records', function (): void {
+    $akun = rmdPatientAccount();
+    $lain = rmdPatientAccount();
+
+    $batuk = rmdRecord($akun['pasien'], $akun['dokter'], [
+        'keluhan_utama' => 'Batuk berdahak',
+        'tanggal_periksa' => '2026-03-10 09:00:00',
+    ]);
+    $hipertensi = rmdRecord($akun['pasien'], $akun['dokter'], [
+        'keluhan_utama' => 'Kontrol rutin',
+        'diagnosis_kerja' => 'Hipertensi',
+        'tanggal_periksa' => '2026-03-12 09:00:00',
+    ]);
+    // Another patient's record holds the same term. The tenant filter is the
+    // query, so it cannot surface here.
+    rmdRecord($lain['pasien'], $lain['dokter'], [
+        'keluhan_utama' => 'Batuk berdahak',
+        'tanggal_periksa' => '2026-03-11 09:00:00',
+    ]);
+
+    $cari = function (string $q) use ($akun): array {
+        $response = rmdAs($akun['user'])->getJson('/api/v1/rekam-medis?'.http_build_query(['q' => $q]));
+        $response->assertOk();
+
+        return array_column($response->json('data.rekam_medis'), 'id');
+    };
+
+    // Search on the complaint, scoped to the caller.
+    expect($cari('Batuk'))->toBe([(int) $batuk->getKey()]);
+
+    // Search on the working diagnosis - the column's value is not in `keluhan_utama`.
+    expect($cari('Hipertensi'))->toBe([(int) $hipertensi->getKey()]);
+
+    // The collation is `utf8mb4_unicode_ci`, so the search is case-insensitive.
+    expect($cari('hipertensi'))->toBe([(int) $hipertensi->getKey()]);
+
+    // A term no own record holds answers an empty page, not another patient's row.
+    expect($cari('Tidak Ada'))->toBe([]);
+});
+
+test('the q filter treats LIKE wildcards as literal characters', function (): void {
+    $akun = rmdPatientAccount();
+
+    $persen = rmdRecord($akun['pasien'], $akun['dokter'], [
+        'keluhan_utama' => 'Reaksi obat 50% dosis',
+        'tanggal_periksa' => '2026-03-10 09:00:00',
+    ]);
+    // If `%` were left unescaped, this row would match `50%` too.
+    rmdRecord($akun['pasien'], $akun['dokter'], [
+        'keluhan_utama' => 'Reaksi obat 500 dosis',
+        'tanggal_periksa' => '2026-03-11 09:00:00',
+    ]);
+
+    $response = rmdAs($akun['user'])
+        ->getJson('/api/v1/rekam-medis?'.http_build_query(['q' => '50%']));
+
+    $response->assertOk();
+
+    expect(array_column($response->json('data.rekam_medis'), 'id'))
+        ->toBe([(int) $persen->getKey()]);
+});
+
+test('the date filters bound tanggal_periksa inclusively and refuse an inverted range', function (): void {
+    $akun = rmdPatientAccount();
+
+    $awal = rmdRecord($akun['pasien'], $akun['dokter'], [
+        'keluhan_utama' => 'Hari pertama',
+        'tanggal_periksa' => '2026-03-10 09:00:00',
+    ]);
+    $tengah = rmdRecord($akun['pasien'], $akun['dokter'], [
+        'keluhan_utama' => 'Hari kedua',
+        'tanggal_periksa' => '2026-03-11 09:30:00',
+    ]);
+    $akhir = rmdRecord($akun['pasien'], $akun['dokter'], [
+        'keluhan_utama' => 'Hari ketiga',
+        'tanggal_periksa' => '2026-03-12 09:00:00',
+    ]);
+
+    $cari = function (array $filter) use ($akun): array {
+        $response = rmdAs($akun['user'])
+            ->getJson('/api/v1/rekam-medis?'.http_build_query($filter));
+        $response->assertOk();
+
+        return array_column($response->json('data.rekam_medis'), 'id');
+    };
+
+    // Whole-day bounds: a record at 09:30:00 inside the day is included.
+    expect($cari(['tanggal_dari' => '2026-03-11']))->toBe([
+        (int) $akhir->getKey(),
+        (int) $tengah->getKey(),
+    ]);
+
+    expect($cari(['tanggal_sampai' => '2026-03-11']))->toBe([
+        (int) $tengah->getKey(),
+        (int) $awal->getKey(),
+    ]);
+
+    expect($cari(['tanggal_dari' => '2026-03-11', 'tanggal_sampai' => '2026-03-11']))
+        ->toBe([(int) $tengah->getKey()]);
+
+    expect($cari(['tanggal_dari' => '2026-03-13']))->toBe([]);
+
+    // An inverted range is a 422 naming the field, not an empty page.
+    $response = rmdAs($akun['user'])->getJson(
+        '/api/v1/rekam-medis?'.http_build_query([
+            'tanggal_dari' => '2026-03-11',
+            'tanggal_sampai' => '2026-03-01',
+        ])
+    );
+
+    $response->assertStatus(422)->assertJsonPath('errors.tanggal_sampai.0', 'Tanggal akhir tidak boleh mendahului tanggal awal.');
+});
+
+test('the list paginates with the project meta block, newest first, and caps per_page at 100', function (): void {
+    $akun = rmdPatientAccount();
+
+    rmdRecord($akun['pasien'], $akun['dokter'], [
+        'keluhan_utama' => 'Tertua',
+        'tanggal_periksa' => '2026-03-10 09:00:00',
+    ]);
+    rmdRecord($akun['pasien'], $akun['dokter'], [
+        'keluhan_utama' => 'Tengah',
+        'tanggal_periksa' => '2026-03-11 09:00:00',
+    ]);
+    $terbaru = rmdRecord($akun['pasien'], $akun['dokter'], [
+        'keluhan_utama' => 'Terbaru',
+        'tanggal_periksa' => '2026-03-12 09:00:00',
+    ]);
+
+    $response = rmdAs($akun['user'])->getJson('/api/v1/rekam-medis?per_page=2');
+
+    $response->assertOk()
+        ->assertJsonPath('meta.current_page', 1)
+        ->assertJsonPath('meta.last_page', 2)
+        ->assertJsonPath('meta.per_page', 2)
+        ->assertJsonPath('meta.total', 3)
+        ->assertJsonPath('meta.from', 1)
+        ->assertJsonPath('meta.to', 2)
+        ->assertJsonPath('data.rekam_medis.0.keluhan_utama', 'Terbaru')
+        ->assertJsonPath('data.rekam_medis.0.id', (int) $terbaru->getKey());
+
+    $halamanDua = rmdAs($akun['user'])->getJson('/api/v1/rekam-medis?per_page=2&page=2');
+
+    $halamanDua->assertOk()
+        ->assertJsonPath('meta.current_page', 2)
+        ->assertJsonPath('meta.from', 3)
+        ->assertJsonPath('meta.to', 3)
+        ->assertJsonPath('data.rekam_medis.0.keluhan_utama', 'Tertua');
+
+    // The cap is enforced twice: `IndexRekamMedisRequest` refuses a value over 100
+    // with a 422 naming the field, and the service clamps whatever else arrives.
+    rmdAs($akun['user'])->getJson('/api/v1/rekam-medis?per_page=101')
+        ->assertStatus(422)
+        ->assertJsonPath('errors.per_page.0', 'Per halaman maksimal 100.');
+
+    rmdAs($akun['user'])->getJson('/api/v1/rekam-medis?per_page=100')
+        ->assertOk()
+        ->assertJsonPath('meta.per_page', 100);
+});
+
+test('records sharing an examination instant are ordered by id descending', function (): void {
+    $akun = rmdPatientAccount();
+
+    $lama = rmdRecord($akun['pasien'], $akun['dokter'], [
+        'keluhan_utama' => 'Sesi lama',
+        'tanggal_periksa' => '2026-03-09 09:00:00',
+    ]);
+    // The chain group is (pasien_id, dokter_id, tanggal_periksa), so these two rows
+    // share a group AND a `tanggal_periksa` second: only the id tie-breaker can
+    // order them, and insertion order says the later id is newer.
+    $pertama = rmdRecord($akun['pasien'], $akun['dokter'], [
+        'keluhan_utama' => 'Sesi pertama',
+        'tanggal_periksa' => RMD_TANGGAL,
+    ]);
+    $kedua = rmdRecord($akun['pasien'], $akun['dokter'], [
+        'keluhan_utama' => 'Sesi kedua',
+        'tanggal_periksa' => RMD_TANGGAL,
+    ]);
+
+    $response = rmdAs($akun['user'])->getJson('/api/v1/rekam-medis');
+
+    $response->assertOk();
+
+    expect(array_column($response->json('data.rekam_medis'), 'id'))->toBe([
+        (int) $kedua->getKey(),
+        (int) $pertama->getKey(),
+        (int) $lama->getKey(),
+    ]);
+});
+
+test('the list writes no access-log row, and the count before and after is the same', function (): void {
+    $akun = rmdPatientAccount();
+    $row = rmdRecord($akun['pasien'], $akun['dokter']);
+
+    // One logged DETAIL read first, so the count under observation is not trivially
+    // zero: if the list did write a row per record, this would move to 2 and the
+    // assertion below would catch it.
+    rmdAs($akun['user'])->getJson('/api/v1/rekam-medis/'.$row->getKey())->assertOk();
+
+    expect(DB::table('akses_rekam_medis_log')->count())->toBe(1);
+
+    rmdAs($akun['user'])->getJson('/api/v1/rekam-medis')->assertOk();
+
+    expect(DB::table('akses_rekam_medis_log')->count())->toBe(1)
+        ->and(rmdJumlahLog((int) $row->getKey()))->toBe(1);
+});
+
+test('the access log endpoint returns the record history role-only and newest first', function (): void {
+    $akun = rmdPatientAccount();
+    $row = rmdRecord($akun['pasien'], $akun['dokter'], ['keluhan_utama' => 'Demam']);
+    $id = (int) $row->getKey();
+
+    // Two distinct accesses. The doctor's is first, the patient's own is second, and
+    // they are typically in the same `TIMESTAMP` second - so the `id DESC`
+    // tie-breaker is what puts the patient's row first.
+    rmdAs($akun['dokterUser'])->getJson('/api/v1/rekam-medis/'.$id)->assertOk();
+    rmdAs($akun['user'])->getJson('/api/v1/rekam-medis/'.$id)->assertOk();
+
+    $sebelum = DB::table('akses_rekam_medis_log')->count();
+
+    $response = rmdAs($akun['user'])->getJson('/api/v1/rekam-medis/'.$id.'/akses');
+
+    $response->assertOk()
+        ->assertJsonPath('success', true)
+        ->assertJsonPath('meta.total', 2);
+
+    $rows = $response->json('data.akses');
+
+    expect($rows)->toHaveCount(2)
+        ->and($rows[0]['tujuan_akses'])->toBe('pasien_sendiri')
+        ->and($rows[0]['peran'])->toBe('pasien')
+        ->and($rows[1]['tujuan_akses'])->toBe('perawatan')
+        ->and($rows[1]['peran'])->toBe('dokter')
+        ->and(array_keys($rows[0]))->toBe(['waktu', 'peran', 'tujuan_akses'])
+        ->and($rows[0]['waktu'])->toMatch('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/');
+
+    // The actor's NAME is not published. `users.tipe` (the `peran` above) is the
+    // coarse answer; `pengakses_user_id` and `nama_lengkap` never reach the wire.
+    $raw = (string) $response->getContent();
+
+    expect($raw)->not->toContain((string) $akun['dokterUser']->nama_lengkap)
+        ->and($raw)->not->toContain('pengakses_user_id')
+        ->and($raw)->not->toContain('rekam_medis_id')
+        ->and($raw)->not->toContain('nik');
+
+    // Fetching the log is not reading the record, so it writes no log row either.
+    expect(DB::table('akses_rekam_medis_log')->count())->toBe($sebelum);
+});
+
+test('the access log endpoint 404s another patient record and 403s an account with no profile', function (): void {
+    $akun = rmdPatientAccount();
+    $row = rmdRecord($akun['pasien'], $akun['dokter']);
+
+    // Another patient owns a `pasien` row, so the record is simply not found - 404,
+    // never 403, so the endpoint is not an existence oracle.
+    $lain = rmdPatientAccount();
+    rmdAs($lain['user'])->getJson('/api/v1/rekam-medis/'.$row->getKey().'/akses')->assertNotFound();
+    rmdAs($lain['user'])->getJson('/api/v1/rekam-medis/'.$row->getKey())->assertNotFound();
+
+    // An account owning neither profile row and not an oversight type gets 403.
+    $tanpa = rmdPengguna('pasien', 'pasien');
+    rmdAs($tanpa)->getJson('/api/v1/rekam-medis/'.$row->getKey().'/akses')->assertForbidden();
+
+    // A missing id is the same 404 as "not yours".
+    rmdAs($akun['user'])->getJson('/api/v1/rekam-medis/999999/akses')->assertNotFound();
+});
+
+test('the access log endpoint paginates and caps per_page at 100', function (): void {
+    $akun = rmdPatientAccount();
+    $row = rmdRecord($akun['pasien'], $akun['dokter']);
+    $id = (int) $row->getKey();
+
+    for ($i = 0; $i < 3; $i++) {
+        rmdAs($akun['user'])->getJson('/api/v1/rekam-medis/'.$id)->assertOk();
+    }
+
+    $response = rmdAs($akun['user'])->getJson('/api/v1/rekam-medis/'.$id.'/akses?per_page=2');
+
+    $response->assertOk()
+        ->assertJsonPath('meta.current_page', 1)
+        ->assertJsonPath('meta.last_page', 2)
+        ->assertJsonPath('meta.per_page', 2)
+        ->assertJsonPath('meta.total', 3);
+
+    expect($response->json('data.akses'))->toHaveCount(2);
+
+    rmdAs($akun['user'])->getJson('/api/v1/rekam-medis/'.$id.'/akses?per_page=101')
+        ->assertStatus(422)
+        ->assertJsonPath('errors.per_page.0', 'Per halaman maksimal 100.');
 });

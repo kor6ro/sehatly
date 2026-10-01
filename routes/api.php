@@ -532,18 +532,27 @@ use App\Http\Controllers\Api\V1\RekamMedisController;
 | todo 32's `GET`-style two-segment route and the create hangs a RECORD off a
 | consultation rather than being a lifecycle step of one.
 |
-| ## Five routes, and the plan's count is right
+| ## Seven routes, and the F10 additions
 |
-| `php artisan route:list --path=api/v1/rekam-medis` answers 4 and the create hangs
-| off `konsultasi`, so the FIVE this todo delivers are 4 here plus 1 in the
-| consultation namespace - and the test asserts the closed set of all five by URI
-| rather than by prefix, because a filter on `rekam-medis` alone would answer 4 and
+| Todo 33 shipped five operations. F10 APPENDED two reads to the same prefix group,
+| and neither is a sixth "operation" in the sense the original criterion forbade:
+|
+| | route | why it exists |
+| | --- | --- |
+| | `GET /rekam-medis` | the patient's own list. Without it the "riwayat" surface can only be derived from prescriptions, which is the gap F10 pattern section 12 item 1 records. It writes ZERO `akses_rekam_medis_log` rows: a list names no single record, and one row per listed record would falsify the trail. |
+| | `GET /rekam-medis/{id}/akses` | the patient's own access history for one record - the UU PDP transparency the log exists for. It reads the log ABOUT the record, not the record, so it also writes no log row. |
+|
+| The list is registered **FIRST**, before `GET {id}`. `rekam-medis` (one segment)
+| and `rekam-medis/{id}` (two) cannot collide anyway, and `{id}` carries
+| `whereNumber` so a non-numeric segment is a router 404 - the literal-first order is
+| the house rule stated here rather than left to Laravel's matcher to happen to
+| satisfy. The `akses` route is two segments and collides with nothing.
+|
+| `php artisan route:list --path=api/v1/rekam-medis` now answers 6 and the create
+| hangs off `konsultasi`, so the SEVEN this block delivers are 6 here plus 1 in the
+| consultation namespace - and the test asserts the closed set of all seven by URI
+| rather than by prefix, because a filter on `rekam-medis` alone would answer 6 and
 | read like a missing route.
-|
-| There is deliberately NO list endpoint. The plan names five operations, and a sixth
-| would break its own acceptance criterion; the cost is that a patient cannot page
-| through their own records over HTTP, which is reported in
-| `.omo/evidence/task-33-sehatly.md` rather than papered over.
 |
 | ## The guards, and why the read carries none
 |
@@ -554,6 +563,8 @@ use App\Http\Controllers\Api\V1\RekamMedisController;
 | | `PUT /rekam-medis/{id}/final` | `rekam_medis.final` | `dokter` |
 | | `POST /rekam-medis/{id}/amandemen` | `rekam_medis.final` | `dokter` |
 | | `GET /rekam-medis/{id}` | - | - |
+| | `GET /rekam-medis` | - | - |
+| | `GET /rekam-medis/{id}/akses` | - | - |
 |
 | `rekam_medis.lihat` IS a real code and is deliberately NOT used. It is granted to
 | `pasien`, `dokter` and `superadmin` and NOT to `admin`
@@ -598,9 +609,20 @@ Route::middleware('auth:sanctum')->group(function (): void {
         ->name('konsultasi.rekam-medis.store');
 
     Route::prefix('rekam-medis')->name('rekam-medis.')->group(function (): void {
+        // The one-segment literal is registered FIRST, before the `{id}` wildcard.
+        // `rekam-medis` and `rekam-medis/{id}` cannot collide on segment count, and
+        // `{id}` carries `whereNumber`, so this is the house ordering rule made
+        // explicit rather than a dependency on Laravel's matcher.
+        Route::get('/', [RekamMedisController::class, 'index'])
+            ->name('index');
+
         Route::get('{id}', [RekamMedisController::class, 'show'])
             ->whereNumber('id')
             ->name('show');
+
+        Route::get('{id}/akses', [RekamMedisController::class, 'akses'])
+            ->whereNumber('id')
+            ->name('akses');
 
         Route::put('{id}', [RekamMedisController::class, 'ubah'])
             ->whereNumber('id')

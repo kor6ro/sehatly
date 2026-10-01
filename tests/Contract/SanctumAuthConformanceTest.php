@@ -9,8 +9,8 @@ use Tests\Contract\Support\ContractSpec;
  | Sanctum bearer auth really yields 401 on an absent or garbage token
  |--------------------------------------------------------------------------
  |
-  | The document declares 53 operations as bearer-protected and 25 as explicitly
-  | anonymous. This file drives EVERY one of the 53 against the running
+  | The document declares 55 operations as bearer-protected and 25 as explicitly
+  | anonymous. This file drives EVERY one of the 55 against the running
   | application, twice: once with no `Authorization` header at all, and once with
   | a token that is structurally plausible and cryptographically meaningless.
  |
@@ -32,10 +32,10 @@ use Tests\Contract\Support\ContractSpec;
  * segment is an id that cannot exist in an empty table and the second is 40
  * characters of filler.
  *
-  * ## Why this is worth 106 real requests
+  * ## Why this is worth 110 real requests
   |
   * | Because it is the cheapest proof in the suite that the guard is actually
-  * | mounted on all 53 routes rather than on the handful the module tests happen to
+  * | mounted on all 55 routes rather than on the handful the module tests happen to
   * | touch. A route that lost its `auth:sanctum` in a refactor would answer 500 or
   * | 302 here, and nothing else in the suite would notice.
   */
@@ -127,14 +127,14 @@ function contractSplit(string $key): array
     return [$method, $path];
 }
 
-it('splits the documented operations into 53 bearer, 25 anonymous and 24 unguarded', function (): void {
+it('splits the documented operations into 55 bearer, 25 anonymous and 24 unguarded', function (): void {
     // The counts are pinned so the datasets below cannot silently shrink. If a
     // route is added or removed, this fails first and names the real delta,
     // instead of a per-route test quietly disappearing from the run.
-    expect(count(contractBearerOperations()))->toBe(53);
+    expect(count(contractBearerOperations()))->toBe(55);
     expect(count(contractAnonymousOperations()))->toBe(25);
     expect(count(contractUnguardedAnonymousOperations()))->toBe(24);
-    expect(count(contractBearerOperations()) + count(contractAnonymousOperations()))->toBe(78);
+    expect(count(contractBearerOperations()) + count(contractAnonymousOperations()))->toBe(80);
 });
 
 it('answers 401 with the error envelope when the Authorization header is absent', function (string $method, string $path): void {

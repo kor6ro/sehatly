@@ -614,6 +614,16 @@ const List<String> apiv1referensistatusPernikahanMethods = <String>[
   'GET',
 ];
 
+/// `/api/v1/rekam-medis`
+///
+/// Answers: GET (`rekam-medis.index`).
+const String apiv1rekamMedis = '/api/v1/rekam-medis';
+
+/// The HTTP methods `apiv1rekamMedis` answers.
+const List<String> apiv1rekamMedisMethods = <String>[
+  'GET',
+];
+
 /// `/api/v1/rekam-medis/{id}`
 ///
 /// Answers: GET (`rekam-medis.show`), PUT (`rekam-medis.update`).
@@ -623,6 +633,16 @@ const String apiv1rekamMedisid = '/api/v1/rekam-medis/{id}';
 const List<String> apiv1rekamMedisidMethods = <String>[
   'GET',
   'PUT',
+];
+
+/// `/api/v1/rekam-medis/{id}/akses`
+///
+/// Answers: GET (`rekam-medis.akses`).
+const String apiv1rekamMedisidakses = '/api/v1/rekam-medis/{id}/akses';
+
+/// The HTTP methods `apiv1rekamMedisidakses` answers.
+const List<String> apiv1rekamMedisidaksesMethods = <String>[
+  'GET',
 ];
 
 /// `/api/v1/rekam-medis/{id}/amandemen`

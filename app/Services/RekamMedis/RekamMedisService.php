@@ -11,8 +11,11 @@ use App\Models\RekamMedisPersetujuan;
 use App\Models\RekamMedisTindakan;
 use App\Models\User;
 use App\Services\Konsultasi\KonsultasiAccess;
+use App\Services\Pasien\PasienRecordAccess;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -43,6 +46,8 @@ use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
  * | operation | `akses_rekam_medis_log` rows |
  * | --- | --- |
  * | detail fetch | 1 |
+ * | record LIST (`GET /rekam-medis`) | 0 - see {@see daftar()} |
+ * | access-log read (`GET /rekam-medis/{id}/akses`) | 0 - see {@see daftarAkses()} |
  * | in-place edit of a draft | 1 |
  * | finalisation | 1 |
  * | amendment | 1 - the parent is opened, the new row is created |
@@ -224,6 +229,7 @@ final class RekamMedisService
         private readonly RekamMedisAccess $access,
         private readonly RekamMedisAccessLogger $logger,
         private readonly KonsultasiAccess $konsultasi,
+        private readonly PasienRecordAccess $pasien,
     ) {}
 
     /**
@@ -256,6 +262,163 @@ final class RekamMedisService
             $this->access->tujuanUntuk($sisi),
             $sertaRantai,
         );
+    }
+
+    /**
+     * `GET /api/v1/rekam-medis` - the caller patient's OWN records, newest first.
+     *
+     * ## This method writes ZERO `akses_rekam_medis_log` rows, and that is the point
+     *
+     * The records list is the one read of the `rekam_medis` family that does NOT log,
+     * and the reasons are structural rather than a relaxation of the one-log-per-read
+     * rule:
+     *
+     * 1. **A list cannot be logged.** `akses_rekam_medis_log.rekam_medis_id` is
+     *    `BIGINT UNSIGNED NOT NULL` (`telemedicine_test.sql:1149`) with a foreign key
+     *    to ONE `rekam_medis` row. There is no "page opened" row this table can hold,
+     *    and writing one row per listed record would make the trail say the patient
+     *    opened every file on the page at once, which is false.
+     * 2. **This is an index, not the record.** The response publishes the visit
+     *    instant, the presenting complaint and the working-diagnosis label - the
+     *    minimum needed to choose a record. The SOAP note, the six-column narrative,
+     *    the four child collections and the amendment chain are reachable only through
+     *    {@see findForAccess()}, which logs exactly one row.
+     * 3. **The model guard is not tripped.** The query is built with `DB::table()`, so
+     *    no `RekamMedis` model is hydrated and `GuardsMedicalRecordRead` never fires.
+     *    That is deliberate: the alternative - opening a `RekamMedisReadScope` per row
+     *    to hydrate models - would produce the per-record log rows the owner ruled out.
+     *    This is the only non-hydrating read of the root table outside
+     *    {@see RekamMedisAccess::probe()}, and it lives here, inside the namespace the
+     *    structural grep permits.
+     *
+     * The test asserts the count before and after the request, so "the list logs
+     * nothing" is a checked property rather than this paragraph.
+     *
+     * ## The tenant filter IS the query
+     *
+     * `$user` is resolved to its own `pasien` row with
+     * {@see PasienRecordAccess::ownPasien()} - 403 for an account with no profile -
+     * and `where('rm.pasien_id', $pasien->id)` runs before any filter. Another
+     * patient's records cannot be selected, searched into, or paged into: there is no
+     * post-filter to forget, and another patient's id is not accepted from the wire.
+     *
+     * ## Filters, ordering and the tie-breaker
+     *
+     * `q` searches `keluhan_utama` and `diagnosis_kerja` only, as a `LIKE` over an
+     * ESCAPED pattern (`%`, `_` and `\` match literally) and never across patients.
+     * `tanggal_dari`/`tanggal_sampai` are whole days over `tanggal_periksa`, expanded
+     * to `00:00:00`/`23:59:59` so MySQL can range-scan `idx_rm_pasien` instead of
+     * calling `DATE()` on the column.
+     *
+     * Ordering is `tanggal_periksa DESC, id DESC`. The tie-breaker is explicit
+     * because `tanggal_periksa` is a `DATETIME` with second precision and the chain
+     * group is DEFINED by that same second: every amendment to one encounter shares
+     * it, so without `id DESC` the newest revision of a record could sort below its
+     * predecessor. `id` is `AUTO_INCREMENT`, so it is insertion order and cannot tie.
+     *
+     * @param  array<string, mixed>  $filter  validated `IndexRekamMedisRequest` payload
+     *
+     * @throws AccessDeniedHttpException when the account owns no `pasien` row
+     */
+    public function daftar(User $user, array $filter, int $perPage): LengthAwarePaginator
+    {
+        $pasien = $this->pasien->ownPasien($user);
+
+        $halaman = DB::table('rekam_medis as rm')
+            ->join('dokter as d', 'd.id', '=', 'rm.dokter_id')
+            ->join('users as u', 'u.id', '=', 'd.user_id')
+            ->where('rm.pasien_id', $pasien->getKey())
+            ->select([
+                'rm.id',
+                'rm.uuid',
+                'rm.tanggal_periksa',
+                'rm.keluhan_utama',
+                'rm.diagnosis_kerja',
+                'rm.status_dokumen',
+                'rm.versi',
+                'rm.dokter_id',
+                'u.nama_lengkap as dokter_nama',
+                // The detail resource defines "current" as max(versi) in the chain
+                // group, read off the loaded `ran`. This is the same definition,
+                // computed before hydration is possible at all.
+                DB::raw(
+                    '(SELECT MAX(rm2.versi) FROM rekam_medis AS rm2'
+                    .' WHERE rm2.pasien_id = rm.pasien_id'
+                    .' AND rm2.dokter_id = rm.dokter_id'
+                    .' AND rm2.tanggal_periksa = rm.tanggal_periksa) AS versi_tertinggi'
+                ),
+            ]);
+
+        $q = trim((string) ($filter['q'] ?? ''));
+
+        if ($q !== '') {
+            $pola = '%'.addcslashes($q, '%_\\').'%';
+
+            $halaman->where(static function (QueryBuilder $sub) use ($pola): void {
+                $sub->where('rm.keluhan_utama', 'like', $pola)
+                    ->orWhere('rm.diagnosis_kerja', 'like', $pola);
+            });
+        }
+
+        if (($filter['tanggal_dari'] ?? null) !== null) {
+            $halaman->where('rm.tanggal_periksa', '>=', $filter['tanggal_dari'].' 00:00:00');
+        }
+
+        if (($filter['tanggal_sampai'] ?? null) !== null) {
+            $halaman->where('rm.tanggal_periksa', '<=', $filter['tanggal_sampai'].' 23:59:59');
+        }
+
+        return $halaman
+            ->orderByDesc('rm.tanggal_periksa')
+            ->orderByDesc('rm.id')
+            ->paginate($perPage);
+    }
+
+    /**
+     * `GET /api/v1/rekam-medis/{id}/akses` - who opened ONE record, and why.
+     *
+     * ## The caller is resolved by the record's own read rule
+     *
+     * {@see RekamMedisAccess::sisiUntukBaca()} is the SAME resolver
+     * `GET /rekam-medis/{id}` uses: a non-party gets 404 (never 403, so the endpoint
+     * is not an existence oracle over a sequential id), an account owning neither
+     * profile row and not an oversight type gets 403. It probes through `DB::table()`
+     * and hydrates no `RekamMedis` row, so the refusal writes no log row either.
+     *
+     * ## This reads the log ABOUT the record, not the record
+     *
+     * The response is `AksesRekamMedisResource` - `waktu`, `peran` (the actor's
+     * `users.tipe`) and `tujuan_akses`, and NOT the actor's name. The schema stores no
+     * role column and no name column; `peran` is joined from `users.tipe` and the name
+     * is deliberately left out under UU PDP No. 27/2022 data minimisation. The
+     * resource docblock carries the full reasoning.
+     *
+     * Writing an `akses_rekam_medis_log` row here would be FALSE: the five ENUM
+     * purposes all describe reading the clinical record, and this endpoint opens none
+     * of it. The log therefore gains no row per access-log fetch.
+     *
+     * Ordering is `dibuat_at DESC, id DESC`; `dibuat_at` is a second-precision
+     * `TIMESTAMP`, so `id` is the tie-breaker for two accesses in one second.
+     *
+     * @throws ModelNotFoundException 404 for "not yours" and for "no such record"
+     * @throws AccessDeniedHttpException 403 for an account that owns no profile row
+     */
+    public function daftarAkses(User $user, int $id, int $perPage): LengthAwarePaginator
+    {
+        [, $identitas] = $this->access->sisiUntukBaca($user, $id);
+
+        return DB::table('akses_rekam_medis_log as log')
+            ->join('users as pengakses', 'pengakses.id', '=', 'log.pengakses_user_id')
+            ->where('log.rekam_medis_id', $identitas['id'])
+            ->select([
+                'log.id',
+                'log.dibuat_at',
+                'log.tujuan_akses',
+                'pengakses.tipe as peran',
+            ])
+            ->orderByDesc('log.dibuat_at')
+            ->orderByDesc('log.id')
+            ->paginate($perPage);
     }
 
     /**

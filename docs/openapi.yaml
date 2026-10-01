@@ -12,7 +12,7 @@ info:
     drift from the code: a route added, renamed or removed changes it on the next run, and
     `--check` fails until the regenerated file is committed.
 
-    This document describes 78 routes across 69 distinct paths, read from the live route table.
+    This document describes 80 routes across 71 distinct paths, read from the live route table.
 
     ## Envelopes
 
@@ -2468,6 +2468,41 @@ paths:
         500:
           description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+  /api/v1/rekam-medis:
+    get:
+      operationId: getApiV1RekamMedis
+      summary: 'Read /api/v1/rekam-medis.'
+      tags:
+        - rekam-medis
+      security:
+        -
+          sanctum: []
+      x-route-name: rekam-medis.index
+      x-laravel-action: App\Http\Controllers\Api\V1\RekamMedisController@index
+      x-middleware:
+        - 'auth:sanctum'
+      x-auth:
+        scheme: sanctum
+        transport: bearer
+      responses:
+        200:
+          description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/PaginatedEnvelope' } } }
+        422:
+          description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ValidationErrorEnvelope' } } }
+        401:
+          description: 'Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        403:
+          description: 'Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        404:
+          description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        500:
+          description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
   '/api/v1/rekam-medis/{id}':
     parameters:
       -
@@ -2531,6 +2566,46 @@ paths:
         200:
           description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
           content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
+        422:
+          description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ValidationErrorEnvelope' } } }
+        401:
+          description: 'Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        403:
+          description: 'Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        404:
+          description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        500:
+          description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+  '/api/v1/rekam-medis/{id}/akses':
+    parameters:
+      -
+        name: id
+        type: integer
+        required: true
+    get:
+      operationId: getApiV1RekamMedisIdAkses
+      summary: 'Read /api/v1/rekam-medis/{id}/akses.'
+      tags:
+        - rekam-medis
+      security:
+        -
+          sanctum: []
+      x-route-name: rekam-medis.akses
+      x-laravel-action: App\Http\Controllers\Api\V1\RekamMedisController@akses
+      x-middleware:
+        - 'auth:sanctum'
+      x-auth:
+        scheme: sanctum
+        transport: bearer
+      responses:
+        200:
+          description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/PaginatedEnvelope' } } }
         422:
           description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
           content: { application/json: { schema: { $ref: '#/components/schemas/ValidationErrorEnvelope' } } }
@@ -3467,6 +3542,21 @@ components:
           - rekam_medis.status_dokumen
         tipe_kunjungan:
           - rekam_medis.tipe_kunjungan
+    IndexAksesRekamMedisRequestBody:
+      type: object
+      title: IndexAksesRekamMedisRequest
+      description: 'Request body for operations validated by `App\Http\Requests\RekamMedis\IndexAksesRekamMedisRequest`. The properties below are read from that class''s `rules()` at generation time.'
+      x-form-request: App\Http\Requests\RekamMedis\IndexAksesRekamMedisRequest
+      properties:
+        page:
+          type: integer
+          x-laravel-rule: [integer, 'min:1']
+        per_page:
+          type: integer
+          x-laravel-rule: [integer, 'min:1', 'max:100']
+      required: []
+      additionalProperties: false
+      x-enum-fields: []
     IndexAlergiRequestBody:
       type: object
       title: IndexAlergiRequest
@@ -3674,6 +3764,32 @@ components:
       description: 'Request body for operations validated by `App\Http\Requests\Referensi\IndexReferensiRequest`. The properties below are read from that class''s `rules()` at generation time.'
       x-form-request: App\Http\Requests\Referensi\IndexReferensiRequest
       properties: []
+      required: []
+      additionalProperties: false
+      x-enum-fields: []
+    IndexRekamMedisRequestBody:
+      type: object
+      title: IndexRekamMedisRequest
+      description: 'Request body for operations validated by `App\Http\Requests\RekamMedis\IndexRekamMedisRequest`. The properties below are read from that class''s `rules()` at generation time.'
+      x-form-request: App\Http\Requests\RekamMedis\IndexRekamMedisRequest
+      properties:
+        page:
+          type: integer
+          x-laravel-rule: [integer, 'min:1']
+        per_page:
+          type: integer
+          x-laravel-rule: [integer, 'min:1', 'max:100']
+        q:
+          type: string
+          x-laravel-rule: [string, 'max:100']
+        tanggal_dari:
+          type: string
+          format: date
+          x-laravel-rule: ['date_format:Y-m-d']
+        tanggal_sampai:
+          type: string
+          format: date
+          x-laravel-rule: ['date_format:Y-m-d', 'after_or_equal:tanggal_dari']
       required: []
       additionalProperties: false
       x-enum-fields: []

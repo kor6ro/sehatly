@@ -7,8 +7,12 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\RekamMedis\AmandemenRekamMedisRequest;
 use App\Http\Requests\RekamMedis\FinalisasiRekamMedisRequest;
+use App\Http\Requests\RekamMedis\IndexAksesRekamMedisRequest;
+use App\Http\Requests\RekamMedis\IndexRekamMedisRequest;
 use App\Http\Requests\RekamMedis\SimpanRekamMedisRequest;
 use App\Http\Requests\RekamMedis\UbahRekamMedisRequest;
+use App\Http\Resources\AksesRekamMedisResource;
+use App\Http\Resources\RekamMedisDaftarResource;
 use App\Http\Resources\RekamMedisResource;
 use App\Models\User;
 use App\Services\RekamMedis\RekamMedisService;
@@ -18,7 +22,7 @@ use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Five routes, and every rule lives in the service.
+ * Seven routes, and every rule lives in the service.
  *
  * ## This controller is thin on purpose
  *
@@ -43,6 +47,8 @@ use Symfony\Component\HttpFoundation\Response;
  * | `PUT /rekam-medis/{id}/final` | `rekam_medis.final` | `dokter` | same |
  * | `POST /rekam-medis/{id}/amandemen` | `rekam_medis.final` | `dokter` | same |
  * | `GET /rekam-medis/{id}` | - | - | a non-party or a non-party's record, 404; an account with no profile row, 403 |
+ * | `GET /rekam-medis` | - | - | the same refusal shape; another patient's records are absent from the query itself |
+ * | `GET /rekam-medis/{id}/akses` | - | - | the same resolver as the detail read: a non-party 404, an account with no profile row 403 |
  *
  * All three `rekam_medis` codes in `RbacCatalog::PERMISSIONS` are consumed, and
  * `rekam_medis.lihat` is the only one deliberately not: it is granted to `pasien`,
@@ -69,6 +75,18 @@ use Symfony\Component\HttpFoundation\Response;
  * that is not this todo's to make. On the read they are refused with a 403 from
  * `RekamMedisAccess` - a fact about rows they do not own rather than a role they lack.
  *
+ * ## The two new reads and the access log
+ *
+ * `GET /rekam-medis` is an INDEX, not the record: it publishes the visit instant,
+ * the presenting complaint and the working-diagnosis label - the minimum needed to
+ * choose a record - and it writes ZERO `akses_rekam_medis_log` rows, because the
+ * table names ONE record by a `NOT NULL` foreign key and a page has no honest row it
+ * could write. `GET /rekam-medis/{id}/akses` reads the log ABOUT a record rather
+ * than the record itself, and writes nothing either; its response publishes `waktu`,
+ * `peran` (the actor's `users.tipe`) and `tujuan_akses`, never the actor's name.
+ * Both rules live in `RekamMedisService::daftar()` and `::daftarAkses()`, and the
+ * test counts the log table before and after each request.
+ *
  * ## `whereNumber` on every `{id}`
  *
  * `rekam_medis.id` and `konsultasi.id` are `BIGINT UNSIGNED AUTO_INCREMENT` primary
@@ -77,7 +95,7 @@ use Symfony\Component\HttpFoundation\Response;
  *
  * ## No `Route::resource`
  *
- * The five operations have five distinct verbs and two distinct shapes
+ * The seven operations have five distinct verbs and several distinct shapes
  * (`{id}/final` is a PUT with no body, `{id}/amandemen` is a POST with a nested one),
  * so a resource route would publish methods this surface does not have.
  */
@@ -161,6 +179,35 @@ class RekamMedisController extends Controller
     }
 
     /**
+     * `GET /api/v1/rekam-medis` - 200, paginated, and ZERO access-log rows.
+     *
+     * The caller's own `pasien` row is resolved by the service (403 when none);
+     * another patient's records are absent because the tenant filter IS the query.
+     * Rows are `RekamMedisDaftarResource` - a minimal index with no NIK, no contact
+     * detail, no SOAP note and no child collections. `meta` is the top-level
+     * `pageMeta()` block every list carries.
+     *
+     * This method deliberately does NOT call `findForAccess()`: that would write one
+     * `akses_rekam_medis_log` row per listed record, which is the false trail the
+     * owner ruled out. See `RekamMedisService::daftar()`.
+     */
+    public function index(IndexRekamMedisRequest $request): JsonResponse
+    {
+        $baris = $this->service->daftar(
+            $this->user($request),
+            $request->validated(),
+            $request->perPage(),
+        );
+
+        return ApiResponse::success(
+            ['rekam_medis' => RekamMedisDaftarResource::collection($baris->getCollection())],
+            'Daftar rekam medis berhasil dimuat.',
+            Response::HTTP_OK,
+            ApiResponse::pageMeta($baris),
+        );
+    }
+
+    /**
      * `GET /api/v1/rekam-medis/{id}` - 200, and exactly ONE access-log row.
      *
      * Every case, including the patient's own record. A stranger gets 404 and zero log
@@ -178,6 +225,36 @@ class RekamMedisController extends Controller
         return ApiResponse::success(
             ['rekam_medis' => new RekamMedisResource($baris)],
             'Detail rekam medis berhasil dimuat.',
+        );
+    }
+
+    /**
+     * `GET /api/v1/rekam-medis/{id}/akses` - 200, paginated, ZERO access-log rows.
+     *
+     * The record is resolved by the SAME rule as the detail read
+     * (`RekamMedisAccess::sisiUntukBaca()`): a non-party gets 404, an account owning
+     * no profile row gets 403, and no `RekamMedis` model is hydrated, so neither
+     * refusal writes a log row. Rows are `AksesRekamMedisResource` - `waktu`,
+     * `peran` and `tujuan_akses`, never the actor's name (UU PDP minimisation; see
+     * the resource docblock).
+     *
+     * Fetching the log is not reading the record, so this does not log: an
+     * `akses_rekam_medis_log` row with a `tujuan_akses` from the five-value ENUM would
+     * claim a clinical read that did not happen.
+     */
+    public function akses(IndexAksesRekamMedisRequest $request, int $id): JsonResponse
+    {
+        $baris = $this->service->daftarAkses(
+            $this->user($request),
+            $id,
+            $request->perPage(),
+        );
+
+        return ApiResponse::success(
+            ['akses' => AksesRekamMedisResource::collection($baris->getCollection())],
+            'Riwayat akses rekam medis berhasil dimuat.',
+            Response::HTTP_OK,
+            ApiResponse::pageMeta($baris),
         );
     }
 
