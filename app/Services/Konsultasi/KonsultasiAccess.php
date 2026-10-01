@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Konsultasi;
 
+use App\Models\Dokter;
 use App\Models\Konsultasi;
 use App\Models\Pasien;
 use App\Models\User;
@@ -201,6 +202,30 @@ final class KonsultasiAccess
     public function ownPasien(User $caller): Pasien
     {
         return $this->pasien->ownPasien($caller);
+    }
+
+    /**
+     * The doctor profile the caller owns, or a 403.
+     *
+     * The doctor-side twin of {@see ownPasien()}, added for F13's
+     * `GET /api/v1/konsultasi` - the doctor's own consultation list. The list
+     * scopes its query by `dokter_id`, so it needs the caller's own `dokter`
+     * row before it can build any query at all, and a `dokter`-typed account
+     * that owns no profile row cannot have a list: the 403 is about the caller
+     * (an incomplete profile), not about any row, so it discloses nothing.
+     *
+     * It delegates to {@see PasienRecordAccess::ownDokterOrFail()} rather than
+     * writing the `Dokter::where('user_id', ...)` lookup a second time, for
+     * the reason this class exists: one ownership question, one
+     * implementation. The route's `tipe:dokter` middleware has already
+     * answered "which account type is this"; this answers "does that account
+     * have a profile row", and the two are not the same gate.
+     *
+     * @throws AccessDeniedHttpException when the account owns no `dokter` row
+     */
+    public function ownDokter(User $caller): Dokter
+    {
+        return $this->pasien->ownDokterOrFail($caller);
     }
 
     /**

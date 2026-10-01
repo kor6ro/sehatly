@@ -353,7 +353,7 @@ Route::get('master-spesialisasi', [DokterController::class, 'spesialisasiIndex']
 | it can swallow a two- or three-segment `konsultasi` path, and no route in it can
 | swallow a path above it.
 |
-| ## Seven routes, and the seventh is not in the plan
+| ## Eight routes: the seventh and eighth are not in the plan
 |
 | The plan's acceptance criterion says this path "lists 6 routes". It lists 7
 | because `PUT /konsultasi/{id}/terima` had to be added, and the reason is structural
@@ -373,7 +373,17 @@ Route::get('master-spesialisasi', [DokterController::class, 'spesialisasiIndex']
 | code. It is a doctor-side start-of-session, and the plan lost the route rather
 | than the code. Recorded as a finding in `.omo/evidence/task-32-sehatly.md`.
 |
-| ## The guards, and why three of the seven carry none
+| The eighth is F13's `GET /konsultasi` - the doctor's own list - and it is
+| not a plan route either. It is the endpoint the dashboard's discovery problem
+| needed: the only other way a doctor learns a consultation exists is the chat
+| notification raised by the patient's first message, so a consultation that is
+| created and never messaged is invisible. It is a ONE-SEGMENT literal and is
+| registered before the `{id}` wildcard; one segment versus two cannot collide,
+| and "literals before wildcards" is this file's convention. The full reasoning
+| and the disclosure surface are on `KonsultasiController::index()` and
+| `KonsultasiDaftarResource`.
+|
+| ## The guards, and why four of the eight carry none
 |
 | `auth:sanctum` is named on the group, for the same reason it is on the auth
 | group: an unauthenticated caller gets the guard's 401 envelope rather than this
@@ -382,6 +392,7 @@ Route::get('master-spesialisasi', [DokterController::class, 'spesialisasiIndex']
 |
 | | route | `permission:` | `tipe:` | who is refused, and why |
 | | --- | --- | --- | --- |
+| | `GET /konsultasi` | - | `dokter` | patient, apoteker, admin, perawat, kurir, superadmin at the middleware; a `dokter`-typed account with no `dokter` row, 403 from `ownDokter()` |
 | | `POST /konsultasi/mulai` | - | - | any account with no `pasien` row, 403 from `ownPasien()` |
 | | `GET /konsultasi/{id}` | - | - | a non-party, 404; `superadmin` is allowed by the plan |
 | | `GET /konsultasi/{id}/chat` | - | - | a non-party, 404 |
@@ -391,8 +402,12 @@ Route::get('master-spesialisasi', [DokterController::class, 'spesialisasiIndex']
 | | `PUT /konsultasi/{id}/selesai` | `konsultasi.selesai` | `dokter` | same as `/terima` |
 |
 | All three consultation permission codes in `RbacCatalog::PERMISSIONS` are
-| consumed here, and each is used where the plan names the action. The three
-| ungated routes are a decision, not an omission:
+| consumed here, and each is used where the plan names the action. Three routes
+| carry NEITHER a `permission:` nor a `tipe:`, and the eighth adds the fourth
+| shape - `tipe:` alone - which is the same finding read one way further: no
+| code names a consultation read, so the list's account-type gate is the
+| strongest guard the catalogue can actually resolve. The ungated three are a
+| decision, not an omission:
 |
 | 1. No code names "read a consultation", so a `permission:` there would have to
 |    be invented - and `EnsurePermission` answers an unknown code with a
@@ -410,10 +425,10 @@ Route::get('master-spesialisasi', [DokterController::class, 'spesialisasiIndex']
 |
 | `perawat` and `kurir` are real `users.tipe` values (`telemedicine_test.sql:139`)
 | that hold no role, so ANY `permission:` would lock them out of that route
-| permanently. They are refused on all seven anyway, and the reason is rows they do
+| permanently. They are refused on all eight anyway, and the reason is rows they do
 | not own rather than a role they lack: 403 on the two chat writes and on
-| `POST /mulai`, 404 on the three reads, and 403 at `tipe:dokter` on the two
-| doctor-only writes.
+| `POST /mulai`, 404 on the three party reads, 403 at `tipe:dokter` on the two
+| doctor-only writes and on `GET /konsultasi`.
 |
 | ## `whereNumber('id')` on every `{id}`
 |
@@ -431,6 +446,44 @@ Route::get('master-spesialisasi', [DokterController::class, 'spesialisasiIndex']
 
 Route::middleware('auth:sanctum')->group(function (): void {
     Route::prefix('konsultasi')->name('konsultasi.')->group(function (): void {
+        /*
+        | F13: the doctor's own consultation list, a ONE-SEGMENT literal.
+        |
+        | `Route::get('/')` inside the prefix compiles to `api/v1/konsultasi`.
+        | It cannot collide with the two-segment `{id}` route below - the
+        | router compares whole paths, so one segment versus two is disjoint
+        | without a `whereNumber` - and it is registered FIRST anyway because
+        | "literals before wildcards" is the convention every block in this
+        | file states, and a reader comparing this block with `route:list`
+        | should not have to prove the two shapes disjoint to trust the order.
+        | F09's `GET /api/v1/resep` is registered the same way inside its own
+        | group for the same reason.
+        |
+        | The guard is `tipe:dokter` and NOTHING else, and that is a decision
+        | rather than an omission: `RbacCatalog::PERMISSIONS` holds three
+        | consultation codes and none of them names a read, so a
+        | `permission:` here would have to be invented - and `EnsurePermission`
+        | answers an unknown code with a 500, not a 403. The account-type
+        | question ("is this a doctor?") is exactly what `tipe:` answers, and
+        | the ownership question ("which rows are theirs?") is answered by the
+        | `where('dokter_id', ...)` scope in `KonsultasiService::daftar()`,
+        | which resolves the caller's own `dokter` row through
+        | `KonsultasiAccess::ownDokter()` - 403 for a `dokter`-typed account
+        | with no profile row, and another doctor's rows simply absent.
+        |
+        | This is narrower than the UNGATED `GET /konsultasi/{id}`, and the
+        | difference is the audience: that route serves a disjunction (a party
+        | OR an oversight account) which a route gate cannot express, while
+        | this one serves the single account type that owns a doctor worklist.
+        |
+        | The filters and ordering are documented on the controller action and
+        | in `KonsultasiService::daftar()`; the disclosure surface is
+        | `KonsultasiDaftarResource`, not `KonsultasiResource`.
+        */
+        Route::get('/', [KonsultasiController::class, 'index'])
+            ->middleware('tipe:dokter')
+            ->name('index');
+
         Route::post('mulai', [KonsultasiController::class, 'mulai'])
             ->name('mulai');
 

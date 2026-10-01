@@ -1456,6 +1456,11 @@ test('the route table exposes the eight auth routes and the eleven patient route
         'GET api/v1/dokter/{dokter}/jadwal',
         'GET api/v1/dokter/{dokter}/slot',
         'GET api/v1/master-spesialisasi',
+        // F13's doctor list, registered first inside the konsultasi group (and
+        // before its `{id}` wildcard) and so listed here in registration order.
+        // It is a ONE-SEGMENT literal, so it cannot collide with the
+        // two-segment show route below.
+        'GET api/v1/konsultasi',
         'POST api/v1/konsultasi/mulai',
         'GET api/v1/konsultasi/{id}',
         'PUT api/v1/konsultasi/{id}/terima',
@@ -1683,6 +1688,16 @@ test('the route table exposes the eight auth routes and the eleven patient route
             'GET api/v1/pasien/booking' => ['permission:booking.lihat'],
             'PUT api/v1/booking/{id}/batalkan' => ['permission:booking.batal'],
             'GET api/v1/dokter/booking' => ['permission:booking.lihat', 'tipe:dokter'],
+            // F13's doctor list: `tipe:dokter` and NO `permission:`, because
+            // `RbacCatalog::PERMISSIONS` holds no consultation read code -
+            // `konsultasi.mulai`, `konsultasi.chat` and `konsultasi.selesai`
+            // are the whole consultation vocabulary, and inventing a fourth is
+            // a catalogue decision that `EnsurePermission` (unknown code =>
+            // 500, not 403) makes fatal rather than merely wrong. The
+            // ownership half is the `where('dokter_id', ...)` scope inside
+            // `KonsultasiService::daftar()`, so another doctor's rows are
+            // absent rather than refused.
+            'GET api/v1/konsultasi' => ['tipe:dokter'],
             'PUT api/v1/konsultasi/{id}/terima' => ['tipe:dokter', 'permission:konsultasi.mulai'],
             'POST api/v1/konsultasi/{id}/chat' => ['permission:konsultasi.chat'],
             'POST api/v1/konsultasi/{id}/chat/baca' => ['permission:konsultasi.chat'],
@@ -1853,6 +1868,11 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         "'permission:booking.batal'",
         "'permission:booking.lihat'",
         "'tipe:dokter'",
+        "'tipe:dokter'",
+        // F13's doctor list contributes ONE more, for the same reason: it
+        // wires `tipe:dokter` only, because the catalogue names no consultation
+        // read action and a `permission:` would be an invented code - which
+        // `EnsurePermission` answers with a 500 rather than a 403.
         "'tipe:dokter'",
         "'permission:konsultasi.mulai'",
         "'permission:konsultasi.chat'",

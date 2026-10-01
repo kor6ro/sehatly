@@ -121,9 +121,9 @@ it('binds every published 401 and 403 to the same error envelope', function (): 
     }
 });
 
-it('publishes a 404 for all 77 operations, bound to the error envelope', function (): void {
+it('publishes a 404 for all 78 operations, bound to the error envelope', function (): void {
     // Structural, not reachability. The claim is that no operation advertises a
-    // 404 the error envelope cannot describe, and that the count is 77 -- so a
+    // 404 the error envelope cannot describe, and that the count is 78 -- so a
     // route appearing or disappearing moves this number rather than passing
     // quietly.
     $count = 0;
@@ -136,14 +136,14 @@ it('publishes a 404 for all 77 operations, bound to the error envelope', functio
         $count++;
     }
 
-    expect($count)->toBe(77);
+    expect($count)->toBe(78);
 });
 
 it('publishes 401 and 403 together, or neither, on every bearer operation', function (): void {
     // Both statuses come from `auth:sanctum` and the RBAC middleware, and both are
     // reachable on every bearer route. Publishing one without the other would tell
     // the mobile team to handle a status it can never see, or to miss one it can.
-    // The 401 half is proven live for all 52 in `SanctumAuthConformanceTest`; the
+    // The 401 half is proven live for all 53 in `SanctumAuthConformanceTest`; the
     // 403 half needs a role-bearing token and is documented as uncovered.
     $count = 0;
 
@@ -158,7 +158,7 @@ it('publishes 401 and 403 together, or neither, on every bearer operation', func
         $count++;
     }
 
-    expect($count)->toBe(52);
+    expect($count)->toBe(53);
 });
 
 it('publishes 429 only where a named rate limiter is registered', function (): void {
@@ -266,7 +266,7 @@ it('answers 404 with the error envelope when a public read is given an absent id
 
 /*
  |--------------------------------------------------------------------------
- | Finding 7: 24 operations publish a 422 with nothing describing what fails it
+ | Finding 7: 25 operations publish a 422 with nothing describing what fails it
  |--------------------------------------------------------------------------
  |
  | Every one of these is a GET. A GET carries its input in the query string, and
@@ -275,11 +275,16 @@ it('answers 404 with the error envelope when a public read is given an absent id
  | client cannot learn that `?page=` exists, and therefore cannot know what a 422
  | on this operation would be complaining about.
  |
- | F09's pharmacist queue is the newest member and the finding is unchanged by
- | its arrival: `GET /api/v1/resep` really does validate `status`/`page`/
+ | F09's pharmacist queue is the second-newest member and the finding is unchanged
+ | by its arrival: `GET /api/v1/resep` really does validate `status`/`page`/
  | `per_page` through `AntreanResepRequest` and really does answer 422 for a bad
  | one, and the document really does omit all three parameters. The count moved
  | 23 -> 24; the defect is the same one, on one more endpoint.
+ |
+ | F13's doctor list is the newest member and repeats it: `GET /api/v1/konsultasi`
+ | validates `status`/`page`/`per_page` through `IndexKonsultasiRequest` and
+ | answers a real 422, and the document publishes none of the three. The count
+ | moves 24 -> 25; the defect is still the same one.
  |
  | WORSE, on the eight non-paginating, non-searchable reference endpoints the 422
  | is reachable only by sending a query parameter the endpoint explicitly
@@ -296,7 +301,7 @@ it('answers 404 with the error envelope when a public read is given an absent id
  * published, and for the non-paginating eight the rule set is unreachable in
  * every legitimate use.
  */
-it('finds_twenty_four_gets_publishing_a_422_with_nothing_to_describe_what_fails_it', function (): void {
+it('finds_twenty_five_gets_publishing_a_422_with_nothing_to_describe_what_fails_it', function (): void {
     $with422NoBody = [];
 
     foreach (ContractSpec::specOperations() as $key => $operation) {
@@ -307,7 +312,7 @@ it('finds_twenty_four_gets_publishing_a_422_with_nothing_to_describe_what_fails_
         $with422NoBody[] = $key;
     }
 
-    expect($with422NoBody)->toHaveCount(24);
+    expect($with422NoBody)->toHaveCount(25);
 
     // And not one of them publishes the query parameter its 422 is about.
     foreach ($with422NoBody as $key) {

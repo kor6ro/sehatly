@@ -254,6 +254,43 @@ final class KonsultasiService
     public const TIPE_PESAN_SISTEM = ['resep', 'surat_keterangan', 'sistem'];
 
     /**
+     * The `konsultasi.status` values F13's doctor dashboard lists, in the
+     * order it wants them, and the whole of `GET /api/v1/konsultasi`'s
+     * `status` filter.
+     *
+     * Chosen by reading {@see KonsultasiStatus}, and recorded here rather than
+     * at the route or in the request so ONE constant drives the accepted
+     * filter values, the default listing and the ordering rank:
+     *
+     * | value | rank | why the dashboard lists it |
+     * | --- | --- | --- |
+     * | `menunggu_dokter` | 0 | the actionable strip: a patient is waiting to be accepted |
+     * | `berlangsung` | 1 | work in progress, where the notes and the prescription are written |
+     * | `menunggu_resep` | 2 | still open; the session completes after the prescription |
+     * | `selesai` | 3 | history, so the dashboard can show what was completed |
+     *
+     * The two remaining DDL states are deliberately absent.
+     * `dibatalkan` and `gagal` are real `KonsultasiStatus` cases and
+     * {@see ubahStatus()} will apply both, but no HTTP route writes either -
+     * `RbacCatalog::PERMISSIONS` holds no cancel/fail code and inventing one
+     * is a catalogue decision (the class docblock records that finding). A
+     * filter value no row can hold and no screen renders would only ever
+     * answer an empty page, so the set is closed to the four the dashboard
+     * actually uses.
+     *
+     * `IndexKonsultasiRequest` rejects any other value with a 422 rather than
+     * returning an empty page, and `daftar()` uses this order as the SQL rank.
+     *
+     * @var list<KonsultasiStatus>
+     */
+    public const STATUS_DASBOR = [
+        KonsultasiStatus::MenungguDokter,
+        KonsultasiStatus::Berlangsung,
+        KonsultasiStatus::MenungguResep,
+        KonsultasiStatus::Selesai,
+    ];
+
+    /**
      * The system notice written when a consultation is created, before any
      * doctor has answered.
      */
@@ -548,6 +585,107 @@ final class KonsultasiService
             ->orderBy('id')
             ->paginate($perPage)
             ->withQueryString();
+    }
+
+    /**
+     * The caller-doctor's OWN consultations, filtered by status, paginated.
+     *
+     * ## Ownership: the filter IS the query
+     *
+     * `where('dokter_id', $profil->getKey())` is the tenant scope, so another
+     * doctor's rows are simply not found - the same property
+     * `PasienRecordAccess::bookingQuery()` documents. There is no 403/404
+     * oracle here and none is needed: the list has no `{id}`, so the only
+     * question a caller can ask is "what is mine", and the answer for a row
+     * that is not theirs is absence.
+     *
+     * The `dokter` row itself is resolved through
+     * {@see KonsultasiAccess::ownDokter()}, which raises the 403 for a
+     * `dokter`-typed account with no profile row. The route's `tipe:dokter`
+     * has already answered the account-type question; this is the profile
+     * question, and an empty list would have told such an account that
+     * nothing is wrong with it.
+     *
+     * ## The filter set and the default
+     *
+     * `status` is the closed set {@see STATUS_DASBOR} - the dashboard states.
+     * An absent filter means `whereIn` over that whole set rather than "all
+     * six ENUM values": the response is the dashboard's list, so rows in
+     * `dibatalkan` or `gagal` are absent by construction, which is the same
+     * decision the request documents for the filter. A present filter is a
+     * single status from the same set, so the filter can only ever narrow
+     * the dashboard list.
+     *
+     * ## Ordering: most actionable first, then newest, and the tie-breaker
+     *
+     * A `CASE` ranks the four states in {@see STATUS_DASBOR} order -
+     * `menunggu_dokter` before `berlangsung` before `menunggu_resep` before
+     * `selesai` - so the strip at the top of F13's dashboard is the first
+     * page. Within one rank the order is `dibuat_at DESC, id DESC`:
+     *
+     * - `dibuat_at` and not `mulai_at`, because `mulai_at` is NULL until a
+     *   doctor accepts (`:545`) and a single ordering must use a column every
+     *   row has; creation time is also the only instant shared by instant and
+     *   booking-backed sessions.
+     * - `id DESC` as the tie-breaker because `dibuat_at` is a `TIMESTAMP`
+     *   (`:555`) with one-second resolution, so a burst of consultations ties
+     *   and MySQL would otherwise be free to return a tied block in any
+     *   order, making page boundaries non-deterministic - the same argument
+     *   {@see riwayat()} records for `terkirim_at, id`. `id` is monotonic
+     *   with creation on this table, so "newest" and "highest id" agree.
+     *
+     * ## Eager loads
+     *
+     * `pasien.user` (the name the row shows) and `booking` (the visit time)
+     * are the only relations the list resource publishes. `dokter` and
+     * `konsultasiBaca` are deliberately NOT loaded: the list is the caller's
+     * own, so the doctor block would repeat the caller, and the read-marker
+     * block is detail content `KonsultasiDaftarResource` does not carry.
+     *
+     * The page size is clamped by the caller (`PasienRecordAccess::perPage()`
+     * in the controller); `withQueryString()` keeps the filter and the page
+     * on every `meta.links` URL this project publishes.
+     *
+     * @param  array<string, mixed>  $filter
+     *
+     * @throws AccessDeniedHttpException|ModelNotFoundException
+     */
+    public function daftar(User $dokter, array $filter, int $perPage): LengthAwarePaginator
+    {
+        $profil = $this->access->ownDokter($dokter);
+
+        $nilai = self::statusDasbor();
+        $status = isset($filter['status']) ? [(string) $filter['status']] : $nilai;
+
+        return Konsultasi::query()
+            ->where('dokter_id', $profil->getKey())
+            ->whereIn('status', $status)
+            ->with(['pasien.user', 'booking'])
+            ->orderByRaw(
+                'CASE `status` WHEN ? THEN 0 WHEN ? THEN 1 WHEN ? THEN 2 WHEN ? THEN 3 ELSE 4 END',
+                $nilai,
+            )
+            ->orderByDesc('dibuat_at')
+            ->orderByDesc('id')
+            ->paginate($perPage)
+            ->withQueryString();
+    }
+
+    /**
+     * The dashboard status values as wire strings, in rank order.
+     *
+     * The single reader of {@see STATUS_DASBOR} for query building, so the
+     * request rules, the default listing and the `CASE` rank are all derived
+     * from one list of cases and cannot drift apart.
+     *
+     * @return list<string>
+     */
+    public static function statusDasbor(): array
+    {
+        return array_map(
+            static fn (KonsultasiStatus $status): string => $status->value,
+            self::STATUS_DASBOR,
+        );
     }
 
     /**

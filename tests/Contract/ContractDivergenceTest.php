@@ -205,13 +205,14 @@ it('types_every_meta_operation_as_paginated', function (): void {
 
     sort($paginated);
 
-    // Thirty-one after F-007, F02 and F09: the fourteen that were already
+    // Thirty-two after F-007, F02, F09 and F13: the fourteen that were already
     // paginated, plus the sixteen the old rule published as three-key envelopes,
     // minus the one write the old rule wrongly paginated, plus F02's
-    // `GET /pdp/dokumen`, plus F09's pharmacist queue. Re-measured on the
-    // regenerated document; the membership below stops the count drifting
-    // silently.
-    expect($paginated)->toHaveCount(31);
+    // `GET /pdp/dokumen`, plus F09's pharmacist queue, plus F13's
+    // `GET /api/v1/konsultasi` (the doctor's own list, a paginated read).
+    // Re-measured on the regenerated document; the membership below stops the
+    // count drifting silently.
+    expect($paginated)->toHaveCount(32);
 
     expect($paginated)->toContain('get /api/v1/dokter @200');
     expect($paginated)->toContain('get /api/v1/obat @200');
@@ -220,6 +221,7 @@ it('types_every_meta_operation_as_paginated', function (): void {
     expect($paginated)->toContain('get /api/v1/pdp/dokumen @200');
     expect($paginated)->toContain('get /api/v1/pasien/surat-keterangan @200');
     expect($paginated)->toContain('get /api/v1/resep @200');
+    expect($paginated)->toContain('get /api/v1/konsultasi @200');
     expect($paginated)->not->toContain('post /api/v1/konsultasi/{id}/chat/baca @201');
 });
 

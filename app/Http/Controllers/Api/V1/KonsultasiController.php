@@ -8,12 +8,14 @@ use App\Enums\KonsultasiStatus;
 use App\Events\KonsultasiChatDibaca;
 use App\Events\KonsultasiMessageSent;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Konsultasi\IndexKonsultasiRequest;
 use App\Http\Requests\Konsultasi\KirimPesanRequest;
 use App\Http\Requests\Konsultasi\MulaiKonsultasiRequest;
 use App\Http\Requests\Konsultasi\SelesaikanKonsultasiRequest;
 use App\Http\Requests\Konsultasi\TandaiDibacaRequest;
 use App\Http\Requests\Konsultasi\TerimaKonsultasiRequest;
 use App\Http\Resources\KonsultasiChatResource;
+use App\Http\Resources\KonsultasiDaftarResource;
 use App\Http\Resources\KonsultasiResource;
 use App\Models\Konsultasi;
 use App\Models\KonsultasiChat;
@@ -29,9 +31,9 @@ use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
 /**
- * Seven routes, one state machine, and one ownership rule.
+ * Eight routes, one state machine, and one ownership rule.
  *
- * ## Why seven routes and not the plan's six
+ * ## Why eight routes and not the plan's six
  *
  * `PUT /api/v1/konsultasi/{id}/terima` is not in the plan. It is here because the plan
  * cannot work without it: `PUT /selesai` is required to compute
@@ -47,6 +49,13 @@ use Throwable;
  * The two alternatives were rejected for cause: having `PUT /selesai` stamp
  * `mulai_at` itself contradicts an explicit plan criterion, and shipping three
  * instant consultations that can never be completed is a dead feature.
+ *
+ * `GET /api/v1/konsultasi` (the eighth) is F13's doctor-side list. It is not in
+ * the plan either, and it is the endpoint the dashboard's discovery problem
+ * needs: without it, the ONLY way a doctor learns a consultation exists is the
+ * chat notification the patient's first message mints, so a consultation that
+ * is created and never messaged is invisible. It is registered as a
+ * one-segment literal before `{id}`, and it is described at its action below.
  *
  * ## The broadcast is dispatched HERE, after the service returns
  *
@@ -120,8 +129,9 @@ use Throwable;
  * `perawat` and `kurir` are real `users.tipe` values (`telemedicine_test.sql:139`)
  * that hold no role, so any `permission:` would lock them out permanently. They are
  * refused anyway - 403 on the two chat writes, 403 from `ownPasien()` on
- * `POST /mulai`, 404 on the three reads - and the reason is a fact about rows they
- * do not own rather than a fact about their role.
+ * `POST /mulai`, 404 on the three party reads, 403 at `tipe:dokter` on
+ * `GET /konsultasi` - and the reason is a fact about rows they do not own rather
+ * than a fact about their role.
  *
  * @see KonsultasiService for the lifecycle
  * @see KonsultasiStatus for the six states and the ten legal edges
@@ -133,6 +143,60 @@ class KonsultasiController extends Controller
         private readonly KonsultasiAccess $access,
         private readonly PasienRecordAccess $pasien,
     ) {}
+
+    /**
+     * `GET /api/v1/konsultasi` - 200. The DOCTOR's own consultations.
+     *
+     * ## Why this route is `tipe:dokter` and carries NO `permission:`
+     *
+     * `RbacCatalog::PERMISSIONS` holds three consultation codes -
+     * `konsultasi.mulai`, `konsultasi.chat`, `konsultasi.selesai` - and **none
+     * of them names a read**. The same finding `GET /konsultasi/{id}` records:
+     * a `permission:` here would have to be invented, and `EnsurePermission`
+     * turns an unknown code into a **500**, not a 403. So the account-type
+     * question is answered by `tipe:dokter` - the list is a doctor's own
+     * worklist and nothing else can hold it - and the ownership question by
+     * `KonsultasiAccess::ownDokter()` plus the `where('dokter_id', ...)` scope
+     * inside `KonsultasiService::daftar()`.
+     *
+     * That split is why the list can be doctor-only even though
+     * `GET /konsultasi/{id}` is deliberately ungated: that route's audience is
+     * a DISJUNCTION ("a party OR an oversight account"), which a route gate
+     * cannot express, so it lives in `KonsultasiAccess::findForRead()`. This
+     * route's audience is a single conjunction - a `dokter`-typed account -
+     * and `tipe:dokter` expresses exactly that. A `dokter`-typed account with
+     * no `dokter` row passes the middleware and is refused 403 by
+     * `ownDokter()`, because the refusal is about an incomplete profile and
+     * discloses nothing.
+     *
+     * ## What a caller gets, and what it does not
+     *
+     * `status`, `page` and `per_page` are validated by
+     * {@see IndexKonsultasiRequest}; the default listing is the four
+     * `KonsultasiStatus` values the dashboard uses, ordered most actionable
+     * first and then newest. Rows are `KonsultasiDaftarResource` - a minimal
+     * allow-list with no NIK, no contact detail, no SOAP note, no fee and no
+     * `room_id`. `meta` is the top-level `pageMeta()` block every list
+     * carries, and another doctor's rows are simply absent: the tenant filter
+     * IS the query, so there is no 403/404 oracle to probe.
+     */
+    public function index(IndexKonsultasiRequest $request): JsonResponse
+    {
+        $valid = $request->validated();
+
+        $perPage = $this->pasien->perPage(
+            (int) ($valid['per_page'] ?? PasienRecordAccess::PER_PAGE_DEFAULT),
+        );
+
+        $rows = $this->service->daftar($this->user($request), $valid, $perPage);
+
+        return ApiResponse::success(
+            ['konsultasi' => KonsultasiDaftarResource::collection($rows->getCollection())],
+            'Daftar konsultasi berhasil dimuat.',
+            Response::HTTP_OK,
+            ApiResponse::pageMeta($rows),
+        );
+    }
 
     /**
      * `POST /api/v1/konsultasi/mulai` - 201.

@@ -1305,6 +1305,15 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         "'permission:booking.lihat'",
         "'tipe:dokter'",
         "'tipe:dokter'",
+        // F13's doctor list, `GET /api/v1/konsultasi`, registered first inside
+        // the konsultasi group and before its `{id}` wildcard. It carries
+        // `tipe:dokter` and NO `permission:`, because the catalogue's three
+        // consultation codes name no read action - a `permission:` here would
+        // have to be invented, and `EnsurePermission` turns an unknown code
+        // into a 500, not a 403. The account-type gate is the strongest guard
+        // the catalogue can actually resolve, and the ownership half is the
+        // `where('dokter_id', ...)` scope in `KonsultasiService::daftar()`.
+        "'tipe:dokter'",
         "'permission:konsultasi.mulai'",
         "'permission:konsultasi.chat'",
         "'permission:konsultasi.chat'",

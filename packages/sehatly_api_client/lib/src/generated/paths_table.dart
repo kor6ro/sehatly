@@ -177,6 +177,16 @@ const List<String> apiv1invoiceidbayarMethods = <String>[
   'POST',
 ];
 
+/// `/api/v1/konsultasi`
+///
+/// Answers: GET (`konsultasi.index`).
+const String apiv1konsultasi = '/api/v1/konsultasi';
+
+/// The HTTP methods `apiv1konsultasi` answers.
+const List<String> apiv1konsultasiMethods = <String>[
+  'GET',
+];
+
 /// `/api/v1/konsultasi/mulai`
 ///
 /// Answers: POST (`konsultasi.mulai`).

@@ -162,7 +162,7 @@ beforeEach(function (): void {
 // The route table
 // =====================================================================
 
-test('ten routes are registered under api/v1 with the expected verbs and guards', function (): void {
+test('eleven routes are registered under api/v1 with the expected verbs and guards', function (): void {
     $routes = collect(Route::getRoutes()->getRoutes())
         ->filter(fn ($route): bool => str_starts_with($route->uri(), 'api/v1/konsultasi'))
         ->keyBy(fn ($route): string => $route->methods()[0].' '.$route->uri())
@@ -179,11 +179,18 @@ test('ten routes are registered under api/v1 with the expected verbs and guards'
     //
     // It is NINE now: todo 33 added `rekam-medis` and todo 34 added
     // `surat-keterangan`, both under this prefix, both noted below. It is TEN
-    // with todo 39's `resep` create, noted below for the same reason. The
-    // count in this test's NAME is the live one, so a name saying "ten" over
-    // a list of nine is itself the drift the closed-set assertion exists to
-    // catch.
+    // with todo 39's `resep` create, noted below for the same reason. It is
+    // ELEVEN with F13's one-segment `GET /api/v1/konsultasi` - the doctor's own
+    // list, registered FIRST in the group and before the `{id}` wildcard. The
+    // count in this test's NAME is the live one, so a name saying "eleven"
+    // over a list of ten is itself the drift the closed-set assertion exists
+    // to catch.
     expect(array_keys($routes))->toEqualCanonicalizing([
+        // F13's doctor list. A one-segment literal, so it cannot collide with
+        // the two-segment `{id}` show route, and registered before it because
+        // literals precede wildcards in `routes/api.php`. See the guard map
+        // below for why it carries `tipe:dokter` and no `permission:`.
+        'GET api/v1/konsultasi',
         'POST api/v1/konsultasi/mulai',
         'GET api/v1/konsultasi/{id}',
         'GET api/v1/konsultasi/{id}/chat',
@@ -222,6 +229,16 @@ test('ten routes are registered under api/v1 with the expected verbs and guards'
     // would be exactly the "closed set that quietly forgives a concurrently-wired
     // route" the assertion exists to catch. It is this file's filter that caught it.
     $expectedGuards = [
+        // F13's list. `tipe:dokter` and NO `permission:`: the catalogue's
+        // consultation codes are the three asserted at the bottom of this
+        // test and none names a read, so a `permission:` here would have to be
+        // invented - and `EnsurePermission` answers an unknown code with a
+        // 500, not a 403. The ownership rule is the `where('dokter_id', ...)`
+        // scope in `KonsultasiService::daftar()`, which resolves the caller's
+        // own `dokter` row through `KonsultasiAccess::ownDokter()` (403 for a
+        // `dokter`-typed account with no profile row) - so another doctor's
+        // rows are absent rather than refused, and no existence oracle exists.
+        'GET api/v1/konsultasi' => ['tipe:dokter'],
         'POST api/v1/konsultasi/mulai' => [],
         'GET api/v1/konsultasi/{id}' => [],
         'GET api/v1/konsultasi/{id}/chat' => [],
