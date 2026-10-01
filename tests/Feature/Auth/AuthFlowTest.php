@@ -1391,11 +1391,11 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         // permission already narrows the audience, and a second gate would
         // lock out the one account type that legitimately holds it.
         //
-        // The two PDP consent routes contribute NOTHING to this census. They are
+        // The three PDP routes contribute NOTHING to this census. They are
         // guarded by `auth:sanctum` alone, deliberately: a consent record is the
         // caller's own, so the audience is "any authenticated caller" and a
         // permission code would add a grantable role for something that is not
-        // role-scoped. `PdpNotificationTest` asserts both guards directly.
+        // role-scoped. `PdpNotificationTest` asserts all three guards directly.
         "'permission:notifikasi.lihat'",
         "'permission:notifikasi.lihat'",
         "'permission:notifikasi.lihat'",

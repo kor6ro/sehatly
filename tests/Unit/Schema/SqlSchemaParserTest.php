@@ -21,11 +21,24 @@ function referenceSpec(): SchemaSpec
 test('the reference DDL parses into exactly 75 tables and 2 views', function () {
     $spec = referenceSpec();
 
+    // `indexes` is 140, not the 141 it was before F02. Two removals are folded
+    // into that number:
+    //
+    // - migration `2026_10_01_000079` renamed `pasien.nik` to `nik_cipher` and
+    //   the DDL dropped the inline `UNIQUE` the old `nik CHAR(16) NULL UNIQUE`
+    //   column carried (a `TEXT` column cannot carry an index at all - MySQL
+    //   requires a key length for `TEXT` - and this project deliberately adds
+    //   NO blind index to replace it);
+    // - F02 dropped `uq_consent` from `persetujuan_pdp`, whose line in the DDL
+    //   is now a comment (see `docs/schema-notes.md`).
+    //
+    // `columns` is unchanged at 672 because neither change added or removed a
+    // column.
     expect($spec->summary())->toBe([
         'tables' => 75,
         'views' => 2,
         'columns' => 672,
-        'indexes' => 142,
+        'indexes' => 140,
         'foreign_keys' => 105,
         'checks' => 3,
     ]);

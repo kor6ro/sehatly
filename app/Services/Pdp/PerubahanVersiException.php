@@ -5,55 +5,53 @@ declare(strict_types=1);
 namespace App\Services\Pdp;
 
 use App\Http\Controllers\Api\V1\PersetujuanPdpController;
+use App\Support\Pdp\PdpDokumen;
 use RuntimeException;
 
 /**
- * "You cannot change your mind about THAT version of THAT document."
+ * "That is not the version of the document that is currently in force."
  *
- * ## Why this exception exists at all
+ * ## The one refusal the write path has left
  *
- * `telemedicine_test.sql:1144` is `UNIQUE KEY uq_consent (user_id, jenis,
- * versi_dokumen)` and `disetujui TINYINT(1) NOT NULL` is `:1140`. Together those
- * two mean a decision about a given document version is **immutable and
- * unrevisable**: there is nowhere to record that the person changed their mind
- * about `v1` while `v1` is the version on record, and no nullable twin of
- * `disetujui` to null out.
+ * F02's owner decision replaced the old version rule with a server-side version
+ * authority: `GET /api/v1/pdp/dokumen` publishes the ACTIVE version of each of
+ * the five documents, and `POST /api/v1/pdp/persetujuan` accepts only that
+ * version. A `versi_dokumen` that is not the active one is refused here, and
+ * this is the only 422 the version rule produces - the old
+ * revoked-same-version collision and the old out-of-order write are gone,
+ * because `persetujuan_pdp` is now an append-only ledger (see
+ * {@see PdpConsentService}).
  *
- * A client asking to do that is not making a mistake the API can correct, so
- * this is a domain refusal with a 422, not a `LogicException` and not a 500. It
- * is caught by the controller and turned into the standard failure envelope with
- * `errors.versi_dokumen` carrying **two** messages, because the caller needs both
- * halves of the answer: what happened, and what to do instead.
+ * ## Why 422 and not 409
+ *
+ * The owner allowed either. 422 is chosen because the project's failure
+ * envelope already carries a field map for it (`errors.versi_dokumen`), the
+ * existing client handling reads the FIRST message of that field and refetches
+ * the document list, and `bootstrap/app.php` pins the 422 `message` to the
+ * constant "The given data was invalid." A 409 would need a new envelope shape
+ * and a new client branch for a refusal that is, at bottom, a field that failed
+ * a rule: the value the caller sent is not the value the server accepts.
  *
  * ## Why two messages on one field rather than one concatenated string
  *
- * The first says the state of the world ("already recorded, cannot be changed")
- * and the second says the remedy ("send a higher version"). A client shows the
- * first to the person and acts on the second. Concatenating them into one string
- * would force a client to substring-match to tell them apart, and would make the
- * boundary test unable to assert either half by position. `BookingController` and
- * `PesananObatController` make the same choice for the same reason.
- *
- * ## The two shapes
- *
- * - {@see tabrakan()} - the version is ALREADY recorded and the incoming answer
- *   DIFFERS. This is the revoked-same-version collision, and it is the case this
- *   todo's acceptance criterion is about.
- * - {@see lebihLama()} - the version is already recorded AND something higher is
- *   too, so the incoming row could never be the effective one. Accepting it would
- *   be a silent no-op reported as a success, which is the same defect as a
- *   resurrected consent wearing a 201.
+ * The first says the state of the world ("what you sent is not the active
+ * version") and the second says the remedy ("the active version is vNN; refetch
+ * and resend"). A client shows the first to the person and acts on the second.
+ * Concatenating them would force a client to substring-match to tell them
+ * apart, and would make the boundary test unable to assert either half by
+ * position. `BookingController` and `PesananObatController` make the same
+ * choice for the same reason.
  *
  * ## What a client does with it
  *
- * Do not retry - a retry is byte-identical and is refused identically. Read
- * `GET /api/v1/pdp/persetujuan` and use the `efektif` value on the entry for
- * that `jenis`; see the docblock of
- * {@see PersetujuanPdpController}, which is the
- * one place a client is told, and assert it here rather than repeating it.
+ * Do not retry - a retry is byte-identical and is refused identically. Call
+ * `GET /api/v1/pdp/dokumen`, read the active `versi_dokumen` for that `jenis`,
+ * and resend the decision with it. The second message names the active version
+ * so a client that cannot refetch still has the value it needs.
  *
  * @see PdpConsentService for the rule that raises it
- * @see PdpConsent for the version rule it protects
+ * @see PdpDokumen for the catalogue the active version comes from
+ * @see PersetujuanPdpController for the client-facing instructions
  */
 class PerubahanVersiException extends RuntimeException
 {
@@ -66,34 +64,16 @@ class PerubahanVersiException extends RuntimeException
     }
 
     /**
-     * The revoked-same-version collision: this version is on record and the
-     * incoming answer contradicts it.
+     * The incoming version is not the active version of its `jenis`.
      */
-    public static function tabrakan(string $versi, bool $diminta): self
+    public static function tidakAktif(string $versi, string $aktif): self
     {
         return new self(
-            'Persetujuan untuk versi dokumen ['.$versi.'] sudah tercatat dengan jawaban yang berbeda.',
+            'Versi dokumen ['.$versi.'] bukan versi aktif.',
             [
                 'versi_dokumen' => [
-                    'Persetujuan untuk versi dokumen ini sudah tercatat dan tidak dapat diubah.',
-                    'Tarik persetujuan dengan mengirim versi_dokumen yang lebih tinggi.',
-                ],
-            ],
-        );
-    }
-
-    /**
-     * An out-of-order write: a HIGHER version is already on record, so this row
-     * could never be read by the version rule.
-     */
-    public static function lebihLama(string $versi): self
-    {
-        return new self(
-            'Versi dokumen ['.$versi.'] lebih lama dari versi yang sudah tercatat.',
-            [
-                'versi_dokumen' => [
-                    'Versi dokumen ini lebih lama dari versi yang sudah tercatat.',
-                    'Kirim versi_dokumen yang lebih tinggi agar persetujuan yang baru berlaku.',
+                    'Versi dokumen yang dikirim bukan versi aktif.',
+                    'Versi aktif saat ini adalah '.$aktif.'. Muat ulang GET /api/v1/pdp/dokumen lalu kirim ulang.',
                 ],
             ],
         );

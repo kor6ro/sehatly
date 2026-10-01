@@ -320,18 +320,15 @@ test('every ENUM member this todo writes is a member of the column it writes, in
     // that ambiguities exist: `promo` names exactly one column in the schema.
     expect($kolom['promo'])->toBe(['notifikasi.tipe']);
 
-    // And the reverse direction for the table the version rule reads: the unique
-    // key is over EXACTLY three columns, and the test that matters is the one
-    // that says so against the parsed spec rather than against a hand-typed list.
-    $kunci = [];
+    // And the reverse direction for the table the ledger reads: F02 dropped
+    // `uq_consent`, so the parsed spec must show NO index beyond the primary
+    // key. Asserted against the parsed spec rather than a hand-typed list, so a
+    // re-added unique key fails here instead of silently restoring the old
+    // same-version collision.
+    $nama = array_map(static fn ($index): string => (string) $index->name, $spec->table('persetujuan_pdp')->indexes);
 
-    foreach ($spec->table('persetujuan_pdp')->indexes as $index) {
-        if ($index->name === 'uq_consent') {
-            $kunci = $index->columns;
-        }
-    }
-
-    expect($kunci)->toBe(['user_id', 'jenis', 'versi_dokumen']);
+    expect($nama)->toBe(['PRIMARY'])
+        ->and($nama)->not->toContain('uq_consent');
 });
 
 test('every DDL citation in the files this todo authored points at a line that EXISTS', function (): void {

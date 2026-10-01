@@ -14,24 +14,20 @@ use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 /**
  * The one answer to "has this account consented to this?".
  *
- * ## Why the HIGHEST `versi_dokumen` and not the first row
+ * ## Why the LATEST recorded row and not the highest version
  *
- * `telemedicine_test.sql:1144` is `UNIQUE KEY uq_consent (user_id, jenis,
- * versi_dokumen)`, and `disetujui TINYINT(1) NOT NULL` (`:1140`) has no nullable twin.
- * Together those two mean **consent cannot be revoked for a given document version**:
- * a second row carrying the same `(user_id, jenis, versi_dokumen)` would collide with
- * the unique key, and changing the existing row's `disetujui` in place is a rewrite of
- * the record of what the person agreed to rather than a new agreement.
+ * F02's owner decision made `persetujuan_pdp` an **append-only ledger**: the
+ * `uq_consent` unique key was dropped, so a person may hold any number of rows
+ * for the same document version, and the current status is the **latest
+ * recorded row per `(user_id, jenis)`** - append order, which is `id` order
+ * because the write path enforces the active version on every insert.
  *
- * The only representable revocation is therefore a NEW `versi_dokumen` carrying
- * `disetujui = 0`. A check that read the FIRST matching row would keep honouring a
- * consent the person has since withdrawn, so this reads the highest version and
- * honours ITS `disetujui`. That is a convention rather than an enforced ordering, and
- * the consequence is stated in the test that pins it: `versi_dokumen` is
- * `VARCHAR(20)` (`:1139`), NOT an integer, so "highest" is the column's own STRING
- * order - `v2.0` sorts above `v10.0` because `'2' > '1'` at the second position. There
- * is no numeric column to cast, so the mitigation is a convention on the writer
- * (fixed-width or zero-padded version strings) and this class does not paper over it.
+ * The old rule read the row with the maximum `versi_dokumen`, which was a
+ * STRING order over a `VARCHAR(20)` (`telemedicine_test.sql:1139`) and therefore
+ * a convention rather than a guarantee: `v2.0` sorts above `v10.0`. It also
+ * made a withdrawal on the same version unrepresentable. Both problems are gone
+ * with the ledger: a withdrawal is a new row carrying `disetujui = 0`, and the
+ * latest row wins regardless of what its version string looks like.
  *
  * ## An unknown `jenis` is a PROGRAMMING error, not a 403
  *
@@ -58,11 +54,11 @@ final class PdpConsent
     public const JENIS_BERBAGI_DATA = PersetujuanPdpJenis::BerbagiDataMedis->value;
 
     /**
-     * Is the highest-version consent of `$jenis` for `$user` an approval?
+     * Is the latest recorded consent of `$jenis` for `$user` an approval?
      *
      * The predicate twin of {@see require()}, so a caller that wants to BRANCH rather
      * than refuse - to show a consent prompt, for instance - gets the same answer from
-     * the same code rather than re-implementing the version rule.
+     * the same code rather than re-implementing the ledger rule.
      */
     public function disetujui(User $user, string $jenis): bool
     {
@@ -118,8 +114,8 @@ final class PdpConsent
      * | state | `effective()` | `disetujui()` |
      * | --- | --- | --- |
      * | no row at all | `null` | `false` |
-     * | highest version says yes | `true` | `true` |
-     * | highest version says no | `false` | `false` |
+     * | latest row says yes | `true` | `true` |
+     * | latest row says no | `false` | `false` |
      *
      * @throws LogicException when `$jenis` is not a value of the DDL ENUM
      */
@@ -131,18 +127,20 @@ final class PdpConsent
     }
 
     /**
-     * The highest `versi_dokumen` row of `$jenis` for `$user`, or `null`.
+     * The latest recorded row of `$jenis` for `$user`, or `null`.
      *
-     * `orderByDesc('versi_dokumen')` is a STRING order because the column is
-     * `VARCHAR(20)` (`:1139`) and the database's default collation is
-     * `utf8mb4_unicode_ci` (`telemedicine_test.sql:13`) - see the class docblock
-     * for why that is a convention rather than a numeric comparison and what it
-     * costs. `disetujui_at` is a `DATETIME NOT NULL` (`:1141`) and is NOT used as
-     * a tiebreaker, because `uq_consent` already makes `(user_id, jenis,
-     * versi_dokumen)` unique: there is never a second row to break a tie with, and
-     * ordering by a wall-clock `DATETIME` would be a different - and
-     * unsynchronised - notion of "latest" for a document whose version number is
-     * the authority.
+     * `orderByDesc('id')` is the ledger's append order. `id` is a
+     * `BIGINT UNSIGNED AUTO_INCREMENT` primary key (`:1135`), so it is
+     * monotonic per insert and is the only ordering the rule needs: the write
+     * path enforces the active version, so every row for one `(user, jenis)`
+     * carries the same version until the catalogue advances, and a withdrawal
+     * on the same version is simply a later row.
+     *
+     * `disetujui_at` is a `DATETIME NOT NULL` (`:1141`) and is NOT used as a
+     * tiebreaker: it is the moment the person decided, which is a fact about the
+     * act, while `id` is the moment the server recorded it. Two decisions in the
+     * same second are still ordered by `id`, and a client-supplied instant can
+     * never reorder the ledger.
      *
      * @throws LogicException when `$jenis` is not a value of the DDL ENUM
      */
@@ -158,7 +156,7 @@ final class PdpConsent
         return PersetujuanPdp::query()
             ->where('user_id', $user->getKey())
             ->where('jenis', $jenis)
-            ->orderByDesc('versi_dokumen')
+            ->orderByDesc('id')
             ->first();
     }
 
@@ -180,7 +178,7 @@ final class PdpConsent
     }
 
     /**
-     * One entry per `jenis` in DDL order, carrying the row the version rule reads.
+     * One entry per `jenis` in DDL order, carrying the row the ledger reads.
      *
      * The ordering is read from the DDL by {@see PersetujuanPdpJenis::nilai()}
      * rather than from whatever order a query happened to return, because the

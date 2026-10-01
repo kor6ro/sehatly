@@ -11,17 +11,27 @@ use App\Models\User;
 use App\Services\Pdp\PdpConsentService;
 use App\Services\Pdp\PerubahanVersiException;
 use App\Support\ApiResponse;
+use App\Support\Pdp\PdpDokumen;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Two routes, and both are about the CALLER's own consent record.
+ * Three routes: the document catalogue, the caller's checklist, and one decision.
  *
  * | route | verb | `data` | `meta` |
  * | --- | --- | --- | --- |
+ * | `GET /api/v1/pdp/dokumen` | the five ACTIVE document versions | `{dokumen}` | `singlePageMeta(5)` |
  * | `GET /api/v1/pdp/persetujuan` | the five-slot checklist | `{persetujuan}` | `singlePageMeta(5)` |
  * | `POST /api/v1/pdp/persetujuan` | one decision | `{persetujuan}` | no |
+ *
+ * ## `GET /pdp/dokumen` is the server's version authority
+ *
+ * F02's owner decision: a client must not invent a `versi_dokumen`. This route
+ * publishes the active version and `berlaku_sejak` of each of the five
+ * documents, read from `config/pdp.php` through {@see PdpDokumen}, and the write
+ * path refuses any other version with a 422 on `versi_dokumen`. The client
+ * echoes back exactly what this route published.
  *
  * ## The guards: `auth:sanctum` and NOTHING else, and that is the answer
  *
@@ -31,7 +41,7 @@ use Symfony\Component\HttpFoundation\Response;
  * - `pdp.kelola` is granted to `admin` and `superadmin` and to nobody else. Using
  *   it on a route about the caller's own consent would lock out every patient,
  *   every doctor, every pharmacist and both of the role-less account types - the
- *   only people whose consents these are. The route instead carries no guard
+ *   only people whose consents these are. The routes instead carry no guard
  *   beyond authentication, because the query is scoped to
  *   `$request->user()->getKey()` in the service: a caller cannot name a
  *   `user_id`, so there is no cross-tenant question for a permission to answer.
@@ -52,7 +62,7 @@ use Symfony\Component\HttpFoundation\Response;
  * ## `perawat` and `kurir` are NOT locked out here
  *
  * They are real `users.tipe` values (`:139`) that hold no role, so any
- * `permission:` would lock them out of these two routes permanently. They are not,
+ * `permission:` would lock them out of these routes permanently. They are not,
  * because consent belongs to a person whoever that person is at work -
  * `persetujuan_pdp.user_id` (`:1136`) is a `users` foreign key, not a `pasien`
  * one, so a nurse or a courier's consent record is a real row and the endpoint
@@ -63,9 +73,9 @@ use Symfony\Component\HttpFoundation\Response;
  *
  * ## No `Route::resource`
  *
- * One read and one write, two distinct shapes, and the write is an UPSERT-SHAPED
- * operation with three different status codes (201, 200, 422). A resource route
- * would publish a destroy nobody may perform and a "show" with no id in the path.
+ * Two reads and one write, three distinct shapes, and the write answers three
+ * status codes (201, 200, 422). A resource route would publish a destroy nobody
+ * may perform and a "show" with no id in the path.
  *
  * ## What a client does with a 422 from the write
  *
@@ -75,25 +85,53 @@ use Symfony\Component\HttpFoundation\Response;
  * 1. A 422 on `versi_dokumen` is NOT retryable. A retry is byte-identical and is
  *    refused identically, so a retry loop turns a permanent refusal into a
  *    traffic problem.
- * 2. `GET /api/v1/pdp/persetujuan` and read `data.persetujuan[jenis].efektif`.
- *    That value is already resolved through the version rule, so the client never
- *    re-implements "highest version" and cannot get it wrong on a stale copy.
- * 3. The recorded `versi_dokumen` and `disetujui_at` on the same entry are what
- *    the person is entitled to see: "you agreed to version X at time Y" is the
- *    only truthful answer to "did I agree to this?".
- * 4. Actually withdrawing means the DOCUMENT must advance - a strictly higher
- *    `versi_dokumen`. The client cannot invent one: the version is a property of
- *    the document being consented to, not of the account, so a withdrawal is
- *    driven by the consent flow advancing to a newer version and asking again.
+ * 2. Call `GET /api/v1/pdp/dokumen` and read the active `versi_dokumen` for that
+ *    `jenis`. The second message of `errors.versi_dokumen` names it too, so a
+ *    client that cannot refetch still has the value.
+ * 3. Resend the decision with the active version. Withdrawal is allowed at any
+ *    time on the SAME version - `disetujui: false` appends a new row and the
+ *    latest row wins - so changing one's mind never waits for the document to
+ *    advance.
+ * 4. `GET /api/v1/pdp/persetujuan` and read `data.persetujuan[jenis].efektif`.
+ *    That value is already resolved through the ledger rule, so the client never
+ *    re-implements "latest row" and cannot get it wrong on a stale copy.
  *
- * @see PdpConsentService for the rule these four points are about
- * @see PerubahanVersiException for the two refusal messages
+ * @see PdpConsentService for the ledger rule these four points are about
+ * @see PerubahanVersiException for the one refusal message
+ * @see PdpDokumen for the catalogue `GET /pdp/dokumen` publishes
  */
 class PersetujuanPdpController extends Controller
 {
     public function __construct(
         private readonly PdpConsentService $service,
+        private readonly PdpDokumen $dokumen,
     ) {}
+
+    /**
+     * `GET /api/v1/pdp/dokumen` - the five active document versions.
+     *
+     * FIVE entries, always, in the DDL's own order, each carrying `jenis`,
+     * `versi_dokumen` and `berlaku_sejak`. This is the server's version
+     * authority: the write path accepts only the `versi_dokumen` published here,
+     * so a client never invents one and a stale client is refused with a 422
+     * that names the active version.
+     *
+     * `meta` is `ApiResponse::singlePageMeta(5)` for the same reason the
+     * checklist uses it: the DDL's ENUM caps the list at five, so there is
+     * nothing to page, and the project publishes one list envelope rather than
+     * two. The key is a TOP-LEVEL SIBLING of `data`.
+     */
+    public function dokumen(): JsonResponse
+    {
+        $dokumen = $this->dokumen->semua();
+
+        return ApiResponse::success(
+            ['dokumen' => $dokumen],
+            'Daftar dokumen PDP berhasil dimuat.',
+            Response::HTTP_OK,
+            ApiResponse::singlePageMeta(count($dokumen)),
+        );
+    }
 
     /**
      * `GET /api/v1/pdp/persetujuan` - the five-slot checklist.
@@ -133,10 +171,9 @@ class PersetujuanPdpController extends Controller
      *
      * | answer | when |
      * | --- | --- |
-     * | 201 | a strictly higher `versi_dokumen` was recorded; it supersedes every lower one |
-     * | 200 | the same version and the same answer: an idempotent re-send, nothing written |
-     * | 422 R1b | the same version with a DIFFERENT answer - the revoked-same-version collision |
-     * | 422 R1c | a lower `versi_dokumen`: it could never be the effective row |
+     * | 201 | a decision was appended: a first answer, a changed answer, or a withdrawal on the same version |
+     * | 200 | the same answer as the latest recorded row: an idempotent re-send, nothing written |
+     * | 422 | `versi_dokumen` is not the active version of that `jenis` |
      *
      * The 200 and the 201 are different on purpose, and the difference is
      * observable: a 201 wrote a row and therefore produced an `audit_log` row
@@ -169,7 +206,7 @@ class PersetujuanPdpController extends Controller
         }
 
         // 201 or 200, decided by whether this call WROTE the row. The service
-        // returns the existing row unchanged for an idempotent re-send, and an
+        // returns the latest row unchanged for an idempotent re-send, and an
         // existing row is by definition not a new one.
         $baru = $baris->wasRecentlyCreated;
 
@@ -185,7 +222,7 @@ class PersetujuanPdpController extends Controller
     /**
      * The authenticated `User`, narrowed for the static analyser.
      *
-     * Both actions run behind `auth:sanctum`, so `user()` is never null.
+     * Every action runs behind `auth:sanctum`, so `user()` is never null.
      */
     private function user(Request $request): User
     {

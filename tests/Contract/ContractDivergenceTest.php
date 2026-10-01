@@ -98,10 +98,10 @@ it('publishes_the_meta_envelope_for_operations_that_answer_with_meta', function 
     }
 });
 
-it('publishes_the_meta_envelope_for_all_sixteen_single_page_meta_operations', function (): void {
+it('publishes_the_meta_envelope_for_all_seventeen_single_page_meta_operations', function (): void {
     // The full set, from the controllers' own `ApiResponse::success(...)` calls
     // rather than from the document. Recorded here so the coverage document's
-    // number is test-enforced: adding a seventeenth single-page-meta endpoint makes
+    // number is test-enforced: adding an eighteenth single-page-meta endpoint makes
     // this fail and forces the doc to move.
     $singlePageMetaOperations = [
         // Live-verified by the test above.
@@ -121,11 +121,13 @@ it('publishes_the_meta_envelope_for_all_sixteen_single_page_meta_operations', fu
         'get /api/v1/dokter/{dokter}/jadwal',
         'get /api/v1/dokter/{dokter}/slot',
         'get /api/v1/konsultasi/{id}/chat',
+        // F02's version authority, appended beside the checklist it serves.
+        'get /api/v1/pdp/dokumen',
         'get /api/v1/pdp/persetujuan',
         'get /api/v1/pasien/surat-keterangan',
     ];
 
-    expect($singlePageMetaOperations)->toHaveCount(16);
+    expect($singlePageMetaOperations)->toHaveCount(17);
 
     $spec = ContractSpec::specOperations();
 
@@ -203,16 +205,18 @@ it('types_every_meta_operation_as_paginated', function (): void {
 
     sort($paginated);
 
-    // Twenty-nine after F-007: the fourteen that were already paginated, plus the
-    // sixteen the old rule published as three-key envelopes, minus the one write the
-    // old rule wrongly paginated. Re-measured on the regenerated document; the
-    // membership below stops the count drifting silently.
-    expect($paginated)->toHaveCount(29);
+    // Thirty after F-007 and F02: the fourteen that were already paginated, plus
+    // the sixteen the old rule published as three-key envelopes, minus the one
+    // write the old rule wrongly paginated, plus F02's `GET /pdp/dokumen`.
+    // Re-measured on the regenerated document; the membership below stops the
+    // count drifting silently.
+    expect($paginated)->toHaveCount(30);
 
     expect($paginated)->toContain('get /api/v1/dokter @200');
     expect($paginated)->toContain('get /api/v1/obat @200');
     expect($paginated)->toContain('get /api/v1/notifikasi @200');
     expect($paginated)->toContain('get /api/v1/auth/devices @200');
+    expect($paginated)->toContain('get /api/v1/pdp/dokumen @200');
     expect($paginated)->toContain('get /api/v1/pasien/surat-keterangan @200');
     expect($paginated)->not->toContain('post /api/v1/konsultasi/{id}/chat/baca @201');
 });

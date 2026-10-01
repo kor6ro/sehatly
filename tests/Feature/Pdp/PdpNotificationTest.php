@@ -14,11 +14,12 @@ use App\Services\Notifikasi\NotificationService;
 use App\Services\Pdp\PdpConsent;
 use App\Services\Pdp\PdpConsentService;
 use App\Services\Pdp\PerubahanVersiException;
+use App\Support\Pdp\PdpDokumen;
 use App\Support\Rbac\RbacCatalog;
 use Database\Seeders\RbacSeeder;
-use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
@@ -41,101 +42,72 @@ afterEach(function (): void {
 | Todo 47 - PDP consent versioning and the notification centre
 |--------------------------------------------------------------------------
 |
-| ## THE VERSION RULE, stated before the code and pinned by the tests below
+| ## THE LEDGER RULE, stated before the code and pinned by the tests below
 |
-| `persetujuan_pdp` is `telemedicine_test.sql:1134`-`:1145`. Two of its columns
-| decide everything:
+| F02's owner decision (2026-10-01) replaced the old version rule. Two facts
+| decide everything now:
 |
 | ```
 | :1139  versi_dokumen VARCHAR(20) NOT NULL,
 | :1140  disetujui      TINYINT(1) NOT NULL,
-| :1144  UNIQUE KEY uq_consent (user_id, jenis, versi_dokumen)
+| :1144  -- uq_consent ... DROPPED 2026-10-01 (F02): append-only ledger
 | ```
 |
-| The unique key is over THREE columns, and `disetujui` is `NOT NULL` with no
-| nullable twin. So a second row carrying the same document version cannot exist,
-| and an existing row's `disetujui` cannot be nulled. **A revocation of a given
-| document version is therefore not representable in this schema at all.** The
-| only way to record a withdrawal is a NEW `versi_dokumen` carrying
-| `disetujui = 0`.
+| **`uq_consent` is gone.** `persetujuan_pdp` is an APPEND-ONLY LEDGER: a person
+| may hold any number of rows for the same document version, and the CURRENT
+| status is the **latest recorded row per `(user_id, jenis)`**, in append (`id`)
+| order. The active version is enforced on every write, so `id` order is the
+| order.
 |
-| ### The rule: EFFECTIVE = the `disetujui` of the HIGHEST `versi_dokumen`
+| ### The rule: EFFECTIVE = the `disetujui` of the LATEST recorded row
 |
 | For one `(user_id, jenis)` pair, the answer to "has this person consented?" is
-| read off the single row with the maximum `versi_dokumen` - never the first
-| row, never the last row written. Concretely, six cases, and the three that
-| matter are the three boundaries:
+| read off the row with the largest `id` - never the highest `versi_dokumen`,
+| which was a STRING order over a `VARCHAR(20)` and therefore a convention
+| (`v2.0` sorts above `v10.0`). Concretely:
 |
 | | # | situation | outcome |
 | | --- | --- | --- |
-| | V1 | no row at all | `effective() === null`: never answered. Every gate treats it as a refusal. |
-| | V2 | highest version, `disetujui = 1` | consented |
-| | V3 | highest version, `disetujui = 0` | refused - this is the withdrawal |
-| | V4 | a row arrives at a version LOWER than the current maximum | **REFUSED, nothing written** (422 on `versi_dokumen`) |
-| | V5 | a row arrives at a version HIGHER than the current maximum | written, and it supersedes every lower version at once |
-| | V6 | a row arrives at the version ALREADY present, with the same `disetujui` | 200, the existing row, byte-identical (idempotent re-send) |
-| | V6' | a row arrives at the version ALREADY present, with a DIFFERENT `disetujui` | **REFUSED, nothing written** (422 on `versi_dokumen`) - the collision |
+| | L1 | no row at all | `effective() === null`: never answered. Every gate treats it as a refusal. |
+| | L2 | latest row, `disetujui = 1` | consented |
+| | L3 | latest row, `disetujui = 0` | refused - this is the withdrawal |
+| | L4 | a row arrives at a version that is NOT the active one | **REFUSED, nothing written** (422 on `versi_dokumen`) |
+| | L5 | the active version, same answer as the latest row | 200, the latest row, byte-identical (idempotent re-send) |
+| | L6 | the active version, different answer | a NEW row is appended; it becomes the effective one (201) |
 |
-| **The defect this prevents.** V4 and V6' are the two ways a consent store
-| silently resurrects a revoked document. A check that read the FIRST row, or
-| that read "any row with `disetujui = 1`", would honour the consent at v1 after
-| the person withdrew it at v2. So the write path refuses V4 and V6' LOUDLY
-| instead of accepting a row that could never be honoured.
+| **Withdrawal is allowed anytime, instantly, on the SAME version.** L6 is the
+| whole point: `disetujui = false` at the active version is a new row, so a
+| person can change their mind without waiting for the document to advance. The
+| old rule could only represent a revocation as a higher version, which coupled
+| a person's decision to the document catalogue.
 |
-| **V4 in one sentence: a revocation at version N is never superseded by a
-| consent at version N-1.** Nothing below the maximum can change the answer.
-|
-| ## THE COLLISION (V6'), which is the acceptance criterion
-|
-| "Revoke consent for version v2 when v2 is already recorded as approved."
-|
-| The honest answer is that **this operation does not exist**, and the API says
-| so rather than inventing a way. Specifically:
-|
-| 1. It is **refused**, with 422 and TWO messages on the single field
-|    `versi_dokumen` - "already recorded, cannot be changed" and "withdraw by
-|    sending a higher version". Both are preserved, in order, because a
-|    concatenated single string cannot be asserted per position.
-| 2. **Nothing is written.** No `UPDATE`, no second row. The test compares the
-|    existing row byte for byte, `id` and `disetujui_at` and `ip_address`
-|    included.
-| 3. **The effective answer does not move.** The row count and the effective
-|    value are asserted afterwards, so a "fixed" implementation that upserted
-|    would fail here.
-| 4. **No index and no column is added to make it representable.** The
-|    acceptance criterion for this todo is to handle the collision as a
-|    documented outcome, and the DDL is read-only law in this project.
+| **The active version is the SERVER's.** `GET /api/v1/pdp/dokumen` publishes it
+| from `config/pdp.php` through `App\Support\Pdp\PdpDokumen`, and L4 refuses
+| anything else. A client no longer invents a version, and a stale client is
+| refused loudly instead of writing a row that could never be the effective one.
 |
 | ### What a client does on receiving the 422
 |
-| Read the two messages as one instruction: the decision about THAT document
-| version is already on record and is immutable, and a withdrawal is a NEW
-| version. Concretely, in the Dart client:
+| Read the two messages as one instruction: the version sent is not the active
+| one, and the second message names the active version. Concretely:
 |
 | - On 422 with `errors.versi_dokumen`, do NOT retry. A retry is byte-identical
 |   and will be refused identically.
+| - Call `GET /api/v1/pdp/dokumen` and read the active `versi_dokumen` for that
+|   `jenis`, then resend the decision with it.
+| - To withdraw, send `disetujui: false` at the SAME active version. No version
+|   bump is needed and none is accepted.
 | - `GET /api/v1/pdp/persetujuan` and read `data.persetujuan[jenis].efektif`.
-|   That is the effective answer, already resolved through the version rule, so
-|   the client never has to re-implement "highest version" itself.
-* - To actually withdraw, the client must send a `versi_dokumen` STRICTLY
-|   GREATER than the one in that response - and a client cannot invent a
-|   version, because the version is a property of the document being consented
-|   to, not of the account. So a real withdrawal is driven by the document
-|   catalogue advancing, not by the patient typing a string.
-| - Show the failure as "this version is already recorded" and point at the
-|   recorded `versi_dokumen` and `disetujui_at`, which the same response
-|   carries. The patient can see what is on record about them.
+|   That is the effective answer, already resolved through the ledger rule, so
+|   the client never has to re-implement "latest row" itself.
 |
-| ## The layer under the rule: `uq_consent` itself
+| ## The layer under the rule: the ledger itself
 |
-| The pre-check above is an APPLICATION rule, and an application rule can be
-| wrong or racy. `uq_consent` is the DDL's own rule and it fires regardless, so
-| the service catches a duplicate-entry violation and maps it to the SAME 422
-| the pre-check produces. Two tests cover the two layers: one drives a raw
-| INSERT and asserts the real MySQL 1062 (proving the limitation is real rather
-| than assumed, which the plan's acceptance criteria demand), and one forces a
-| genuine two-connection race and asserts the racing request also answers 422
-| rather than 500.
+| The old `uq_consent` unique key is gone, so a same-version second row is now
+| the MECHANISM for changing one's mind rather than a collision. The tests below
+| prove the absence at the database (a raw duplicate insert succeeds) and prove
+| the service appends rather than upserts: every decision is a new row, and the
+| latest row wins.
 |
 | ## `effective()` and `disetujui()` are NOT the same method
 |
@@ -147,7 +119,7 @@ afterEach(function (): void {
 |
 | ## A 422 here carries MULTIPLE messages on ONE field
 |
-| Both refusals put two messages on `versi_dokumen`, and each is asserted by its
+| The refusal puts two messages on `versi_dokumen`, and each is asserted by its
 | position in the array. A concatenation into one string would pass the same
 | `assertJsonPath('errors.versi_dokumen', '...')`.
 |
@@ -192,7 +164,13 @@ test('the three tables this todo reads and writes are cited from the file, range
     pd47AssertLine(1141, 'disetujui_at DATETIME NOT NULL');
     pd47AssertLine(1142, 'ip_address VARCHAR(45) NULL');
     pd47AssertLine(1143, 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE');
-    pd47AssertLine(1144, 'UNIQUE KEY uq_consent (user_id, jenis, versi_dokumen)');
+    // F02: `:1144` is a COMMENT recording the dropped unique key, not the key
+    // itself. The line is kept so every citation after it stays valid, and the
+    // parser strips comments while preserving offsets, so the parsed table is
+    // the same one a deleted line would produce.
+    pd47AssertLine(1144, 'uq_consent');
+    pd47AssertLine(1144, 'DROPPED');
+    pd47AssertLineLacks(1144, 'UNIQUE KEY');
 
     // The WRAPPED five-value ENUM. Line 1137 alone is a truncated list, which is
     // the plan's appendix rule 6; both lines are read, and the value list is
@@ -212,10 +190,12 @@ test('the three tables this todo reads and writes are cited from the file, range
         ->and($isiNotifikasi)->not->toContain('status_kirim')
         ->and($isiNotifikasi)->not->toContain('channel');
 
-    // `uq_consent` names EXACTLY three columns. A fourth would change what the
-    // collision means, and `str_contains` alone would not notice.
-    expect(substr_count($isiPersetujuan, 'UNIQUE KEY'))->toBe(1)
-        ->and($isiPersetujuan)->toContain('UNIQUE KEY uq_consent (user_id, jenis, versi_dokumen)');
+    // F02: the table has NO unique key at all. `substr_count` rather than a
+    // `not->toContain`, because a second `UNIQUE KEY` added anywhere in the
+    // table body would be the old rule creeping back and a single negative
+    // search would not count it.
+    expect(substr_count($isiPersetujuan, 'UNIQUE KEY'))->toBe(0)
+        ->and($isiPersetujuan)->not->toContain('UNIQUE KEY uq_consent');
 
     // The notifikasi columns the centre reads and the ONE it writes.
     pd47AssertLine(1038, 'user_id BIGINT UNSIGNED NOT NULL');
@@ -241,11 +221,13 @@ test('the three tables this todo reads and writes are cited from the file, range
 // The route census
 // =====================================================================
 
-test('the five routes are registered with exactly the guards this todo claims', function (): void {
+test('the six routes are registered with exactly the guards this todo claims', function (): void {
     $routes = pd47Routes();
 
-    // The closed set, keyed by `METHOD uri`.
+    // The closed set, keyed by `METHOD uri`. F02 appended `GET pdp/dokumen`
+    // beside the two consent routes, so the set is six.
     foreach ([
+        'GET api/v1/pdp/dokumen',
         'GET api/v1/pdp/persetujuan',
         'POST api/v1/pdp/persetujuan',
         'GET api/v1/notifikasi',
@@ -260,10 +242,12 @@ test('the five routes are registered with exactly the guards this todo claims', 
         expect(array_key_exists($diumi, $routes))->toBeTrue('route '.$diumi.' is not registered');
     }
 
-    // The consent routes carry `auth:sanctum` and NOTHING else. See the guard
-    // table in the docblock of `PdpConsentController` for why zero is the
-    // answer rather than an omission.
-    expect(pd47Guards($routes, 'GET api/v1/pdp/persetujuan'))
+    // The three consent routes carry `auth:sanctum` and NOTHING else. See the
+    // guard table in the docblock of `PersetujuanPdpController` for why zero is
+    // the answer rather than an omission.
+    expect(pd47Guards($routes, 'GET api/v1/pdp/dokumen'))
+        ->toBe(['api', 'auth:sanctum'])
+        ->and(pd47Guards($routes, 'GET api/v1/pdp/persetujuan'))
         ->toBe(['api', 'auth:sanctum'])
         ->and(pd47Guards($routes, 'POST api/v1/pdp/persetujuan'))
         ->toBe(['api', 'auth:sanctum']);
@@ -305,170 +289,126 @@ test('the five routes are registered with exactly the guards this todo claims', 
 });
 
 // =====================================================================
-// THE VERSION RULE - the three boundaries
+// THE LEDGER RULE - the three boundaries
 // =====================================================================
 
-test('BOUNDARY 1 of 3: a HIGHER version supersedes every lower one, immediately', function (): void {
+test('LEDGER 1 of 3: every decision is appended, and the LATEST row is the effective one', function (): void {
     $akun = pd47AkunPasien();
     $service = app(PdpConsentService::class);
     $consent = app(PdpConsent::class);
     $jenis = PdpConsent::JENIS_BERBAGI_DATA;
+    $aktif = app(PdpDokumen::class)->versiAktif($jenis);
     $userId = (int) $akun['user']->getKey();
 
-    // V1: no row at all. `effective()` is NULL, which is a different fact from
+    // L1: no row at all. `effective()` is NULL, which is a different fact from
     // `false`, and a gate still refuses.
     expect($consent->effective($akun['user'], $jenis))->toBeNull()
         ->and($consent->disetujui($akun['user'], $jenis))->toBeFalse()
         ->and($consent->ringkasan($akun['user']))->toHaveCount(5);
 
-    // V2: the first version. Approved.
-    $service->catat($akun['user'], $jenis, 'v1', true, '198.51.100.4');
+    // L2: the first decision. Approved.
+    $service->catat($akun['user'], $jenis, $aktif, true, '198.51.100.4');
 
     expect($consent->effective($akun['user'], $jenis))->toBeTrue()
-        ->and($consent->versiTerbaru($akun['user'], $jenis)?->versi_dokumen)->toBe('v1')
+        ->and($consent->versiTerbaru($akun['user'], $jenis)?->versi_dokumen)->toBe($aktif)
         ->and($consent->versiTerbaru($akun['user'], $jenis)?->ip_address)->toBe('198.51.100.4');
 
-    // THE SUPERSESSION. A LOWER version arrives afterwards and is REFUSED - this
-    // is the case that silently resurrects a revoked document if the rule is
-    // read as "any approved row" or as "the first row".
-    $e = pd47Tangkap(
-        fn () => $service->catat($akun['user'], $jenis, 'v0', true, '198.51.100.5'),
-        PerubahanVersiException::class,
-    );
-
-    expect($e->errors()['versi_dokumen'])->toBe([
-        'Versi dokumen ini lebih lama dari versi yang sudah tercatat.',
-        'Kirim versi_dokumen yang lebih tinggi agar persetujuan yang baru berlaku.',
-    ]);
-
-    // Nothing was written and the answer did not move.
-    expect(PersetujuanPdp::query()->where('user_id', $userId)->count())->toBe(1)
-        ->and($consent->effective($akun['user'], $jenis))->toBeTrue()
-        ->and($consent->versiTerbaru($akun['user'], $jenis)?->versi_dokumen)->toBe('v1');
-
-    // V3: the representable withdrawal. A HIGHER version carrying
-    // `disetujui = 0`, and the effective answer flips on the same request.
-    $service->catat($akun['user'], $jenis, 'v2', false, '198.51.100.6');
+    // L3: the withdrawal, on the SAME version. Under the old `uq_consent` rule
+    // this was a 422 collision; under the ledger it is a new row and the
+    // effective answer flips on the same call.
+    $service->catat($akun['user'], $jenis, $aktif, false, '198.51.100.6');
 
     expect($consent->effective($akun['user'], $jenis))->toBeFalse()
         ->and($consent->disetujui($akun['user'], $jenis))->toBeFalse()
-        ->and($consent->versiTerbaru($akun['user'], $jenis)?->versi_dokumen)->toBe('v2')
+        ->and($consent->versiTerbaru($akun['user'], $jenis)?->versi_dokumen)->toBe($aktif)
         ->and(PersetujuanPdp::query()->where('user_id', $userId)->count())->toBe(2);
 
     // And a gate refuses on the withdrawal rather than silently proceeding.
     expect(fn () => $consent->require($akun['user'], $jenis))
         ->toThrow(AccessDeniedHttpException::class);
 
-    // V5 again in the other direction: re-approving at a higher version
-    // supersedes the withdrawal. Both rows stay on the table - the table is a
-    // HISTORY, and the version rule is what reads it.
-    $service->catat($akun['user'], $jenis, 'v3', true, '198.51.100.7');
+    // L6 again in the other direction: re-approving on the same version
+    // supersedes the withdrawal. All three rows stay on the table - the table is
+    // a HISTORY, and the ledger is what reads it.
+    $service->catat($akun['user'], $jenis, $aktif, true, '198.51.100.7');
 
     expect($consent->effective($akun['user'], $jenis))->toBeTrue()
-        ->and($consent->versiTerbaru($akun['user'], $jenis)?->versi_dokumen)->toBe('v3')
+        ->and($consent->versiTerbaru($akun['user'], $jenis)?->versi_dokumen)->toBe($aktif)
         ->and(PersetujuanPdp::query()->where('user_id', $userId)->count())->toBe(3)
         // `pluck()` on an ELOQUENT builder returns the CAST value, not the raw
         // column, so these are booleans rather than the `TINYINT(1)` integers the
         // raw builder would hand back - and the cast is the model's, so this also
         // asserts `disetujui` is cast to boolean at all.
-        ->and(PersetujuanPdp::query()->where('user_id', $userId)->orderBy('versi_dokumen')->pluck('disetujui')->all())
+        ->and(PersetujuanPdp::query()->where('user_id', $userId)->orderBy('id')->pluck('disetujui')->all())
         ->toBe([true, false, true]);
 });
 
-test('BOUNDARY 2 of 3: a LOWER version arriving after a higher one is refused and changes nothing', function (): void {
+test('LEDGER 2 of 3: a version that is not the active one is refused and changes nothing', function (): void {
     $akun = pd47AkunPasien();
     $service = app(PdpConsentService::class);
     $consent = app(PdpConsent::class);
     $jenis = 'kebijakan_privasi';
+    $aktif = app(PdpDokumen::class)->versiAktif($jenis);
     $userId = (int) $akun['user']->getKey();
 
-    // The withdrawal lands FIRST, at a high version, and the approval behind it
-    // is what a naive "any approved row exists" check would keep honouring.
-    pd47ConsentRaw($userId, $jenis, 'v09', false);
-    pd47ConsentRaw($userId, $jenis, 'v05', true);
+    // A decision at the active version, then a stale client tries a version the
+    // server does not publish. The refusal is a fact about the DOCUMENT, not
+    // about what this account happens to have recorded.
+    $service->catat($akun['user'], $jenis, $aktif, true, '198.51.100.8');
 
-    // The maximum is v09 and it says no.
-    expect($consent->versiTerbaru($akun['user'], $jenis)?->versi_dokumen)->toBe('v09')
-        ->and($consent->effective($akun['user'], $jenis))->toBeFalse();
-
-    // A client holding a STALE document tries to approve it at a version it has
-    // not answered yet - `v07`, which is below the recorded `v09`. The service
-    // refuses, and refuses the same way it refuses a collision - loudly.
-    //
-    // `v05` is deliberately NOT what is sent here: `v05` is ALREADY on record with
-    // `disetujui = 1`, so sending it again with the same answer is the IDEMPOTENT
-    // case and is boundary 3's subject. Sending an existing version with a
-    // CONTRADICTING answer is the collision, which is the subject of the next
-    // test. This one is about a version that does not exist and could not win.
     $e = pd47Tangkap(
-        fn () => $service->catat($akun['user'], $jenis, 'v07', true, '198.51.100.8'),
+        fn () => $service->catat($akun['user'], $jenis, 'v99', true, '198.51.100.9'),
         PerubahanVersiException::class,
     );
 
     expect($e->errors())->toHaveKey('versi_dokumen')
         ->and($e->errors()['versi_dokumen'])->toHaveCount(2)
-        ->and($e->errors()['versi_dokumen'][0])->toStartWith('Versi dokumen ini lebih lama');
+        ->and($e->errors()['versi_dokumen'][0])->toBe('Versi dokumen yang dikirim bukan versi aktif.')
+        ->and($e->errors()['versi_dokumen'][1])->toContain($aktif);
 
-    // A version still lower than v09 is refused too, so "not equal to the
-    // maximum" is not enough - the comparison is a real ordering.
+    // A LOWER version is refused the same way: the check is equality with the
+    // active version, not an ordering, so there is no "stale but acceptable"
+    // value.
     pd47Tangkap(
-        fn () => $service->catat($akun['user'], $jenis, 'v08', true, '198.51.100.9'),
+        fn () => $service->catat($akun['user'], $jenis, 'v00', true, '198.51.100.10'),
         PerubahanVersiException::class,
     );
 
-    // The version already on record, re-sent with the SAME answer, is the
-    // idempotent case and writes nothing - which is why boundary 3 uses it and
-    // this test does not.
-    $ulang = $service->catat($akun['user'], $jenis, 'v05', true, '198.51.100.8');
-
-    expect((string) $ulang->versi_dokumen)->toBe('v05')
-        ->and($ulang->ip_address)->toBeNull();
-
-    // The stored pair is byte-identical and the answer has not moved.
+    // Nothing was written by either refusal, and the answer has not moved.
     $baris = DB::table('persetujuan_pdp')
         ->where('user_id', $userId)
         ->where('jenis', $jenis)
-        ->orderBy('versi_dokumen')
+        ->orderBy('id')
         ->get();
 
-    expect($baris)->toHaveCount(2)
-        ->and($baris->pluck('versi_dokumen')->all())->toBe(['v05', 'v09'])
-        ->and($baris->pluck('disetujui')->all())->toBe([1, 0])
-        ->and($baris->pluck('ip_address')->all())->toBe([null, null])
-        ->and($consent->effective($akun['user'], $jenis))->toBeFalse();
+    expect($baris)->toHaveCount(1)
+        ->and($baris->pluck('versi_dokumen')->all())->toBe([$aktif])
+        ->and($baris->pluck('disetujui')->all())->toBe([1])
+        ->and($consent->effective($akun['user'], $jenis))->toBeTrue();
 
-    // A version ABOVE the maximum is accepted, and only then does the answer
-    // move - so the refusal above was a real gate and not a blanket denial.
-    $service->catat($akun['user'], $jenis, 'v10', true, '198.51.100.10');
+    // The active version is accepted, and only then does the answer move - so
+    // the refusals above were a real gate and not a blanket denial.
+    $service->catat($akun['user'], $jenis, $aktif, false, '198.51.100.11');
 
-    expect($consent->effective($akun['user'], $jenis))->toBeTrue()
-        ->and($consent->versiTerbaru($akun['user'], $jenis)?->versi_dokumen)->toBe('v10')
-        // WHY THE VERSIONS ARE ZERO-PADDED IN THIS TEST, which is the writer-side
-        // convention `PdpConsent`'s docblock names. `versi_dokumen` is
-        // `VARCHAR(20)` (`:1139`), so "highest" is the column's own STRING order:
-        // 'v10' sorts BELOW 'v9' because '1' (0x31) < '9' (0x39) at the second
-        // position. An unpadded 'v10' against a stored 'v9' is therefore a LOWER
-        // version and is refused - asserted here rather than described, because
-        // writing this test with 'v9' and 'v10' unpadded produced a refusal that
-        // read exactly like a bug in the version rule and was not one.
-        ->and(DB::table('persetujuan_pdp')->where('user_id', $userId)->orderBy('versi_dokumen')->pluck('versi_dokumen')->all())
-        ->toBe(['v05', 'v09', 'v10']);
+    expect($consent->effective($akun['user'], $jenis))->toBeFalse()
+        ->and(DB::table('persetujuan_pdp')->where('user_id', $userId)->count())->toBe(2);
 });
 
-test('BOUNDARY 3 of 3: the SAME version twice is idempotent when the answer agrees', function (): void {
+test('LEDGER 3 of 3: the SAME consecutive decision is idempotent and writes no second row', function (): void {
     $akun = pd47AkunPasien();
     $service = app(PdpConsentService::class);
     $consent = app(PdpConsent::class);
     $jenis = 'syarat_ketentuan';
+    $aktif = app(PdpDokumen::class)->versiAktif($jenis);
     $userId = (int) $akun['user']->getKey();
 
-    $pertama = $service->catat($akun['user'], $jenis, 'v1', true, '198.51.100.11');
+    $pertama = $service->catat($akun['user'], $jenis, $aktif, true, '198.51.100.11');
 
     // The client's request never got its response and it retries. Byte-identical
-    // body, so the server CAN tell this from a contradictory second decision -
-    // and must, because refusing it would make every retry a hard failure while
-    // accepting it would be indistinguishable from a re-approval.
-    $kedua = $service->catat($akun['user'], $jenis, 'v1', true, '198.51.100.99');
+    // body, so the server CAN tell this from a changed decision - and must,
+    // because refusing it would make every retry a hard failure while accepting
+    // it as a new row would grow the ledger on every retry.
+    $kedua = $service->catat($akun['user'], $jenis, $aktif, true, '198.51.100.99');
 
     expect((int) $kedua->getKey())->toBe((int) $pertama->getKey())
         ->and($kedua->ip_address)->toBe('198.51.100.11', 'the retry overwrote the recorded address')
@@ -476,8 +416,8 @@ test('BOUNDARY 3 of 3: the SAME version twice is idempotent when the answer agre
         ->and(PersetujuanPdp::query()->where('user_id', $userId)->count())->toBe(1);
 
     // The same for a withdrawal, and the second call wrote no second row.
-    $tarik = $service->catat($akun['user'], $jenis, 'v2', false, '198.51.100.12');
-    $tarikUlang = $service->catat($akun['user'], $jenis, 'v2', false, '198.51.100.99');
+    $tarik = $service->catat($akun['user'], $jenis, $aktif, false, '198.51.100.12');
+    $tarikUlang = $service->catat($akun['user'], $jenis, $aktif, false, '198.51.100.99');
 
     expect((int) $tarikUlang->getKey())->toBe((int) $tarik->getKey())
         ->and(PersetujuanPdp::query()->where('user_id', $userId)->count())->toBe(2)
@@ -494,203 +434,117 @@ test('BOUNDARY 3 of 3: the SAME version twice is idempotent when the answer agre
 });
 
 // =====================================================================
-// THE COLLISION - the acceptance criterion
+// The ledger appends a changed decision - the acceptance criterion
 // =====================================================================
 
-test('the revoked-same-version collision is refused, writes nothing, and the effective answer does not move', function (): void {
+test('a changed decision on the SAME version appends a new row and the latest row wins', function (): void {
     $akun = pd47AkunPasien();
     $service = app(PdpConsentService::class);
     $consent = app(PdpConsent::class);
     $jenis = PdpConsent::JENIS_BERBAGI_DATA;
+    $aktif = app(PdpDokumen::class)->versiAktif($jenis);
     $userId = (int) $akun['user']->getKey();
-    $jenisLain = 'pemasaran';
 
-    // A patient approved v1 of the data-sharing terms, then withdrew at v2, and
-    // a stale client now tries to REVOKE v1 - the version it happens to be
-    // holding. Both directions of the collision are the same defect, so both
-    // are driven: un-revoking, and re-approving.
-    pd47ConsentRaw($userId, $jenis, 'v1', true, ['ip_address' => '198.51.100.20', 'disetujui_at' => '2026-01-02 03:04:05']);
-    pd47ConsentRaw($userId, $jenis, 'v2', false);
-    pd47ConsentRaw($userId, $jenisLain, 'v1', true);
+    // A patient approved the active version, then changed their mind. Under the
+    // old `uq_consent` rule the second call was a 422 collision; under the
+    // ledger it is a new row and the effective answer flips.
+    $pertama = $service->catat($akun['user'], $jenis, $aktif, true, '198.51.100.20');
+    $kedua = $service->catat($akun['user'], $jenis, $aktif, false, '198.51.100.21');
 
-    $sebelum = DB::table('persetujuan_pdp')
-        ->where('user_id', $userId)
-        ->orderBy('id')
-        ->get()
-        ->map(static fn ($baris): array => (array) $baris)
-        ->all();
+    expect((int) $kedua->getKey())->not->toBe((int) $pertama->getKey())
+        ->and($consent->effective($akun['user'], $jenis))->toBeFalse()
+        ->and($consent->versiTerbaru($akun['user'], $jenis)?->getKey())->toBe($kedua->getKey());
 
-    // The collision: same version, different answer. Two directions, two rows.
-    $e1 = pd47Tangkap(
-        fn () => $service->catat($akun['user'], $jenis, 'v1', false, '198.51.100.21'),
-        PerubahanVersiException::class,
-    );
-    $e2 = pd47Tangkap(
-        fn () => $service->catat($akun['user'], $jenisLain, 'v1', false, '198.51.100.22'),
-        PerubahanVersiException::class,
-    );
+    // The FIRST row is untouched - every column, not just `disetujui`. An
+    // `upsert` would have rewritten `disetujui_at` and `ip_address` in place.
+    $asli = DB::table('persetujuan_pdp')->where('id', $pertama->getKey())->sole();
 
-    // TWO messages on ONE field, in order. Position-asserted, so a concatenation
-    // into a single string fails here.
-    $pesan = [
-        'Persetujuan untuk versi dokumen ini sudah tercatat dan tidak dapat diubah.',
-        'Tarik persetujuan dengan mengirim versi_dokumen yang lebih tinggi.',
-    ];
+    expect($asli->disetujui)->toBe(1)
+        ->and($asli->ip_address)->toBe('198.51.100.20')
+        ->and($asli->versi_dokumen)->toBe($aktif);
 
-    expect($e1->errors())->toBe(['versi_dokumen' => $pesan])
-        ->and($e2->errors())->toBe(['versi_dokumen' => $pesan]);
+    // And back again: a third decision at the same version is a third row.
+    $ketiga = $service->catat($akun['user'], $jenis, $aktif, true, '198.51.100.22');
 
-    // NOTHING was written, and the stored rows are byte-identical - every
-    // column, not just `disetujui`. An `upsert` would change `disetujui_at` and
-    // `ip_address` even when `disetujui` matched.
-    $sesudah = DB::table('persetujuan_pdp')
-        ->where('user_id', $userId)
-        ->orderBy('id')
-        ->get()
-        ->map(static fn ($baris): array => (array) $baris)
-        ->all();
-
-    expect($sesudah)->toBe($sebelum)
-        ->and(DB::table('persetujuan_pdp')->where('user_id', $userId)->count())->toBe(3);
-
-    // And the effective answer did not move, in EITHER direction: the
-    // withdrawal still stands, and the approval was not turned into a refusal.
-    expect($consent->effective($akun['user'], $jenis))->toBeFalse()
-        ->and($consent->versiTerbaru($akun['user'], $jenis)?->versi_dokumen)->toBe('v2')
-        ->and($consent->effective($akun['user'], $jenisLain))->toBeTrue()
-        ->and($consent->versiTerbaru($akun['user'], $jenisLain)?->versi_dokumen)->toBe('v1');
-
-    // THE COLLATERAL OF DOING THE COMPARISON IN SQL, and it is a boundary of the
-    // collision rather than a curiosity.
-    //
-    // `telemedicine_test.sql:11`-`:13` creates the database as
-    // `COLLATE utf8mb4_unicode_ci` and no `CREATE TABLE` overrides it, so
-    // `versi_dokumen` is compared CASE-INSENSITIVELY. `uq_consent` therefore
-    // treats `V1` and `v1` as the same value - and a pre-check written in PHP's
-    // `strcmp()` would not, because `'V' (0x56) < 'v' (0x76)`, so a strcmp
-    // implementation would call `V1` a NEW HIGHER version, try to INSERT it, and
-    // be killed by a raw 1062. The store would answer 500 for a value the
-    // database had already decided was the same value.
-    //
-    // So this is the same collision, spelled with a capital letter.
-    pd47ConsentRaw($userId, 'komunikasi_tindak_lanjut', 'v1', true);
-
-    $sebelumV = DB::table('persetujuan_pdp')
-        ->where('user_id', $userId)
-        ->where('jenis', 'komunikasi_tindak_lanjut')
-        ->sole();
-
-    $eV = pd47Tangkap(
-        fn () => $service->catat($akun['user'], 'komunikasi_tindak_lanjut', 'V1', false, '198.51.100.23'),
-        PerubahanVersiException::class,
-    );
-
-    expect($eV->errors())->toBe(['versi_dokumen' => $pesan]);
-
-    // Nothing was written under either spelling.
-    expect(DB::table('persetujuan_pdp')
-        ->where('user_id', $userId)
-        ->where('jenis', 'komunikasi_tindak_lanjut')
-        ->sole())
-        ->toEqual($sebelumV);
-
-    // And the same spelling with the SAME answer is the idempotent case, not a
-    // new row - which is the only reason a client retrying under a different case
-    // gets a 200 rather than a 500.
-    $ulangV = $service->catat($akun['user'], 'komunikasi_tindak_lanjut', 'V1', true, '198.51.100.24');
-
-    expect((int) $ulangV->getKey())->toBe((int) $sebelumV->id)
-        ->and(DB::table('persetujuan_pdp')
-            ->where('user_id', $userId)
-            ->where('jenis', 'komunikasi_tindak_lanjut')
-            ->count())->toBe(1);
+    expect($consent->effective($akun['user'], $jenis))->toBeTrue()
+        ->and($consent->versiTerbaru($akun['user'], $jenis)?->getKey())->toBe($ketiga->getKey())
+        ->and(DB::table('persetujuan_pdp')->where('user_id', $userId)->count())->toBe(3)
+        ->and(DB::table('persetujuan_pdp')->where('user_id', $userId)->orderBy('id')->pluck('disetujui')->all())
+        ->toBe([1, 0, 1]);
 });
 
-test('a same-version insert really is rejected by uq_consent, at the database', function (): void {
-    // The plan's acceptance criterion, and the point of this test: prove the
-    // limitation is REAL rather than assumed. Nothing here goes through the
-    // application, so a green run means MySQL refused the write - not that this
-    // todo's own pre-check noticed.
+test('a same-version duplicate is ALLOWED by the ledger, at the database', function (): void {
+    // The inverse of the old acceptance criterion, and the point of this test:
+    // prove the unique key is really gone rather than assumed. Nothing here goes
+    // through the application, so a green run means MySQL accepted the write.
     $akun = pd47AkunPasien();
     $userId = (int) $akun['user']->getKey();
 
-    pd47ConsentRaw($userId, PdpConsent::JENIS_BERBAGI_DATA, 'v1', true);
+    pd47ConsentRaw($userId, PdpConsent::JENIS_BERBAGI_DATA, 'v01', true);
 
-    $e = pd47Tangkap(
-        fn () => DB::table('persetujuan_pdp')->insert([
-            'user_id' => $userId,
-            'jenis' => PdpConsent::JENIS_BERBAGI_DATA,
-            'versi_dokumen' => 'v1',
-            'disetujui' => 0,
-            'disetujui_at' => pd47Jam(),
-        ]),
-        UniqueConstraintViolationException::class,
-    );
+    // The same (user_id, jenis, versi_dokumen) triple, a different answer. Under
+    // `uq_consent` this was MySQL 1062; now it is the withdrawal mechanism.
+    pd47ConsentRaw($userId, PdpConsent::JENIS_BERBAGI_DATA, 'v01', false);
 
-    expect(pd47AdalahDuplikat($e))->toBeTrue('the driver code is not MySQL 1062')
-        ->and((int) $e->errorInfo[1])->toBe(PD47_KODE_DUPLIKAT)
-        ->and(DB::table('persetujuan_pdp')->where('user_id', $userId)->count())->toBe(1)
-        ->and(DB::table('persetujuan_pdp')->where('user_id', $userId)->value('disetujui'))->toBe(1);
+    expect(DB::table('persetujuan_pdp')->where('user_id', $userId)->count())->toBe(2)
+        ->and(app(PdpConsent::class)->effective($akun['user'], PdpConsent::JENIS_BERBAGI_DATA))->toBeFalse();
 
-    // The unique key is (user_id, jenis, versi_dokumen): a DIFFERENT jenis at the
-    // same version is legal, and a different user at the same version is legal.
-    // That is what makes the key a per-DECISION key rather than a per-account one.
-    pd47ConsentRaw($userId, 'pemasaran', 'v1', true);
+    // The live schema really has no `uq_consent`: migration
+    // `2026_10_01_000081` dropped it and the reference DDL no longer declares
+    // it.
+    expect(Schema::hasIndex('persetujuan_pdp', 'uq_consent'))->toBeFalse();
+
+    // A DIFFERENT jenis at the same version is legal too, and so is a different
+    // user - the ledger is per (user, jenis), not per account.
+    pd47ConsentRaw($userId, 'pemasaran', 'v01', true);
     $lain = pd47AkunPasien('Pasien Lain PDP');
 
-    pd47ConsentRaw((int) $lain['user']->getKey(), PdpConsent::JENIS_BERBAGI_DATA, 'v1', true);
+    pd47ConsentRaw((int) $lain['user']->getKey(), PdpConsent::JENIS_BERBAGI_DATA, 'v01', true);
 
-    expect(DB::table('persetujuan_pdp')->where('versi_dokumen', 'v1')->count())->toBe(3);
+    expect(DB::table('persetujuan_pdp')->where('versi_dokumen', 'v01')->count())->toBe(4);
 });
 
-test('a writer that trips uq_consent BETWEEN the pre-check and the insert gets the same 422, not a 500', function (): void {
-    // The pre-check is an APPLICATION rule and `uq_consent` is the DDL's own;
-    // between the pre-check's SELECT and the INSERT a second writer can land a row
-    // the pre-check never saw. This drives exactly that window, and without the
-    // `UniqueConstraintViolationException` catch in `PdpConsentService::catat()` the
-    // request would be a 500 - so the acceptance criterion would hold only for a
-    // single writer.
+test('a writer that lands BETWEEN the read and the append is kept, and the later row wins', function (): void {
+    // The ledger has no unique key to trip, so the old race test's premise is
+    // gone. What replaces it is the property that matters now: a competing row
+    // written between the service's read and its insert is NOT lost and does NOT
+    // block the caller - both decisions are recorded, and the later `id` wins.
     //
-    // WHY ONE CONNECTION AND NOT TWO, and the reason is instructive. The obvious
-    // choreography - a second connection committing the competing row - cannot work
-    // here: `RefreshDatabase` holds its wrapper transaction open, so the `users`
-    // row this test just created is UNCOMMITTED, and the second connection's INSERT
-    // blocks on the foreign key's shared lock against that uncommitted parent row
-    // until MySQL's 1205 lock-wait timeout. The first run of this test failed with
-    // precisely that, in 8 seconds of waiting. The competing row is therefore
-    // written on the SAME connection: same transaction, so it is visible to the
-    // unique key immediately and there is no lock to wait for, and the property
-    // under test - the mapping from a duplicate-entry violation to the documented
-    // 422 - is produced by the identical 1062.
+    // WHY ONE CONNECTION AND NOT TWO: `RefreshDatabase` holds its wrapper
+    // transaction open, so the `users` row this test just created is
+    // UNCOMMITTED, and a second connection's INSERT would block on the foreign
+    // key's shared lock against that uncommitted parent row until MySQL's 1205
+    // lock-wait timeout. The competing row is therefore written on the SAME
+    // connection, where it is visible immediately and there is no lock to wait
+    // for.
     $akun = pd47AkunPasien();
     $userId = (int) $akun['user']->getKey();
     $jenis = PdpConsent::JENIS_BERBAGI_DATA;
+    $aktif = app(PdpDokumen::class)->versiAktif($jenis);
 
     $sudahMasuk = false;
     $armed = true;
 
-    // `Connection::beforeExecuting()` APPENDS to `$beforeExecutingCallbacks`, offers
-    // no way to remove one, and hands the callback the statement's SQL as a STRING
-    // plus the bindings plus the connection. So the hook is DISARMED by a captured
-    // flag in the `finally` rather than uninstalled, and `DB::purge('mysql')` is
-    // not an option either: it would drop the PDO holding `RefreshDatabase`'s
-    // wrapper transaction, whose teardown then sets `migrated = false` and forces
-    // a `migrate:fresh` for every remaining test in the process. The same trap
-    // `po46Selesai()` exists to handle.
-    DB::connection('mysql')->beforeExecuting(function (string $sql) use (&$sudahMasuk, &$armed, $userId, $jenis): void {
+    // `Connection::beforeExecuting()` APPENDS to `$beforeExecutingCallbacks`,
+    // offers no way to remove one, and hands the callback the statement's SQL as
+    // a STRING. So the hook is DISARMED by a captured flag in the `finally`
+    // rather than uninstalled, and `DB::purge('mysql')` is not an option either:
+    // it would drop the PDO holding `RefreshDatabase`'s wrapper transaction,
+    // whose teardown then sets `migrated = false` and forces a `migrate:fresh`
+    // for every remaining test in the process.
+    DB::connection('mysql')->beforeExecuting(function (string $sql) use (&$sudahMasuk, &$armed, $userId, $jenis, $aktif): void {
         if (! $armed || $sudahMasuk || ! str_contains(strtolower($sql), 'insert into `persetujuan_pdp`')) {
             return;
         }
 
         $sudahMasuk = true;
 
-        // The competing writer wins the window. It is written BEFORE the service's
-        // own INSERT reaches the server, so `uq_consent` sees two rows with the same
-        // `(user_id, jenis, versi_dokumen)` and rejects the second.
+        // The competing writer lands BEFORE the service's own INSERT reaches the
+        // server. There is no unique key to reject either row.
         DB::table('persetujuan_pdp')->insert([
             'user_id' => $userId,
             'jenis' => $jenis,
-            'versi_dokumen' => 'v1',
+            'versi_dokumen' => $aktif,
             'disetujui' => 0,
             'disetujui_at' => pd47Jam(),
         ]);
@@ -699,26 +553,21 @@ test('a writer that trips uq_consent BETWEEN the pre-check and the insert gets t
     try {
         $response = pd47As($akun['user'])->postJson('/api/v1/pdp/persetujuan', [
             'jenis' => $jenis,
-            'versi_dokumen' => 'v1',
+            'versi_dokumen' => $aktif,
             'disetujui' => true,
         ]);
 
-        $response->assertStatus(422)
-            ->assertJsonPath('success', false)
-            ->assertJsonPath('message', 'The given data was invalid.')
-            // The SAME two messages the pre-check produces, so a racing writer and
-            // a single writer are indistinguishable to a client.
-            ->assertJsonPath('errors.versi_dokumen', [
-                'Persetujuan untuk versi dokumen ini sudah tercatat dan tidak dapat diubah.',
-                'Tarik persetujuan dengan mengirim versi_dokumen yang lebih tinggi.',
-            ]);
+        // The caller's decision is a 201, not a 500 and not a 422: the ledger
+        // appends.
+        $response->assertCreated()
+            ->assertJsonPath('data.persetujuan.efektif', true);
 
-        // The competing row is the only row, and the caller's own decision was NOT
-        // written on top of it. The effective answer is therefore the competitor's
-        // `disetujui = 0` - a refusal, not a silent approval.
-        expect(DB::table('persetujuan_pdp')->where('user_id', $userId)->count())->toBe(1)
-            ->and(DB::table('persetujuan_pdp')->where('user_id', $userId)->value('disetujui'))->toBe(0)
-            ->and(app(PdpConsent::class)->effective($akun['user'], $jenis))->toBeFalse();
+        // BOTH rows are on the table, and the caller's row is the later one, so
+        // the effective answer is the caller's approval.
+        expect(DB::table('persetujuan_pdp')->where('user_id', $userId)->count())->toBe(2)
+            ->and(DB::table('persetujuan_pdp')->where('user_id', $userId)->orderBy('id')->pluck('disetujui')->all())
+            ->toBe([0, 1])
+            ->and(app(PdpConsent::class)->effective($akun['user'], $jenis))->toBeTrue();
     } finally {
         $armed = false;
     }
@@ -728,15 +577,17 @@ test('a writer that trips uq_consent BETWEEN the pre-check and the insert gets t
 // The consent endpoints
 // =====================================================================
 
-test('GET /pdp/persetujuan answers all five kinds with a tri-state resolved through the version rule', function (): void {
+test('GET /pdp/persetujuan answers all five kinds with a tri-state resolved through the ledger', function (): void {
     $akun = pd47AkunPasien();
     $userId = (int) $akun['user']->getKey();
 
-    // One of each of the three effective states, plus a two-version pair whose
-    // answer can only be got right by reading the maximum.
+    // One of each of the three effective states, plus a pair whose answer can
+    // only be got right by reading the LATEST row: the higher version is
+    // recorded FIRST and the lower one LAST, so a "highest version wins" read
+    // would report the refusal while the ledger reports the approval.
     pd47ConsentRaw($userId, 'syarat_ketentuan', 'v1', true, ['ip_address' => '198.51.100.30']);
-    pd47ConsentRaw($userId, 'kebijakan_privasi', 'v1', true);
-    pd47ConsentRaw($userId, 'kebijakan_privasi', 'v2', false, ['disetujui_at' => '2026-02-03 04:05:06']);
+    pd47ConsentRaw($userId, 'kebijakan_privasi', 'v02', false, ['disetujui_at' => '2026-02-03 04:05:06']);
+    pd47ConsentRaw($userId, 'kebijakan_privasi', 'v01', true);
     // `pemasaran` and `komunikasi_tindak_lanjut` are deliberately left with no
     // row, so the response has a `null` in it.
 
@@ -768,12 +619,14 @@ test('GET /pdp/persetujuan answers all five kinds with a tri-state resolved thro
 
     $olehJenis = array_column($isi, null, 'jenis');
 
-    // tri-state: true, false, and null for "no row"
+    // tri-state: true, false, and null for "no row". `kebijakan_privasi` is the
+    // append-order proof: the LAST row written is `v01` and it says yes, so the
+    // effective answer is `true` even though `v02` exists and says no.
     expect($olehJenis['syarat_ketentuan']['efektif'])->toBeTrue()
         ->and($olehJenis['syarat_ketentuan']['versi_dokumen'])->toBe('v1')
         ->and($olehJenis['syarat_ketentuan']['ip_address'])->toBe('198.51.100.30')
-        ->and($olehJenis['kebijakan_privasi']['efektif'])->toBeFalse()
-        ->and($olehJenis['kebijakan_privasi']['versi_dokumen'])->toBe('v2')
+        ->and($olehJenis['kebijakan_privasi']['efektif'])->toBeTrue()
+        ->and($olehJenis['kebijakan_privasi']['versi_dokumen'])->toBe('v01')
         // `disetujui_at` is a rule-(1) INSTANT, so it is ISO-8601 UTC.
         ->and($olehJenis['kebijakan_privasi']['disetujui_at'])->toEndWith('Z')
         ->and($olehJenis['pemasaran']['efektif'])->toBeNull()
@@ -805,10 +658,11 @@ test('POST /pdp/persetujuan records a decision, derives the instant and the addr
     $akun = pd47AkunPasien();
     $userId = (int) $akun['user']->getKey();
     $jenis = PdpConsent::JENIS_BERBAGI_DATA;
+    $aktif = app(PdpDokumen::class)->versiAktif($jenis);
 
     $created = pd47As($akun['user'])->postJson('/api/v1/pdp/persetujuan', [
         'jenis' => $jenis,
-        'versi_dokumen' => 'v1',
+        'versi_dokumen' => $aktif,
         'disetujui' => true,
     ]);
 
@@ -816,7 +670,7 @@ test('POST /pdp/persetujuan records a decision, derives the instant and the addr
         ->assertJsonPath('success', true)
         ->assertJsonPath('data.persetujuan.jenis', $jenis)
         ->assertJsonPath('data.persetujuan.efektif', true)
-        ->assertJsonPath('data.persetujuan.versi_dokumen', 'v1')
+        ->assertJsonPath('data.persetujuan.versi_dokumen', $aktif)
         ->assertJsonPath('data.persetujuan.ip_address', '127.0.0.1');
 
     // `disetujui_at` is DERIVED from the application clock, never from the
@@ -834,30 +688,32 @@ test('POST /pdp/persetujuan records a decision, derives the instant and the addr
 
     pd47As($akun['user'])->postJson('/api/v1/pdp/persetujuan', [
         'jenis' => $jenis,
-        'versi_dokumen' => 'v1',
+        'versi_dokumen' => $aktif,
         'disetujui' => true,
     ])->assertOk()
         ->assertJsonPath('data.persetujuan.efektif', true);
 
     expect((array) DB::table('persetujuan_pdp')->where('user_id', $userId)->sole())->toBe($sebelum);
 
-    // The superseding version is a 201 and the effective answer flips.
+    // The WITHDRAWAL is the SAME version and is a 201: the ledger appends, and
+    // the effective answer flips.
     pd47As($akun['user'])->postJson('/api/v1/pdp/persetujuan', [
         'jenis' => $jenis,
-        'versi_dokumen' => 'v2',
+        'versi_dokumen' => $aktif,
         'disetujui' => false,
     ])->assertCreated()
         ->assertJsonPath('data.persetujuan.efektif', false)
-        ->assertJsonPath('data.persetujuan.versi_dokumen', 'v2');
+        ->assertJsonPath('data.persetujuan.versi_dokumen', $aktif);
 
     expect(DB::table('persetujuan_pdp')->where('user_id', $userId)->count())->toBe(2);
 
     // The client may not set the server-owned columns, and each is named rather
     // than ignored - a caller who believes they set `ip_address` is a caller
-    // building a false audit trail.
+    // building a false audit trail. The version is the ACTIVE one, so the only
+    // errors are the prohibited fields.
     $prohibited = pd47As($akun['user'])->postJson('/api/v1/pdp/persetujuan', [
         'jenis' => $jenis,
-        'versi_dokumen' => 'v3',
+        'versi_dokumen' => $aktif,
         'disetujui' => true,
         'ip_address' => '10.0.0.1',
         'disetujui_at' => '2020-01-01 00:00:00',
@@ -886,8 +742,8 @@ test('POST /pdp/persetujuan records a decision, derives the instant and the addr
 
     expect($buruk->json('errors'))->toHaveKeys(['jenis', 'versi_dokumen', 'disetujui']);
 
-    // An anonymous caller is 401 on both consent routes. TWO things have to be
-    // undone first, and missing either one makes the "anonymous" request
+    // An anonymous caller is 401 on all THREE consent routes. TWO things have to
+    // be undone first, and missing either one makes the "anonymous" request
     // authenticated - which is how a green 401 assertion can be testing nothing:
     //
     // - `pd47As()` installs the bearer token as a DEFAULT header on the shared
@@ -901,53 +757,55 @@ test('POST /pdp/persetujuan records a decision, derives the instant and the addr
     test()->flushHeaders();
 
     test()->postJson('/api/v1/pdp/persetujuan', [
-        'jenis' => $jenis, 'versi_dokumen' => 'v3', 'disetujui' => true,
+        'jenis' => $jenis, 'versi_dokumen' => $aktif, 'disetujui' => true,
     ])->assertStatus(401)->assertJsonPath('message', 'Unauthenticated.');
 
     app('auth')->forgetGuards();
     test()->flushHeaders();
     test()->getJson('/api/v1/pdp/persetujuan')->assertStatus(401);
+
+    app('auth')->forgetGuards();
+    test()->flushHeaders();
+    test()->getJson('/api/v1/pdp/dokumen')->assertStatus(401);
 });
 
-test('the two refusals answer 422 with two messages on one field, and the envelope is the standard one', function (): void {
+test('the version refusal answers 422 with two messages on one field, and the envelope is the standard one', function (): void {
     $akun = pd47AkunPasien();
     $jenis = PdpConsent::JENIS_BERBAGI_DATA;
+    $aktif = app(PdpDokumen::class)->versiAktif($jenis);
+    $userId = (int) $akun['user']->getKey();
 
-    pd47ConsentRaw((int) $akun['user']->getKey(), $jenis, 'v2', false);
-
-    // The collision, over HTTP.
-    $tabrak = pd47As($akun['user'])->postJson('/api/v1/pdp/persetujuan', [
+    // The refusal, over HTTP: a version the server does not publish.
+    $ditolak = pd47As($akun['user'])->postJson('/api/v1/pdp/persetujuan', [
         'jenis' => $jenis,
-        'versi_dokumen' => 'v2',
+        'versi_dokumen' => 'v99',
         'disetujui' => true,
     ]);
 
-    $tabrak->assertStatus(422)
+    $ditolak->assertStatus(422)
         ->assertJsonPath('success', false)
         ->assertJsonPath('message', 'The given data was invalid.')
         ->assertJsonPath('errors.versi_dokumen', [
-            'Persetujuan untuk versi dokumen ini sudah tercatat dan tidak dapat diubah.',
-            'Tarik persetujuan dengan mengirim versi_dokumen yang lebih tinggi.',
+            'Versi dokumen yang dikirim bukan versi aktif.',
+            'Versi aktif saat ini adalah '.$aktif.'. Muat ulang GET /api/v1/pdp/dokumen lalu kirim ulang.',
         ]);
 
     // The envelope has EXACTLY three keys on a failure - no `data`, no `meta`.
-    expect(array_keys($tabrak->json()))->toBe(['success', 'message', 'errors'])
-        ->and(array_keys($tabrak->json('errors')))->toBe(['versi_dokumen']);
+    expect(array_keys($ditolak->json()))->toBe(['success', 'message', 'errors'])
+        ->and(array_keys($ditolak->json('errors')))->toBe(['versi_dokumen'])
+        ->and(DB::table('persetujuan_pdp')->where('user_id', $userId)->count())->toBe(0);
 
-    // The out-of-order write, over HTTP.
-    $lambat = pd47As($akun['user'])->postJson('/api/v1/pdp/persetujuan', [
-        'jenis' => $jenis,
-        'versi_dokumen' => 'v1',
-        'disetujui' => true,
-    ]);
+    // The active version is accepted, and a withdrawal on it is a 201 - so the
+    // refusal above was a real gate and not a blanket denial.
+    pd47As($akun['user'])->postJson('/api/v1/pdp/persetujuan', [
+        'jenis' => $jenis, 'versi_dokumen' => $aktif, 'disetujui' => true,
+    ])->assertCreated();
 
-    $lambat->assertStatus(422)->assertJsonPath('errors.versi_dokumen', [
-        'Versi dokumen ini lebih lama dari versi yang sudah tercatat.',
-        'Kirim versi_dokumen yang lebih tinggi agar persetujuan yang baru berlaku.',
-    ]);
+    pd47As($akun['user'])->postJson('/api/v1/pdp/persetujuan', [
+        'jenis' => $jenis, 'versi_dokumen' => $aktif, 'disetujui' => false,
+    ])->assertCreated();
 
-    // Neither refusal wrote anything, and the effective answer is unchanged.
-    expect(DB::table('persetujuan_pdp')->where('user_id', $akun['user']->getKey())->count())->toBe(1)
+    expect(DB::table('persetujuan_pdp')->where('user_id', $userId)->count())->toBe(2)
         ->and(app(PdpConsent::class)->effective($akun['user'], $jenis))->toBeFalse();
 });
 
@@ -976,8 +834,9 @@ test('consent and notifications are audited by the GLOBAL observer, once, with n
         ->toContain(Notifikasi::class);
 
     // A fixture written through the MODEL proves the observer fires for this
-    // table at all.
-    $viaModel = pd47ConsentModel($userId, $jenis, 'v0', true);
+    // table at all. It records a REFUSAL, so the endpoint's first approval is a
+    // changed decision (201) rather than an idempotent re-send of the fixture.
+    $viaModel = pd47ConsentModel($userId, $jenis, 'v0', false);
 
     expect(DB::table('audit_log')
         ->where('tabel_target', 'persetujuan_pdp')
@@ -985,19 +844,23 @@ test('consent and notifications are audited by the GLOBAL observer, once, with n
         ->where('aksi', 'create')
         ->count())->toBe(1);
 
-    // Now the endpoint. THREE requests, THREE decisions, THREE audit rows -
-    // one per DECISION. The idempotent re-send (the fourth request) is not a
-    // decision and writes no row, so the count is not the request count.
+    // Now the endpoint. THREE requests, TWO decisions, TWO audit rows - one per
+    // DECISION. The idempotent re-send (the second request) is not a decision
+    // and writes no row, so the count is not the request count.
+    $aktif = app(PdpDokumen::class)->versiAktif($jenis);
+
     pd47As($akun['user'])->postJson('/api/v1/pdp/persetujuan', [
-        'jenis' => $jenis, 'versi_dokumen' => 'v1', 'disetujui' => true,
+        'jenis' => $jenis, 'versi_dokumen' => $aktif, 'disetujui' => true,
     ])->assertCreated();
 
     pd47As($akun['user'])->postJson('/api/v1/pdp/persetujuan', [
-        'jenis' => $jenis, 'versi_dokumen' => 'v1', 'disetujui' => true,
+        'jenis' => $jenis, 'versi_dokumen' => $aktif, 'disetujui' => true,
     ])->assertOk();
 
+    // The withdrawal is the SAME version and IS a decision, so it writes a row
+    // and an audit row.
     pd47As($akun['user'])->postJson('/api/v1/pdp/persetujuan', [
-        'jenis' => $jenis, 'versi_dokumen' => 'v2', 'disetujui' => false,
+        'jenis' => $jenis, 'versi_dokumen' => $aktif, 'disetujui' => false,
     ])->assertCreated();
 
     $audit = DB::table('audit_log')->where('tabel_target', 'persetujuan_pdp')->orderBy('id')->get();
@@ -1011,7 +874,8 @@ test('consent and notifications are audited by the GLOBAL observer, once, with n
         ->and($audit->last()->record_id)->toBe(
             (string) DB::table('persetujuan_pdp')
                 ->where('user_id', $userId)
-                ->where('versi_dokumen', 'v2')
+                ->where('disetujui', 0)
+                ->orderByDesc('id')
                 ->value('id')
         )
         ->and($audit->last()->user_id)->toBe($userId)
@@ -1020,7 +884,7 @@ test('consent and notifications are audited by the GLOBAL observer, once, with n
     // The refusal wrote no row: `aksi` has no member for "rejected" and the
     // refusal is not a change to a consent.
     pd47As($akun['user'])->postJson('/api/v1/pdp/persetujuan', [
-        'jenis' => $jenis, 'versi_dokumen' => 'v2', 'disetujui' => true,
+        'jenis' => $jenis, 'versi_dokumen' => 'v99', 'disetujui' => true,
     ])->assertStatus(422);
 
     expect(DB::table('audit_log')->where('tabel_target', 'persetujuan_pdp')->count())->toBe(3);
@@ -1077,7 +941,7 @@ test('a referral is 403 without consent and 201 once this endpoint has recorded 
         'alasan_rujukan' => 'Perlu rujukan kardiologi.',
     ];
 
-    // No consent row at all: V1, and every gate treats `null` as a refusal.
+    // No consent row at all: L1, and every gate treats `null` as a refusal.
     pd47As($akun['user'])->postJson('/api/v1/konsultasi/'.$sesi->getKey().'/surat-keterangan', $body)
         ->assertStatus(403)
         ->assertJsonPath('message', 'This action is unauthorized.');
@@ -1087,9 +951,11 @@ test('a referral is 403 without consent and 201 once this endpoint has recorded 
 
     // The PATIENT grants it through the endpoint todo 47 added - the gate is
     // checked against the patient's account, not the doctor's.
+    $aktif = app(PdpDokumen::class)->versiAktif($jenis);
+
     pd47As($akun['pasienUser'])->postJson('/api/v1/pdp/persetujuan', [
         'jenis' => $jenis,
-        'versi_dokumen' => 'v1',
+        'versi_dokumen' => $aktif,
         'disetujui' => true,
     ])->assertCreated();
 
@@ -1100,12 +966,12 @@ test('a referral is 403 without consent and 201 once this endpoint has recorded 
     expect(SuratKeterangan::query()->count())->toBe(1)
         ->and(Rujukan::query()->count())->toBe(1);
 
-    // The patient WITHDRAWS it at a higher version, and the same request is
-    // refused again. The gate reads the maximum, so a withdrawal is a
-    // withdrawal - this is the end-to-end proof of the version rule.
+    // The patient WITHDRAWS it on the SAME version, and the same request is
+    // refused again. The gate reads the latest row, so a withdrawal is a
+    // withdrawal - this is the end-to-end proof of the ledger rule.
     pd47As($akun['pasienUser'])->postJson('/api/v1/pdp/persetujuan', [
         'jenis' => $jenis,
-        'versi_dokumen' => 'v2',
+        'versi_dokumen' => $aktif,
         'disetujui' => false,
     ])->assertCreated()
         ->assertJsonPath('data.persetujuan.efektif', false);
@@ -1411,15 +1277,22 @@ test('a nurse and a courier are refused by permission:notifikasi.lihat, and the 
         pd47As($user)->putJson('/api/v1/notifikasi/baca-semua')->assertStatus(403);
 
         // The CONSENT routes are not gated, and the same two account types may
-        // read and record their OWN consent. Consent belongs to a person
-        // whoever that person is at work, and `persetujuan_pdp.user_id` (`:1136`)
-        // is a `users` foreign key, not a `pasien` one.
+        // read the catalogue, read and record their OWN consent. Consent belongs
+        // to a person whoever that person is at work, and
+        // `persetujuan_pdp.user_id` (`:1136`) is a `users` foreign key, not a
+        // `pasien` one.
+        pd47As($user)->getJson('/api/v1/pdp/dokumen')
+            ->assertOk()
+            ->assertJsonPath('meta.total', 5);
+
         pd47As($user)->getJson('/api/v1/pdp/persetujuan')
             ->assertOk()
             ->assertJsonPath('meta.total', 5);
 
         pd47As($user)->postJson('/api/v1/pdp/persetujuan', [
-            'jenis' => 'syarat_ketentuan', 'versi_dokumen' => 'v1', 'disetujui' => true,
+            'jenis' => 'syarat_ketentuan',
+            'versi_dokumen' => app(PdpDokumen::class)->versiAktif('syarat_ketentuan'),
+            'disetujui' => true,
         ])->assertCreated();
     }
 
@@ -1443,13 +1316,14 @@ test('a nurse and a courier are refused by permission:notifikasi.lihat, and the 
         ->and(RbacCatalog::ROLE_PERMISSIONS['superadmin'])->toContain('pdp.kelola')
         ->and(RbacCatalog::isPermission('pdp.kelola'))->toBeTrue();
 
-    // An anonymous caller is 401 on all five, which is the guard ORDER rather
+    // An anonymous caller is 401 on all six, which is the guard ORDER rather
     // than the permission: "send a token" and "you may not do this" are
     // different answers. BOTH the default headers and the memoised guard have to
     // be undone, for the reason the other anonymous block in this file spells
     // out - `pd47As()` leaves the bearer token as a default header and
     // `AuthManager` caches the user it resolved.
     foreach ([
+        ['GET', '/api/v1/pdp/dokumen'],
         ['GET', '/api/v1/pdp/persetujuan'],
         ['POST', '/api/v1/pdp/persetujuan'],
         ['GET', '/api/v1/notifikasi'],

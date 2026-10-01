@@ -6,7 +6,6 @@ use App\Models\Konsultasi;
 use App\Models\PersetujuanPdp;
 use App\Models\User;
 use App\Support\Rbac\RoleAssigner;
-use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
@@ -49,9 +48,6 @@ const PD47_JAM = '2026-03-11 10:00:00';
 const PD47_HARI = '2026-03-11';
 
 const PD47_KONEKSI_LAWAN = 'po47_b';
-
-/** MySQL's duplicate-entry error as a driver error code. */
-const PD47_KODE_DUPLIKAT = 1062;
 
 function pd47Jam(): Carbon
 {
@@ -101,8 +97,8 @@ function pd47AssertLine(int $line, string $token): void
  *
  * The negative half is the load-bearing one for a claim about something MISSING:
  * `notifikasi` having no delivery-state column, `persetujuan_pdp` having no
- * `dibuat_at`, and `uq_consent` naming exactly three columns. A positive search
- * cannot prove an absence.
+ * `dibuat_at`, and `:1144` no longer carrying a `UNIQUE KEY` after F02 dropped
+ * `uq_consent`. A positive search cannot prove an absence.
  */
 function pd47AssertLineLacks(int $line, string $token): void
 {
@@ -508,26 +504,6 @@ function pd47Tangkap(callable $aksi, string $tipe): Throwable
     }
 
     Assert::fail('Expected ['.$tipe.'] but nothing was thrown. Returned: '.var_export($hasil, true));
-}
-
-/**
- * Is `$e` a MySQL duplicate-entry violation, whatever Laravel wrapped it in?
- *
- * Read out of `QueryException::$errorInfo` rather than matched against a class,
- * because whether 1062 becomes a `UniqueConstraintViolationException` or a plain
- * `QueryException` is a framework detail and the property under test is the
- * server's answer, not Laravel's mapping of it.
- */
-function pd47AdalahDuplikat(Throwable $e): bool
-{
-    for ($tipe = $e; $tipe !== null; $tipe = $tipe->getPrevious()) {
-        if ($tipe instanceof QueryException
-            && (int) ($tipe->errorInfo[1] ?? 0) === PD47_KODE_DUPLIKAT) {
-            return true;
-        }
-    }
-
-    return false;
 }
 
 /**

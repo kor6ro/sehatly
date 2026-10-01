@@ -4,7 +4,7 @@ Telemedicine platform: a Laravel 13 API for appointments, video/text consultatio
 prescriptions and clinic administration; a React SPA in `web/`; and a pure-Dart
 client package for the mobile team.
 
-The API surface is **75 routes** under `/api/v1`. Every one of them is published
+The API surface is **76 routes** under `/api/v1`. Every one of them is published
 as an OpenAPI 3.1 document that is *generated from the running application*, not
 maintained by hand, and a drift check fails the build if the two disagree.
 
@@ -311,7 +311,7 @@ type check and no test catches.
 
 | Document | What it is |
 | --- | --- |
-| [`docs/openapi.yaml`](docs/openapi.yaml) | **Generated.** The OpenAPI 3.1 contract for all 75 `/api/v1` routes |
+| [`docs/openapi.yaml`](docs/openapi.yaml) | **Generated.** The OpenAPI 3.1 contract for all 76 `/api/v1` routes |
 | [`docs/enums.json`](docs/enums.json) | **Generated.** Every ENUM column and value, cross-checked against the DDL |
 | [`docs/schema-notes.md`](docs/schema-notes.md) | Deferred constraints, extra tables, known schema defects |
 | [`docs/migration-order.md`](docs/migration-order.md) | Why the migrations are in this order |

@@ -236,8 +236,8 @@ as drift. The deliberate folds are:
 - **Index names are compared only when the DDL wrote one.** An inline `UNIQUE`
   becomes index `email` in MySQL but `users_email_unique` in Laravel — the same
   constraint, two spellings, so uniqueness is compared as `NON_UNIQUE` semantics plus
-  the ordered column list. The 30 explicitly named keys (`idx_jadwal`,
-  `idx_booking_dokter`, `uq_interaksi`, `uq_stok`, `uq_consent`, `idx_faskes_geo`,
+  the ordered column list. The 29 explicitly named keys (`idx_jadwal`,
+  `idx_booking_dokter`, `uq_interaksi`, `uq_stok`, `idx_faskes_geo`,
   `idx_icd10`, `idx_diag_icd10`, `idx_vital_pasien`, `idx_pasien_lahir`,
   `idx_spesialisasi`, …) *are* compared by name, keyed on
   `(TABLE_NAME, INDEX_NAME)` — `idx_icd10` is reused on two different tables
@@ -700,8 +700,10 @@ reader is most likely to "repair", and every such repair would be reported as
   may have no `users` row at all, which is also why `hubungan_dengan_pasien`
   (`:698`) is free text where `NULL` means "the patient signed themselves".
   This is separate from `persetujuan_pdp` (table 74, `:1134`), which is
-  platform-level PDP consent keyed on `users` with `uq_consent` (`:1144`); the
-  two spellings are easy to confuse and no constraint links them.
+  platform-level PDP consent keyed on `users` and, since F02, an append-only
+  ledger with no unique key at all (`:1144` is a comment recording the dropped
+  `uq_consent`); the two spellings are easy to confuse and no constraint links
+  them.
 
 Two shapes that are correct but that a later reader is likely to mistake for
 mistakes, recorded so they are not "harmonised":
@@ -1734,7 +1736,7 @@ adds `dihapus_at` to `rekam_medis` *and* introduces a hard-delete path would
 silently turn this into a compliance hole, and must re-examine the constraint
 first. Recorded here because nothing else in the repository would surface it.
 
-### `persetujuan_pdp` is append-only, immutable, and keyed per document VERSION
+### `persetujuan_pdp` is an append-only LEDGER, and `uq_consent` was DROPPED by F02
 
 `persetujuan_pdp` has **no `dibuat_at` and no `diubah_at`** — one of the **39**
 contract tables with neither, and one of the eleven the plan's own (wrong) list of
@@ -1745,28 +1747,45 @@ evidence and must be immutable, and a table with an `updated_at` invites an
 (`:1141`), which is a fact about the act and not bookkeeping — it is caller-supplied
 and is `NOT NULL` **even when `disetujui = 0`**, because a refusal is dated too.
 
-**`UNIQUE KEY uq_consent (user_id, jenis, versi_dokumen)` (`:1144`) makes
-uniqueness per VERSION, and all three columns are load-bearing:**
+**F02's owner decision (2026-10-01) removed the unique key and made the table an
+append-only ledger.** The change is recorded here because it is the one place in
+this repository where the reference DDL was edited rather than read-only law, and
+because every later reader of `:1144` needs to know why the line is a comment.
 
-- A re-consent after a policy version bump is a **new row**, not an update. The old
-  consent stays on record against the document it was actually given for, and an
-  `UPDATE` would destroy exactly the evidence that matters. A user may hold any
-  number of consent rows across versions.
-- A same-version duplicate is **rejected by the database** (MySQL 1062), with no
-  application logic involved and a retry that keeps failing — which is correct.
-- **A revocation at the same version cannot be a new row**, because the key would
-  collide. There is no `dicabut_at`, no `status` and no partial unique index in
-  MySQL, so the only representable options are to `UPDATE` the existing row's
-  `disetujui` flag (losing the fact that consent was once given) or to `DELETE` it
-  (losing the row). `disetujui TINYINT(1) NOT NULL` (`:1140`) is the lever that
-  makes the first option possible and is the **only** reason a revocation is
-  representable at all.
+- **`telemedicine_test.sql:1144` is now a `--` comment**, not a deleted line:
+  `-- uq_consent (user_id, jenis, versi_dokumen) DROPPED 2026-10-01 (F02): ...`.
+  The line is kept so that **every line-number citation after it stays valid** —
+  the file is cited by line number in dozens of tests, migrations and docblocks,
+  and deleting the line would shift all of them by one. `SqlSchemaParser` strips
+  comments while preserving byte offsets, so the parser sees the same table it
+  would see with the line removed.
+- **Migration `2026_10_01_000074` no longer declares the key**, so a fresh
+  `migrate:fresh` never creates it. **Migration `2026_10_01_000081`** drops it
+  from databases migrated before the change, guarded by `Schema::hasIndex()` so
+  the fresh path is a no-op. Its `down()` re-adds the key and will fail with
+  MySQL 1062 if the ledger already holds duplicate `(user_id, jenis,
+  versi_dokumen)` rows — which is correct: a schema that cannot represent the
+  recorded data must not be restored silently.
+- **The rule that replaced it** (`App\Services\Pdp\PdpConsentService`): current
+  status = the **latest recorded row per `(user_id, jenis)`**, in append (`id`)
+  order; **withdrawal is allowed anytime, instantly, on the SAME version** (a new
+  row carrying `disetujui = 0`); the **same consecutive decision is idempotent**
+  (no second row); and the **active version is the server's**, published by
+  `GET /api/v1/pdp/dokumen` from `config/pdp.php`, with any other
+  `versi_dokumen` refused as a 422 on `versi_dokumen`.
+- **A re-consent after a policy version bump is still a NEW ROW**, and the old
+  consent still stays on record against the document it was actually given for.
+  What changed is that a same-version second row is now the mechanism for
+  changing one's mind rather than a collision.
+- **`versi_dokumen` is still a `VARCHAR(20)`**, but it no longer orders anything:
+  the ledger reads `id`, so the old `MAX(versi_dokumen)` trap (`"10.0"` sorting
+  before `"9.0"`) is gone. The zero-padded `v01`..`v99` convention is kept
+  because it is what a client displays and echoes back, and `PdpDokumen` asserts
+  the shape.
 
-**`versi_dokumen` is a `VARCHAR(20)`, so "the latest version" cannot be computed
-with `MAX(versi_dokumen)`** — string collation puts `"10.0"` **before** `"9.0"`.
-Any "highest version wins" lookup must parse the version or order by
-`disetujui_at`. **Todo 47 owns that rule and the revoked-same-version collision,
-and the DDL decides the shape of both.**
+**Do not re-add `uq_consent`.** A unique key here would make a same-version
+withdrawal impossible again — the exact behaviour F02 removed — and it would be
+`extra_index` drift against the reference DDL.
 
 ### `artikel_kategori` is three columns wide, and `jenis` is not one of them
 

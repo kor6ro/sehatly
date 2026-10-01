@@ -1547,18 +1547,19 @@ test('the route table exposes the eight auth routes and the eleven patient route
         'POST api/v1/invoice/{id}/bayar',
         'GET api/v1/invoice/{id}',
         'POST api/v1/webhook/payment/{gateway}',
-        // Todo 47's FIVE routes, appended after todo 45's block and so listed
-        // LAST here in registration order. Two are a two-segment `pdp` path and
-        // three are a two-segment `notifikasi` path, neither of which any
-        // earlier entry resembles, so none of them can be folded into an earlier
-        // group without being listed by prefix - and the reason this list is
-        // keyed by URI rather than by prefix.
+        // Todo 47's FIVE routes, plus F02's `GET pdp/dokumen`, appended after
+        // todo 45's block and so listed LAST here in registration order. Three
+        // are a two-segment `pdp` path and three are a two-segment `notifikasi`
+        // path, neither of which any earlier entry resembles, so none of them
+        // can be folded into an earlier group without being listed by prefix -
+        // and the reason this list is keyed by URI rather than by prefix.
         //
-        // `PdpNotificationTest` asserts the same five as their own closed set,
+        // `PdpNotificationTest` asserts the same six as their own closed set,
         // with their guards, so the two files cannot disagree about which routes
         // exist or what protects them.
         'GET api/v1/pdp/persetujuan',
         'POST api/v1/pdp/persetujuan',
+        'GET api/v1/pdp/dokumen',
         'GET api/v1/notifikasi',
         'PUT api/v1/notifikasi/{id}/baca',
         'PUT api/v1/notifikasi/baca-semua',
@@ -1764,18 +1765,20 @@ test('the route table exposes the eight auth routes and the eleven patient route
             // provider"; an HMAC over the raw body can, and
             // `PaymentWebhookTest` proves it is checked before any row is read.
             'POST api/v1/webhook/payment/{gateway}' => [],
-            // Todo 47's FIVE, and the two halves of its decision stated here
-            // rather than only in `routes/api.php`.
+            // Todo 47's FIVE, plus F02's document catalogue, and the two halves
+            // of the decision stated here rather than only in `routes/api.php`.
             //
-            // The two PDP consent routes take NEITHER, and that is the same shape
+            // The three PDP routes take NEITHER, and that is the same shape
             // of decision as the promo validator above rather than an omission: a
             // consent record is the CALLER's own, so the audience is exactly "a
-            // caller who holds a token" and every account type may read and
-            // answer for itself. A `permission:` here would add a grantable role
-            // to something that is not role-scoped, and a `tipe:pasien` would
-            // refuse a `dokter` who is filling a consent form in on a patient's
-            // behalf. The ownership half - nobody else's record - is answered by
-            // the controller's own `user_id` scoping, not by a middleware.
+            // caller who holds a token" and every account type may read the
+            // catalogue and answer for itself. A `permission:` here would add a
+            // grantable role to something that is not role-scoped, and a
+            // `tipe:pasien` would refuse a `dokter` who is filling a consent form
+            // in on a patient's behalf. The ownership half - nobody else's record
+            // - is answered by the controller's own `user_id` scoping, not by a
+            // middleware.
+            'GET api/v1/pdp/dokumen' => [],
             'GET api/v1/pdp/persetujuan' => [],
             'POST api/v1/pdp/persetujuan' => [],
             // The three notification routes take the permission and NO `tipe:`,

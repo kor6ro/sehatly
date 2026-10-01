@@ -42,11 +42,12 @@ use Illuminate\Validation\Rule;
  * ## `versi_dokumen` is bounded by the COLUMN, not by taste
  *
  * `VARCHAR(20)` (`:1139`), so `max:20` is the schema's limit and not a product
- * decision. The application-layer rule about what a version string means - that
- * "highest" is a STRING order and therefore wants fixed-width values - belongs to
- * {@see PdpConsentService}, not here: a client cannot be told
- * which document is current, so it cannot be asked to produce a well-ordered
- * version.
+ * decision. The application-layer rule about WHICH version is acceptable - it
+ * must be the active one for that `jenis`, published by
+ * `GET /api/v1/pdp/dokumen` - belongs to {@see PdpConsentService}, not here:
+ * it is a domain refusal with its own 422 message, not a field-format rule, and
+ * a client that sends a stale version needs to be told the active one rather
+ * than told its string was malformed.
  */
 class StorePersetujuanPdpRequest extends FormRequest
 {

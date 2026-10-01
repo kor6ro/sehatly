@@ -1240,18 +1240,30 @@ use App\Http\Controllers\Api\V1\PersetujuanPdpController;
 | Module 5 -- PDP consent and the notification centre
 |--------------------------------------------------------------------------
 |
-| APPENDED by todo 47. Five routes in two groups, and the split is the whole
-| design: a person DECIDES, and an inbox TELLS them about it.
+| APPENDED by todo 47, and extended by F02. Six routes in two groups, and the
+| split is the whole design: a person DECIDES, and an inbox TELLS them about it.
 |
 | | route | auth | guard | writes |
 | | --- | --- | --- | --- |
+| | `GET pdp/dokumen` | `auth:sanctum` | - | nothing |
 | | `POST pdp/persetujuan` | `auth:sanctum` | - | one `persetujuan_pdp` row |
 | | `GET pdp/persetujuan` | `auth:sanctum` | - | nothing |
 | | `GET notifikasi` | `auth:sanctum` | `permission:notifikasi.lihat` | nothing |
 | | `PUT notifikasi/{id}/baca` | `auth:sanctum` | `permission:notifikasi.lihat` | one `dibaca_at` |
 | | `PUT notifikasi/baca-semua` | `auth:sanctum` | `permission:notifikasi.lihat` | many `dibaca_at` |
 |
-| ## The two consent routes carry NO `permission:`, and the one obvious code is
+| ## `GET pdp/dokumen` is the server's version authority (F02)
+|
+| The owner's decision: a client must not invent a `versi_dokumen`. This route
+| publishes the ACTIVE version and `berlaku_sejak` of each of the five
+| documents, read from `config/pdp.php` through `App\Support\Pdp\PdpDokumen`,
+| and `POST pdp/persetujuan` refuses any other version with a 422 on
+| `versi_dokumen`. `persetujuan_pdp` is an append-only ledger: the current
+| status is the latest recorded row per `(user, jenis)`, a withdrawal is allowed
+| anytime on the SAME version, and the same consecutive decision is idempotent.
+| The `uq_consent` unique key was dropped for this (see `docs/schema-notes.md`).
+|
+| ## The three consent routes carry NO `permission:`, and the one obvious code is
 | ## the one that must not be used here
 |
 | `RbacCatalog::PERMISSIONS` holds `pdp.kelola`, granted to `admin` and
@@ -1278,7 +1290,7 @@ use App\Http\Controllers\Api\V1\PersetujuanPdpController;
 | is a data change in `app/Support/Rbac/RbacCatalog.php` plus a re-seed, not a
 | change here.
 |
-| ## The plan says FOUR new routes. There are FIVE.
+| ## The plan says FOUR new routes. There are FIVE, and F02 added a sixth.
 |
 | The plan's todo 47 acceptance criteria name four and its own prose names five
 | (`POST pdp/persetujuan`, `GET pdp/persetujuan`, `GET notifikasi`,
@@ -1286,7 +1298,7 @@ use App\Http\Controllers\Api\V1\PersetujuanPdpController;
 | the count is an undercount; all five are registered. Recorded rather than
 | silently reconciled, because a plan whose arithmetic disagrees with itself is
 | something a later executor needs to see rather than be shown a tidied-up
-| version of.
+| version of. F02 then appended `GET pdp/dokumen` beside them, for six.
 |
 | ## `whereNumber` on `{id}`
 |
@@ -1320,6 +1332,12 @@ Route::post('pdp/persetujuan', [PersetujuanPdpController::class, 'store'])
 Route::get('pdp/persetujuan', [PersetujuanPdpController::class, 'index'])
     ->middleware(['auth:sanctum'])
     ->name('pdp.persetujuan.index');
+
+// F02's version authority, registered beside the two routes it serves. It is a
+// GET with no body, so it needs no FormRequest - the DoD applies to writes.
+Route::get('pdp/dokumen', [PersetujuanPdpController::class, 'dokumen'])
+    ->middleware(['auth:sanctum'])
+    ->name('pdp.dokumen.index');
 
 Route::get('notifikasi', [NotifikasiController::class, 'index'])
     ->middleware(['auth:sanctum', 'permission:notifikasi.lihat'])

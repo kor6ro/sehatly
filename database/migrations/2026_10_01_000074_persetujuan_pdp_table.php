@@ -7,9 +7,8 @@ use Illuminate\Support\Facades\Schema;
 /**
  * SQL table 74 of 75 — `telemedicine_test.sql:1134-1145`. **Batch K.**
  *
- * **7 columns** (`:1135`-`:1142`), **2 indexes** (the primary key and
- * `UNIQUE KEY uq_consent (user_id, jenis, versi_dokumen)`) and **1 foreign key**
- * (`:1143`).
+ * **7 columns** (`:1135`-`:1142`), **1 index** (the primary key) and **1 foreign
+ * key** (`:1143`).
  *
  * Module: M5 compliance. `docs/migration-order.md` row 74 records `Resource: 47`,
  * `Controller: 47`; Model: todo 19. This todo authors the table and nothing else —
@@ -34,50 +33,35 @@ use Illuminate\Support\Facades\Schema;
  * legitimately differ from the insert time (a consent recorded on paper and
  * imported later).
  *
- * ## TRAP 4 — `uq_consent` (user_id, jenis, versi_dokumen) — UNIQUENESS IS PER VERSION
+ * ## F02: `uq_consent` WAS DROPPED — the table is an APPEND-ONLY LEDGER
  *
- * `:1144` — `UNIQUE KEY uq_consent (user_id, jenis, versi_dokumen)`. This is a
- * **named** key, so rule 10 compares it **by name**: it is declared
- * `$table->unique(['user_id', 'jenis', 'versi_dokumen'], 'uq_consent')`. All three
- * columns are load-bearing and **must not be collapsed into fewer**:
+ * This migration originally declared
+ * `UNIQUE KEY uq_consent (user_id, jenis, versi_dokumen)` (`:1144`), which made a
+ * decision about a given document version immutable: a second row for the same
+ * `(user, jenis, versi)` collided, so a withdrawal could only be recorded as a
+ * NEW version. **The owner's F02 decision replaced that rule.** The unique key is
+ * gone from this migration and from `telemedicine_test.sql:1144` (which now
+ * carries a comment in its place, so every line-number citation after it stays
+ * valid), and migration `2026_10_01_000081` drops it from databases that were
+ * migrated before the change.
  *
- * - **A re-consent after a policy version bump is a NEW ROW, not an update.**
- *   `versi_dokumen` is part of the key, so a user who accepted version `1.0` and
- *   later accepts `2.0` gets two rows. That is the design: the old consent remains
- *   on record against the document it was actually given for, and an `UPDATE` would
- *   destroy exactly the evidence that matters. A user may therefore hold **any
- *   number** of consent rows across versions.
- * - **A same-version duplicate is rejected by the database** — MySQL 1062. Nothing
- *   in the application is needed to prevent it, and a submit handler that retries
- *   an `INSERT` after a duplicate will keep failing, which is the correct
- *   behaviour.
- * - **The same user may consent to the same `jenis` twice at the same version
- *   only if the row is deleted first**, and nothing in the schema cascades or
- *   records a revocation. See the collision note below.
+ * The new rule, owned by `App\Services\Pdp\PdpConsentService`:
  *
- * **Todo 47 owns both of the rules this key's shape decides**, and the DDL — not
- * the service — is what makes them necessary:
+ * - **Current status = the latest recorded row per `(user_id, jenis)`**, in
+ *   append order (`id`). The active version is enforced on every write, so `id`
+ *   order is the order.
+ * - **Withdrawal is allowed anytime, instantly, on the SAME version** — it is a
+ *   new row carrying `disetujui = 0`, not a version bump.
+ * - **The same consecutive decision is idempotent** — no second row.
+ * - **The active version is the server's**, published by
+ *   `GET /api/v1/pdp/dokumen` from `config/pdp.php`; a `versi_dokumen` that is
+ *   not the active one is refused with a 422.
  *
- * 1. **"Highest `versi_dokumen` wins."** Nothing in the database orders versions or
- *    picks a winner: `versi_dokumen` is `VARCHAR(20)`, a **string**, so a `MAX()`
- *    over it sorts lexicographically and `"10.0"` compares **less than** `"9.0"`.
- *    Any "latest consent" lookup must therefore be done on a parsed version — or on
- *    `disetujui_at` — and never on a bare `MAX(versi_dokumen)`. This is a real trap
- *    and it is created by the DDL's choice of `VARCHAR`.
- * 2. **The revoked-same-version collision.** There is no `dicabut_at`, no
- *    `status`, and no partial unique index (MySQL has none), so a withdrawal of
- *    the consent for `(user, jenis, versi)` **cannot be recorded as a new row at
- *    that same version** — the key would collide. The only representable
- *    representations are to `UPDATE` the existing row's `disetujui` flag (losing
- *    the fact that consent was once given) or to `DELETE` it (losing the row
- *    entirely). `disetujui TINYINT(1) NOT NULL` (`:1140`) is the lever that makes
- *    the first option possible, and **its existence is the only reason a revocation
- *    is representable at all.**
- *
- * `disetujui_at DATETIME NOT NULL` (`:1141`) is therefore **`NOT NULL` even when
- * `disetujui = 0`** — a refusal is dated too, and the DDL requires it. That is a
- * deliberate asymmetry: `disetujui` says *whether*, `disetujui_at` says *when the
- * decision was made*, and a decision without a time is not a record.
+ * The old key's three columns are still load-bearing, just differently: a
+ * re-consent after a policy version bump is still a NEW ROW (the old consent
+ * stays on record against the document it was actually given for), and the
+ * ledger still never edits a row. What changed is that a same-version second row
+ * is now the mechanism for changing one's mind rather than a collision.
  *
  * ## THE WRAPPED ENUM — `jenis` spans `:1137`-`:1138` and is **FIVE** values
  *
@@ -184,24 +168,22 @@ return new class extends Migration
             // guessed).
             $table->enum('jenis', ['syarat_ketentuan', 'kebijakan_privasi', 'berbagi_data_medis', 'pemasaran', 'komunikasi_tindak_lanjut']);
 
-            // ## TRAP 4 - `versi_dokumen VARCHAR(20) NOT NULL` (:1139). This is
-            // the third column of `uq_consent` and it is what makes the uniqueness
-            // PER VERSION.
+            // ## `versi_dokumen VARCHAR(20) NOT NULL` (:1139).
             //
-            // **It is a VARCHAR, so "the latest version" CANNOT be computed with
-            // MAX(versi_dokumen)**: string collation puts "10.0" BEFORE "9.0". Any
-            // "highest version wins" lookup must parse the version or order by
-            // disetujui_at. Todo 47 owns that rule; the DDL is what forces it.
+            // F02: the ACTIVE version is the server's, published by
+            // `GET /api/v1/pdp/dokumen` from `config/pdp.php`, and the write path
+            // refuses any other value with a 422. The ledger orders by `id`, not by
+            // this string, so the old "highest version wins" convention - and its
+            // `v2.0` > `v10.0` trap - no longer decides anything. The zero-padded
+            // `v01`..`v99` shape is kept because it is what a client displays and
+            // echoes back.
             $table->string('versi_dokumen', 20);
 
             // TINYINT(1) NOT NULL (:1140) - the decision, yes or no. **No default**,
-            // so a row must state it. This column is also the ONLY thing that makes
-            // a revocation representable: there is no `dicabut_at`, no `status` and
-            // no partial unique index in MySQL, so a withdrawal at the SAME
-            // (user, jenis, versi) cannot be a new row - the key would collide -
-            // and flipping this flag in place is the only remaining option. Reading
-            // it as `disetujui = 0` loses the fact that consent was once given,
-            // which is a real cost and the DDL's, not this migration's.
+            // so a row must state it. F02: this column is what makes a withdrawal
+            // representable as a NEW ROW at the SAME version - the ledger's current
+            // status is the latest row's value, so `disetujui = 0` appended after a
+            // `1` is a withdrawal, and a `1` appended after a `0` is a re-approval.
             $table->boolean('disetujui');
 
             // ## DATETIME NOT NULL (:1141) - **dateTime(), NOT timestamp()** - and
@@ -218,27 +200,20 @@ return new class extends Migration
             // IP type. Same width and same absence as audit_log.ip_address (:1126).
             $table->string('ip_address', 45)->nullable();
 
-            // ## TRAP 4 - `UNIQUE KEY uq_consent (user_id, jenis, versi_dokumen)`
-            // (:1144). **A NAMED key, so rule 10 compares it BY NAME**, and all
-            // THREE columns are load-bearing - do not collapse them into fewer.
+            // ## F02: NO `uq_consent` HERE ANY MORE.
             //
-            //  - A re-consent after a policy version bump is a **NEW ROW**, not an
-            //    update: the old consent stays on record against the document it was
-            //    actually given for, and an UPDATE would destroy the evidence.
-            //  - A same-version duplicate is **rejected by the database** (MySQL
-            //    1062); no application logic is needed and a retry keeps failing,
-            //    which is correct.
-            //  - A revocation at the same version **cannot be a new row** (the key
-            //    collides), so it must be an UPDATE of `disetujui` or a DELETE.
+            // This migration used to declare
+            // `$table->unique(['user_id', 'jenis', 'versi_dokumen'], 'uq_consent')`
+            // to match `telemedicine_test.sql:1144`. The owner's F02 decision made
+            // `persetujuan_pdp` an append-only ledger, so the unique key is gone
+            // from both sides and `:1144` now carries a comment instead. Migration
+            // `2026_10_01_000081` drops the index from databases migrated before
+            // this change; a fresh `migrate:fresh` never creates it.
             //
-            // Todo 47 owns both rules this shape decides - "highest versi_dokumen
-            // wins" and the revoked-same-version collision - and the DDL decides the
-            // shape of both. **COLUMN ORDER IS ALSO THE CONTRACT**:
-            // (user_id, jenis, versi_dokumen) is not interchangeable with any
-            // permutation, and because user_id is the leftmost prefix the key also
-            // serves InnoDB's support requirement for the foreign key at :1143, so
-            // MySQL creates no extra implicit index on this column.
-            $table->unique(['user_id', 'jenis', 'versi_dokumen'], 'uq_consent');
+            // Do NOT re-add it. A unique key here would make a same-version
+            // withdrawal impossible again, which is the exact behaviour F02
+            // removed, and it would be `extra_index` drift against the reference
+            // DDL.
 
             // FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE (:1143)
             // - correct here and DELIBERATELY OPPOSITE to audit_log.user_id (:1120),

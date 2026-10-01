@@ -24,8 +24,9 @@ use Illuminate\Support\Facades\Schema;
  *
  * **`persetujuan_pdp` IS A DIFFERENT TABLE AND IS NOT PART OF THIS BATCH.**
  * `persetujuan_pdp` (table 74, `:1134`) records platform-level data
- * protection consent keyed on `user_id`, and it has a named
- * `UNIQUE KEY uq_consent (user_id, jenis, versi_dokumen)` (`:1144`). This table
+ * protection consent keyed on `user_id`, and since F02 it is an append-only
+ * ledger whose `uq_consent` unique key was dropped (`:1144` is now a comment
+ * recording that; see `docs/schema-notes.md`). This table
  * records **patient-level clinical consent attached to one medical record**. The
  * two are not substitutes, the two spellings are easy to confuse
  * (`persetujuan` here, `persetujuan_pdp` there), and no constraint links them.

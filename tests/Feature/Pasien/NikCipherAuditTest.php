@@ -382,12 +382,17 @@ test('the DDL changed by exactly the ONE authorised line, and the migration made
     // authorised deviation rather than an unexplained edit.
     //
     //   before  aefe2247e00f09acb02235168ac289cdfa74f762d604ada71f68e328574b27f5
-    //   after   277475461e8ed1bf14c624bbccc1d71c73b3b7e6610c02fbeb920886a0c35931
+    //   NIK     277475461e8ed1bf14c624bbccc1d71c73b3b7e6610c02fbeb920886a0c35931
+    //   F02     b06edfb50b59bc8d5ba330740fe9d8d493d529fecbbf252d83ea723d49e2457c
     //
-    // The ONLY difference is line 222, which is asserted below by content and by
-    // line count. Everything else in the 1349-line file is byte-identical.
+    // The NIK change touched line 222 only. F02 then replaced line 1144's
+    // `UNIQUE KEY uq_consent ...` with a comment recording the drop, so the
+    // digest moved again - the second authorised deviation, recorded here for
+    // the same reason as the first. The line COUNT is unchanged at 1349, which
+    // is asserted below: F02 kept the line so every citation after it stays
+    // valid.
     expect(hash_file('sha256', base_path('telemedicine_test.sql')))
-        ->toBe('277475461e8ed1bf14c624bbccc1d71c73b3b7e6610c02fbeb920886a0c35931');
+        ->toBe('b06edfb50b59bc8d5ba330740fe9d8d493d529fecbbf252d83ea723d49e2457c');
 
     // No table named after the proposed columns exists. Still true, and still
     // worth saying: the payload is a COLUMN, not a table.

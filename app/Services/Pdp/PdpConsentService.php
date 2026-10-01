@@ -7,80 +7,58 @@ namespace App\Services\Pdp;
 use App\Enums\PersetujuanPdpJenis;
 use App\Models\PersetujuanPdp;
 use App\Models\User;
-use Illuminate\Database\UniqueConstraintViolationException;
+use App\Support\Pdp\PdpDokumen;
 use Illuminate\Support\Carbon;
 use LogicException;
 
 /**
- * The WRITE path for one decision about one document version, and the only place
- * the version rule is enforced on the way in.
+ * The WRITE path for one decision about the ACTIVE document version, and the
+ * only place the version rule is enforced on the way in.
  *
- * ## THE RULE, restated as code
+ * ## The owner's decision, restated as code
  *
- * `telemedicine_test.sql:1134`-`:1145` gives `persetujuan_pdp` three columns that
- * decide everything:
- *
- * ```
- * :1139  versi_dokumen VARCHAR(20) NOT NULL,
- * :1140  disetujui      TINYINT(1) NOT NULL,
- * :1144  UNIQUE KEY uq_consent (user_id, jenis, versi_dokumen)
- * ```
- *
- * The unique key spans THREE columns and `disetujui` is `NOT NULL` with no
- * nullable twin, so **a decision about a given document version is immutable**.
- * A revocation can therefore only be recorded as a NEW `versi_dokumen` carrying
- * `disetujui = 0`, and {@see PdpConsent} reads the answer off the row with the
- * maximum `versi_dokumen`.
- *
- * That read is only safe if the WRITE side agrees with it, so this class refuses
- * anything that could not become the effective row:
+ * `persetujuan_pdp` is an **append-only ledger**. The `uq_consent` unique key
+ * that used to make `(user_id, jenis, versi_dokumen)` unique was dropped by F02
+ * (see `docs/schema-notes.md`), so a person may hold any number of rows for the
+ * same document version, and the CURRENT status is the **latest recorded row
+ * per `(user_id, jenis)`** - append order, which is `id` order because the
+ * active version is enforced on every write.
  *
  * | incoming | outcome |
  * | --- | --- |
- * | version HIGHER than the maximum | written; supersedes every lower version |
- * | version EQUAL, same `disetujui` | the existing row, untouched - an idempotent re-send |
- * | version EQUAL, different `disetujui` | refused: the revoked-same-version collision |
- * | version LOWER than the maximum | refused: it could never be read |
+ * | `versi_dokumen` is NOT the active version of `jenis` | refused: 422 on `versi_dokumen` |
+ * | the active version, same answer as the latest row | the latest row, untouched - an idempotent re-send (200) |
+ * | the active version, different answer | a NEW row is appended; it becomes the effective one (201) |
  *
- * **The defect this prevents.** A store that accepted the last two would let a
- * revocation at version N be undone by a consent at version N-1, and would report
- * a success for a row that changes nothing. The gate in
- * {@see PdpConsent::require()} reads the maximum, so a resurrected row is
- * invisible - the client would be told "withdrawn" while the refusal never lands.
+ * **Withdrawal is allowed anytime, instantly, on the SAME version.** The old
+ * rule could only represent a revocation as a higher version, which meant a
+ * person could not change their mind until the document itself advanced. The
+ * ledger removes that coupling: `disetujui = false` at the active version is a
+ * new row, and the latest row wins.
  *
- * ## Every comparison is done IN SQL, and that is load-bearing
+ * **The active version is the server's, not the client's.** It comes from
+ * {@see PdpDokumen}, which reads `config/pdp.php`; the client learns it from
+ * `GET /api/v1/pdp/dokumen` and echoes it back. A client can no longer invent a
+ * version, and a stale client is refused loudly instead of writing a row that
+ * could never be the effective one.
  *
- * `telemedicine_test.sql:11`-`:13` creates the database with
- * `COLLATE utf8mb4_unicode_ci`, and no `CREATE TABLE` in the file overrides it, so
- * `versi_dokumen` is compared **case-insensitively and accent-insensitively**.
- * `'v1.0'` and `'V1.0'` are the same value to `uq_consent` and different strings
- * to PHP's `strcmp()`.
+ * ## Why the row is appended through the MODEL
  *
- * A pre-check written in PHP would therefore DISAGREE with the unique key, and the
- * disagreement is not theoretical: a client holding `V1.0` against a stored `v1.0`
- * would pass a `strcmp` pre-check and then be killed by a raw 1062. So the equality
- * test is `where('versi_dokumen', $versi)` and the ordering test is
- * `where('versi_dokumen', '>', $versi)` - both evaluated by MySQL, in the same
- * collation the constraint uses, so the two can never drift. That also means
- * `'V1.0'` against a stored `'v1.0'` is correctly treated as a COLLISION, which is
- * what the DDL would do to the INSERT.
- *
- * ## The unique violation is caught anyway
- *
- * The pre-check above is application logic and can be raced by a second writer
- * between its SELECT and its INSERT. `uq_consent` fires regardless, so the
- * exception is caught and mapped to the SAME refusal the pre-check produces. A race
- * is a normal outcome of a concurrent write, and answering it 500 would mean the
- * collision is only handled when nobody else is looking.
+ * The global `AuditObserver` is an Eloquent observer, and a builder insert
+ * fires no event, so a consent record written that way would be the one write
+ * in this table that leaves no `audit_log` row. The idempotent re-send writes
+ * nothing and therefore produces no audit row either: the audit records
+ * DECISIONS, not HTTP calls.
  *
  * ## `disetujui_at` is the moment of the DECISION, for either answer
  *
- * The column is `DATETIME NOT NULL` (`:1141`) with no nullable twin, so a refusal
- * must carry an instant too. It is the instant the person withdrew, taken from the
- * application clock - never from the request, because "when did you decide" is not
- * a client-supplied fact and a caller who could set it could backdate a consent
- * record. The request forbids the field outright rather than ignoring it, for the
- * reason `CheckoutResepRequest` gives: a caller who sent it believes they set it.
+ * The column is `DATETIME NOT NULL` (`telemedicine_test.sql:1141`) with no
+ * nullable twin, so a refusal must carry an instant too. It is the instant the
+ * person decided, taken from the application clock - never from the request,
+ * because "when did you decide" is not a client-supplied fact and a caller who
+ * could set it could backdate a consent record. The request forbids the field
+ * outright rather than ignoring it, for the reason `CheckoutResepRequest` gives:
+ * a caller who sent it believes they set it.
  *
  * ## `ip_address` is captured, not chosen
  *
@@ -88,25 +66,26 @@ use LogicException;
  * `$request->ip()` when the caller is behind the API and left NULL otherwise. A
  * client-supplied address would be a self-attested audit trail.
  *
- * ## There is NO upsert, and `ON DUPLICATE KEY UPDATE` is the defect named
+ * ## There is NO upsert, and `ON DUPLICATE KEY UPDATE` is still the defect
  *
- * The plan's todo 47 text says "upserting against `uq_consent`". An upsert here
- * would `UPDATE` the existing row's `disetujui`, `disetujui_at` and `ip_address` -
- * which is the revoked-same-version collision performed silently, and would
- * destroy the record of what the person originally agreed to while making the
- * endpoint answer 201. The table is a HISTORY; a superseded decision is a NEW row,
- * and this class never edits one.
+ * An upsert would `UPDATE` the latest row's `disetujui`, `disetujui_at` and
+ * `ip_address` - destroying the record of what the person originally decided
+ * while making the endpoint answer 201. The table is a HISTORY; a superseded
+ * decision is a NEW row, and this class never edits one.
  */
 final class PdpConsentService
 {
+    public function __construct(
+        private readonly PdpDokumen $dokumen,
+    ) {}
+
     /**
-     * Record one decision, or explain why the version rule refuses it.
+     * Record one decision about the active version, or explain why it is refused.
      *
      * @param  string|null  $ip  the request's address, or null outside a request
      *
-     * @throws PerubahanVersiException on the collision or an out-of-order write
+     * @throws PerubahanVersiException when `$versi` is not the active version
      * @throws LogicException when `$jenis` is not a value of the DDL ENUM
-     * @throws UniqueConstraintViolationException never - it is caught and mapped
      */
     public function catat(User $user, string $jenis, string $versi, bool $disetujui, ?string $ip = null): PersetujuanPdp
     {
@@ -117,65 +96,57 @@ final class PdpConsentService
             );
         }
 
+        // R1. The server is the version authority. A version that is not the
+        // active one is refused BEFORE any read of the caller's history, so the
+        // refusal is a fact about the document and not about what this account
+        // happens to have recorded.
+        $aktif = $this->dokumen->versiAktif($jenis);
+
+        if ($versi !== $aktif) {
+            throw PerubahanVersiException::tidakAktif($versi, $aktif);
+        }
+
         $userId = (int) $user->getKey();
 
-        // R1a / R1b, decided in MySQL's own collation. See the class docblock
-        // for why a PHP `strcmp` here would disagree with `uq_consent`.
-        $sama = PersetujuanPdp::query()
+        // R2. The effective row is the LATEST recorded one, by append order.
+        // `id` is the append order: the active version is enforced above, so
+        // every row this service writes carries the same version until the
+        // catalogue advances, and `id` is the only ordering the ledger needs.
+        // `versi_dokumen` is deliberately NOT the ordering key any more - the
+        // old string-order rule is what made a withdrawal impossible on the
+        // same version.
+        $terakhir = PersetujuanPdp::query()
             ->where('user_id', $userId)
             ->where('jenis', $jenis)
-            ->where('versi_dokumen', $versi)
+            ->orderByDesc('id')
             ->first();
 
-        if ($sama !== null) {
-            if ((bool) $sama->disetujui === $disetujui) {
-                // The idempotent re-send. The recorded decision is returned
-                // UNCHANGED - no write, therefore no `audit_log` row either,
-                // because the audit records decisions and not HTTP calls.
-                return $sama;
-            }
-
-            throw PerubahanVersiException::tabrakan($versi, $disetujui);
+        if ($terakhir !== null && (bool) $terakhir->disetujui === $disetujui) {
+            // The idempotent re-send. The recorded decision is returned
+            // UNCHANGED - no write, therefore no `audit_log` row either,
+            // because the audit records decisions and not HTTP calls.
+            return $terakhir;
         }
 
-        // R1c. `where('versi_dokumen', '>', ...)` and not `!=` above: a strictly
-        // lower version is refused, and so is any version below the maximum, so
-        // the check is a real ordering and not a "different" test.
-        $adaYangLebihTinggi = PersetujuanPdp::query()
-            ->where('user_id', $userId)
-            ->where('jenis', $jenis)
-            ->where('versi_dokumen', '>', $versi)
-            ->exists();
-
-        if ($adaYangLebihTinggi) {
-            throw PerubahanVersiException::lebihLama($versi);
-        }
-
-        // R1d. The row is saved through the MODEL, never the query builder: the
-        // global `AuditObserver` is an Eloquent observer, and a builder insert
-        // fires no event, so a consent record written that way would be the one
-        // write in this table that leaves no `audit_log` row.
+        // R3. A new decision - including a withdrawal on the SAME version -
+        // appends a row. The SERVER's canonical version is written, not the
+        // caller's string: they are equal today because R1's comparison is
+        // strict, and writing the server's value keeps the ledger canonical if
+        // that comparison is ever relaxed.
         $baris = new PersetujuanPdp;
         $baris->user_id = $userId;
         $baris->jenis = $jenis;
-        $baris->versi_dokumen = $versi;
+        $baris->versi_dokumen = $aktif;
         $baris->disetujui = $disetujui;
         $baris->disetujui_at = Carbon::now();
         $baris->ip_address = $ip;
-
-        try {
-            $baris->save();
-        } catch (UniqueConstraintViolationException $e) {
-            // The racing writer. Same outcome, same messages - see the class
-            // docblock for why this is not a 500.
-            throw PerubahanVersiException::tabrakan($versi, $disetujui);
-        }
+        $baris->save();
 
         return $baris;
     }
 
     /**
-     * Every `jenis` with the row the version rule would read, in DDL order.
+     * Every `jenis` with the row the ledger would read, in DDL order.
      *
      * The caller-facing shape is a checklist, and a checklist with a hole in it
      * makes a client invent its own "has this person answered yet" rule. So this
@@ -188,7 +159,7 @@ final class PdpConsentService
     {
         $tercatat = PersetujuanPdp::query()
             ->where('user_id', (int) $user->getKey())
-            ->orderByDesc('versi_dokumen')
+            ->orderByDesc('id')
             ->get()
             ->groupBy('jenis');
 
@@ -197,11 +168,11 @@ final class PdpConsentService
         foreach (PersetujuanPdpJenis::nilai() as $jenis) {
             $hasil[] = [
                 'jenis' => $jenis,
-                // `get()` came back ordered by `versi_dokumen DESC`, so the FIRST
-                // row of each group IS the maximum - the same row
-                // `PdpConsent::versiTerbaru()` reads, read by the same ordering
-                // in the same collation. `first()` on the group would be a second
-                // spelling of that rule.
+                // `get()` came back ordered by `id DESC`, so the FIRST row of
+                // each group IS the latest recorded one - the same row
+                // {@see PdpConsent::versiTerbaru()} reads, read by the same
+                // ordering. `first()` on the group would be a second spelling of
+                // that rule.
                 'baris' => ($tercatat[$jenis] ?? null)?->first(),
             ];
         }

@@ -57,12 +57,13 @@ use Illuminate\Support\Carbon;
  * `Illuminate\Support\Carbon`, so `Carbon::instance()` is a no-op guard that keeps
  * the resource correct if the cast is ever changed.
  *
- * ## The row is the one the version rule reads
+ * ## The row is the one the ledger rule reads
  *
  * Nothing is re-derived here. The resource is handed the row
- * {@see PdpConsentService::ringkasan()} already selected with
- * `versi_dokumen DESC`, and publishing a lower row while calling it `efektif`
- * would be the exact defect this todo exists to prevent, one layer up.
+ * {@see PdpConsentService::ringkasan()} already selected with `id DESC` - the
+ * latest recorded row per `(user, jenis)` - and publishing an older row while
+ * calling it `efektif` would be the exact defect the ledger exists to prevent,
+ * one layer up.
  *
  * @property-read PersetujuanPdp|null $resource
  */

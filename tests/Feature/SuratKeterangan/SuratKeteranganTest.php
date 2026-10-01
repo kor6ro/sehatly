@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 use App\Enums\PersetujuanPdpJenis;
 use App\Enums\SuratKeteranganTipe;
+use App\Http\Requests\SuratKeterangan\BuatSuratKeteranganRequest;
 use App\Models\Konsultasi;
+use App\Models\Pasien;
 use App\Models\PersetujuanPdp;
 use App\Models\Rujukan;
 use App\Models\SuratKeterangan;
 use App\Models\User;
-use App\Http\Requests\SuratKeterangan\BuatSuratKeteranganRequest;
 use App\Services\Pasien\PasienRecordAccess;
 use App\Services\Pdp\PdpConsent;
 use App\Services\SuratKeterangan\QrTokenGenerator;
@@ -21,6 +22,7 @@ use App\Support\NamaMasker;
 use App\Support\NikMasker;
 use App\Support\Rbac\RbacCatalog;
 use App\Support\Rbac\RoleAssigner;
+use App\Support\Schema\SchemaSpec;
 use App\Support\Schema\SqlSchemaParser;
 use Database\Seeders\RbacSeeder;
 use Illuminate\Support\Carbon;
@@ -29,6 +31,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use PHPUnit\Framework\Assert;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use Tests\Support\PasienFixture;
 
 /*
 |--------------------------------------------------------------------------
@@ -108,21 +111,25 @@ function sktPengguna(string $tipe, ?string $role = null): User
 
 /**
  * A `pasien` row. `jenis_kelamin` (:225), `tanggal_lahir` (:226) and
- * `alamat_lengkap` (:234) are NOT NULL with no default, and `nik` (:222) is
- * `CHAR(16) NULL UNIQUE` so it needs a value for the mask assertions to have
- * something to mask.
+ * `alamat_lengkap` (:234) are NOT NULL with no default.
+ *
+ * `nik_cipher` replaced `nik CHAR(16) NULL UNIQUE` (:222), so the value is a
+ * `NikCipher` payload rather than the 16 characters themselves. It still needs
+ * to be there for the mask assertions to have something to mask, and
+ * `PasienFixture` encrypts it with the same `NikCipher::encrypt()` the model
+ * mutator calls.
  *
  * @param  array<string, mixed>  $ubah
  */
 function sktPasien(int $userId, array $ubah = []): int
 {
-    return (int) DB::table('pasien')->insertGetId(array_merge([
+    return (int) DB::table('pasien')->insertGetId(PasienFixture::withNik(array_merge([
         'user_id' => $userId,
         'nik' => '327312345678'.str_pad((string) (1000 + random_int(0, 8999)), 4, '0', STR_PAD_LEFT),
         'jenis_kelamin' => 'P',
         'tanggal_lahir' => '1990-05-17',
         'alamat_lengkap' => 'Jl. Uji Surat No. 12, Jakarta',
-    ], $ubah));
+    ], $ubah)));
 }
 
 /**
@@ -305,7 +312,7 @@ function sktTokenStub(array $nilai): QrTokenGenerator
 /**
  * The parsed DDL, once, for the vocabulary and citation assertions.
  */
-function sktSpec(): App\Support\Schema\SchemaSpec
+function sktSpec(): SchemaSpec
 {
     return (new SqlSchemaParser)->parseFile(base_path('telemedicine_test.sql'));
 }
@@ -719,8 +726,9 @@ test('every DDL line number cited by this todo is the line it claims to be', fun
         614 => 'FOREIGN KEY (dokter_perujuk_id) REFERENCES dokter(id)',
         615 => 'ENGINE=InnoDB',
 
-        // The consent table: CREATE at 1134, a WRAPPED ENUM at 1137-1138, and the
-        // composite unique at 1144 that makes revocation unrepresentable.
+        // The consent table: CREATE at 1134, a WRAPPED ENUM at 1137-1138, and at
+        // 1144 the COMMENT F02 left in place of the dropped `uq_consent` unique
+        // key. The line is kept so every citation after it stays valid.
         1134 => 'CREATE TABLE persetujuan_pdp (',
         1136 => 'user_id BIGINT UNSIGNED NOT NULL',
         1137 => "jenis ENUM('syarat_ketentuan','kebijakan_privasi','berbagi_data_medis',",
@@ -728,14 +736,19 @@ test('every DDL line number cited by this todo is the line it claims to be', fun
         1139 => 'versi_dokumen VARCHAR(20) NOT NULL',
         1140 => 'disetujui TINYINT(1) NOT NULL',
         1143 => 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE',
-        1144 => 'UNIQUE KEY uq_consent (user_id, jenis, versi_dokumen)',
+        1144 => 'uq_consent (user_id, jenis, versi_dokumen) DROPPED',
         1145 => 'ENGINE=InnoDB',
 
         // Reached through the second hop.
         134 => 'uuid CHAR(36) NOT NULL UNIQUE',
         135 => 'nama_lengkap VARCHAR(150) NOT NULL',
         139 => "tipe ENUM('pasien','dokter','perawat','apoteker','kurir','admin','superadmin') NOT NULL DEFAULT 'pasien'",
-        222 => 'nik CHAR(16) NULL UNIQUE',
+        // Was `nik CHAR(16) NULL UNIQUE` until migration
+        // `2026_10_01_000079` renamed the column to `nik_cipher` and widened it to
+        // `TEXT`, dropping the inline `UNIQUE` - a `TEXT` column cannot carry an
+        // index in MySQL, and this project adds no blind index to replace it. The
+        // line number is unchanged because the rename was a rename.
+        222 => 'nik_cipher TEXT NULL',
         362 => 'kode_faskes VARCHAR(20) NULL UNIQUE',
         364 => 'nama VARCHAR(200) NOT NULL',
         413 => 'nomor_str VARCHAR(30) NOT NULL UNIQUE',
@@ -1641,54 +1654,38 @@ test('a faskes_tujuan_id that does not exist is 422, never a foreign-key 500', f
         ->and(Rujukan::query()->count())->toBe(0);
 });
 
-test('the consent check reads the highest versi_dokumen, and the column is a VARCHAR', function (): void {
+test('the consent check reads the LATEST recorded row, and the version string no longer orders it', function (): void {
     $account = sktDoctorAccount();
     $sesi = sktKonsultasi($account['pasien'], $account['dokter']);
-    $faskes = sktFaskes();
 
-    // Revocation is NOT representable in this schema: `uq_consent (user_id, jenis,
-    // versi_dokumen)` (:1144) means a second row for the same document version would
-    // collide, so withdrawing consent can only be recorded as a NEW version. The
-    // check therefore has to read the highest `versi_dokumen` and honour ITS
-    // `disetujui` - reading the first row would keep honouring a withdrawn consent.
+    // F02: `persetujuan_pdp` is an append-only ledger. The effective answer is
+    // the LATEST recorded row per (user, jenis), in append (`id`) order - not
+    // the highest `versi_dokumen`, which was a STRING order over a VARCHAR(20)
+    // (:1139) and therefore a convention: `v2.0` sorts ABOVE `v10.0`, because
+    // `'2' > '1'` at the second position.
     //
-    // THE MEASURED TRAP, and the reason the "highest version" rule is a convention
-    // rather than a guarantee. `versi_dokumen` is `VARCHAR(20)` (:1139), NOT an
-    // integer, so "highest" is the column's own STRING order - and `v2.0` sorts ABOVE
-    // `v10.0`, because `'2' > '1'` at the second position. A patient who approved v2
-    // and then WITHDREW at v10 therefore has their withdrawal IGNORED, and the write
-    // goes ahead. This is the actual behaviour of the code under test, pinned here
-    // rather than described, because the alternative - quietly casting the column to an
-    // integer - would be an assumption the schema does not support and would refuse a
-    // real version string like `v1.2.3-beta`.
+    // The old rule is pinned here as the thing that NO LONGER happens: an
+    // approval at `v2.0` followed by a withdrawal at `v10.0` used to be read as
+    // "v2.0 is the highest" and the withdrawal was IGNORED. The ledger reads the
+    // last row, so the withdrawal stands.
     sktConsent($account['pasienUser']->getKey(), 'berbagi_data_medis', true, 'v2.0');
     sktConsent($account['pasienUser']->getKey(), 'berbagi_data_medis', false, 'v10.0');
 
     $consent = app(PdpConsent::class);
 
-    expect($consent->disetujui($account['pasienUser'], 'berbagi_data_medis'))->toBeTrue()
-        ->and($consent->versiTerbaru($account['pasienUser'], 'berbagi_data_medis')?->versi_dokumen)->toBe('v2.0')
-        ->and($consent->require($account['pasienUser'], 'berbagi_data_medis')->versi_dokumen)->toBe('v2.0');
-
-    // The mitigation is a WRITER-side convention - fixed-width, zero-padded version
-    // strings - and here it does what the rule is meant to do: with both strings the
-    // same width, the later withdrawal really is the highest and the call is refused.
-    DB::table('persetujuan_pdp')->delete();
-    sktConsent($account['pasienUser']->getKey(), 'berbagi_data_medis', true, 'v0002.0');
-    sktConsent($account['pasienUser']->getKey(), 'berbagi_data_medis', false, 'v0010.0');
-
     expect($consent->disetujui($account['pasienUser'], 'berbagi_data_medis'))->toBeFalse()
-        ->and($consent->versiTerbaru($account['pasienUser'], 'berbagi_data_medis')?->versi_dokumen)->toBe('v0010.0')
+        ->and($consent->versiTerbaru($account['pasienUser'], 'berbagi_data_medis')?->versi_dokumen)->toBe('v10.0')
         ->and(fn () => $consent->require($account['pasienUser'], 'berbagi_data_medis'))
         ->toThrow(AccessDeniedHttpException::class);
 
-    // And the reverse: an approval as the highest version passes.
+    // And the reverse: the LAST row is an approval, so the gate passes even
+    // though a higher version was recorded first.
     DB::table('persetujuan_pdp')->delete();
-    sktConsent($account['pasienUser']->getKey(), 'berbagi_data_medis', false, 'v0002.0');
-    sktConsent($account['pasienUser']->getKey(), 'berbagi_data_medis', true, 'v0010.0');
+    sktConsent($account['pasienUser']->getKey(), 'berbagi_data_medis', false, 'v10.0');
+    sktConsent($account['pasienUser']->getKey(), 'berbagi_data_medis', true, 'v2.0');
 
     expect($consent->disetujui($account['pasienUser'], 'berbagi_data_medis'))->toBeTrue()
-        ->and($consent->require($account['pasienUser'], 'berbagi_data_medis')->versi_dokumen)->toBe('v0010.0')
+        ->and($consent->require($account['pasienUser'], 'berbagi_data_medis')->versi_dokumen)->toBe('v2.0')
         // `disetujui_at` (:1141) is a `DATETIME NOT NULL` and is a rule-(1) instant, so
         // it is ISO-8601 UTC when published - decided once, in the service.
         ->and((string) $consent->disetujuiAt($consent->versiTerbaru($account['pasienUser'], 'berbagi_data_medis')))->toEndWith('Z');
@@ -1776,7 +1773,9 @@ test('the verify response carries NO nik, NO body, and NO id of anything', funct
     $surat = sktSurat($account['pasien'], $account['dokter'], [
         'isi' => 'Kondisi pasien memburuk dan perlu rujukan segera.',
     ]);
-    $nik = (string) DB::table('pasien')->where('id', $account['pasien'])->value('nik');
+    // Through the MODEL, not `DB::table()->value('nik')`: `nik_cipher` holds a
+    // payload, so the plaintext exists only once `Pasien`'s accessor decrypts it.
+    $nik = (string) Pasien::query()->findOrFail($account['pasien'])->nik;
 
     $response = test()->getJson('/api/v1/surat-keterangan/'.$surat->nomor_surat.'/verify?token='.$surat->qr_token);
 
@@ -2054,7 +2053,9 @@ test('another patients letters are simply absent, and an account with no profile
 test('the letter the patient reads masks the NIK and shows the token to its owner', function (): void {
     $account = sktDoctorAccount();
     $surat = sktSurat($account['pasien'], $account['dokter']);
-    $nik = (string) DB::table('pasien')->where('id', $account['pasien'])->value('nik');
+    // Through the MODEL, not `DB::table()->value('nik')`: `nik_cipher` holds a
+    // payload, so the plaintext exists only once `Pasien`'s accessor decrypts it.
+    $nik = (string) Pasien::query()->findOrFail($account['pasien'])->nik;
 
     $response = sktAs($account['pasienUser'])->getJson('/api/v1/pasien/surat-keterangan');
 

@@ -1141,7 +1141,7 @@ CREATE TABLE persetujuan_pdp (
   disetujui_at DATETIME NOT NULL,
   ip_address VARCHAR(45) NULL,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-  UNIQUE KEY uq_consent (user_id, jenis, versi_dokumen)
+  -- uq_consent (user_id, jenis, versi_dokumen) DROPPED 2026-10-01 (F02): append-only ledger; see docs/schema-notes.md
 ) ENGINE=InnoDB;
 
 CREATE TABLE akses_rekam_medis_log (

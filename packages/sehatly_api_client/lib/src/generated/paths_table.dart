@@ -423,6 +423,16 @@ const List<String> apiv1pasiensuratKeteranganMethods = <String>[
   'GET',
 ];
 
+/// `/api/v1/pdp/dokumen`
+///
+/// Answers: GET (`pdp.dokumen.index`).
+const String apiv1pdpdokumen = '/api/v1/pdp/dokumen';
+
+/// The HTTP methods `apiv1pdpdokumen` answers.
+const List<String> apiv1pdpdokumenMethods = <String>[
+  'GET',
+];
+
 /// `/api/v1/pdp/persetujuan`
 ///
 /// Answers: GET (`pdp.persetujuan.index`), POST (`pdp.persetujuan.store`).
