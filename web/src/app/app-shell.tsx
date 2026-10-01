@@ -6,6 +6,7 @@ import {
     ClipboardList,
     FileHeart,
     HeartPulse,
+    LayoutDashboard,
     LogOut,
     MessagesSquare,
     Package,
@@ -323,6 +324,28 @@ function AppSidebar() {
                         />
                     </SidebarMenu>
                 </SidebarGroup>
+
+                {/**
+                 * F13's dashboard is a doctor-only home: every endpoint behind it is
+                 * `tipe:dokter`, so offering it to a patient would be a 403 card. The
+                 * group is hidden rather than disabled for that reason - unlike the
+                 * booking list below, where the refusal itself is informative.
+                 */}
+                {isDokter ? (
+                    <SidebarGroup>
+                        <SidebarGroupLabel>Dokter</SidebarGroupLabel>
+
+                        <SidebarMenu>
+                            <MenuLink
+                                to="/dokter/dashboard"
+                                icon={LayoutDashboard}
+                                label="Dasbor dokter"
+                                pathname={pathname}
+                                onNavigate={tutupDrawer}
+                            />
+                        </SidebarMenu>
+                    </SidebarGroup>
+                ) : null}
 
                 {/**
                  * Booking is shown to every signed-in account, not only to patients,

@@ -4,7 +4,9 @@ import { queryClient } from '@/lib/query-client';
 import { z } from 'zod';
 import type {
     Konsultasi,
+    KonsultasiDaftar,
     KonsultasiPesan,
+    StatusKonsultasiDasbor,
     TipePesanBerkas,
 } from '@/lib/api/types';
 
@@ -72,6 +74,33 @@ export const LABEL_PENGIRIM: Readonly<Record<string, string>> = {
     dokter: 'Dokter',
     sistem: 'Sistem',
 };
+
+/**
+ * The four statuses `GET /konsultasi` speaks, in the server's rank order.
+ *
+ * `KonsultasiService::STATUS_DASBOR`, restated: the same four values are the
+ * endpoint's default listing, its `Rule::in` filter set and its `CASE` ordering
+ * rank (most actionable first). A filter chip that offers only these four cannot
+ * produce the 422 an out-of-set value would.
+ */
+export const STATUS_DASBOR_KONSULTASI: ReadonlyArray<StatusKonsultasiDasbor> = [
+    'menunggu_dokter',
+    'berlangsung',
+    'menunggu_resep',
+    'selesai',
+];
+
+const LABEL_STATUS_DASBOR: Record<StatusKonsultasiDasbor, string> = {
+    menunggu_dokter: 'Menunggu diterima',
+    berlangsung: 'Berlangsung',
+    menunggu_resep: 'Menunggu resep',
+    selesai: 'Selesai',
+};
+
+/** The F13 dashboard's wording, which prefers "Menunggu diterima" over the enum name. */
+export function labelStatusKonsultasiDasbor(value: StatusKonsultasiDasbor): string {
+    return LABEL_STATUS_DASBOR[value] ?? value;
+}
 
 /** `KonsultasiRequest::TIPE_LAYANAN` as the start endpoint narrows it. */
 export const TIPE_KONSULTASI_LABEL: Readonly<Record<string, string>> = {
@@ -177,6 +206,20 @@ export type RiwayatPesanFilters = {
     per_page: number;
 };
 
+/**
+ * `GET /konsultasi`'s query string, from `IndexKonsultasiRequest`.
+ *
+ * `status` is the closed `STATUS_DASBOR_KONSULTASI` set and an absent value means the
+ * whole set; `per_page` is capped at 100 through `PasienRecordAccess::perPage()`, so
+ * the caller reads the applied size back from `meta.per_page` rather than assuming
+ * what it sent.
+ */
+export type KonsultasiDaftarFilters = {
+    page: number;
+    per_page: number;
+    status?: StatusKonsultasiDasbor;
+};
+
 // ============================================================================
 // The calls
 // ============================================================================
@@ -216,6 +259,24 @@ export async function selesaiKonsultasi(id: number, soap: SoapInput) {
 
 export async function fetchKonsultasi(id: number) {
     return request<{ konsultasi: Konsultasi }>(`konsultasi/${id}`);
+}
+
+/**
+ * `GET /api/v1/konsultasi` - the caller's own doctor-side worklist.
+ *
+ * Doctor-only (`tipe:dokter` at the route), and the tenant filter is the query, so
+ * another doctor's rows are absent rather than refused: there is no 403/404 oracle
+ * to probe. Rows are `KonsultasiDaftarResource`, the allow-list shape that carries
+ * no NIK, no contact detail, no fee and no medical note.
+ */
+export async function fetchKonsultasiDaftar(filters: KonsultasiDaftarFilters) {
+    return request<{ konsultasi: KonsultasiDaftar[] }>('konsultasi', {
+        searchParams: {
+            page: filters.page,
+            per_page: filters.per_page,
+            ...(filters.status === undefined ? {} : { status: filters.status }),
+        },
+    });
 }
 
 export async function fetchRiwayatPesan(
@@ -284,10 +345,19 @@ export const konsultasiQueryKey = ['v1', 'konsultasi'] as const;
 
 export const riwayatPesanQueryKey = ['v1', 'konsultasi', 'chat'] as const;
 
+export const konsultasiDaftarQueryKey = ['v1', 'konsultasi', 'daftar'] as const;
+
 export function konsultasiOptions(id: number) {
     return queryOptions({
         queryKey: [...konsultasiQueryKey, id],
         queryFn: () => fetchKonsultasi(id),
+    });
+}
+
+export function konsultasiDaftarOptions(filters: KonsultasiDaftarFilters) {
+    return queryOptions({
+        queryKey: [...konsultasiDaftarQueryKey, filters],
+        queryFn: () => fetchKonsultasiDaftar(filters),
     });
 }
 
@@ -338,6 +408,17 @@ export function terimaKonsultasiMutation(id: number) {
         mutationFn: () => terimaKonsultasi(id),
         onSuccess: (result) => {
             queryClient.setQueryData([...konsultasiQueryKey, id], result);
+
+            /**
+             * Accepting moves the row from `menunggu_dokter` to `berlangsung`, which
+             * changes both its status and its rank in the dashboard's ordering, so the
+             * worklist prefix is invalidated as well as the detail. The prefix is
+             * `konsultasiDaftarQueryKey`, not `konsultasiQueryKey`: the latter would
+             * also refetch every cached chat transcript on every accept.
+             */
+            void queryClient.invalidateQueries({
+                queryKey: konsultasiDaftarQueryKey,
+            });
         },
     });
 }

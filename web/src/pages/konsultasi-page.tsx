@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router';
 import {
     Loader2,
     MessagesSquare,
+    Pill,
     Play,
     Receipt,
 } from 'lucide-react';
@@ -39,6 +40,7 @@ import { KonsultasiStatusBadge } from '@/features/konsultasi/status-badge';
 import { ChatWindow } from '@/features/konsultasi/chat-window';
 import { KeluarSesiDialog } from '@/features/konsultasi/keluar-sesi-dialog';
 import { SoapForm } from '@/features/konsultasi/soap-form';
+import { SuratKeteranganDialog } from '@/features/konsultasi/surat-keterangan-dialog';
 import { dispatchFlash } from '@/lib/flash';
 
 const PER_HALAMAN = 50;
@@ -387,7 +389,43 @@ export function KonsultasiPage() {
                         </CardContent>
                     </Card>
 
-                    {bolehSoap ? <SoapForm konsultasi={konsultasi} /> : null}
+                    {bolehSoap ? (
+                        <>
+                            <Card data-slot="f13-aksi-dokter">
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Pill aria-hidden />
+
+                                        Aksi dokter
+                                    </CardTitle>
+
+                                    <CardDescription>
+                                        Resep dan surat keterangan ditautkan dari konsultasi
+                                        aktif ini, bukan dari daftar terpisah.
+                                    </CardDescription>
+                                </CardHeader>
+
+                                <CardContent className="flex flex-col gap-3">
+                                    <Button
+                                        asChild
+                                        variant="outline"
+                                        data-testid="f13-aksi"
+                                        className="h-11 w-fit"
+                                    >
+                                        <Link to={`/konsultasi/${konsultasi.id}/resep`}>
+                                            <Pill aria-hidden />
+
+                                            Tulis resep
+                                        </Link>
+                                    </Button>
+
+                                    <SuratKeteranganDialog konsultasiId={konsultasi.id} />
+                                </CardContent>
+                            </Card>
+
+                            <SoapForm konsultasi={konsultasi} />
+                        </>
+                    ) : null}
                 </div>
 
                 <Card>

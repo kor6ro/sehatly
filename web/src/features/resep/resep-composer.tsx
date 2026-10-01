@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
-import { Loader2, Plus, Send, ShieldAlert, Trash2 } from 'lucide-react';
+import { CircleCheck, Loader2, Plus, Send, ShieldAlert, Trash2 } from 'lucide-react';
 import { ApiError } from '@/lib/http';
 import { dispatchFlash } from '@/lib/flash';
 import {
@@ -208,10 +208,17 @@ export function ResepComposer({
                 {resepTersimpan === null ? null : (
                     <p
                         data-slot="resep-tersimpan"
-                        className="text-success text-sm"
+                        className="flex items-start gap-2 text-sm"
                     >
-                        Resep {resepTersimpan.nomor_resep} tersimpan, berlaku sampai{' '}
-                        {resepTersimpan.berlaku_sampai}.
+                        <CircleCheck
+                            aria-hidden
+                            className="text-success mt-0.5 size-4 shrink-0"
+                        />
+
+                        <span>
+                            Resep {resepTersimpan.nomor_resep} tersimpan, berlaku sampai{' '}
+                            {resepTersimpan.berlaku_sampai}.
+                        </span>
                     </p>
                 )}
 

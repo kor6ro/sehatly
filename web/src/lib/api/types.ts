@@ -741,6 +741,150 @@ export type Konsultasi = {
     baca?: KonsultasiBaca;
 };
 
+/**
+ * The four `konsultasi.status` values `GET /api/v1/konsultasi` can return.
+ *
+ * A **strict subset** of {@link StatusKonsultasi}, and the subset is the contract:
+ * `KonsultasiService::STATUS_DASBOR` is both the default `whereIn` list and the
+ * `Rule::in` set of the `status` filter, and `dibatalkan` / `gagal` are deliberately
+ * outside it because nothing on this dashboard is cancelled or failed. A row can
+ * therefore never carry either value here, and typing this as `string` would let a
+ * badge fall through on a value the endpoint refuses to filter by.
+ */
+export type StatusKonsultasiDasbor =
+    | 'menunggu_dokter'
+    | 'berlangsung'
+    | 'menunggu_resep'
+    | 'selesai';
+
+/**
+ * The `booking` block of `GET /api/v1/konsultasi`, or `null`.
+ *
+ * Nullable rather than optional because `KonsultasiDaftarResource` always publishes
+ * the key and writes `null` for an instant "Tanya Dokter" session, whose
+ * `konsultasi.booking_id` is `NULL`. The block carries the visit time and the
+ * booking identifier a queue row shows; the complaint is NOT here - it lives on
+ * `BookingResource`, which is why the dashboard reads both lists.
+ */
+export type KonsultasiDaftarBooking = {
+    id: number;
+    nomor_booking: string;
+    tipe_layanan: TipeLayanan;
+    /** `Y-m-d`, the consultation date the queue filters on. */
+    tanggal_kunjungan: Tanggal;
+    /** `H:i:s`, Asia/Jakarta wall clock, uncast. */
+    slot_mulai: string;
+    /** `H:i:s`, Asia/Jakarta wall clock, uncast. */
+    slot_selesai: string;
+    status: StatusBooking;
+};
+
+/**
+ * One row of the doctor's own consultation list, transcribed field by field from
+ * `App\Http\Resources\KonsultasiDaftarResource`.
+ *
+ * ## The allow-list is the point
+ *
+ * The resource publishes no NIK, no contact detail, no `room_id`, no fee, no SOAP
+ * note and no read marker, and this type must not widen it: adding a field here
+ * that the resource does not send makes it `undefined` at runtime and invisible to
+ * the compiler. `GET /konsultasi/{id}` remains the one detail shape, and it is only
+ * read once a row is opened.
+ *
+ * ## `pasien` is `null`, not absent
+ *
+ * `whenLoaded('pasien')` always emits the key because `daftar()` eager-loads
+ * `pasien.user`; a soft-deleted profile resolves to `null` inside it. The list is
+ * the caller's own, so the doctor block is never published - which is why this
+ * type has no `dokter` member either.
+ */
+export type KonsultasiDaftar = {
+    id: number;
+    tipe: TipeKonsultasi;
+    status: StatusKonsultasiDasbor;
+    /** `DATETIME` at `:545`, `toISOString()`. `null` until the doctor accepts. */
+    mulai_at: Iso;
+    selesai_at: Iso;
+    pasien: {
+        id: number;
+        nama_lengkap: string | null;
+    } | null;
+    booking: KonsultasiDaftarBooking | null;
+};
+
+// ============================================================================
+// surat_keterangan
+// ============================================================================
+
+/**
+ * `surat_keterangan.tipe`, the four-value ENUM at `telemedicine_test.sql:585`.
+ *
+ * Transcribed from `App\Enums\SuratKeteranganTipe`, which is asserted equal to the
+ * parsed DDL on every test run. The request's `Rule::in` accepts exactly these, so a
+ * picker that offers only these four cannot reach a 422.
+ */
+export type TipeSuratKeterangan =
+    | 'surat_sakit'
+    | 'surat_sehat'
+    | 'surat_rujukan'
+    | 'surat_kematian';
+
+/**
+ * One `surat_keterangan` row as `SuratKeteranganResource` publishes it.
+ *
+ * `tanggal_mulai` / `tanggal_selesai` are `DATE` columns - Asia/Jakarta wall-clock
+ * days rendered with `formatTanggal`, never instants. `dibuat_at` is a `TIMESTAMP`
+ * and is the one instant here. `qr_token` is the QR payload and is published only to
+ * the authenticated holder of the letter.
+ */
+export type SuratKeterangan = {
+    id: number;
+    nomor_surat: string;
+    konsultasi_id: number | null;
+    tipe: TipeSuratKeterangan;
+    pasien_id: number;
+    dokter_id: number;
+    tanggal_mulai: Tanggal;
+    tanggal_selesai: Tanggal;
+    jumlah_hari: number | null;
+    isi: string | null;
+    qr_token: string;
+    file_url: string | null;
+    dibuat_at: Iso;
+    pasien?: {
+        id: number;
+        nik: string | null;
+        nama_lengkap: string | null;
+    };
+    dokter?: {
+        id: number;
+        nama_lengkap: string | null;
+    };
+};
+
+/**
+ * The `data.rujukan` object of the issuing 201, transcribed from
+ * `App\Http\Resources\RujukanResource`.
+ *
+ * `null` for a letter that is not a `surat_rujukan`, which the controller states
+ * explicitly rather than publishing an empty list. `berlaku_sampai` is a `DATE`
+ * rendered with `formatTanggal`.
+ */
+export type RujukanHasil = {
+    id: number;
+    surat_keterangan_id: number | null;
+    faskes_asal_id: number | null;
+    faskes_tujuan_id: number | null;
+    dokter_perujuk_id: number | null;
+    diagnosis_kerja: string | null;
+    icd10_kode: string | null;
+    alasan_rujukan: string | null;
+    berlaku_sampai: Tanggal;
+    nomor_sep: string | null;
+    status: string;
+    dibuat_at: Iso;
+};
+
 // ============================================================================
 // rekam_medis
 // ============================================================================

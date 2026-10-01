@@ -110,9 +110,16 @@ const LABEL_DOKUMEN: Record<StatusDokumen, string> = {
 
 export function KonsultasiStatusBadge({
     status,
+    label,
     className,
 }: {
     status: StatusKonsultasi;
+    /**
+     * Overrides the enum's default wording. F13's dashboard reads `menunggu_dokter`
+     * as "Menunggu diterima" because the action on that row is accepting it, and the
+     * icon, colour and `data-status` still come from the status itself.
+     */
+    label?: string;
     className?: string;
 }) {
     const { icon: Icon, className: tone } = KONSULTASI[status];
@@ -126,7 +133,7 @@ export function KonsultasiStatusBadge({
         >
             <Icon aria-hidden />
 
-            {LABEL_KONSULTASI[status]}
+            {label ?? LABEL_KONSULTASI[status]}
         </Badge>
     );
 }

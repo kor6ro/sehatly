@@ -129,23 +129,29 @@ export function ObatAutocomplete({
             </div>
 
             {terbuka && cukup ? (
-                <ul
-                    id="obat-autocomplete-daftar"
-                    data-slot="obat-autocomplete-daftar"
-                    role="listbox"
-                    className="bg-popover text-popover-foreground absolute top-full right-0 left-0 z-20 mt-1 max-h-64 overflow-y-auto rounded-md border shadow-md"
-                >
-                    {hasil.length === 0 ? (
-                        <li className="text-muted-foreground px-3 py-2 text-sm">
-                            {cari.isPending
-                                ? 'Memuat katalog...'
-                                : 'Tidak ada obat yang cocok.'}
-                        </li>
-                    ) : (
-                        hasil.map((obat) => (
-                            <li key={obat.id} role="option" aria-selected={false}>
+                hasil.length === 0 ? (
+                    <p
+                        id="obat-autocomplete-daftar"
+                        data-slot="obat-autocomplete-daftar"
+                        className="bg-popover text-popover-foreground absolute top-full right-0 left-0 z-20 mt-1 rounded-md border px-3 py-2 text-sm shadow-md"
+                    >
+                        {cari.isPending
+                            ? 'Memuat katalog...'
+                            : 'Tidak ada obat yang cocok.'}
+                    </p>
+                ) : (
+                    <ul
+                        id="obat-autocomplete-daftar"
+                        data-slot="obat-autocomplete-daftar"
+                        role="listbox"
+                        className="bg-popover text-popover-foreground absolute top-full right-0 left-0 z-20 mt-1 max-h-64 overflow-y-auto rounded-md border shadow-md"
+                    >
+                        {hasil.map((obat) => (
+                            <li key={obat.id} role="presentation">
                                 <button
                                     type="button"
+                                    role="option"
+                                    aria-selected={false}
                                     data-slot="obat-autocomplete-pilihan"
                                     data-obat-id={obat.id}
                                     disabled={disabled}
@@ -177,9 +183,9 @@ export function ObatAutocomplete({
                                     </span>
                                 </button>
                             </li>
-                        ))
-                    )}
-                </ul>
+                        ))}
+                    </ul>
+                )
             ) : null}
         </div>
     );

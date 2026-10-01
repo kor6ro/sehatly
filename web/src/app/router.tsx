@@ -15,6 +15,7 @@ import { DoctorDetailPage } from '@/pages/doctor-detail-page';
 import { MyBookingsPage } from '@/pages/my-bookings-page';
 import { BookingCreatePage } from '@/pages/booking-create-page';
 import { DoctorBookingsPage } from '@/pages/doctor-bookings-page';
+import { DokterDashboardPage } from '@/pages/dokter-dashboard-page';
 import { KonsultasiPage } from '@/pages/konsultasi-page';
 import {
     KonsultasiIndexPage,
@@ -203,6 +204,18 @@ export const router = createBrowserRouter([
                             {
                                 path: '/dokter/booking',
                                 element: <DoctorBookingsPage />,
+                                errorElement: <RouteErrorBoundary />,
+                            },
+                            {
+                                /**
+                                 * F13's dashboard. A literal, not a parameter, so it
+                                 * is a distinct route from `/dokter/:id` above - the
+                                 * dashboard sits INSIDE `RequireAuth`/`AppShell`
+                                 * because every endpoint behind it is authenticated,
+                                 * while `/dokter/:id` is the public directory.
+                                 */
+                                path: '/dokter/dashboard',
+                                element: <DokterDashboardPage />,
                                 errorElement: <RouteErrorBoundary />,
                             },
 

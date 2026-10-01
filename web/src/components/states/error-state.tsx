@@ -93,19 +93,26 @@ function describe(error: unknown): {
 export function ErrorState({
     error,
     onRetry,
+    title,
     className,
 }: {
     error: unknown;
     onRetry?: () => void;
+    /**
+     * Overrides the status-derived heading. A panel that failed can say what failed
+     * ("Gagal memuat antrean.") without inventing a fourth status message; the detail
+     * and the retryability still come from {@link describe}.
+     */
+    title?: string;
     className?: string;
 }) {
-    const { title, detail, retryable } = describe(error);
+    const { title: judul, detail, retryable } = describe(error);
 
     return (
         <Alert variant="destructive" data-slot="error-state" className={className}>
             <AlertCircle />
 
-            <AlertTitle>{title}</AlertTitle>
+            <AlertTitle>{title ?? judul}</AlertTitle>
 
             <AlertDescription>
                 <p>{detail}</p>
