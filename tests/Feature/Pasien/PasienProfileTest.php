@@ -1535,14 +1535,17 @@ test('the route table exposes the eight auth routes and the eleven patient route
         'GET api/v1/obat/{id}/stok',
         'POST api/v1/resep/{id}/checkout',
         'GET api/v1/pesanan-obat/{id}',
-        // Todo 45's TWO payment routes, appended after todo 46's block and so
-        // listed last. The initiation is a two-segment `invoice` path that
-        // none of the earlier entries resemble, and the webhook is a
-        // two-segment `webhook` path that is the WHOLE api/v1 surface's only
-        // unauthenticated POST which is not an auth endpoint - which is why it
-        // is named here explicitly rather than filtered in, and why it appears
-        // in the `$anonymous` set below.
+        // Todo 45's two payment routes, plus F06's read route beside them,
+        // appended after todo 46's block and so listed last. The initiation is
+        // a two-segment `invoice` path that none of the earlier entries
+        // resemble, the read is the SAME path with a GET and the same
+        // `pembayaran.bayar` gate (the catalogue has no `pembayaran.lihat`),
+        // and the webhook is a two-segment `webhook` path that is the WHOLE
+        // api/v1 surface's only unauthenticated POST which is not an auth
+        // endpoint - which is why it is named here explicitly rather than
+        // filtered in, and why it appears in the `$anonymous` set below.
         'POST api/v1/invoice/{id}/bayar',
+        'GET api/v1/invoice/{id}',
         'POST api/v1/webhook/payment/{gateway}',
         // Todo 47's FIVE routes, appended after todo 45's block and so listed
         // LAST here in registration order. Two are a two-segment `pdp` path and
@@ -1739,7 +1742,7 @@ test('the route table exposes the eight auth routes and the eleven patient route
             'GET api/v1/obat/{id}/stok' => [],
             'POST api/v1/resep/{id}/checkout' => ['permission:pesanan.buat'],
             'GET api/v1/pesanan-obat/{id}' => ['permission:pesanan.lihat'],
-            // Todo 45's two.
+            // Todo 45's two, plus F06's read.
             //
             // The initiation DOES take a `permission:`, and that is the
             // interesting half: `pembayaran.bayar` is a real code granted to
@@ -1750,7 +1753,12 @@ test('the route table exposes the eight auth routes and the eleven patient route
             // for the same reason as everywhere else in this file: it cannot
             // express "is this invoice yours", which `PembayaranController`
             // answers through `ownPasien()` plus a tenant-scoped lookup.
+            //
+            // F06's read takes the SAME code because the catalogue has no
+            // `pembayaran.lihat`; the ownership half stays in the controller,
+            // where another patient's invoice is a 404 rather than a 403.
             'POST api/v1/invoice/{id}/bayar' => ['permission:pembayaran.bayar'],
+            'GET api/v1/invoice/{id}' => ['permission:pembayaran.bayar'],
             // ...and the webhook takes NEITHER, for the reason the `$anonymous`
             // set above gives. A route gate cannot express "you are a payment
             // provider"; an HMAC over the raw body can, and
@@ -1815,8 +1823,11 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
 
     // Module 2 (booking) is the first consumer, and Module 3 (consultation, medical
     // record) added seven more. Todo 34's letter create adds TWO more, todo 39's two
-    // routes add FOUR, and todo 40's four routes add FIVE, for THIRTY in total. Each
-    // new entry must arrive with its catalogue entry in the same commit.
+    // routes add FOUR, and todo 40's four routes add FIVE, for THIRTY in total
+    // through todo 40. F06's read adds ONE more string - a second use of the
+    // EXISTING `pembayaran.bayar`, because the catalogue holds no
+    // `pembayaran.lihat` - for THIRTY-ONE before todo 45/46/47's entries below.
+    // Each new entry must arrive with its catalogue entry in the same commit.
     expect(array_map(static fn (array $m): string => $m[0], $matches))->toEqualCanonicalizing([
         "'permission:booking.lihat'",
         "'permission:booking.buat'",
@@ -1879,13 +1890,16 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         // Todo 46's checkout routes.
         "'permission:pesanan.buat'",
         "'permission:pesanan.lihat'",
-        // Todo 45's payment initiation, and the only string either of todo 45's
-        // two routes contributes: `pembayaran.bayar` is granted to `pasien` and
-        // `superadmin` and to nobody else, so the gate refuses `dokter`,
-        // `apoteker` and `admin` without locking out the one account type that
-        // owns the invoice being paid. The webhook takes NEITHER a
-        // `permission:` nor a `tipe:` - it is authenticated by an HMAC over the
-        // raw body - and so adds nothing to this census.
+        // Todo 45's payment initiation. `pembayaran.bayar` is granted to
+        // `pasien` and `superadmin` and to nobody else, so the gate refuses
+        // `dokter`, `apoteker` and `admin` without locking out the one account
+        // type that owns the invoice being paid. F06's read route reuses the
+        // same code - the catalogue holds no `pembayaran.lihat`, and inventing
+        // one would make `EnsurePermission` throw a 500 - so it contributes a
+        // SECOND identical string. The webhook takes NEITHER a `permission:`
+        // nor a `tipe:` - it is authenticated by an HMAC over the raw body -
+        // and so adds nothing to this census.
+        "'permission:pembayaran.bayar'",
         "'permission:pembayaran.bayar'",
         // Todo 47 contributes THREE strings for THREE routes, and no `tipe:` at
         // all: the three notification-centre routes wire only

@@ -12,7 +12,7 @@ info:
     drift from the code: a route added, renamed or removed changes it on the next run, and
     `--check` fails until the regenerated file is committed.
 
-    This document describes 74 routes across 65 distinct paths, read from the live route table.
+    This document describes 75 routes across 66 distinct paths, read from the live route table.
 
     ## Envelopes
 
@@ -654,6 +654,44 @@ paths:
         422:
           description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
           content: { application/json: { schema: { $ref: '#/components/schemas/ValidationErrorEnvelope' } } }
+        404:
+          description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        500:
+          description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+  '/api/v1/invoice/{id}':
+    parameters:
+      -
+        name: id
+        type: integer
+        required: true
+    get:
+      operationId: getApiV1InvoiceId
+      summary: 'Read /api/v1/invoice/{id}.'
+      tags:
+        - invoice
+      security:
+        -
+          sanctum: []
+      x-route-name: invoice.show
+      x-laravel-action: App\Http\Controllers\Api\V1\PembayaranController@show
+      x-middleware:
+        - 'auth:sanctum'
+        - 'permission:pembayaran.bayar'
+      x-auth:
+        scheme: sanctum
+        transport: bearer
+      responses:
+        200:
+          description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
+        401:
+          description: 'Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        403:
+          description: 'Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
         404:
           description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }

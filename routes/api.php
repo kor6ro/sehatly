@@ -1182,6 +1182,42 @@ Route::post('invoice/{id}/bayar', [PembayaranController::class, 'bayar'])
     ->name('invoice.bayar');
 
 /*
+| The read route, appended beside the initiation route it mirrors and carrying
+| the SAME guard pair.
+|
+| ## Why `pembayaran.bayar` guards a READ
+|
+| `RbacCatalog::PERMISSIONS` holds exactly one payment code, `pembayaran.bayar`
+| (:201), and `ROLE_PERMISSIONS` grants it to `pasien` and `superadmin` only
+| (:231, :292). There is no `pembayaran.lihat`, and inventing one would be a
+| policy change outside this surface: `EnsurePermission` throws a `LogicException`
+| - a sanitised 500 - for a code the catalogue does not hold, so an invented code
+| here would deny every caller instead of guarding them. Reusing the pay code
+| admits exactly the account type that can own an invoice, and it refuses
+| `dokter`, `apoteker` and `admin` before the controller runs.
+|
+| ## The permission answers "may this account pay", not "is this invoice yours"
+|
+| Ownership is a different question, and it is NOT answered here: it is
+| `PasienRecordAccess::ownPasien()` (403 when the caller owns no `pasien` row)
+| followed by the tenant-scoped `Invoice::whereBelongsTo($pasien)` fetch in
+| `PembayaranController::show()` (404 when the row is not the caller's). The
+| explicit `InvoicePolicy` is checked after that fetch as defence in depth, so a
+| future edit that drops the scope still fails closed.
+|
+| ## `whereNumber` on `{id}`
+|
+| `invoice.id` is a `BIGINT UNSIGNED AUTO_INCREMENT` primary key (:937), so a
+| non-numeric segment is a router 404 rather than an id the API has to defend.
+|
+| @see \App\Policies\InvoicePolicy the explicit rule, and why it is checked second
+*/
+Route::get('invoice/{id}', [PembayaranController::class, 'show'])
+    ->whereNumber('id')
+    ->middleware(['auth:sanctum', 'permission:pembayaran.bayar'])
+    ->name('invoice.show');
+
+/*
 | The webhook is registered OUTSIDE every middleware group on purpose.
 |
 | It carries no `auth:sanctum` and no `permission:` and no `tipe:`, and the

@@ -127,14 +127,14 @@ function contractSplit(string $key): array
     return [$method, $path];
 }
 
-it('splits the documented operations into 49 bearer, 25 anonymous and 24 unguarded', function (): void {
+it('splits the documented operations into 50 bearer, 25 anonymous and 24 unguarded', function (): void {
     // The counts are pinned so the datasets below cannot silently shrink. If a
     // route is added or removed, this fails first and names the real delta,
     // instead of a per-route test quietly disappearing from the run.
-    expect(count(contractBearerOperations()))->toBe(49);
+    expect(count(contractBearerOperations()))->toBe(50);
     expect(count(contractAnonymousOperations()))->toBe(25);
     expect(count(contractUnguardedAnonymousOperations()))->toBe(24);
-    expect(count(contractBearerOperations()) + count(contractAnonymousOperations()))->toBe(74);
+    expect(count(contractBearerOperations()) + count(contractAnonymousOperations()))->toBe(75);
 });
 
 it('answers 401 with the error envelope when the Authorization header is absent', function (string $method, string $path): void {

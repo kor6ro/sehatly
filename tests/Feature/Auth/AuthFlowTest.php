@@ -1371,11 +1371,17 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         // `pasien` and `superadmin` and to nobody else, so the gate refuses
         // `dokter`, `apoteker` and `admin` WITHOUT locking out the one account
         // type that owns the invoice being paid - which is why a `tipe:` is not
-        // needed here and would in fact be the wrong gate. The webhook takes
-        // NEITHER, and so contributes no string to this census at all: it is
-        // authenticated by an HMAC over the raw body rather than by a session.
+        // needed here and would in fact be the wrong gate. F06's read route
+        // REUSES the same code - the catalogue has no `pembayaran.lihat`, and
+        // inventing one would make `EnsurePermission` throw a 500 until the
+        // catalogue moved with it - so the read contributes a SECOND identical
+        // string (`GET /api/v1/invoice/{id}`, registered after the
+        // initiation). The webhook takes NEITHER, and so contributes no string
+        // to this census at all: it is authenticated by an HMAC over the raw
+        // body rather than by a session.
         "'permission:pembayaran.bayar'",
-        // Todo 47's notification centre contributes THREE more, for THIRTY-THREE
+        "'permission:pembayaran.bayar'",
+        // Todo 47's notification centre contributes THREE more, for THIRTY-FOUR
         // in total. All three carry the same code and no `tipe:`:
         // `notifikasi.lihat` is granted to `pasien` and `superadmin`, so the
         // permission alone already refuses `perawat` and `kurir` - which are

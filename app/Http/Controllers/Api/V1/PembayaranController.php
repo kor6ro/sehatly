@@ -6,26 +6,38 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Payment\BayarInvoiceRequest;
+use App\Http\Resources\InvoiceResource;
 use App\Http\Resources\PembayaranResource;
 use App\Models\Invoice;
 use App\Models\MasterMetodePembayaran;
 use App\Models\Pasien;
 use App\Models\User;
+use App\Policies\InvoicePolicy;
 use App\Services\Pasien\PasienRecordAccess;
 use App\Services\Payment\PaymentGatewayService;
 use App\Services\Payment\PaymentService;
 use App\Support\ApiResponse;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * Two routes, and the gap between them is the whole design of this todo.
+ * Three routes, and the gap between them is the whole design of this module.
  *
  * | route | auth | who |
  * | --- | --- | --- |
+ * | `GET /api/v1/invoice/{id}` | `auth:sanctum` + `permission:pembayaran.bayar` | the patient, reading their own invoice |
  * | `POST /api/v1/invoice/{id}/bayar` | `auth:sanctum` + `permission:pembayaran.bayar` | the patient, for their own invoice |
  * | `POST /api/v1/webhook/payment/{gateway}` | **none** - verified by HMAC instead | a payment provider |
+ *
+ * ## The read path adds a Policy, and the ORDER of the two checks is the design
+ *
+ * `show()` is the one method here that also runs the new
+ * {@see InvoicePolicy}. It still fetches through
+ * {@see invoiceMilik()} FIRST, because that tenant-scoped lookup is what makes
+ * another patient's invoice a 404 rather than a 403; the policy runs after it as
+ * defence in depth. Its docblock carries the full argument.
  *
  * ## The webhook is UNAUTHENTICATED, so the signature is the authentication
  *
@@ -79,6 +91,14 @@ use Illuminate\Http\Request;
  */
 class PembayaranController extends Controller
 {
+    /**
+     * `$this->authorize()`: the base controller is empty and this is the first
+     * method in the application to need the Gate, so the trait is pulled in
+     * HERE rather than on the shared base class. One controller that authorizes
+     * should not make every other controller carry the trait.
+     */
+    use AuthorizesRequests;
+
     public function __construct(
         private readonly PaymentService $pembayaran,
         private readonly PaymentGatewayService $gateway,
@@ -129,6 +149,50 @@ class PembayaranController extends Controller
             ],
             'Pembayaran berhasil dimulai.',
             JsonResponse::HTTP_CREATED,
+        );
+    }
+
+    /**
+     * `GET /api/v1/invoice/{id}` - 200 with the caller's own invoice and its
+     * payment history, or the same 404 a row that never existed produces.
+     *
+     * ## The FETCH precedes the AUTHORIZE, and that order is the rule
+     *
+     * `invoiceMilik()` runs first because it is where the 404 is decided: the
+     * invoice is read as `Invoice::whereBelongsTo($pasien)` and a miss is a
+     * `ModelNotFoundException`, which `bootstrap/app.php` renders as the
+     * sanitised 'Resource not found.'. Authorizing first would answer 403 for a
+     * row that exists, which is the cross-tenant existence oracle
+     * `PasienRecordAccess` forbids and every other patient surface refuses to
+     * emit.
+     *
+     * So `authorize('view', $invoice)` only ever runs on an invoice that the
+     * caller's own patient row already matched, and {@see InvoicePolicy}
+     * is defence in depth: the scoped query is the PRIMARY rule, and the policy
+     * is the same rule stated where a unit test can assert it directly, so a
+     * future edit that dropped the scope would still fail closed.
+     *
+     * ## `pembayaran` is loaded here so the resource cannot N+1
+     *
+     * One relation, one extra query, and `InvoiceResource` publishes it newest
+     * first. Loading it in the resource would make the query count depend on
+     * which relation the resource happened to touch.
+     */
+    public function show(Request $request, int $id): JsonResponse
+    {
+        $pasien = $this->access->ownPasien($this->user($request));
+
+        $invoice = $this->invoiceMilik((int) $pasien->getKey(), $id);
+
+        // Defence in depth. Unreachable through the scoped fetch above, and
+        // deliberately kept so the explicit rule is enforced, not just stated.
+        $this->authorize('view', $invoice);
+
+        $invoice->load('pembayaran');
+
+        return ApiResponse::success(
+            ['invoice' => new InvoiceResource($invoice)],
+            'Tagihan berhasil dimuat.',
         );
     }
 

@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Models\Invoice;
+use App\Policies\InvoicePolicy;
 use App\Services\Audit\AuditObserverRegistrar;
 use App\Services\Audit\AuditScope;
 use App\Services\Auth\OtpSender;
@@ -23,6 +25,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
@@ -166,6 +169,30 @@ class AppServiceProvider extends ServiceProvider
         $this->configureSecurityHeaders();
         $this->configureAuditObservers();
         $this->configureNotificationPush();
+
+        /*
+        |--------------------------------------------------------------------
+        | Policies
+        |--------------------------------------------------------------------
+        |
+        | `InvoicePolicy` is the FIRST Policy in this application, and there is no
+        | `AuthServiceProvider` to hold it: Laravel's `AuthServiceProvider` was
+        | removed from the skeleton, and this project never reintroduced one. The
+        | registration is therefore explicit rather than discovered - a class
+        | scan would bind it just as well today and would vanish silently if the
+        | namespace or the model moved, which is the failure a policy about
+        | cross-tenant reads must not have.
+        |
+        | The policy is defence in depth, not the primary rule: every read of an
+        | invoice is already a tenant-scoped query
+        | (`Invoice::whereBelongsTo($pasien)`), which is what makes another
+        | patient's row a 404 rather than a 403. The policy states the same rule
+        | in one unit-testable place so an edit that drops the scope still fails
+        | closed. `InvoicePolicy`'s docblock carries the full argument.
+        |
+        | @see \App\Policies\InvoicePolicy
+        */
+        Gate::policy(Invoice::class, InvoicePolicy::class);
     }
 
     /**
