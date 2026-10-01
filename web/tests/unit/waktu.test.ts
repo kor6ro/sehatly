@@ -4,6 +4,7 @@ import {
     formatJamZona,
     formatJamZonaGanda,
     formatRentangJamZona,
+    formatWaktuZona,
     labelZona,
     zonaPerangkat,
 } from '@/lib/waktu';
@@ -131,5 +132,33 @@ describe('zonaPerangkat', () => {
     it('always answers with a non-empty zone name', () => {
         assert.equal(typeof zonaPerangkat(), 'string');
         assert.notEqual(zonaPerangkat(), '');
+    });
+});
+
+describe('formatWaktuZona', () => {
+    it('converts an instant to the named zone and labels it', () => {
+        assert.equal(
+            formatWaktuZona('2026-10-01T16:59:00Z', 'Asia/Jakarta'),
+            '1 Okt 2026, 23.59 WIB',
+        );
+    });
+
+    it('converts across midnight and labels the destination zone', () => {
+        assert.equal(
+            formatWaktuZona('2026-10-01T16:59:00Z', 'Asia/Jayapura'),
+            '2 Okt 2026, 01.59 WIT',
+        );
+    });
+
+    it('keeps the placeholder free of a zone label', () => {
+        assert.equal(formatWaktuZona(null, 'Asia/Jakarta'), '-');
+        assert.equal(formatWaktuZona('', 'Asia/Jakarta'), '-');
+    });
+
+    it('returns a malformed value unchanged, without inventing a zone', () => {
+        assert.equal(
+            formatWaktuZona('bukan-waktu', 'Asia/Jakarta'),
+            'bukan-waktu',
+        );
     });
 });

@@ -2,32 +2,39 @@ import { mutationOptions, queryOptions } from '@tanstack/react-query';
 import { request } from '@/lib/http';
 import { queryClient } from '@/lib/query-client';
 import type {
+    Invoice,
     MetodePembayaran,
     MulaiPembayaranData,
     PromoValidasi,
+    StatusInvoice,
     StatusPembayaran,
 } from '@/lib/api/types';
 
 /**
- * Module 5's money surface: the payment methods, the promo calculation and the payment
- * initiation.
+ * Module 5's money surface: the payment methods, the invoice read, the promo calculation
+ * and the payment initiation.
  *
  * | method | path | guard | success |
  * | --- | --- | --- | --- |
  * | `GET` | `/api/v1/referensi/metode-pembayaran` | none - PUBLIC | 200 + `meta` |
+ * | `GET` | `/api/v1/invoice/{id}` | `permission:pembayaran.bayar` | 200 |
  * | `POST` | `/api/v1/promo/validasi` | `auth:sanctum` | 200 always |
  * | `POST` | `/api/v1/invoice/{id}/bayar` | `permission:pembayaran.bayar` | 201 |
  *
- * ## FINDING: there is no way to read an invoice or a payment
+ * ## The invoice read exists, and it is owner-scoped
  *
- * The plan's `PaymentWaitingPage` is specified to "poll `GET /invoice/{id}`". That route
- * does not exist - `routes/api.php:1159-1162` registers only the `bayar` POST, and no
- * other route touches `invoice` or `pembayaran` at all. The checkout 201 does not publish
- * `invoice_id` either, so the client cannot even discover which invoice to pay.
+ * `GET /invoice/{id}` publishes the whole row through `App\Http\Resources\InvoiceResource`,
+ * including its newest-first `pembayaran` history, so a typed invoice id can be verified -
+ * and its real status and amount shown - before any payment is started. Another patient's
+ * invoice is a 404, not a 403, exactly as the order read behaves.
  *
- * The screen therefore does NOT poll. It reflects the one published settlement signal that
- * does exist, `pesanan_obat.status` moving off `menunggu_pembayaran`, and it says so in its
- * own copy. A route to read an invoice is a backend change, not this executor's.
+ * ## The settlement signal is still `pesanan_obat.status`, and that has not changed
+ *
+ * The invoice read shows what the server thinks of the BILL. What moves the ORDER is
+ * `PaymentService::LANJUT` inside the settlement transaction, and the webhook - not the
+ * browser - is the only thing that triggers it. So the payment screen polls
+ * `GET /pesanan-obat/{id}` for settlement and uses this read for the summary, never the
+ * other way round.
  */
 
 /** `POST /invoice/{id}/bayar`. The only input is the method; `gateway` is NOT a field. */
@@ -65,6 +72,27 @@ const STATUS_PEMBAYARAN_LABEL: Record<StatusPembayaran, string> = {
 
 export function labelStatusPembayaran(value: StatusPembayaran): string {
     return STATUS_PEMBAYARAN_LABEL[value] ?? value;
+}
+
+const STATUS_INVOICE_LABEL: Record<StatusInvoice, string> = {
+    draft: 'Draf',
+    menunggu_pembayaran: 'Menunggu pembayaran',
+    lunas: 'Lunas',
+    kadaluarsa: 'Kedaluwarsa',
+    dibatalkan: 'Dibatalkan',
+    refund_sebagian: 'Dana dikembalikan sebagian',
+    refund_penuh: 'Dana dikembalikan penuh',
+};
+
+/**
+ * The seven `invoice.status` members, spelled for the payer.
+ *
+ * A DDL transcription like {@link TIPE_METODE_LABEL}: the resource publishes the raw
+ * column value and no reference endpoint lists this ENUM, so the wording has to live
+ * somewhere and one place is the right number of places.
+ */
+export function labelStatusInvoice(value: StatusInvoice): string {
+    return STATUS_INVOICE_LABEL[value] ?? value;
 }
 
 /**
@@ -121,6 +149,10 @@ export async function fetchMetodePembayaran() {
     return request<{ metode_pembayaran: MetodePembayaran[] }>('referensi/metode-pembayaran');
 }
 
+export async function fetchInvoice(invoiceId: number) {
+    return request<{ invoice: Invoice }>(`invoice/${invoiceId}`);
+}
+
 export async function validasiPromo(input: ValidasiPromoInput) {
     return request<PromoValidasi>('promo/validasi', {
         method: 'POST',
@@ -140,6 +172,24 @@ export async function bayarInvoice(invoiceId: number, input: BayarInvoiceInput) 
 export const metodePembayaranQueryKey = ['v1', 'referensi', 'metode-pembayaran'] as const;
 
 export const promoQueryKey = ['v1', 'promo'] as const;
+
+export const invoiceQueryKey = ['v1', 'invoice'] as const;
+
+/**
+ * One invoice read, keyed by id.
+ *
+ * `retry: false` because the two interesting failures are decisions, not blips: a 404
+ * ("that id is not yours, or does not exist") and a 403 ("this account owns no patient
+ * row") are both fixed by typing a different id or signing in as the right account, not by
+ * asking again. A network failure still surfaces through `ErrorState`'s retry.
+ */
+export function invoiceOptions(invoiceId: number) {
+    return queryOptions({
+        queryKey: [...invoiceQueryKey, invoiceId],
+        queryFn: () => fetchInvoice(invoiceId),
+        retry: false,
+    });
+}
 
 /**
  * The reference list is PUBLIC and barely changes - it is fourteen `master_*` rows.
@@ -187,6 +237,7 @@ export function bayarInvoiceMutation() {
             bayarInvoice(invoiceId, input),
         onSuccess: () => {
             void queryClient.invalidateQueries({ queryKey: promoQueryKey });
+            void queryClient.invalidateQueries({ queryKey: invoiceQueryKey });
         },
     });
 }

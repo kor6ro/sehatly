@@ -106,6 +106,7 @@ export function PromoInput({ invoiceId }: { invoiceId: number | null }) {
                         data-slot="promo-cek"
                         type="submit"
                         variant="outline"
+                        className="min-h-11"
                         disabled={validasi.isPending || kode.trim() === ''}
                     >
                         {validasi.isPending ? <Loader2 className="animate-spin" /> : null}
@@ -156,22 +157,34 @@ export function PromoInput({ invoiceId }: { invoiceId: number | null }) {
 
                         <dl className="text-muted-foreground grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                             <dt>Subtotal</dt>
-                            <dd className="text-right tabular-nums">
+                            <dd
+                                data-slot="promo-rincian-subtotal"
+                                className="text-right tabular-nums"
+                            >
                                 {formatRupiah(hasil.rincian.subtotal)}
                             </dd>
 
                             <dt>Diskon</dt>
-                            <dd className="text-right tabular-nums">
+                            <dd
+                                data-slot="promo-rincian-diskon"
+                                className="text-right tabular-nums"
+                            >
                                 {formatRupiah(hasil.rincian.diskon)}
                             </dd>
 
                             <dt>Biaya admin</dt>
-                            <dd className="text-right tabular-nums">
+                            <dd
+                                data-slot="promo-rincian-admin"
+                                className="text-right tabular-nums"
+                            >
                                 {formatRupiah(hasil.rincian.biaya_admin)}
                             </dd>
 
                             <dt>Biaya kirim</dt>
-                            <dd className="text-right tabular-nums">
+                            <dd
+                                data-slot="promo-rincian-kirim"
+                                className="text-right tabular-nums"
+                            >
                                 {formatRupiah(hasil.rincian.biaya_pengiriman)}
                             </dd>
                         </dl>

@@ -1,4 +1,5 @@
 import { formatJam } from '@/lib/format';
+import type { Iso } from '@/lib/api/types';
 
 /**
  * The display half of the timezone boundary, and the reason it is a separate file from
@@ -86,6 +87,42 @@ export function labelZona(zona: string): string {
     } catch {
         return zona;
     }
+}
+
+/**
+ * An ISO-8601 instant, converted to `zona` (the device zone by default) **with the zone
+ * named**: `1 Okt 2026, 23.59 WIB`.
+ *
+ * `_global.md` §5 makes the label mandatory - a bare `23.59` is a defect because the
+ * device zone can be set manually and be wrong - and `formatWaktu` deliberately does not
+ * carry one. This wrapper converts and labels in one step, in the module that already owns
+ * every other zone-labelled rendering, so F06's expiry and settlement stamps do not each
+ * invent their own spelling.
+ *
+ * A missing value stays `-` rather than becoming `- WIB`, and a malformed value is
+ * returned unchanged for the same reason `formatWaktu` returns it unchanged.
+ */
+export function formatWaktuZona(
+    value: Iso,
+    zona: string = zonaPerangkat(),
+): string {
+    if (value === null || value === '') {
+        return '-';
+    }
+
+    const parsed = new Date(value);
+
+    if (Number.isNaN(parsed.getTime())) {
+        return value;
+    }
+
+    const teks = new Intl.DateTimeFormat('id-ID', {
+        timeZone: zona,
+        dateStyle: 'medium',
+        timeStyle: 'short',
+    }).format(parsed);
+
+    return `${teks} ${labelZona(zona)}`;
 }
 
 /**

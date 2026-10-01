@@ -38,17 +38,24 @@ export function MetodePembayaranPicker({
     onValueChange,
     subtotal,
     disabled,
+    errors = [],
 }: {
     value: string;
     onValueChange: (value: string) => void;
     /** The order's published `subtotal`, used only to QUOTE the fee, never to apply it. */
     subtotal: number;
     disabled?: boolean;
+    /** Server 422 messages for `metode_id`, rendered under the control. */
+    errors?: string[];
 }) {
     const metode = useQuery(metodePembayaranOptions());
 
     if (metode.isPending) {
-        return <SkeletonRows rows={3} />;
+        return (
+            <div data-slot="metode-loading">
+                <SkeletonRows rows={3} />
+            </div>
+        );
     }
 
     if (metode.isError) {
@@ -70,12 +77,14 @@ export function MetodePembayaranPicker({
             label="Metode pembayaran"
             required
             slot="metode-pembayaran"
-            hint="Fee admin dihitung server dari subtotal dikurangi diskon. Angka di bawah hanya perkiraan."
+            errors={errors}
+            hint="Biaya admin dihitung server dari subtotal dikurangi diskon. Angka di bawah hanya perkiraan."
         >
             <FieldSelect
                 value={value}
                 onValueChange={onValueChange}
                 placeholder="Pilih metode"
+                className="min-h-11 w-full"
                 disabled={disabled === true || semua.length === 0}
             >
                 {groups.map((grup, index) => (
@@ -96,7 +105,7 @@ export function MetodePembayaranPicker({
                                 {m.nama}
                                 {m.penyedia === null ? '' : ` (${m.penyedia})`}
                                 {' - '}
-                                {formatRupiah(perkiraanBiayaAdmin(m, subtotal))}
+                                {formatRupiah(perkiraanBiayaAdmin(m, subtotal))} (perkiraan)
                             </SelectItem>
                         ))}
                     </SelectGroup>

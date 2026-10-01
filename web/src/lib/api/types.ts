@@ -1380,9 +1380,10 @@ export const TIPE_NOTIFIKASI_DIPAKAI: ReadonlyArray<TipeNotifikasi> = [
 /**
  * The invoice block as `PembayaranController::bayar()` and `::webhook()` compose it.
  *
- * ## There is no `InvoiceResource`, and this shape is therefore NOT one resource
+ * ## These are NOT `InvoiceResource`, and these shapes are therefore narrower
  *
- * Two different controllers hand-assemble the invoice with **different keys**:
+ * `GET /invoice/{id}` publishes the full {@link Invoice} through `InvoiceResource`, but
+ * the two POST handlers still hand-assemble a smaller block with **different keys**:
  * `bayar()` publishes `{id, nomor_invoice, status, total}` and `webhook()` publishes
  * `{id, nomor_invoice, status, lunas_at}`. So they are declared as two separate types
  * rather than merged into one, because merging them would make a screen read
@@ -1402,6 +1403,56 @@ export type InvoiceSelesai = {
     status: StatusInvoice;
     /** ISO-8601 UTC. The only proof that settlement was applied exactly once. */
     lunas_at: Iso;
+};
+
+/**
+ * One `invoice` row, as `App\Http\Resources\InvoiceResource` publishes it on
+ * `GET /api/v1/invoice/{id}`: 14 keys, every one allow-listed.
+ *
+ * ## Every money value is a JSON STRING, and never a number
+ *
+ * `subtotal`, `diskon`, `biaya_admin`, `biaya_pengiriman` and `total` are all
+ * `DECIMAL(14,2)` with the `decimal:2` cast, so each arrives as `"150000.00"`. The screen
+ * renders them through `formatRupiah` and never adds, subtracts or multiplies them.
+ *
+ * ## `pembayaran` is the history, NEWEST FIRST
+ *
+ * An invoice may be initiated more than once - the first attempt can fail or expire - so
+ * the relation is a list, sorted by the server and published through
+ * {@link Pembayaran}. Element `[0]`, when it exists, is the current attempt.
+ *
+ * ## The read is owner-only
+ *
+ * The route carries `permission:pembayaran.bayar` and the controller fetches through
+ * `Invoice::whereBelongsTo($pasien)`, so another patient's invoice is a 404 and a caller
+ * with no `pasien` row is a 403. The endpoint is what makes a typed invoice id verifiable
+ * before any payment is started; it does not replace `pesanan_obat.status` as the
+ * settlement signal.
+ */
+export type Invoice = {
+    id: number;
+    nomor_invoice: string;
+    referensi_tipe: TipeReferensiInvoice;
+    referensi_id: number | null;
+    /** `DECIMAL(14,2)`, a JSON string. */
+    subtotal: Decimal;
+    /** `DECIMAL(14,2)`, a JSON string. */
+    diskon: Decimal;
+    /** `DECIMAL(14,2)`, a JSON string. */
+    biaya_admin: Decimal;
+    /** `DECIMAL(14,2)`, a JSON string. */
+    biaya_pengiriman: Decimal;
+    /** `DECIMAL(14,2)`, a JSON string. The authoritative amount to pay. */
+    total: Decimal;
+    status: StatusInvoice;
+    /** ISO-8601 UTC, or null. */
+    jatuh_tempo: Iso;
+    /** ISO-8601 UTC, or null. Set once by settlement. */
+    lunas_at: Iso;
+    /** ISO-8601 UTC. */
+    dibuat_at: Iso;
+    /** Newest first. Empty until a payment is initiated. */
+    pembayaran: Pembayaran[];
 };
 
 /**

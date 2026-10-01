@@ -1,7 +1,10 @@
 import { Copy, QrCode, Wallet } from 'lucide-react';
-import { formatRupiah, formatWaktu } from '@/lib/format';
+import { dispatchFlash } from '@/lib/flash';
+import { formatRupiah } from '@/lib/format';
+import { formatWaktuZona } from '@/lib/waktu';
 import { labelStatusPembayaran } from '@/lib/api/pembayaran';
 import type { MulaiPembayaranData } from '@/lib/api/types';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -25,6 +28,20 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
  */
 export function PaymentInstructions({ data }: { data: MulaiPembayaranData }) {
     const { pembayaran, toko, instruksi, gateway } = data;
+
+    const salin = (nilai: string, label: string): void => {
+        navigator.clipboard
+            .writeText(nilai)
+            .then(() => {
+                dispatchFlash({ level: 'success', message: `${label} disalin.` });
+            })
+            .catch(() => {
+                dispatchFlash({
+                    level: 'warning',
+                    message: 'Tidak dapat menyalin otomatis. Salin manual dari layar.',
+                });
+            });
+    };
 
     return (
         <Card data-slot="payment-instructions" className="flex flex-col">
@@ -61,6 +78,21 @@ export function PaymentInstructions({ data }: { data: MulaiPembayaranData }) {
                         >
                             {toko.qr_string}
                         </code>
+
+                        <Button
+                            data-slot="payment-salin"
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="min-h-11 w-fit"
+                            onClick={() => {
+                                salin(toko.qr_string, 'Kode QR');
+                            }}
+                        >
+                            <Copy aria-hidden />
+
+                            Salin
+                        </Button>
                     </div>
                 ) : (
                     <div data-slot="payment-toko" data-jenis="va" className="flex flex-col gap-1">
@@ -68,7 +100,7 @@ export function PaymentInstructions({ data }: { data: MulaiPembayaranData }) {
                             Virtual account {toko.nama_bank} atas nama {toko.nama_pemilik}
                         </p>
 
-                        <p className="flex items-center gap-2">
+                        <p className="flex flex-wrap items-center gap-2">
                             <code
                                 data-slot="payment-va"
                                 className="bg-muted rounded px-2 py-1 font-mono text-lg tracking-wider"
@@ -77,6 +109,21 @@ export function PaymentInstructions({ data }: { data: MulaiPembayaranData }) {
                             </code>
 
                             <Badge variant="secondary">{toko.nama_bank}</Badge>
+
+                            <Button
+                                data-slot="payment-salin"
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="min-h-11"
+                                onClick={() => {
+                                    salin(toko.va_number, 'Nomor virtual account');
+                                }}
+                            >
+                                <Copy aria-hidden />
+
+                                Salin
+                            </Button>
                         </p>
                     </div>
                 )}
@@ -106,22 +153,22 @@ export function PaymentInstructions({ data }: { data: MulaiPembayaranData }) {
 
                     <dt className="text-muted-foreground">Kedaluwarsa</dt>
                     <dd className="text-right">
-                        {formatWaktu(pembayaran.kadaluwarsa_at)}
+                        {formatWaktuZona(pembayaran.kadaluwarsa_at)}
                     </dd>
                 </dl>
 
                 <Alert data-slot="payment-idempotensi">
                     <Copy aria-hidden />
 
-                    <AlertTitle>Status pembayaran hanya dapat dikonfirmasi penyedia pembayaran</AlertTitle>
+                    <AlertTitle>Status dari penyedia pembayaran</AlertTitle>
 
                     <AlertDescription>
                         <p>
                             Konfirmasi pembayaran hanya diterima dari penyedia
-                            pembayaran dan tidak pernah dikirim dari peramban. Karena
-                            itu layar ini tidak menebak status berbayar: status dibaca
-                            dari pesanan Anda, satu-satunya tanda pembayaran yang
-                            tersedia.
+                            pembayaran dan tidak pernah dikirim dari peramban.
+                            Status tagihan dan riwayat pembayarannya di layar ini
+                            dibaca dari server, sedangkan tanda pesanan diproses
+                            tetap status pesanan Anda.
                         </p>
                     </AlertDescription>
                 </Alert>

@@ -18,14 +18,16 @@ import type {
  * | `POST` | `/api/v1/resep/{id}/checkout` | `permission:pesanan.buat` | 201 |
  * | `GET` | `/api/v1/pesanan-obat/{id}` | `permission:pesanan.lihat` | 200 |
  *
- * ## The two gaps this client is built around, both reported not worked around
+ * ## The two gaps this client is built around
  *
  * **No list endpoint.** There is no `GET /pasien/pesanan-obat` and no
  * `GET /pesanan-obat`, so "my orders" cannot be rendered. Every order screen here is
- * addressed by id, the same way todo 41's pharmacist queue is. **No invoice read.** The
- * checkout 201 carries no `invoice_id` and `PesananObatResource` has no invoice field, so
- * the id that `POST /invoice/{id}/bayar` needs cannot be discovered from any response the
- * order flow produces.
+ * addressed by id, the same way todo 41's pharmacist queue is. **No invoice id on the
+ * order.** The checkout 201 carries no `invoice_id` and `PesananObatResource` has no
+ * invoice field, so the id that `POST /invoice/{id}/bayar` needs cannot be discovered from
+ * any response the order flow produces. It CAN be read once typed: `GET /invoice/{id}`
+ * (see `lib/api/pembayaran.ts`) resolves the bill and its payment history, while this
+ * module remains the settlement source.
  *
  * ## `recorded` is the field a naive stock panel drops
  *
