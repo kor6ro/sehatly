@@ -37,6 +37,7 @@ export async function expectNoA11yViolations(page: Page): Promise<void> {
         impact: violation.impact,
         nodes: violation.nodes.length,
         help: violation.help,
+        targets: violation.nodes.map((node) => node.target.join(' ')),
     }));
 
     // The message is the JSON summary rather than a bare length, so a failure names the

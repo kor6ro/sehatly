@@ -11,7 +11,8 @@ import {
 import { BookingStatusBadge, BookingStatusNote } from '@/features/booking/booking-status-badge';
 import { describeRange, isEmptyPage, isPastLastPage } from '@/lib/api/pagination';
 import { ApiError } from '@/lib/http';
-import { formatJam, formatTanggal, formatWaktu } from '@/lib/format';
+import { formatTanggal, formatWaktu } from '@/lib/format';
+import { formatRentangJamZona } from '@/lib/waktu';
 import type { Booking, StatusBooking } from '@/lib/api/types';
 import { dispatchFlash } from '@/lib/flash';
 import { PageHeader } from '@/components/layout/page-header';
@@ -360,9 +361,12 @@ function BookingRow({
                         </p>
 
                         <p className="text-muted-foreground text-sm">
-                            {formatTanggal(row.tanggal_kunjungan)} -{' '}
-                            {formatJam(row.slot_mulai)} -{' '}
-                            {formatJam(row.slot_selesai)}
+                            {formatTanggal(row.tanggal_kunjungan)} •{' '}
+                            {formatRentangJamZona(
+                                row.slot_mulai,
+                                row.slot_selesai,
+                                row.tanggal_kunjungan ?? '',
+                            )}
                         </p>
                     </div>
 

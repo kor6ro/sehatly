@@ -22,14 +22,15 @@ import { expect, test } from '@playwright/test';
  * SEHATLY_BASE_URL=http://127.0.0.1:5173 npx playwright test
  * ```
  *
- * ## Why the booking uses a deep-linked time
+ * ## The slot endpoint is real, and the fixture doctor publishes nothing
  *
- * `GET /api/v1/dokter/{id}/slot` is **not registered** - measured, and recorded as finding
- * F1 in `.omo/evidence/task-26-sehatly.md`. The slot picker therefore renders its
- * "server published nothing" panel, which offers a time box carrying no availability logic
- * of its own, and `?jam=09:00:00` fills it. The server still decides: a second booking for
- * the same doctor, date and time is refused with 422 on `slot`, and the second test asserts
- * that refusal is rendered inline and that **no row was added**.
+ * `GET /api/v1/dokter/{id}/slot` is registered and answers 200 (measured 2026-10-01). The
+ * fixture doctor this spec books (`/booking/1`, "Dokter Fixture Satu") has no
+ * `dokter_jadwal` row, so the endpoint answers `slots: []` and the picker renders its
+ * "Tidak ada jam tersedia" empty state. The deep-linked `?jam=09:00:00` still seeds the
+ * form, and the server's instant path accepts it. The server still decides: a second
+ * booking for the same doctor, date and time is refused with 422 on `slot`, and the second
+ * test asserts that refusal is rendered inline and that **no row was added**.
  */
 
 /** A unique `no_telepon` per test; `users.no_telepon` is `UNIQUE`. */
@@ -145,28 +146,39 @@ test.describe('Module 2 booking', () => {
             }
         });
 
+        const slotResponse = page.waitForResponse((r) =>
+            r.url().includes('/api/v1/dokter/1/slot'),
+        );
+
         await page.goto(`/booking/1?tanggal=${tanggal}&jam=${jam}`);
 
         /**
          * The doctor detail is a hard gate on this page, and this asserts it resolved
          * rather than being skipped: a form showing "Dokter: -" would still be submittable
-         * and would prove nothing.
+         * and would prove nothing. The timeout is generous because a cold Vite transform
+         * of this route can take longer than the 5 s expect default.
          */
         await expect(
             page.getByRole('heading', { name: /Booking dengan/ }),
-        ).toBeVisible();
+        ).toBeVisible({ timeout: 30_000 });
 
         /**
-         * The slot endpoint is not registered, so the picker must say so **by name** and
-         * name the path. This is the assertion that keeps the gap visible rather than
-         * letting a client quietly invent availability.
+         * The slot endpoint is registered and answers 200. The fixture doctor has no
+         * schedule, so the published list is empty and the picker says so; the deep-linked
+         * time still seeds the form and the server's instant path accepts it.
          */
-        const panel = page.getByTestId('slot-endpoint-belum-terdaftar');
+        const slot = await slotResponse;
 
-        await expect(panel).toBeVisible();
-        await expect(
-            panel.getByText('GET /api/v1/dokter/1/slot'),
-        ).toBeVisible();
+        expect(slot.status(), 'GET /dokter/1/slot harus 200').toBe(200);
+
+        const slotBody = (await slot.json()) as {
+            data: { timezone: string; slots: unknown[] };
+        };
+
+        expect(slotBody.data.timezone).toBe('Asia/Jakarta');
+        expect(slotBody.data.slots).toEqual([]);
+
+        await expect(page.getByText('Tidak ada jam tersedia')).toBeVisible();
 
         await page
             .getByLabel('Keluhan')

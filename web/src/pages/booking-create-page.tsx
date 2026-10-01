@@ -13,7 +13,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { SkeletonRows } from '@/components/states/loading-state';
-import { NotFoundState } from '@/components/states/error-state';
+import { ErrorState, NotFoundState } from '@/components/states/error-state';
 
 const PER_PAGE = 10;
 
@@ -103,11 +103,19 @@ export function BookingCreatePage() {
                         }
                     />
                 ) : (
-                    <p className="text-destructive text-sm">
-                        {dokter.error instanceof Error
-                            ? dokter.error.message
-                            : 'Gagal memuat data dokter.'}
-                    </p>
+                    /**
+                     * A 5xx or a dropped connection is retryable, and the page's own
+                     * three-state rule (`AGENTS.md`) requires the retry to be on screen
+                     * rather than a bare sentence. `ErrorState` withholds the button for
+                     * the statuses no retry can fix, so this branch is safe for every
+                     * non-404 failure.
+                     */
+                    <ErrorState
+                        error={dokter.error}
+                        onRetry={() => {
+                            void dokter.refetch();
+                        }}
+                    />
                 )}
             </>
         );

@@ -6,44 +6,34 @@ import type { Iso, TipeLayananJadwal } from '@/lib/api/types';
  * The two doctor schedule endpoints: `GET /api/v1/dokter/{dokter}/jadwal` and
  * `GET /api/v1/dokter/{dokter}/slot?tanggal=YYYY-MM-DD`.
  *
- * ## These two routes DO NOT EXIST YET, and the client is written as though they will
- *
- * This is the one place in the web client where a brief's claim had to be measured rather
- * than believed. Measured, on a live `php artisan serve` against the dev database:
+ * ## Both routes exist, measured live on 2026-10-01
  *
  * ```
- * GET /api/v1/dokter/1/jadwal            -> 404 {"success":false,"message":"Resource not found.","errors":{}}
- * GET /api/v1/dokter/1/slot?tanggal=...  -> 404 {"success":false,"message":"Resource not found.","errors":{}}
- * php artisan route:list --path=api/v1/dokter
- *   GET|HEAD api/v1/dokter           dokter.index
- *   GET|HEAD api/v1/dokter/booking   dokter.booking.index
- *   GET|HEAD api/v1/dokter/{dokter}  dokter.show
- *   Showing [3] routes
+ * GET /api/v1/dokter/{dokter}/jadwal            -> 200
+ * GET /api/v1/dokter/{dokter}/slot?tanggal=...  -> 200
+ *   {"data":{"tanggal":"...","timezone":"Asia/Jakarta","slots":[...16 rows...]}}
  * ```
  *
- * `DokterController` has exactly three actions - `index`, `show`, `spesialisasiIndex` -
- * and `routes/api.php` registers no `jadwal` or `slot` path. The four rules are fully
- * implemented in `App\Services\Booking\SlotAvailabilityService` and the service is
- * endpoint-agnostic, but nothing publishes it over HTTP. This is recorded as finding F1
- * in `.omo/evidence/task-26-sehatly.md`, which states it as a deliberate scope decision
- * for that todo rather than an oversight.
+ * An earlier revision of this module claimed the routes were unregistered and carried a
+ * `jadwalEndpointBelumTerdaftar()` discriminator plus a free-text time fallback in the
+ * slot picker. That measurement was stale: `DokterController::jadwal()` and `::slot()`
+ * are registered in `routes/api.php` and answer 200. The discriminator is deleted rather
+ * than kept as dead code, and `web/ux/patterns/F05.md` §12 records the correction.
  *
- * So the paths below are the **contract the service and the plan already name**, not
- * invented ones, and the response types are transcribed from the service's own
- * `@return list<array{...}>` annotations rather than guessed. When the routes land, this
- * module works unchanged.
+ * ## The 404 that remains is the doctor's, and it is not distinguishable from a route 404
  *
- * ## Why the 404 is a first-class state rather than an error to swallow
+ * `DokterController::slot()` answers `ApiResponse::error('Resource not found.', ...)` for
+ * all six ineligibility reasons, and the kernel publishes the same body for an unmatched
+ * path. The two are therefore the same status **and the same message**, so no client-side
+ * discriminator can tell them apart - which is the second reason the old one was wrong.
+ * The slot picker renders `NotFoundState` for any 404 and lets the page's doctor-detail
+ * gate own the primary "not bookable" answer.
  *
- * A 404 from a route that is not registered and a 404 from a doctor that does not exist are
- * the same status and completely different facts. {@link jadwalEndpointBelumTerdaftar}
- * tells them apart by the envelope's `message` - Laravel's router answers
- * `Resource not found.` for an unmatched path and `DokterController` answers its own
- * Indonesian sentence for a doctor who is absent, unverified, inactive, off telemedicine
- * or STR-expired - and the slot picker turns the first into a named panel and the second
- * into the existing `NotFoundState`. Swallowing either into a generic red box would make
- * the difference between "the feature is not deployed" and "that doctor is not bookable"
- * invisible, and those two need opposite actions.
+ * ## Why the response types are transcribed from the service
+ *
+ * The response types below are transcribed from `SlotAvailabilityService`'s own
+ * `@return list<array{...}>` annotations rather than guessed, so a field the service adds
+ * is a compile error at the consumer rather than an `undefined` at runtime.
  */
 
 /**
@@ -191,33 +181,6 @@ export function jadwalOptions(dokterId: string) {
         queryFn: () => fetchJadwalDokter(dokterId),
         retry: 0,
     });
-}
-
-/**
- * Is this 404 the *route* being absent, rather than the row being absent?
- *
- * The discriminator is Laravel's own router message, `"Resource not found."`, against
- * `DokterController`'s Indonesian sentences. `DokterController::show()` answers 404 for
- * six separate situations - never existed, unverified, inactive, not on telemedicine, STR
- * expired, soft-deleted - and deliberately publishes one generic message so an anonymous
- * caller cannot enumerate the verification state of every doctor account. So the message
- * is a reliable signal here even though it is deliberately uninformative to the user.
- */
-export function jadwalEndpointBelumTerdaftar(error: unknown): boolean {
-    if (
-        typeof error !== 'object' ||
-        error === null ||
-        !('status' in error) ||
-        !('message' in error)
-    ) {
-        return false;
-    }
-
-    const candidate = error as { status: unknown; message: unknown };
-
-    return (
-        candidate.status === 404 && candidate.message === 'Resource not found.'
-    );
 }
 
 /** `Iso` re-export so a caller does not reach into `lib/api/types` for a date string. */

@@ -13,11 +13,13 @@ import {
 import { anggotaKeluargaOptions, namaHubungan } from '@/lib/api/anggota-keluarga';
 import { BookingCalendar } from '@/features/booking/booking-calendar';
 import { SlotPicker, SlotTakenNotice } from '@/features/booking/slot-picker';
-import { jamKeHms } from '@/lib/tanggal';
 import { ApiError } from '@/lib/http';
 import { formatRupiah } from '@/lib/format';
+import { formatJamZonaGanda } from '@/lib/waktu';
 import type { Decimal } from '@/lib/api/types';
 import { dispatchFlash } from '@/lib/flash';
+import { useOnlineStatus } from '@/hooks/use-online-status';
+import { OfflineBanner } from '@/components/offline-banner';
 import { Field, FieldInput, FieldSelect, FieldTextarea, FormErrorSummary } from '@/components/form/field';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -47,6 +49,13 @@ import { Spinner } from '@/components/ui/spinner';
  * optimistic row would put a booking on screen that the server has just refused. The list
  * is invalidated in the mutation's `onSuccess` and the created row is handed to the caller
  * to display from the **response**, so every row on screen came from the server.
+ *
+ * ## Offline blocks the write instead of queueing it
+ *
+ * `useOnlineStatus` drives the shared {@link OfflineBanner} and the submit's `disabled`.
+ * Nothing is buffered: `_global.md` §7 #1 forbids queueing a booking mutation, because a
+ * replayed `POST /booking` is a second booking rather than a duplicate read. The form
+ * keeps every value, and the patient sends it once the connection returns.
  */
 const schema = z.object({
     tipe_layanan: z.enum(['chat', 'video_call', 'kunjungan_klinik', 'home_visit']),
@@ -105,12 +114,9 @@ export function BookingForm({
     onCreated: (nomorBooking: string) => void;
 }) {
     const [serverError, setServerError] = useState<unknown>(null);
-    const [jamManual, setJamManual] = useState(
-        jamAwal !== null && /^\d{2}:\d{2}:\d{2}$/.test(jamAwal)
-            ? jamAwal.slice(0, 5)
-            : '',
-    );
     const [lampiran, setLampiran] = useState<Lampiran[]>([]);
+
+    const online = useOnlineStatus();
 
     const keluarga = useQuery(anggotaKeluargaOptions({ page: 1, per_page: 100 }));
 
@@ -196,6 +202,8 @@ export function BookingForm({
             noValidate
             className="flex flex-col gap-6"
         >
+            <OfflineBanner />
+
             <FormErrorSummary error={serverError} />
 
             {serverError instanceof ApiError && !serverError.isValidation ? (
@@ -258,12 +266,6 @@ export function BookingForm({
                         tanggal={tanggal === '' ? null : tanggal}
                         selected={slotMulai === '' ? null : slotMulai}
                         onSelect={pilihJam}
-                        jamManual={jamManual}
-                        onJamManualChange={(value) => {
-                            setJamManual(value);
-
-                            pilihJam(jamKeHms(value));
-                        }}
                     />
 
                     <Field
@@ -561,6 +563,16 @@ export function BookingForm({
                     <span>Dokter: {dokterNama}</span>
 
                     <span>Biaya: {formatRupiah(biaya)}</span>
+
+                    {/**
+                     * The order summary's time, converted to the device zone and labelled.
+                     * `formatJamZonaGanda` adds the schedule's own WIB reading in
+                     * parentheses when the device is on a different clock, so a patient in
+                     * WITA sees both numbers for the same appointment (`_global.md` §5).
+                     */}
+                    {slotMulai === '' || tanggal === '' ? null : (
+                        <span>Jam: {formatJamZonaGanda(slotMulai, tanggal)}</span>
+                    )}
                 </div>
 
                 {couldSubmit ? null : (
@@ -574,7 +586,8 @@ export function BookingForm({
                 <div>
                     <Button
                         type="submit"
-                        disabled={!couldSubmit || create.isPending}
+                        className="min-h-11"
+                        disabled={!couldSubmit || create.isPending || !online}
                     >
                         {create.isPending ? (
                             <Spinner />

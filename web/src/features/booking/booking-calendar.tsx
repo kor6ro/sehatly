@@ -22,6 +22,14 @@ import { cn } from '@/lib/utils';
  * project's own tokens through `classNames`, so the calendar cannot introduce a second
  * palette next to the rest of the app.
  *
+ * ## Touch targets and focus
+ *
+ * `AGENTS.md` requires a 44 px target and a visible keyboard focus. The kit's defaults are
+ * `size-8` for the month arrows and `size-9` for a day, so both are raised here: the arrows
+ * to `size-11` (44x44) and the day buttons to `h-11 w-full` - 44 px tall and as wide as
+ * their grid column. Both get an explicit `focus-visible` ring, because the kit's own
+ * classes carry none.
+ *
  * ## Why no `endMonth`
  *
  * An upper bound on how far ahead a patient may book is policy, and no endpoint or plan
@@ -89,9 +97,9 @@ export function BookingCalendar({
                     caption_label: 'text-sm',
                     nav: 'flex items-center gap-1',
                     button_previous:
-                        'border-input bg-background hover:bg-accent hover:text-accent-foreground inline-flex size-8 items-center justify-center rounded-md border',
+                        'border-input bg-background hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring inline-flex size-11 items-center justify-center rounded-md border focus-visible:ring-2 focus-visible:outline-none',
                     button_next:
-                        'border-input bg-background hover:bg-accent hover:text-accent-foreground inline-flex size-8 items-center justify-center rounded-md border',
+                        'border-input bg-background hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring inline-flex size-11 items-center justify-center rounded-md border focus-visible:ring-2 focus-visible:outline-none',
                     chevron: 'size-4 fill-current',
                     weekdays: 'grid grid-cols-7 gap-1',
                     weekday:
@@ -99,7 +107,7 @@ export function BookingCalendar({
                     week: 'grid grid-cols-7 gap-1',
                     day: 'text-center',
                     day_button:
-                        'hover:bg-accent hover:text-accent-foreground data-selected:bg-primary data-selected:text-primary-foreground size-9 rounded-md text-sm font-normal transition-colors',
+                        'hover:bg-accent hover:text-accent-foreground data-selected:bg-primary data-selected:text-primary-foreground focus-visible:ring-ring h-11 w-full rounded-md text-sm font-normal transition-colors focus-visible:ring-2 focus-visible:outline-none',
                     selected: 'font-medium',
                     today: 'font-semibold underline underline-offset-4',
                     disabled:

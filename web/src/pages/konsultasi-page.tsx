@@ -30,7 +30,6 @@ import { Button } from '@/components/ui/button';
 import { KonsultasiStatusBadge } from '@/features/konsultasi/status-badge';
 import { ChatWindow } from '@/features/konsultasi/chat-window';
 import { SoapForm } from '@/features/konsultasi/soap-form';
-import { useFlashToast } from '@/hooks/use-flash-toast';
 import { dispatchFlash } from '@/lib/flash';
 
 const PER_HALAMAN = 50;
@@ -70,8 +69,6 @@ export function KonsultasiPage() {
     const [halaman, setHalaman] = useState(1);
 
     const queryClient = useQueryClient();
-
-    useFlashToast();
 
     const sesi = useQuery({
         ...konsultasiOptions(konsultasiId),

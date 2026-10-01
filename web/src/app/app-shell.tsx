@@ -19,7 +19,6 @@ import { meOptions } from '@/lib/api/me';
 import { clearTokens, getRefreshToken } from '@/lib/token';
 import { queryClient } from '@/lib/query-client';
 import { dispatchFlash } from '@/lib/flash';
-import { useFlashToast } from '@/hooks/use-flash-toast';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { Toaster } from '@/components/ui/sonner';
@@ -44,13 +43,15 @@ import {
 /**
  * The chrome around every signed-in screen.
  *
- * ## Why the flash listener is mounted here
+ * ## The flash listener lives in `Toaster`, and only there
  *
  * `hooks/use-flash-toast.ts` listens for the `sehatly:flash` DOM event because the
- * Inertia-era source it replaced does not exist in a Vite SPA. Nothing mounted it, so every
- * `dispatchFlash()` from `lib/http.ts` and from the CRUD screens was being raised into a
- * void with a `<Toaster />` rendered and never fed. Mounting it here is what makes the
- * existing `sonner.tsx` relocation work at all.
+ * Inertia-era source it replaced does not exist in a Vite SPA. The listener is mounted by
+ * `components/ui/sonner.tsx`'s `Toaster`, which is the component that renders the toasts
+ * and is mounted once per signed-in screen. This shell used to call `useFlashToast()` as
+ * well, which registered a **second** listener and rendered every flash twice; the
+ * duplicate is removed here rather than in the kit, so the kit stays the single owner of
+ * its own feed.
  *
  * ## Why the nav is a hand-written list and not a generated one
  *
@@ -86,8 +87,6 @@ export function AppShell() {
 }
 
 function SignedInLayout() {
-    useFlashToast();
-
     return (
         <div className="flex min-h-screen w-full">
             <AppSidebar />
