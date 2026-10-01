@@ -6,6 +6,7 @@ import {
     type MasterObat,
     type PeringatanGrup,
     type Resep,
+    type ResepAntrean,
     type ResepPeringatan,
     type ResepVerifikasi,
 } from '@/lib/api/types';
@@ -29,28 +30,26 @@ import {
  */
 
 /**
- * The six prescription and medicine endpoints, all behind `auth:sanctum`.
+ * The seven prescription and medicine endpoints, all behind `auth:sanctum`.
  *
  * | method | path | guard | success |
  * | --- | --- | --- | --- |
  * | `GET` | `/api/v1/obat` | `tipe:dokter` + `obat.cari` | 200 + `meta` |
  * | `POST` | `/api/v1/konsultasi/{id}/resep` | `tipe:dokter` + `resep.buat` | 201, WITH the warning set |
+ * | `GET` | `/api/v1/resep` | `tipe:apoteker` + `resep.verifikasi` | 200 + `meta` |
  * | `GET` | `/api/v1/resep/{id}` | `resep.lihat` | 200 + the current warning set |
  * | `GET` | `/api/v1/resep/{id}/cek-interaksi` | `resep.lihat` | 200, re-checked from the STORED items |
  * | `POST` | `/api/v1/resep/{id}/verifikasi` | `tipe:apoteker` + `resep.verifikasi` | 201 |
  * | `GET` | `/api/v1/pasien/resep` | `resep.lihat` + a `pasien` row | 200 + `meta` |
  *
- * ## There is no endpoint that lists a pharmacist's queue, and that is a FINDING
+ * ## The pharmacist's worklist is `GET /resep`, and it is narrower on purpose
  *
- * `ApotekerVerifikasiQueue` is supposed to "list prescriptions awaiting verification", and
- * the route table has nothing that does it. `GET /pasien/resep` is the only list, and
- * `ResepAccess::riwayat()` starts with `PasienRecordAccess::ownPasien($caller)`, which
- * **throws 403 for an account that owns no `pasien` row** - so a pharmacist gets a 403, not
- * a queue. `GET /resep/{id}` is one row and needs an id the pharmacist cannot obtain.
- *
- * So the queue is addressed BY ID. That is the honest shape available today, it uses only
- * endpoints that exist, and it is reported as a finding rather than papered over with a route
- * this executor is not authorised to add. See `.omo/evidence/task-41-sehatly.md`.
+ * The queue answers `ResepAntreanResource`, not `ResepResource`: row identity, timing,
+ * status flags and an item count. No drug names, no `catatan_dokter`, no QR, no patient
+ * identity. The clinical content is a separate per-row read (`GET /resep/{id}`), which
+ * `ResepAccess::untukBaca()` gates. The two verifiable statuses are
+ * {@link STATUS_BISA_DIVERIFIKASI}; any other `?status=` value is a 422, so the filter
+ * offers exactly those two plus "Semua".
  *
  * ## `catatan_dodio` is the override channel, and it is the ONLY one
  *
@@ -353,6 +352,22 @@ export type RiwayatResepFilters = {
     status?: string | null;
 };
 
+/**
+ * `GET /resep`'s query string: the two verifiable statuses, and nothing else.
+ *
+ * `AntreanResepRequest` validates `status` with `Rule::in(ResepStateMachine::BISA_DIVERIFIKASI)`,
+ * so `diverifikasi`, `dipenuhi` or a typo is a 422 naming the field rather than an empty
+ * page. Typing the parameter off the constant is what stops a filter chip from offering a
+ * value the server refuses.
+ */
+export type StatusAntreanResep = (typeof STATUS_BISA_DIVERIFIKASI)[number];
+
+export type AntreanResepFilters = {
+    page: number;
+    per_page: number;
+    status?: StatusAntreanResep | null;
+};
+
 /** The four response envelopes, typed at the boundary the resources publish them. */
 export type BuatResepResponse = {
     resep: Resep;
@@ -387,3 +402,6 @@ export type VerifikasiResepResponse = {
 export type CariObatResponse = { obat: MasterObat[] };
 
 export type RiwayatResepResponse = { resep: Resep[] };
+
+/** `GET /resep` - the pharmacist's queue, newest first, with pagination `meta`. */
+export type AntreanResepResponse = { resep: ResepAntrean[] };

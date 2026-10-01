@@ -2,6 +2,8 @@ import { mutationOptions, queryOptions } from '@tanstack/react-query';
 import { request } from '@/lib/http';
 import { queryClient } from '@/lib/query-client';
 import {
+    type AntreanResepFilters,
+    type AntreanResepResponse,
     type BuatResepInput,
     type BuatResepResponse,
     type CariObatFilters,
@@ -15,7 +17,7 @@ import {
 } from '@/lib/api/resep-peringatan';
 
 /**
- * Module 4's transport: the six prescription and medicine calls, their cache keys and their
+ * Module 4's transport: the seven prescription and medicine calls, their cache keys and their
  * mutations.
  *
  * The clinical half - labels, closed vocabularies, request schemas, and the grouping and
@@ -111,6 +113,24 @@ export async function riwayatResep(filters: RiwayatResepFilters) {
     });
 }
 
+/**
+ * `GET /resep` - the pharmacist's verification queue, newest first.
+ *
+ * The response is `ResepAntreanResource`, so the rows carry no clinical content and the
+ * detail remains a separate `GET /resep/{id}`. `status` is restricted to the two values
+ * `AntreanResepRequest` accepts; sending anything else is a 422, which is why the filter
+ * type is the constant's own union rather than `string`.
+ */
+export async function antreanResep(filters: AntreanResepFilters) {
+    return request<AntreanResepResponse>('resep', {
+        searchParams: {
+            page: filters.page,
+            per_page: filters.per_page,
+            ...(filters.status == null ? {} : { status: filters.status }),
+        },
+    });
+}
+
 // ============================================================================
 // Cache keys
 // ============================================================================
@@ -120,6 +140,9 @@ export const resepQueryKey = ['v1', 'resep'] as const;
 export const obatQueryKey = ['v1', 'obat'] as const;
 
 export const riwayatResepQueryKey = ['v1', 'pasien', 'resep'] as const;
+
+/** `GET /resep`'s cache key; the prefix is invalidated whenever a verification lands. */
+export const antreanResepQueryKey = ['v1', 'resep', 'antrean'] as const;
 
 /**
  * The catalogue, at `staleTime: 60_000` rather than the module-wide 30 s.
@@ -155,6 +178,13 @@ export function riwayatResepOptions(filters: RiwayatResepFilters) {
     return queryOptions({
         queryKey: [...riwayatResepQueryKey, filters],
         queryFn: () => riwayatResep(filters),
+    });
+}
+
+export function antreanResepOptions(filters: AntreanResepFilters) {
+    return queryOptions({
+        queryKey: [...antreanResepQueryKey, filters],
+        queryFn: () => antreanResep(filters),
     });
 }
 
@@ -200,6 +230,7 @@ export function verifikasiResepMutation(id: number) {
         onSuccess: () => {
             void queryClient.invalidateQueries({ queryKey: [...resepQueryKey, id] });
             void queryClient.invalidateQueries({ queryKey: riwayatResepQueryKey });
+            void queryClient.invalidateQueries({ queryKey: antreanResepQueryKey });
         },
     });
 }

@@ -1,4 +1,14 @@
-import { AlertOctagon, CheckCircle2, PackageCheck, XCircle } from 'lucide-react';
+import {
+    Activity,
+    AlertOctagon,
+    CheckCheck,
+    CheckCircle2,
+    PackageCheck,
+    Timer,
+    Truck,
+    XCircle,
+    type LucideIcon,
+} from 'lucide-react';
 import { LABEL_STATUS_RESEP, LABEL_STATUS_VERIFIKASI } from '@/lib/api/resep';
 import type { StatusResep, StatusVerifikasiResep } from '@/lib/api/types';
 import { Badge } from '@/components/ui/badge';
@@ -15,8 +25,25 @@ import { Badge } from '@/components/ui/badge';
  * three get `secondary`, and the boundary is drawn from the server's own two lists rather
  * than from taste: a `selesai` prescription rendered with the "live" treatment would tell
  * a patient their finished course is still running.
+ *
+ * ## The icon is per state, and it is what makes the badge readable without colour
+ *
+ * `_global.md` §2 requires status to be text + icon + colour, never colour alone. Every
+ * one of the eight states gets its own icon so a greyscale render, a colour-blind reader
+ * and a screen reader all get the same distinction the tint carries.
  */
 const AKHIR: ReadonlySet<string> = new Set(['selesai', 'kedaluwarsa', 'dibatalkan']);
+
+const IKON_STATUS: Readonly<Record<StatusResep, LucideIcon>> = {
+    aktif: Activity,
+    diproses: Timer,
+    diverifikasi: CheckCircle2,
+    dipenuhi: PackageCheck,
+    dikirim: Truck,
+    selesai: CheckCheck,
+    kedaluwarsa: AlertOctagon,
+    dibatalkan: XCircle,
+};
 
 export function StatusResepBadge({
     status,
@@ -25,6 +52,8 @@ export function StatusResepBadge({
     status: StatusResep;
     className?: string;
 }) {
+    const Ikon = IKON_STATUS[status];
+
     return (
         <Badge
             data-slot="status-resep-badge"
@@ -32,6 +61,8 @@ export function StatusResepBadge({
             variant={AKHIR.has(status) ? 'secondary' : 'default'}
             className={className}
         >
+            <Ikon aria-hidden />
+
             {LABEL_STATUS_RESEP[status] ?? status}
         </Badge>
     );

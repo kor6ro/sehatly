@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { ClipboardCheck, Loader2, Search, ShieldAlert } from 'lucide-react';
+import { ClipboardCheck, Loader2, ShieldAlert } from 'lucide-react';
 import { ApiError } from '@/lib/http';
 import { dispatchFlash } from '@/lib/flash';
 import {
@@ -26,30 +26,22 @@ import {
     CardTitle,
 } from '@/components/ui/card';
 import { Field, FieldTextarea, FormErrorSummary } from '@/components/form/field';
-import { Input } from '@/components/ui/input';
 import { SkeletonRows } from '@/components/states/loading-state';
 import { ErrorState, ForbiddenState, NotFoundState } from '@/components/states/error-state';
 import { WarningPanel } from '@/features/resep/warning-panel';
 import { ResepDetail } from '@/features/resep/resep-detail';
 
 /**
- * The pharmacist's verification queue, addressed BY ID because it has to be.
+ * One prescription from the queue, opened for the pharmacist's decision.
  *
- * ## FINDING: no endpoint lists a pharmacist's queue
+ * ## The row comes from the queue, the detail comes from the row's own read
  *
- * The plan asks this component to "list prescriptions awaiting verification", and the route
- * table has nothing that does it:
- *
- * - `GET /api/v1/pasien/resep` is the only list, and `ResepAccess::riwayat()` begins with
- *   `PasienRecordAccess::ownPasien($caller)`, which **throws 403 for an account owning no
- *   `pasien` row**. A pharmacist gets a refusal, not a queue.
- * - `GET /api/v1/resep/{id}` and `GET /api/v1/resep/{id}/cek-interaksi` are per-row, and
- *   need an id the pharmacist cannot obtain without the missing list.
- *
- * So `GET /api/v1/apotek/resep?status=aktif` is needed and does not exist. It is reported as
- * a finding in `.omo/evidence/task-41-sehatly.md` rather than faked, and adding a route is
- * not this executor's to do. This component therefore uses only endpoints that exist: the
- * pharmacist opens a prescription by id and everything else follows.
+ * `AntreanVerifikasiList` renders `GET /resep` (`ResepAntreanResource`), which publishes
+ * no clinical content. This component takes the id a row handed over and reads
+ * `GET /resep/{id}` - gated per row by `ResepAccess::untukBaca()` - plus
+ * `GET /resep/{id}/cek-interaksi`, then submits the single answer through
+ * `POST /resep/{id}/verifikasi`. The queue list never needed the drug names; this screen
+ * is the one place a pharmacist reads them.
  *
  * ## A contraindication demands a note from the SECOND reader
  *
@@ -70,71 +62,14 @@ import { ResepDetail } from '@/features/resep/resep-detail';
  */
 export function ApotekerVerifikasiQueue({
     resepId,
-    onTerpilih,
+    onSelesai,
 }: {
-    resepId: number | null;
-    onTerpilih: (id: number | null) => void;
+    resepId: number;
+    onSelesai: () => void;
 }) {
-    const [mentah, setMentah] = useState('');
-
     return (
         <div data-slot="apoteker-verifikasi-queue" className="flex flex-col gap-4">
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <Search aria-hidden />
-
-                        Buka resep untuk diverifikasi
-                    </CardTitle>
-
-                    <CardDescription>
-                        Masukkan id resep. Antrean tidak dapat ditampilkan di
-                        halaman ini, jadi setiap resep dibuka satu per satu.
-                    </CardDescription>
-                </CardHeader>
-
-                <CardContent>
-                    <form
-                        className="flex items-end gap-2"
-                        onSubmit={(e) => {
-                            e.preventDefault();
-
-                            const id = Number(mentah.trim());
-
-                            if (Number.isInteger(id) && id > 0) {
-                                onTerpilih(id);
-                            }
-                        }}
-                    >
-                        <Field label="Id resep" className="flex-1">
-                            <Input
-                                data-slot="apotek-id-resep"
-                                type="number"
-                                min={1}
-                                value={mentah}
-                                onChange={(e) => {
-                                    setMentah(e.target.value);
-                                }}
-                                placeholder="mis. 1"
-                            />
-                        </Field>
-
-                        <Button type="submit" variant="outline">
-                            Buka
-                        </Button>
-                    </form>
-                </CardContent>
-            </Card>
-
-            {resepId === null ? null : (
-                <AntreanResep
-                    key={resepId}
-                    resepId={resepId}
-                    onSelesai={() => {
-                        onTerpilih(null);
-                    }}
-                />
-            )}
+            <AntreanResep key={resepId} resepId={resepId} onSelesai={onSelesai} />
         </div>
     );
 }

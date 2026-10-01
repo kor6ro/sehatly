@@ -25,6 +25,7 @@
  * | `Konsultasi`, `KonsultasiPesan` | `KonsultasiResource`, `KonsultasiChatResource` |
  * | `RekamMedis`, `RekamMedisRantai` | `RekamMedisResource` |
  * | `Resep`, `ResepItem` | `ResepResource`, `ResepItemResource` |
+ * | `ResepAntrean` | `ResepAntreanResource` |
  * | `ResepVerifikasi` | `ResepVerifikasiResource` |
  * | `MasterObat` | `MasterObatResource` |
  * | `PeringatanPeringatan` | `ObatInteraksiService::susunInteraksi()` / `::susunAlergi()` |
@@ -1248,6 +1249,40 @@ export type Resep = {
     dibuat_at: Iso;
     /** Absent unless the relation was eager-loaded, which every `resep` response does. */
     items?: ResepItem[];
+};
+
+/**
+ * One row of the pharmacist's verification queue, transcribed field by field from
+ * `App\Http\Resources\ResepAntreanResource`.
+ *
+ * ## This is an INDEX, not a detail, and the omissions are the contract
+ *
+ * `ResepAntreanResource` deliberately publishes none of the clinical content:
+ * no `items` / drug names, no `catatan_dokter`, no `qr_token`, no patient identity or
+ * contact data, and none of the five surrogate foreign keys. A queue screen that wants a
+ * drug name must open `GET /resep/{id}`, which is gated per row (`ResepAccess::untukBaca`).
+ * Typing the queue off {@link Resep} would make that disclosure look optional.
+ *
+ * ## `is_kedaluwarsa` and `terminal` come from the state machine, not the column
+ *
+ * Both are computed by `ResepStateMachine`, so the queue answers "can I still act on this"
+ * with the same rule the detail does. A prescription whose `berlaku_sampai` has passed can
+ * still read `status: 'aktif'` in the database; `is_kedaluwarsa` is what makes that
+ * visible at queue time.
+ */
+export type ResepAntrean = {
+    id: number;
+    nomor_resep: string;
+    tipe: TipeResep;
+    status: StatusResep;
+    /** `DATETIME`, an ISO-8601 instant. Read with `formatWaktuZona`. */
+    tanggal_resep: Iso;
+    /** `DATE`, `Y-m-d`, Asia/Jakarta wall clock. Read with `formatTanggal`. */
+    berlaku_sampai: Tanggal;
+    is_kedaluwarsa: boolean;
+    terminal: boolean;
+    /** `withCount('resepItem')` server-side, never counted per row by the client. */
+    jumlah_item: number;
 };
 
 // ============================================================================
