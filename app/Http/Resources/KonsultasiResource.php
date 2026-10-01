@@ -25,7 +25,37 @@ use Illuminate\Support\Carbon;
  *
  * The three nested blocks are all `whenLoaded()`, so this resource is safe on a
  * bare row - the broadcast payload is built from one - and publishes them only when
- * `KonsultasiAccess::muatan()` eager-loaded them.
+ * `KonsultasiAccess::muatan()` eager-loaded them. `baca` is the fourth and is
+ * F08's addition: see below.
+ *
+ * ## The `baca` block, and how a client maps "the other party"
+ *
+ * `baca` publishes BOTH participants' read markers in one flat block:
+ *
+ *     baca: {
+ *         pasien_user_id, pasien_last_read_at,
+ *         dokter_user_id, dokter_last_read_at,
+ *     }
+ *
+ * A client is one of the two parties and knows its own account id from
+ * `GET /me`, so "what did the OTHER party read?" is a comparison of
+ * `pasien_user_id` / `dokter_user_id` against that id and a read of the
+ * companion `*_last_read_at` - one GET, no second call and no transcript scan.
+ * The role keys are chosen over a `user_id => last_read_at` map deliberately:
+ * a map would force the client to compare raw ids anyway, while these keys
+ * state which id belongs to which side.
+ *
+ * The two nullable fields have TWO different meanings and the companion id
+ * disambiguates them: a `null` `*_user_id` means that side could not be
+ * resolved (its profile row is soft-deleted), while a non-null id with a `null`
+ * `*_last_read_at` means that participant has never read this consultation.
+ * Timestamps are ISO-8601 UTC with a `Z`, like every other instant here.
+ *
+ * `baca` is `whenLoaded('konsultasiBaca')`, so it is absent - never `null` -
+ * when the resource is built from a row whose markers were not loaded.
+ * `KonsultasiAccess::muatan()` always loads them, which is why every
+ * `GET /api/v1/konsultasi/{id}` carries the block; the lifecycle write
+ * responses carry it too because they go through the same loader.
  *
  * ## `total_durasi_detik` is the STORED column, and that is deliberate
  *
@@ -99,7 +129,37 @@ class KonsultasiResource extends JsonResource
                 'slot_selesai' => $this->resource->booking->slot_selesai,
                 'status' => $this->resource->booking->status,
             ]),
+            'baca' => $this->whenLoaded('konsultasiBaca', fn (): array => [
+                'pasien_user_id' => $this->resource->pasien?->user_id,
+                'pasien_last_read_at' => $this->bacaUntuk($this->resource->pasien?->user_id),
+                'dokter_user_id' => $this->resource->dokter?->user_id,
+                'dokter_last_read_at' => $this->bacaUntuk($this->resource->dokter?->user_id),
+            ]),
         ];
+    }
+
+    /**
+     * One participant's `last_read_at` from the loaded markers, or `null`.
+     *
+     * The comparison is by `user_id`, and it is `(int)`-normalised on the row
+     * side so a driver that returned the column as a string cannot make an
+     * identically-valued pair look different. A `null` `$userId` returns `null`
+     * before the loop, which is why the resource's companion `*_user_id` is what
+     * disambiguates "unresolvable side" from "never read".
+     */
+    private function bacaUntuk(?int $userId): ?string
+    {
+        if ($userId === null) {
+            return null;
+        }
+
+        foreach ($this->resource->konsultasiBaca as $baca) {
+            if ((int) $baca->user_id === $userId) {
+                return $baca->last_read_at?->toISOString();
+            }
+        }
+
+        return null;
     }
 
     /**

@@ -192,7 +192,7 @@ test('rule 2: a registered constraint that the live schema HAS is drift — the 
     $row = deferralRowOfKind($discrepancies, 'fulfilled_deferred_foreign_key');
 
     // DRIFT. Without this, a registry row could excuse the constraint forever and
-    // the "75 tables, 2 views verified" run would pass with the FK still absent.
+    // the "76 tables, 2 views verified" run would pass with the FK still absent.
     expect($row->isDrift())->toBeTrue();
     expect($row->table)->toBe('pasien_tanda_vital');
     expect($row->expected)->toContain('still registered as deferred');

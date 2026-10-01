@@ -179,7 +179,7 @@ test('the JSON report is machine-readable, and its exit code matches its verdict
     expect($json)->toBeArray();
     expect($json['exit_code'])->toBe($exitCode);
     expect($json['read_only'])->toBeTrue();
-    expect($json['expected']['tables'])->toBe(75);
+    expect($json['expected']['tables'])->toBe(76);
     expect($json['expected']['views'])->toBe(2);
     expect($json['expected']['columns'])->toBeGreaterThan(600);
     // The CONFIGURED database name rather than a literal: a per-executor
@@ -235,7 +235,7 @@ test('the JSON report is machine-readable, and its exit code matches its verdict
 
     // Proof the parser is not vacuous, carried in the machine-readable channel too.
     expect($json['multi_line_column_declarations'])->toHaveCount(11);
-    expect($json['expected'])->toMatchArray(['foreign_keys' => 105, 'checks' => 3]);
+    expect($json['expected'])->toMatchArray(['foreign_keys' => 107, 'checks' => 3]);
 
     // Todo 18 flips the verdict, not the accounting: with nothing left to
     // migrate the report is ok, drift is zero, and the only rows that remain are
@@ -269,7 +269,7 @@ test('the scope can be narrowed to a single table, and the narrow run still name
         // to name and the verdict inverts to exit 0. Two A.7 traps apply here and
         // are why the assertions read the output rather than trusting the code:
         // the PASS banner is formatted from the FULL reference model, so it
-        // prints "75 tables, 2 views verified" after checking one table; and a
+        // prints "76 tables, 2 views verified" after checking one table; and a
         // name the DDL does not define also exits 0. So check the echoed scope
         // line and the Discrepancies line.
         $anchor = $contract[0];
@@ -534,7 +534,7 @@ test('the extra-table registry is parsed from docs/schema-notes.md', function ()
 
     $created = array_values(array_unique([...$created, ...array_map('strtolower', $literalNames)]));
 
-    // Everything the migrations create that is not one of the 75 tables.
+    // Everything the migrations create that is not one of the 76 tables.
     $expectedExtras = array_values(array_diff($created, $contractTables));
     $registered = array_keys($entries);
 
@@ -555,7 +555,7 @@ test('the extra-table registry is parsed from docs/schema-notes.md', function ()
         expect($justification)->not->toBe('registered without a justification');
     }
 
-    // `users` is one of the 75 tables, so registering it as an extra would be
+    // `users` is one of the 76 tables, so registering it as an extra would be
     // wrong — and the subtraction above is exactly what keeps it out once todo 8
     // authors `2026_10_01_000012_users_table.php`.
     expect($contractTables)->toContain('users');

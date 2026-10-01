@@ -180,7 +180,7 @@ test('the patient NIK column is `nik_cipher TEXT` and the plaintext `nik` column
         ->and(NikCipher::COL_PAYLOAD)->toBe('nik_cipher');
 });
 
-test('the contract DDL declares the same column and the change is one line of a 1349-line file', function (): void {
+test('the contract DDL declares the same column and the change is one line of a 1364-line file', function (): void {
     $spec = (new SqlSchemaParser)->parseFile(base_path('telemedicine_test.sql'));
     $pasien = $spec->table('pasien');
 
@@ -199,14 +199,16 @@ test('the contract DDL declares the same column and the change is one line of a 
         ->toContain('nik_cipher TEXT NULL')
         ->toContain('WAJIB dienkripsi');
 
-    // ONE line, in a file whose length is unchanged. `git diff` is the
+    // ONE line, in a file whose length moved only by APPEND. `git diff` is the
     // authoritative record, but a test that fails when a second line moves is
     // the version that runs in CI. `pasien` still has 31 columns: the change
     // RENAMED one, it did not add one, and the blind index the owner deferred
-    // would have made 32.
+    // would have made 32. F02 kept the file at 1349 lines; F08 appended section
+    // [17] (`konsultasi_baca`) at the END, so it is 1364 now and line 222 did
+    // not move.
     expect($pasien->columns['nik_cipher']->line)->toBe(222)
-        ->and(count($garis))->toBe(1349)
-        ->and($spec->tableNames())->toHaveCount(75)
+        ->and(count($garis))->toBe(1364)
+        ->and($spec->tableNames())->toHaveCount(76)
         ->and(count($pasien->columns))->toBe(31)
         ->and(substr_count((string) file_get_contents(base_path('telemedicine_test.sql')), 'nik_cipher'))->toBe(1);
 

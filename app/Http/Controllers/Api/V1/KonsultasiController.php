@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Enums\KonsultasiStatus;
+use App\Events\KonsultasiChatDibaca;
 use App\Events\KonsultasiMessageSent;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Konsultasi\KirimPesanRequest;
@@ -57,6 +58,18 @@ use Throwable;
  * fire under test. Dispatching from the controller, where the transaction has
  * already returned, is the only placement that is both correct in production and
  * exercised by the suite.
+ *
+ * ## The two server-sent chat events, and the one that is deliberately NOT
+ *
+ * `chat.pesan` ({@see KonsultasiMessageSent}) and `chat.dibaca`
+ * ({@see KonsultasiChatDibaca}) are the ONLY chat events the server emits, both
+ * on `private-konsultasi.{id}`. **`chat.mengetik` ("is typing…") is a
+ * CLIENT-ONLY whisper**: it travels over the same already-authorized private
+ * channel using Echo's client-side whispering, and it must NEVER grow a server
+ * route, event, database write or queued job. A typing signal is ephemeral, it
+ * has no history worth storing, and a server relay would turn one party's
+ * keystrokes into a durable artifact of the other plus a fan-out cost per
+ * keystroke. The client-side whisper is the whole implementation.
  *
  * ## Ownership is one rule, and it is todo 31's
  *
@@ -251,15 +264,33 @@ class KonsultasiController extends Controller
     /**
      * `POST /api/v1/konsultasi/{id}/chat/baca` - 200.
      *
-     * Stamps `dibaca_at` on the OTHER party's unread messages and answers how many
-     * moved. A system line is skipped in both directions: neither party wrote it.
+     * Stamps `dibaca_at` on the OTHER party's unread messages, moves the caller's
+     * own `konsultasi_baca` marker forward, and answers how many messages moved.
+     * A system line is skipped in both directions: neither party wrote it.
+     *
+     * F08 keeps the response shape: `{konsultasi_id, jumlah_ditandai_baca}`. The
+     * new state travels on the `chat.dibaca` broadcast - `{user_id,
+     * last_read_at}` - so the other client can re-render its bubbles without a
+     * poll, and on `GET /konsultasi/{id}`'s `baca` block. The event is dispatched
+     * AFTER `tandaiDibaca()` returns, for the commit-ordering reason the class
+     * docblock records.
      */
     public function chatBaca(TandaiDibacaRequest $request, int $id): JsonResponse
     {
+        $user = $this->user($request);
+
+        [$jumlah, $baca] = $this->service->tandaiDibaca($user, $id);
+
+        $this->siarkanDibaca(
+            $id,
+            (int) $baca->user_id,
+            (string) $baca->last_read_at?->toISOString(),
+        );
+
         return ApiResponse::success(
             [
                 'konsultasi_id' => $id,
-                'jumlah_ditandai_baca' => $this->service->tandaiDibaca($this->user($request), $id),
+                'jumlah_ditandai_baca' => $jumlah,
             ],
             'Pesan ditandai sudah dibaca.',
         );
@@ -299,6 +330,28 @@ class KonsultasiController extends Controller
             Log::warning('konsultasi.siaran_gagal', [
                 'konsultasi_id' => (int) $payload['konsultasi_id'],
                 'chat_id' => (int) $pesan->getKey(),
+                'galat' => $e::class.': '.$e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Broadcast the read marker `chatBaca()` just moved.
+     *
+     * The same failure containment as {@see siarkan()}, for the same measured
+     * reason: `ShouldBroadcastNow` sends inline, so a dead broadcaster must not
+     * turn a marker that is already committed into a 500 the client retries. The
+     * line names the consultation, the reader and the throwable; there is no chat
+     * body on this path and nothing else may be logged.
+     */
+    private function siarkanDibaca(int $konsultasiId, int $userId, string $lastReadAt): void
+    {
+        try {
+            KonsultasiChatDibaca::dispatch($konsultasiId, $userId, $lastReadAt);
+        } catch (Throwable $e) {
+            Log::warning('konsultasi.siaran_dibaca_gagal', [
+                'konsultasi_id' => $konsultasiId,
+                'user_id' => $userId,
                 'galat' => $e::class.': '.$e->getMessage(),
             ]);
         }

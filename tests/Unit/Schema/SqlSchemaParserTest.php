@@ -18,11 +18,12 @@ function referenceSpec(): SchemaSpec
     return (new SqlSchemaParser)->parseFile(base_path('telemedicine_test.sql'));
 }
 
-test('the reference DDL parses into exactly 75 tables and 2 views', function () {
+test('the reference DDL parses into exactly 76 tables and 2 views', function () {
     $spec = referenceSpec();
 
-    // `indexes` is 140, not the 141 it was before F02. Two removals are folded
-    // into that number:
+    // `indexes` is 142. The two removals F02 folded in are described below;
+    // F08 appended `konsultasi_baca`, whose primary key and named
+    // `UNIQUE KEY uq_baca` add two indexes on top of F02's 140.
     //
     // - migration `2026_10_01_000079` renamed `pasien.nik` to `nik_cipher` and
     //   the DDL dropped the inline `UNIQUE` the old `nik CHAR(16) NULL UNIQUE`
@@ -32,14 +33,15 @@ test('the reference DDL parses into exactly 75 tables and 2 views', function () 
     // - F02 dropped `uq_consent` from `persetujuan_pdp`, whose line in the DDL
     //   is now a comment (see `docs/schema-notes.md`).
     //
-    // `columns` is unchanged at 672 because neither change added or removed a
-    // column.
+    // `columns` moved 672 -> 678 (six columns of `konsultasi_baca`) and
+    // `foreign_keys` 105 -> 107 (its two cascading keys). F08's schema note is
+    // in `docs/schema-notes.md`.
     expect($spec->summary())->toBe([
-        'tables' => 75,
+        'tables' => 76,
         'views' => 2,
-        'columns' => 672,
-        'indexes' => 140,
-        'foreign_keys' => 105,
+        'columns' => 678,
+        'indexes' => 142,
+        'foreign_keys' => 107,
         'checks' => 3,
     ]);
 
@@ -264,7 +266,7 @@ test('a deliberately malformed reference file errors loudly instead of reporting
 
 test('a missing trailing comma is an error, not a plausible-looking wrong model', function () {
     // Without this the `id` and `uuid` declarations merge, `users` silently loses a
-    // column, and the parser reports 75 tables with 671 columns instead of 672 - a
+    // column, and the parser reports 76 tables with 677 columns instead of 678 - a
     // green-looking, wrong answer. It has to fail loudly instead.
     $parser = new SqlSchemaParser;
 
@@ -326,7 +328,7 @@ test('a deliberately corrupted copy of the reference yields a different table co
 
         $corrupted = (new SqlSchemaParser)->parseFile($corrupt);
 
-        expect($corrupted->tableNames())->toHaveCount(75);
+        expect($corrupted->tableNames())->toHaveCount(76);
         expect($corrupted->hasTable('booking'))->toBeFalse();
         expect($corrupted->hasTable('booking_renamed'))->toBeTrue();
         // Same count, different content: the count alone is not proof of parsing.
@@ -345,9 +347,9 @@ test('a deliberately corrupted copy of the reference yields a different table co
 
         $dropped = (new SqlSchemaParser)->parse($truncated);
 
-        expect($dropped->tableNames())->toHaveCount(74);
+        expect($dropped->tableNames())->toHaveCount(75);
         expect($dropped->hasTable('users'))->toBeFalse();
-        expect($dropped->columnCount())->toBe(672 - 16);
+        expect($dropped->columnCount())->toBe(678 - 16);
     } finally {
         @unlink($corrupt);
     }

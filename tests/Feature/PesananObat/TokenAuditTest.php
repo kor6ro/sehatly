@@ -116,7 +116,7 @@ test('the schema the audit reads is the one the parity verifier reads', function
     expect($spec->hasTable('pesanan_obat'))->toBeTrue()
         ->and($spec->hasTable('apotek_stok'))->toBeTrue()
         ->and($spec->hasTable('pesanan_obat_tracking'))->toBeTrue()
-        ->and($spec->tableNames())->toHaveCount(75);
+        ->and($spec->tableNames())->toHaveCount(76);
 });
 
 test('every column and ENUM value this todo names resolves against the parsed DDL, table by table', function (): void {
@@ -304,6 +304,6 @@ test('every DDL citation in the authored files points at a line that EXISTS', fu
     }
 
     expect($diLuar)->toBe([])
-        ->and($total)->toBe(1349)
+        ->and($total)->toBe(1364)
         ->and($citasi)->toBeGreaterThan(60);
 });

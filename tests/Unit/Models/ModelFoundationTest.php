@@ -39,7 +39,7 @@ uses(TestCase::class);
 /**
  * The model layer is only trustworthy if it was derived from the DDL, so every
  * expectation below is re-derived from `telemedicine_test.sql` at run time rather
- * than transcribed. A hand-written list of 75 tables would agree with the models
+ * than transcribed. A hand-written list of 76 tables would agree with the models
  * exactly as long as nobody edited either, which is the property A.21 showed is
  * worth nothing: `php -l`, `migrate:fresh` and a green unit suite all coexisted
  * with a swallowed column declaration.
@@ -184,8 +184,8 @@ test('app/Models holds exactly one class per contract table', function () {
     $spec = modelFoundationSpec();
     $map = modelFoundationByTable();
 
-    expect($map)->toHaveCount(75);
-    expect($spec->tableNames())->toHaveCount(75);
+    expect($map)->toHaveCount(76);
+    expect($spec->tableNames())->toHaveCount(76);
 
     $missing = array_values(array_diff($spec->tableNames(), array_keys($map)));
     $extra = array_values(array_diff(array_keys($map), $spec->tableNames()));
@@ -203,7 +203,7 @@ test('every model declares its own table instead of inheriting one', function ()
     }
 });
 
-test('all 75 models instantiate and every declared relation resolves', function () {
+test('all 76 models instantiate and every declared relation resolves', function () {
     $map = modelFoundationByTable();
     $checked = 0;
 
@@ -452,7 +452,7 @@ test('decimal, date, datetime, timestamp and json casts come from the DDL type',
         expect(modelFoundationDeclaredCasts($map[$table])[$column->name] ?? null)
             ->toBe('datetime', $table.'.'.$column->name);
     }
-    expect($datetimes)->toHaveCount(26);
+    expect($datetimes)->toHaveCount(27);
 
     $json = modelFoundationColumnsOfType($spec, 'json');
     foreach ($json as [$table, $column]) {
@@ -462,12 +462,12 @@ test('decimal, date, datetime, timestamp and json casts come from the DDL type',
     expect($json)->toHaveCount(6);
 });
 
-test('the 55 TIMESTAMP columns are all covered, none of them twice', function () {
+test('the 57 TIMESTAMP columns are all covered, none of them twice', function () {
     $spec = modelFoundationSpec();
     $map = modelFoundationByTable();
     $timestamps = modelFoundationColumnsOfType($spec, 'timestamp');
 
-    expect($timestamps)->toHaveCount(55);
+    expect($timestamps)->toHaveCount(57);
 
     foreach ($timestamps as [$table, $column]) {
         $class = $map[$table];
@@ -593,10 +593,11 @@ test('the audit columns are named exactly as each table declares them', function
         };
     }
 
-    // 16 + 19 + 1 + 39 = 75. telemedicine_test.sql is the only source for these. The
-    // 39 includes konsultasi_chat, whose only stamp is `terkirim_at`.
+    // 17 + 19 + 1 + 39 = 76. telemedicine_test.sql is the only source for these. The
+    // 39 includes konsultasi_chat, whose only stamp is `terkirim_at`; F08's
+    // `konsultasi_baca` joined the `both` group.
     expect($shapes)->toBe([
-        'both' => 16,
+        'both' => 17,
         'createdOnly' => 19,
         'updatedOnly' => 1,
         'neither' => 39,

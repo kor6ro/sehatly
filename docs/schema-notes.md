@@ -12,7 +12,7 @@ arriving stale. Supersedes todo 6's first version, which still listed
 
 `telemedicine_test.sql` is read-only law for this project: it must never be edited,
 reformatted, re-encoded or reordered. Spec §4.4 therefore provides exactly one
-sanctioned way to add infrastructure the 75-table contract does not mention — add it
+sanctioned way to add infrastructure the 76-table contract does not mention — add it
 in a migration and record it here. This file *is* that record, and
 `php artisan sehatly:verify-schema` enforces it:
 
@@ -78,7 +78,7 @@ neither alone is sufficient, and the second without the first exits `2`.
 | `job_batches` | `0001_01_01_000002_create_jobs_table.php` | Laravel's `Bus::batch()` bookkeeping; ships with the same migration as `jobs` and cannot run without it. |
 | `failed_jobs` | `0001_01_01_000002_create_jobs_table.php` | Laravel's dead-letter table for failed queue jobs; part of the same migration as `jobs`. |
 | `personal_access_tokens` | `2026_09_26_222801_create_personal_access_tokens_table.php` | Sanctum's bearer-token table, published by `install:api` in todo 3. The `/api/v1` surface is bearer-token authenticated, so this table must exist. |
-| `sessions` | `2026_10_01_000080_create_sessions_table.php` | Laravel's `database` session store. `config/session.php` defaults to that driver, but the contract migrations only cover the 75 contract tables plus `cache` and `jobs`, so nothing created it: every server-side web route returned HTTP 500 until this migration. No test caught it because all tests exercise the stateless API and none boots `php artisan serve`. |
+| `sessions` | `2026_10_01_000080_create_sessions_table.php` | Laravel's `database` session store. `config/session.php` defaults to that driver, but the contract migrations only cover the 76 contract tables plus `cache` and `jobs`, so nothing created it: every server-side web route returned HTTP 500 until this migration. No test caught it because all tests exercise the stateless API and none boots `php artisan serve`. |
 
 Eight registered extras, verified against the live `telemedisin_db` after todo 7's
 `migrate:fresh`: all eight present, `0` `undocumented_extra_table`.
@@ -86,7 +86,7 @@ Eight registered extras, verified against the live `telemedisin_db` after todo 7
 **The seven are derived, not asserted.**
 `tests/Unit/Console/VerifySchemaCommandTest.php` reads this file, enumerates every table
 `database/migrations/*.php` actually creates with `Schema::create('<literal>')`, adds
-Laravel's own `migrations` ledger, subtracts the 75 contract tables
+Laravel's own `migrations` ledger, subtracts the 76 contract tables
 (`SqlSchemaParser` → `telemedicine_test.sql`), and requires the registry to cover exactly
 what is left. It previously pinned a literal list of **ten**, which went stale the moment
 todo 7 deleted three scaffold migrations and made `php artisan test tests/Unit` red
@@ -149,7 +149,7 @@ thing standing between todo 18 and its "75 tables, 2 views verified" exit 0.
 > not re-apply it.** Re-deriving an already-landed fix either duplicates the behaviour or
 > "simplifies" it back into a prefix match and reintroduces the drift.
 
-80 of the 105 foreign keys in `telemedicine_test.sql` reference columns that **no
+81 of the 107 foreign keys in `telemedicine_test.sql` reference columns that **no
 index in the DDL covers**. InnoDB requires an index on the referencing columns, so
 MySQL creates one itself, named after the column, and prints it in
 `SHOW CREATE TABLE` — so does the reference import, and so does a faithful migration.
@@ -181,9 +181,9 @@ one naming a bare FK-support index, compare its ordered column list against the 
 key's local columns first; if they match exactly and it is still reported, that is a bug to
 report, not a migration to edit.
 
-**The measurement is retained as the calibration reference: 105 foreign keys, 80 with no
+**The measurement is retained as the calibration reference: 107 foreign keys, 81 with no
 covering index.** Re-measure it with `App\Support\Schema\SqlSchemaParser`, which returns
-exactly 105/80. A naive index regex reports **0 uncovered**, because it matches the
+exactly 107/81 after F08's append (it was 105/80 before `konsultasi_baca`). A naive index regex reports **0 uncovered**, because it matches the
 `KEY (...)` tail of `FOREIGN KEY (...) REFERENCES ...`.
 
 `docs/migration-order.md` carries the same warning for the batch authors of todos 8-17.
@@ -202,11 +202,12 @@ acceptance criteria that depend on the right numbers:
   **Derivation: 29 − 1 + 11 = 39.**
 - Tables with `dibuat_at` only: **19**, not 18 — the plan omits `audit_log` (`:1129`).
   **Derivation: 18 + 1 = 19.**
-- `diubah_at` only: **1** (`apotek_stok`). Both columns: **16** — and those 16 are the
+- `diubah_at` only: **1** (`apotek_stok`). Both columns: **16** at todo 7, **17** after
+  F08 appended `konsultasi_baca` — and those 17 are the
   only tables that need the raw `ON UPDATE CURRENT_TIMESTAMP` `ALTER`, since Laravel 13
   has no Blueprint helper for it.
 
-39 + 19 + 1 + 16 = 75, so the split is exhaustive. Todo 19 must **not** assert
+39 + 19 + 1 + 17 = 76 after F08, so the split is exhaustive. Todo 19 must **not** assert
 `$timestamps === false` for "all 28": that assertion passes while silently under-testing
 11 tables. Use the per-table facts in `docs/migration-order.md` instead.
 
@@ -2174,4 +2175,42 @@ than a code change.
 writes it from the authenticated account for the reason
 `booking.dibuat_oleh_user_id` is written the same way (todo 27), and the suite asserts
 the absence of the foreign key so the choice is visible rather than assumed.
+
+## F08 contract-table addition: `konsultasi_baca` (75 → 76 tables)
+
+**F08 appended one table to `telemedicine_test.sql` itself, at the owner's
+direction, and it is therefore a CONTRACT table, not a registered extra.** It is
+NOT a row in the registry above: that registry exists for tables the DDL does not
+declare, and this one the DDL now declares. `ExtraTableRegistry::fromMarkdown()`
+reads only the rows under its own heading, so this section cannot be mistaken for
+one; `VerifySchemaCommandTest` re-derives the extras from the migration set minus
+the parsed contract and still finds exactly the eight framework rows.
+
+The DDL was APPENDED as section `[17]` (`:1350-1364`), after the final `SELECT`,
+so every pre-existing line number is untouched. The F02 audit tests
+(`NikCipherAuditTest`, `NikCipherStorageTest`) pin the file's SHA-256, its line
+count and `pasien.nik_cipher`'s line; the count moved `1349 → 1364`, line `:222`
+did not move, and the third digest deviation is recorded in the test itself.
+
+What the table is, and why each shape was chosen:
+
+| Fact | Where | Why |
+| --- | --- | --- |
+| `chat.dibaca` is PER PARTICIPANT, not per message | `last_read_at` (`:1358`) | The product question "how far has the other party read?" is a moment, not 500 stamped rows. `konsultasi_chat.dibaca_at` (`:574`) is kept: a bubble still renders its own stamp, and the two states coexist. |
+| `UNIQUE KEY uq_baca (konsultasi_id, user_id)` | `:1361` | Makes "at most one marker per participant" a database guarantee, so the write is an idempotent upsert. `konsultasi_id` is leftmost, so it doubles as the FK support index; `user_id` is not a prefix, so InnoDB's implicit support index for it is treated as implied by the matched foreign key. |
+| Both foreign keys `ON DELETE CASCADE` | `:1362-1363` | A read marker has no clinical value of its own, unlike a chat row whose author link RESTRICTs (`:577`). |
+| No `dihapus_at`, and no delete endpoint | — | Medical messages must remain. F08 adds no "delete for everyone"; `KonsultasiBacaTest` asserts no DELETE route exists under `api/v1/konsultasi`. |
+
+`POST /api/v1/konsultasi/{id}/chat/baca` moves the marker and broadcasts
+`chat.dibaca` on `private-konsultasi.{id}` with `{user_id, last_read_at}`, and
+`GET /api/v1/konsultasi/{id}` publishes both participants' markers in the `baca`
+block of `KonsultasiResource`. `chat.mengetik` is a client-only whisper and
+deliberately has no server event, route, table or queue entry.
+
+The parity numbers moved with the append, and every pin was updated in the same
+commit: tables `75 → 76`, columns `672 → 678`, indexes `140 → 142`, foreign keys
+`105 → 107` (and therefore the no-covering-index calibration `80/105 → 81/107`),
+the timestamp shape split `16+19+1+39 → 17+19+1+39`, and the DATETIME/TIMESTAMP
+cast counts `26 → 27` and `55 → 57`. The extra-table registry is unchanged at
+eight entries.
 

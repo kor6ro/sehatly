@@ -8,6 +8,7 @@ use App\Enums\KonsultasiStatus;
 use App\Models\Booking;
 use App\Models\Dokter;
 use App\Models\Konsultasi;
+use App\Models\KonsultasiBaca;
 use App\Models\KonsultasiChat;
 use App\Models\Pasien;
 use App\Models\User;
@@ -106,6 +107,15 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
  * for two reasons: neither party authored it, and attributing it to the acting
  * account would make a patient's own "you started a konsultasi" notice show up
  * as an unread message from the doctor.
+ *
+ * **F08 adds a SECOND read state beside the per-message one.**
+ * {@see tandaiDibaca()} also upserts the caller's row in `konsultasi_baca`
+ * (`last_read_at = now()`, unique on `(konsultasi_id, user_id)`), and
+ * `KonsultasiController::chatBaca()` broadcasts that as `chat.dibaca`. The
+ * per-message `dibaca_at` is deliberately kept: a bubble renders its own stamp,
+ * while the participant row answers "how far has the OTHER party read?" without
+ * scanning the transcript. `chat.mengetik` is deliberately NOT part of this - it
+ * is a client-only whisper, documented on the event and in the controller.
  *
  * ## What is NOT here, and why
  *
@@ -541,7 +551,8 @@ final class KonsultasiService
     }
 
     /**
-     * Stamp `dibaca_at` on the OTHER party's unread messages, and answer how many.
+     * Move the caller's read marker forward, stamp `dibaca_at` on the OTHER
+     * party's unread messages, and answer how many moved.
      *
      * "The other party" is read off the caller's own side, so a patient marks the
      * doctor's lines and a doctor marks the patient's - and neither marks their own,
@@ -555,19 +566,70 @@ final class KonsultasiService
      * in PHP, so the stamp is one statement and a concurrent send cannot be
      * double-written.
      *
+     * ## F08: the per-participant marker (`konsultasi_baca`) moves too
+     *
+     * The per-message `dibaca_at` above is what a bubble renders; it is NOT
+     * replaced. Beside it, the caller's own row in `konsultasi_baca` is upserted
+     * with `last_read_at = now()` so a client can answer "how far has the OTHER
+     * party read?" without scanning the transcript. The pair
+     * `(konsultasi_id, user_id)` is the table's `uq_baca` UNIQUE key, which makes
+     * the write idempotent and the table's shape a database guarantee.
+     *
+     * The upsert is a plain lookup followed by `createOrFirst()` rather than a
+     * bare `firstOrCreate()`: the common case is an UPDATE of a row that exists,
+     * so the `SELECT` is the fast path, and only a miss reaches
+     * `createOrFirst()`, which catches the loser's 1062 when two concurrent
+     * receipts both miss the `SELECT`. A plain `create()` there would answer 500
+     * to one of two double-taps.
+     *
+     * The row is re-read with `refresh()` before it is returned because the event
+     * payload must be the STORED instant: `last_read_at` is `DATETIME` (precision
+     * zero) while `Carbon::now()` carries microseconds, so an in-memory value
+     * would disagree with the next `GET` by a fraction of a second.
+     *
+     * @return array{0: int, 1: KonsultasiBaca} how many messages moved, and the caller's read marker
+     *
      * @throws AccessDeniedHttpException|ModelNotFoundException
      */
-    public function tandaiDibaca(User $caller, int $id): int
+    public function tandaiDibaca(User $caller, int $id): array
     {
         [$sisi, $konsultasi] = $this->access->sisiDanKonsultasi($caller, $id);
 
         $lain = $sisi === 'pasien' ? 'dokter' : 'pasien';
+        $now = Carbon::now();
 
-        return KonsultasiChat::query()
-            ->where('konsultasi_id', $konsultasi->getKey())
-            ->where('pengirim_tipe', $lain)
-            ->whereNull('dibaca_at')
-            ->update(['dibaca_at' => Carbon::now()]);
+        return DB::transaction(function () use ($caller, $konsultasi, $lain, $now): array {
+            $jumlah = KonsultasiChat::query()
+                ->where('konsultasi_id', $konsultasi->getKey())
+                ->where('pengirim_tipe', $lain)
+                ->whereNull('dibaca_at')
+                ->update(['dibaca_at' => $now]);
+
+            $baca = KonsultasiBaca::query()
+                ->where('konsultasi_id', $konsultasi->getKey())
+                ->where('user_id', $caller->getKey())
+                ->first();
+
+            if ($baca === null) {
+                $baca = KonsultasiBaca::query()->createOrFirst(
+                    [
+                        'konsultasi_id' => $konsultasi->getKey(),
+                        'user_id' => $caller->getKey(),
+                    ],
+                    ['last_read_at' => $now],
+                );
+            }
+
+            $baca->last_read_at = $now;
+
+            if ($baca->isDirty()) {
+                $baca->save();
+            }
+
+            $baca->refresh();
+
+            return [$jumlah, $baca];
+        });
     }
 
     /**

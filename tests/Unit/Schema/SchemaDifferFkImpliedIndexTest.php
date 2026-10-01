@@ -11,7 +11,7 @@ uses(TestCase::class);
 /**
  * InnoDB creates an index to back every foreign key whose local columns are not
  * already covered by an existing index's leftmost prefix. `telemedicine_test.sql`
- * declares 80 of its 105 foreign keys with no covering index, relying on exactly
+ * declares 81 of its 107 foreign keys with no covering index, relying on exactly
  * that behaviour, so a schema faithfully built from the reference legitimately
  * carries indexes the reference model does not name.
  *

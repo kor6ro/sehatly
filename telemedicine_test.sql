@@ -1347,3 +1347,18 @@ INSERT INTO artikel_kategori (nama, slug) VALUES
 -- SELESAI
 -- ============================================================================
 SELECT 'Database telemedisin_db berhasil dibuat!' AS status;
+-- ============================================================================
+-- [17] STATUS BACA CHAT (F08) — last_read_at per peserta
+-- ============================================================================
+
+CREATE TABLE konsultasi_baca (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  konsultasi_id BIGINT UNSIGNED NOT NULL,
+  user_id BIGINT UNSIGNED NOT NULL,
+  last_read_at DATETIME NOT NULL,
+  dibuat_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  diubah_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_baca (konsultasi_id, user_id),
+  FOREIGN KEY (konsultasi_id) REFERENCES konsultasi(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;

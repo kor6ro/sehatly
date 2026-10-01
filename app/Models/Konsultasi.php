@@ -38,6 +38,7 @@ use Illuminate\Support\Carbon;
  * @property-read Pasien $pasien
  * @property-read Dokter $dokter
  * @property-read Collection<int, KonsultasiChat> $konsultasiChat
+ * @property-read Collection<int, KonsultasiBaca> $konsultasiBaca
  * @property-read Collection<int, RekamMedis> $rekamMedis
  */
 class Konsultasi extends Model
@@ -89,6 +90,16 @@ class Konsultasi extends Model
     public function konsultasiChat(): HasMany
     {
         return $this->hasMany(KonsultasiChat::class, 'konsultasi_id');
+    }
+
+    /**
+     * The per-participant read markers of this consultation.
+     *
+     * @return HasMany<KonsultasiBaca, $this>
+     */
+    public function konsultasiBaca(): HasMany
+    {
+        return $this->hasMany(KonsultasiBaca::class, 'konsultasi_id');
     }
 
     /**

@@ -58,6 +58,7 @@ use Laravel\Sanctum\HasApiTokens;
  * @property-read Collection<int, Artikel> $artikel
  * @property-read Collection<int, Booking> $booking
  * @property-read Collection<int, KonsultasiChat> $konsultasiChat
+ * @property-read Collection<int, KonsultasiBaca> $konsultasiBaca
  * @property-read Collection<int, ResepVerifikasi> $resepVerifikasi
  * @property-read Collection<int, AksesRekamMedisLog> $aksesRekamMedisLog
  */
@@ -197,6 +198,16 @@ class User extends Authenticatable
     public function konsultasiChat(): HasMany
     {
         return $this->hasMany(KonsultasiChat::class, 'pengirim_user_id');
+    }
+
+    /**
+     * This account's per-consultation read markers.
+     *
+     * @return HasMany<KonsultasiBaca, $this>
+     */
+    public function konsultasiBaca(): HasMany
+    {
+        return $this->hasMany(KonsultasiBaca::class, 'user_id');
     }
 
     /**

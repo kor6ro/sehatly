@@ -63,7 +63,7 @@ uses(TestCase::class);
  * ### A note on the A.7 traps, because every assertion here is shaped around them
  *
  * In `--tables=` mode the PASS banner is formatted from the **full** reference
- * model, so it prints "75 tables, 2 views verified" after checking eight; and a
+ * model, so it prints "76 tables, 2 views verified" after checking eight; and a
  * table name the DDL does not define exits 0 as `unknown_requested_table`. So the
  * echoed `scope` line and the `Discrepancies:` line are asserted, never the
  * banner and never the exit code on its own.
@@ -301,7 +301,7 @@ test('the full run is clean, and every informational row is a registered extra',
     expect($kinds)->not->toContain('missing_index');
     expect($kinds)->not->toContain('missing_check');
 
-    expect($json['expected']['tables'])->toBe(75);
+    expect($json['expected']['tables'])->toBe(76);
     expect($json['expected']['views'])->toBe(2);
     expect($json['live_model']['views'])->toBe(2);
 });

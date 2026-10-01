@@ -182,12 +182,12 @@ test('every DDL citation in the authored files points at a line that EXISTS', fu
     }
 
     expect($diLuar)->toBe([])
-        ->and($total)->toBe(1349)
+        ->and($total)->toBe(1364)
         ->and($citasi)->toBeGreaterThan(15);
 });
 
 test('the schema holds exactly two NIK columns, and only the patient one is encrypted', function (): void {
-    // THE DDL DELIVERABLE, asserted rather than described: a sweep of all 75
+    // THE DDL DELIVERABLE, asserted rather than described: a sweep of all 76
     // parsed tables for a column that stores a national identity number. If a
     // third appears, this fails and the cipher has to be told about it.
     //
@@ -201,7 +201,7 @@ test('the schema holds exactly two NIK columns, and only the patient one is encr
     // cannot be forgotten, rather than left in prose.
     $spec = (new SqlSchemaParser)->parseFile(base_path('telemedicine_test.sql'));
 
-    expect($spec->tableNames())->toHaveCount(75);
+    expect($spec->tableNames())->toHaveCount(76);
 
     $ditemukan = [];
     $enkripsi = [];
@@ -384,15 +384,15 @@ test('the DDL changed by exactly the ONE authorised line, and the migration made
     //   before  aefe2247e00f09acb02235168ac289cdfa74f762d604ada71f68e328574b27f5
     //   NIK     277475461e8ed1bf14c624bbccc1d71c73b3b7e6610c02fbeb920886a0c35931
     //   F02     b06edfb50b59bc8d5ba330740fe9d8d493d529fecbbf252d83ea723d49e2457c
+    //   F08     0f943eb81f1a1d8b133ee28b3d8724c62c8c19420a55bc9f9854f4c8a0e7e0a1
     //
     // The NIK change touched line 222 only. F02 then replaced line 1144's
-    // `UNIQUE KEY uq_consent ...` with a comment recording the drop, so the
-    // digest moved again - the second authorised deviation, recorded here for
-    // the same reason as the first. The line COUNT is unchanged at 1349, which
-    // is asserted below: F02 kept the line so every citation after it stays
-    // valid.
+    // `UNIQUE KEY uq_consent ...` with a comment recording the drop. F08 then
+    // APPENDED section [17] (`konsultasi_baca`) after the final SELECT, so every
+    // F02-era line number still resolves - the file is 1364 lines now, which is
+    // asserted below.
     expect(hash_file('sha256', base_path('telemedicine_test.sql')))
-        ->toBe('b06edfb50b59bc8d5ba330740fe9d8d493d529fecbbf252d83ea723d49e2457c');
+        ->toBe('0f943eb81f1a1d8b133ee28b3d8724c62c8c19420a55bc9f9854f4c8a0e7e0a1');
 
     // No table named after the proposed columns exists. Still true, and still
     // worth saying: the payload is a COLUMN, not a table.
@@ -430,11 +430,12 @@ test('the DDL changed by exactly the ONE authorised line, and the migration made
         ->and(in_array('nik', $sembunyi, true))->toBeFalse('an index over the old plaintext column survived');
 
     // The line count, which is what makes "one line" a measurement rather than a
-    // promise: the change renamed a column and did not add or remove one.
+    // promise: the change renamed a column and did not add or remove one. F08's
+    // append made the total 1364; line 222 is untouched.
     $garis = file(base_path('telemedicine_test.sql'), FILE_IGNORE_NEW_LINES);
     $pasien = (new SqlSchemaParser)->parseFile(base_path('telemedicine_test.sql'))->table('pasien');
 
-    expect(count($garis))->toBe(1349)
+    expect(count($garis))->toBe(1364)
         ->and($pasien->columns[NikCipher::COL_PAYLOAD]->line)->toBe(222)
         ->and(count($pasien->columns))->toBe(31)
         ->and(substr_count((string) file_get_contents(base_path('telemedicine_test.sql')), 'nik_cipher'))->toBe(1);

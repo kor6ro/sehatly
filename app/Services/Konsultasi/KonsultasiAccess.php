@@ -95,7 +95,7 @@ final class KonsultasiAccess
      * The konsultasi for a READ, or a 404.
      *
      * The party test is {@see KonsultasiChannelAccess::allows()} verbatim. The row
-     * is then loaded with the three relations every read publishes, so a
+     * is then loaded with the four relations every read publishes, so a
      * konsultasi response cannot N+1.
      *
      * @throws ModelNotFoundException, rendered as the 404 envelope by `bootstrap/app.php`
@@ -212,13 +212,18 @@ final class KonsultasiAccess
     }
 
     /**
-     * Load one konsultasi with the three relations every read publishes.
+     * Load one konsultasi with the four relations every read publishes.
+     *
+     * `konsultasiBaca` is F08's per-participant read state. It is eager-loaded
+     * here rather than at one call site so `GET /konsultasi/{id}` and every
+     * lifecycle write response publish the same `baca` block from the same
+     * `KonsultasiResource`, and none of them pays a second query.
      */
     public function muatan(int $id): Konsultasi
     {
         return Konsultasi::query()
             ->whereKey($id)
-            ->with(['pasien.user', 'dokter.user', 'booking'])
+            ->with(['pasien.user', 'dokter.user', 'booking', 'konsultasiBaca'])
             ->firstOrFail();
     }
 
