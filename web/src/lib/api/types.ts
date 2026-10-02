@@ -231,6 +231,12 @@ export type DokterRingkas = {
     nama_lengkap: string;
     tipe: DokterTipe;
     /**
+     * `dokter.pengalaman_tahun` (`telemedicine_test.sql:418`), published as an `int`. The
+     * resource casts it, so a `NULL` column reaches the client as `0` - which is why a card
+     * omits the badge rather than printing "0 tahun pengalaman".
+     */
+    pengalaman_tahun: number;
+    /**
      * The view's `GROUP_CONCAT(s.nama SEPARATOR ', ')` string, passed through untouched.
      * **`null`, not `[]`,** for a doctor with no `dokter_spesialisasi` row, because
      * `GROUP_CONCAT` over nothing is `NULL`. It is also silently truncated at
@@ -240,6 +246,11 @@ export type DokterRingkas = {
     spesialisasi: string | null;
     biaya_konsultasi_online: Decimal;
     rating_rata_rata: Decimal;
+    /**
+     * Recomputed from `ulasan_dokter` for the page's ids, never `dokter.jumlah_ulasan` -
+     * that column has no writer. `0` is the honest answer for a doctor with no reviews.
+     */
+    jumlah_ulasan: number;
     jumlah_konsultasi: number;
     /** A constant in this projection: a row here is `terverifikasi` by construction. */
     status_verifikasi: string;

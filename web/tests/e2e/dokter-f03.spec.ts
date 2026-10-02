@@ -12,12 +12,12 @@ import { expectNoA11yViolations } from './a11y';
  * on page three, and a count that changes while the request is still in flight. Mocking also
  * keeps the privacy fixture ("kanker") out of any real server.
  *
- * ## What is deliberately NOT here
+ * ## What the F03 backend commit unblocked
  *
  * AC-5 (`Urutkan`, needs `?sort=`) and AC-11 (`{n} ulasan` on the card, needs
- * `jumlah_ulasan` in `DokterResource`) are `[TERBLOKIR backend]` per `patterns/F03.md`.
- * They are marked `test.fixme` below rather than faked: a passing test against a mock that
- * publishes fields the API does not would be a lie.
+ * `jumlah_ulasan` in `DokterResource`) were `[TERBLOKIR backend]` per `patterns/F03.md`.
+ * Commit `1ce97b1` adds both, so they are real tests below: the mock answers `sort` with a
+ * real ordering and every fixture row carries `pengalaman_tahun` and `jumlah_ulasan`.
  *
  * ## The free-text query never reaches the URL
  *
@@ -46,6 +46,8 @@ type DokterUji = {
     biaya_konsultasi_online: string;
     rating_rata_rata: string;
     jumlah_konsultasi: number;
+    pengalaman_tahun: number;
+    jumlah_ulasan: number;
     status_verifikasi: string;
     /** Test-only handle for `?spesialisasi=`; not part of the published resource. */
     kode: string;
@@ -75,6 +77,8 @@ function dokterUji(
     biaya: string,
     rating: string,
     konsultasi: number,
+    pengalaman: number,
+    ulasan: number,
 ): DokterUji {
     return {
         id,
@@ -85,6 +89,8 @@ function dokterUji(
         biaya_konsultasi_online: biaya,
         rating_rata_rata: rating,
         jumlah_konsultasi: konsultasi,
+        pengalaman_tahun: pengalaman,
+        jumlah_ulasan: ulasan,
         status_verifikasi: 'terverifikasi',
     };
 }
@@ -103,6 +109,8 @@ function dokterDefault(): DokterUji[] {
             '85000.00',
             '4.9',
             128 - index,
+            12 - index,
+            128 - index,
         ),
     );
 
@@ -117,6 +125,8 @@ function dokterDefault(): DokterUji[] {
             '120000.00',
             '4.7',
             210,
+            20,
+            156,
         ),
         dokterUji(
             201,
@@ -127,6 +137,8 @@ function dokterDefault(): DokterUji[] {
             '110000.00',
             '4.8',
             180,
+            15,
+            98,
         ),
         dokterUji(
             300,
@@ -137,7 +149,10 @@ function dokterDefault(): DokterUji[] {
             '90000.00',
             '4.8',
             64,
+            8,
+            64,
         ),
+        // Deliberately unreviewed: the AC-11 fixture for "0 ulasan must not be printed".
         dokterUji(
             301,
             'drg. Bagus Nugroho',
@@ -147,6 +162,8 @@ function dokterDefault(): DokterUji[] {
             '95000.00',
             '4.6',
             52,
+            6,
+            0,
         ),
     ];
 }
@@ -163,6 +180,8 @@ function banyakDokter(n: number): DokterUji[] {
             '85000.00',
             '4.7',
             40 + index,
+            5,
+            0,
         ),
     );
 }
@@ -187,6 +206,35 @@ async function balasJson(route: Route, status: number, body: unknown): Promise<v
         contentType: 'application/json',
         body: JSON.stringify(body),
     });
+}
+
+/**
+ * The server's six orderings, mirrored so AC-5 can assert a real sequence rather than a
+ * request parameter alone. `null` and an unknown value both leave the default order, which
+ * is what `IndexDokterRequest`'s whitelist plus the service's `default` arm do.
+ */
+function urutkanMock(rows: DokterUji[], sort: string | null): DokterUji[] {
+    const hasil = [...rows];
+
+    if (sort === 'biaya_asc') {
+        hasil.sort(
+            (a, b) =>
+                Number(a.biaya_konsultasi_online) - Number(b.biaya_konsultasi_online),
+        );
+    } else if (sort === 'biaya_desc') {
+        hasil.sort(
+            (a, b) =>
+                Number(b.biaya_konsultasi_online) - Number(a.biaya_konsultasi_online),
+        );
+    } else if (sort === 'rating') {
+        hasil.sort((a, b) => Number(b.rating_rata_rata) - Number(a.rating_rata_rata));
+    } else if (sort === 'pengalaman') {
+        hasil.sort((a, b) => b.pengalaman_tahun - a.pengalaman_tahun);
+    } else if (sort === 'ulasan') {
+        hasil.sort((a, b) => b.jumlah_ulasan - a.jumlah_ulasan);
+    }
+
+    return hasil;
 }
 
 async function pasangMock(page: Page, opsi: OpsiMock = {}): Promise<State> {
@@ -243,6 +291,7 @@ async function pasangMock(page: Page, opsi: OpsiMock = {}): Promise<State> {
             const spesialisasi = url.searchParams.get('spesialisasi');
             const tipe = url.searchParams.get('tipe');
             const telemedisin = url.searchParams.get('tersedia_telemedisin');
+            const sort = url.searchParams.get('sort');
             const page = Number(url.searchParams.get('page') ?? '1');
             const perPage = Number(url.searchParams.get('per_page') ?? '15');
 
@@ -269,7 +318,8 @@ async function pasangMock(page: Page, opsi: OpsiMock = {}): Promise<State> {
                 return true;
             });
 
-            const total = tersaring.length;
+            const terurut = urutkanMock(tersaring, sort);
+            const total = terurut.length;
             const mulai = (page - 1) * perPage;
             const kosongPaksa = state.halamanKosong && page > 1;
             const halamanTerakhir = kosongPaksa
@@ -277,7 +327,7 @@ async function pasangMock(page: Page, opsi: OpsiMock = {}): Promise<State> {
                 : Math.max(1, Math.ceil(total / perPage));
             const baris = kosongPaksa
                 ? []
-                : tersaring.slice(mulai, mulai + perPage);
+                : terurut.slice(mulai, mulai + perPage);
 
             return balasJson(route, 200, {
                 success: true,
@@ -400,6 +450,41 @@ async function pilihTelemedisin(page: Page, vp: Vp): Promise<void> {
         .click();
 }
 
+/**
+ * Opens the shared `Urutkan` select and picks `label`. The mobile caller must have the
+ * sheet open (it is the only visible `Urutkan` there); the desktop caller uses the panel.
+ *
+ * Selection is driven by keyboard, not by a coordinate click: the sheet sits at the bottom
+ * of a 390 px viewport, so Radix clamps the listbox and a forced click on a partially
+ * scrolled option can land on its neighbour. Typing the option's own label uses Radix's
+ * typeahead, and it is also the keyboard check F03 §8 asks of this control.
+ */
+async function pilihOpsiUrutkan(page: Page, label: string): Promise<void> {
+    const pemicu = page.getByRole('combobox', { name: 'Urutkan' });
+
+    await pemicu.click();
+
+    await page.locator('[data-slot="select-content"]').waitFor();
+
+    // The content animates in with a zoom transform; keyboard input mid-animation can miss.
+    await page.waitForTimeout(250);
+
+    await page.keyboard.type(label);
+    await page.keyboard.press('Enter');
+
+    await expect(page.locator('[data-slot="select-content"]')).toHaveCount(0);
+    await expect(pemicu).toContainText(label);
+}
+
+/** The `Mulai Rp …` badge of each card, as a number, in DOM order. */
+async function biayaKartu(page: Page): Promise<number[]> {
+    return page.locator('[data-slot="dokter-biaya"]').evaluateAll((badges) =>
+        badges.map((element) =>
+            Number((element.textContent ?? '').replace(/[^0-9]/g, '')),
+        ),
+    );
+}
+
 async function simpanGambar(
     page: Page,
     vp: Vp,
@@ -412,13 +497,6 @@ async function simpanGambar(
         animations: 'disabled',
     });
 }
-
-/**
- * Blocked, not faked. `IndexDokterRequest` has no `sort` key and `DokterResource` publishes
- * no `jumlah_ulasan`/`pengalaman_tahun`, so both criteria need a backend change first.
- */
-test.fixme('f03-ac5-sort [TERBLOKIR backend parameter sort]', async () => {});
-test.fixme('f03-ac11-kartu-ulasan [TERBLOKIR backend jumlah_ulasan]', async () => {});
 
 for (const vp of VIEWPORTS) {
     test.describe(`F03 direktori dokter ${vp.nama} ${vp.width}x${vp.height}`, () => {
@@ -629,6 +707,107 @@ for (const vp of VIEWPORTS) {
                     ),
                 )
                 .toBe(true);
+
+            await expectNoA11yViolations(page);
+        });
+
+        test('f03-ac5-sort', async ({ page }) => {
+            const state = await bukaDirektori(page);
+
+            // AC-5: the default `Paling relevan` sends NO `sort` key at all - the server's
+            // pre-F03 order is what `relevan` means, so sending it would change nothing.
+            expect(state.permintaanDokter.length).toBeGreaterThan(0);
+
+            for (const url of state.permintaanDokter) {
+                expect(new URL(url).searchParams.get('sort')).toBeNull();
+            }
+
+            // `Biaya terendah` -> `sort=biaya_asc`, ascending by the published fee.
+            if (vp.nama === 'mobile') {
+                await page.locator('[data-slot="dokter-filter-button"]').click();
+
+                // Tap 2 of the sheet flow: choose the option (tap 1 opened the sheet).
+                await pilihOpsiUrutkan(page, 'Biaya terendah');
+
+                // Drafting a sort must not cost a request; only `Tampilkan` applies it.
+                expect(state.permintaanDokter.length).toBe(1);
+
+                await simpanGambar(page, vp, 'sheet-urutkan', false);
+
+                // Tap 3: apply.
+                const tampilkan = page.getByRole('button', {
+                    name: /^Tampilkan \d+ hasil$/,
+                });
+
+                await expect(tampilkan).toBeEnabled();
+                await tampilkan.click();
+            } else {
+                await pilihOpsiUrutkan(page, 'Biaya terendah');
+            }
+
+            const jumlahPermintaanAsc = (): number =>
+                state.permintaanDokter.filter(
+                    (url) => new URL(url).searchParams.get('sort') === 'biaya_asc',
+                ).length;
+
+            await expect.poll(jumlahPermintaanAsc).toBe(1);
+
+            const biaya = await biayaKartu(page);
+
+            expect(biaya).toEqual([
+                85_000, 85_000, 85_000, 85_000, 85_000, 85_000, 85_000, 85_000, 90_000,
+                95_000, 110_000, 120_000,
+            ]);
+
+            await simpanGambar(page, vp, 'urutkan');
+
+            // Exactly one request: no second fetch follows the render.
+            await page.waitForTimeout(300);
+            expect(jumlahPermintaanAsc()).toBe(1);
+
+            // Sort survives adding a constraint, and the constraint survives re-sorting.
+            await pilihSpesialisasi(page, vp, 'Spesialis Anak');
+
+            await expect
+                .poll(() =>
+                    punyaPermintaan(
+                        state,
+                        (params) =>
+                            params.get('spesialisasi') === 'SP.A' &&
+                            params.get('sort') === 'biaya_asc',
+                    ),
+                )
+                .toBe(true);
+
+            if (vp.nama === 'mobile') {
+                await page.locator('[data-slot="dokter-filter-button"]').click();
+            }
+
+            await pilihOpsiUrutkan(page, 'Rating tertinggi');
+
+            if (vp.nama === 'mobile') {
+                const tampilkan = page.getByRole('button', {
+                    name: /^Tampilkan \d+ hasil$/,
+                });
+
+                await expect(tampilkan).toBeEnabled();
+                await tampilkan.click();
+            }
+
+            await expect
+                .poll(() =>
+                    punyaPermintaan(
+                        state,
+                        (params) =>
+                            params.get('spesialisasi') === 'SP.A' &&
+                            params.get('sort') === 'rating',
+                    ),
+                )
+                .toBe(true);
+
+            await expect(page.locator('[data-slot="dokter-count"]')).toContainText(
+                '8 dokter ditemukan.',
+            );
 
             await expectNoA11yViolations(page);
         });
@@ -884,6 +1063,43 @@ for (const vp of VIEWPORTS) {
             await expect(page.locator('[data-slot="dokter-chip"]')).toContainText(
                 'Spesialis Anak',
             );
+
+            await expectNoA11yViolations(page);
+        });
+
+        test('f03-ac11-kartu-ulasan', async ({ page }) => {
+            await bukaDirektori(page);
+
+            const kartu = page.locator('[data-slot="dokter-kartu"]');
+
+            await expect(kartu).toHaveCount(12);
+
+            // AC-11: no card lacks a name, and every eligible doctor carries the badge.
+            for (let index = 0; index < 12; index += 1) {
+                const tautan = kartu.nth(index).getByRole('link');
+
+                await expect(tautan).toBeVisible();
+                expect((await tautan.textContent())?.trim() ?? '').not.toBe('');
+                await expect(
+                    kartu.nth(index).getByText('Tersedia telemedisin'),
+                ).toBeVisible();
+            }
+
+            const rina = kartu.filter({ hasText: 'dr. Rina Wulandari, Sp.A' });
+
+            await expect(rina).toHaveCount(1);
+            await expect(rina).toContainText('128 ulasan');
+            await expect(rina).toContainText('12 tahun pengalaman');
+            await expect(rina).toContainText(/Mulai\s+Rp\s*85\.000/);
+
+            // The unreviewed doctor: `0` is omitted, never printed as a score.
+            const bagus = kartu.filter({ hasText: 'drg. Bagus Nugroho' });
+
+            await expect(bagus).toHaveCount(1);
+            await expect(bagus).not.toContainText('ulasan');
+            await expect(page.getByText('0 ulasan')).toHaveCount(0);
+
+            await simpanGambar(page, vp, 'kartu-ulasan');
 
             await expectNoA11yViolations(page);
         });

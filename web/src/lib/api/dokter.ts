@@ -20,14 +20,16 @@ import type { DokterDetail, DokterRingkas, DokterTipe, Spesialisasi } from '@/li
  */
 
 /**
- * `?spesialisasi=`, `?tipe=`, `?search=`, `?tersedia_telemedisin=`, `?page=`, `?per_page=`.
+ * `?spesialisasi=`, `?tipe=`, `?search=`, `?tersedia_telemedisin=`, `?sort=`, `?page=`,
+ * `?per_page=`.
  *
- * Every one of these is `nullable` on the server and every one is a *closed* vocabulary
- * the DDL defines, which is why a typo is a 422 naming the field rather than a silently
+ * Every one of these is `nullable` on the server, and every one draws from a *closed*
+ * vocabulary - the DDL's for `tipe`/`spesialisasi`, `DokterDirectoryService::SORT_VALUES`
+ * for `sort` - which is why a typo is a 422 naming the field rather than a silently
  * empty list: `?tipe=dokter` and `?tipe=spesialis` are both refused (the enum members are
  * `dokter_spesialis` and the `tipe` here is `master_spesialisasi.tipe`'s different
  * three-value enum). The list screen therefore only ever sends values it got from
- * `master-spesialisasi` or from {@link TIPE_DOKTER}.
+ * `master-spesialisasi`, from {@link TIPE_DOKTER}, or from {@link SORT_DOKTER}.
  */
 export type DokterFilters = {
     page: number;
@@ -37,7 +39,44 @@ export type DokterFilters = {
     tipe?: DokterTipe;
     search?: string;
     tersedia_telemedisin?: boolean;
+    /** The result order. Omitted on the wire for {@link DEFAULT_SORT} - see {@link fetchDokter}. */
+    sort?: SortDokter;
 };
+
+/**
+ * `?sort=`, transcribed from `DokterDirectoryService::SORT_VALUES`.
+ *
+ * The six values are a closed vocabulary the server validates with `Rule::in`, so a client
+ * that only ever sends these cannot reach a 422 on `sort`. `relevan` is the server's own
+ * default: the pre-F03 order (`rating_rata_rata DESC`, `jumlah_konsultasi DESC`) and the
+ * value a client must NOT send to get it - see {@link fetchDokter}.
+ */
+export type SortDokter =
+    | 'relevan'
+    | 'rating'
+    | 'pengalaman'
+    | 'biaya_asc'
+    | 'biaya_desc'
+    | 'ulasan';
+
+/** The default order, and the one value `fetchDokter` leaves off the query string. */
+export const DEFAULT_SORT: SortDokter = 'relevan';
+
+/**
+ * The `Urutkan` control's options, in F03 §4.3's order and its exact copy.
+ *
+ * Declared as one list rather than as JSX literals so the six labels exist once: the
+ * desktop panel and the mobile sheet share the control, and a label that drifted between
+ * them would be two different vocabularies for one choice.
+ */
+export const SORT_DOKTER: ReadonlyArray<{ value: SortDokter; label: string }> = [
+    { value: 'relevan', label: 'Paling relevan' },
+    { value: 'rating', label: 'Rating tertinggi' },
+    { value: 'pengalaman', label: 'Pengalaman terlama' },
+    { value: 'biaya_asc', label: 'Biaya terendah' },
+    { value: 'biaya_desc', label: 'Biaya tertinggi' },
+    { value: 'ulasan', label: 'Ulasan terbanyak' },
+];
 
 /** `dokter.tipe`, the seven-value ENUM at `telemedicine_test.sql:412`. */
 export const TIPE_DOKTER: ReadonlyArray<DokterTipe> = [
@@ -64,6 +103,14 @@ export function labelTipeDokter(value: DokterTipe): string {
     return TIPE_DOKTER_LABEL[value] ?? value;
 }
 
+/**
+ * The list request.
+ *
+ * `sort` is dropped from the query string when it is `relevan` (the default), because
+ * `IndexDokterRequest` documents that `relevan` IS the pre-F03 server order: sending it
+ * would be a no-op that changes only the URL. F03 AC-5 allows either spelling and this
+ * client takes the one that keeps the default request byte-identical to the old one.
+ */
 export async function fetchDokter(filters: DokterFilters) {
     return request<{ dokter: DokterRingkas[] }>('dokter', {
         searchParams: {
@@ -79,6 +126,9 @@ export async function fetchDokter(filters: DokterFilters) {
             ...(filters.tersedia_telemedisin === undefined
                 ? {}
                 : { tersedia_telemedisin: filters.tersedia_telemedisin }),
+            ...(filters.sort === undefined || filters.sort === DEFAULT_SORT
+                ? {}
+                : { sort: filters.sort }),
         },
     });
 }

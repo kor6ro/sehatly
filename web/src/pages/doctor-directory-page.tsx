@@ -11,7 +11,9 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import {
+    Award,
     Check,
+    MessageSquare,
     RefreshCw,
     Search,
     SlidersHorizontal,
@@ -21,12 +23,15 @@ import {
     X,
 } from 'lucide-react';
 import {
+    DEFAULT_SORT,
     dokterCountOptions,
     dokterOptions,
     labelTipeDokter,
+    SORT_DOKTER,
     spesialisasiOptions,
     TIPE_DOKTER,
     type DokterFilters,
+    type SortDokter,
 } from '@/lib/api/dokter';
 import { isEmptyPage, isPastLastPage } from '@/lib/api/pagination';
 import { ApiError } from '@/lib/http';
@@ -44,6 +49,13 @@ import { ErrorState } from '@/components/states/error-state';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { Field, FieldInput } from '@/components/form/field';
 
 /**
@@ -91,12 +103,14 @@ type PilihanFilter = {
     spesialisasi: string | undefined;
     tipe: DokterTipe | undefined;
     telemedisin: boolean;
+    sort: SortDokter;
 };
 
 const PILIHAN_KOSONG: PilihanFilter = {
     spesialisasi: undefined,
     tipe: undefined,
     telemedisin: false,
+    sort: DEFAULT_SORT,
 };
 
 /**
@@ -147,6 +161,7 @@ export function DoctorDirectoryPage() {
     const [spesialisasi, setSpesialisasi] = useState<string | undefined>(undefined);
     const [tipe, setTipe] = useState<DokterTipe | undefined>(undefined);
     const [telemedisinOnly, setTelemedisinOnly] = useState(false);
+    const [sort, setSort] = useState<SortDokter>(DEFAULT_SORT);
 
     const [sheetOpen, setSheetOpen] = useState(false);
     const [draft, setDraft] = useState<PilihanFilter>(PILIHAN_KOSONG);
@@ -163,8 +178,9 @@ export function DoctorDirectoryPage() {
             ...(tipe === undefined ? {} : { tipe }),
             ...(submittedSearch === '' ? {} : { search: submittedSearch }),
             ...(telemedisinOnly ? { tersedia_telemedisin: true } : {}),
+            sort,
         }),
-        [page, spesialisasi, submittedSearch, telemedisinOnly, tipe],
+        [page, spesialisasi, submittedSearch, sort, telemedisinOnly, tipe],
     );
 
     const list = useQuery(dokterOptions(filters));
@@ -215,6 +231,13 @@ export function DoctorDirectoryPage() {
             ? 'Menghitung hasil…'
             : `${jumlah} dokter ditemukan.`;
 
+    /**
+     * Sort is deliberately NOT part of this comparison. It does not change `meta.total`,
+     * so re-running the count query for it would be a second request that can only return
+     * the number already on screen - and F03 AC-5 asks a sort change to cost exactly one
+     * request. The draft count below still carries the draft sort, so the number belongs to
+     * the query the apply button will send.
+     */
     const draftBerubah =
         draft.spesialisasi !== spesialisasi ||
         draft.tipe !== tipe ||
@@ -230,6 +253,7 @@ export function DoctorDirectoryPage() {
             ...(draft.tipe === undefined ? {} : { tipe: draft.tipe }),
             ...(submittedSearch === '' ? {} : { search: submittedSearch }),
             ...(draft.telemedisin ? { tersedia_telemedisin: true } : {}),
+            sort: draft.sort,
         }),
         [draft, submittedSearch],
     );
@@ -334,6 +358,7 @@ export function DoctorDirectoryPage() {
         setSpesialisasi(undefined);
         setTipe(undefined);
         setTelemedisinOnly(false);
+        setSort(DEFAULT_SORT);
         setDraft(PILIHAN_KOSONG);
         setSheetOpen(false);
         resetToFirstPage();
@@ -350,7 +375,7 @@ export function DoctorDirectoryPage() {
         setSpesialisasi(master.kode);
         setTipe(undefined);
         setTelemedisinOnly(false);
-        setDraft(PILIHAN_KOSONG);
+        setDraft({ ...PILIHAN_KOSONG, sort });
         setSheetOpen(false);
         resetToFirstPage();
     }
@@ -364,6 +389,7 @@ export function DoctorDirectoryPage() {
             spesialisasi,
             tipe,
             telemedisin: telemedisinOnly,
+            sort,
         });
         setSheetOpen(true);
     }
@@ -376,6 +402,7 @@ export function DoctorDirectoryPage() {
         setSpesialisasi(draft.spesialisasi);
         setTipe(draft.tipe);
         setTelemedisinOnly(draft.telemedisin);
+        setSort(draft.sort);
         setSheetOpen(false);
         resetToFirstPage();
     }
@@ -498,7 +525,7 @@ export function DoctorDirectoryPage() {
 
                         <FilterIsi
                             idPrefix="panel"
-                            nilai={{ spesialisasi, tipe, telemedisin: telemedisinOnly }}
+                            nilai={{ spesialisasi, tipe, telemedisin: telemedisinOnly, sort }}
                             onUbah={(next) => {
                                 if (nonaktif) {
                                     return;
@@ -507,6 +534,7 @@ export function DoctorDirectoryPage() {
                                 setSpesialisasi(next.spesialisasi);
                                 setTipe(next.tipe);
                                 setTelemedisinOnly(next.telemedisin);
+                                setSort(next.sort);
                                 resetToFirstPage();
                             }}
                             nonaktif={nonaktif}
@@ -732,6 +760,8 @@ export function DoctorDirectoryPage() {
                                             biaya={row.biaya_konsultasi_online}
                                             rating={row.rating_rata_rata}
                                             konsultasi={row.jumlah_konsultasi}
+                                            pengalaman={row.pengalaman_tahun}
+                                            ulasan={row.jumlah_ulasan}
                                         />
                                     </li>
                                 ))}
@@ -801,11 +831,16 @@ export function DoctorDirectoryPage() {
  * The filter body, shared verbatim by the desktop sidebar and the mobile sheet so the two
  * can never drift about which options exist.
  *
- * Each group is a `fieldset` with a `legend`, and each option is a real radio or checkbox:
- * `GET /dokter` accepts one `spesialisasi` and one `tipe` value, so a multi-select
+ * Each group is a `fieldset` with a `legend`, and each constraint option is a real radio or
+ * checkbox: `GET /dokter` accepts one `spesialisasi` and one `tipe` value, so a multi-select
  * checkbox group would promise an OR the endpoint cannot perform. `Layanan` is currently a
  * single `tersedia_telemedisin` checkbox because the backend has no `tipe_layanan` filter
  * yet - the pattern's "Kunjungan klinik" option is deferred with it.
+ *
+ * `Urutkan` is the one non-constraint group, so it is the kit's `Select` rather than a
+ * radio list: it changes neither the result set nor the chip row, only the order. It sits in
+ * the shared body so the desktop panel applies it live and the mobile sheet drafts it with
+ * the other values, which is what keeps the sheet's apply flow at three taps.
  */
 function FilterIsi({
     nilai,
@@ -913,6 +948,34 @@ function FilterIsi({
                 <p className="text-muted-foreground px-2 text-sm">
                     Hanya dokter yang tersedia untuk konsultasi online.
                 </p>
+            </fieldset>
+
+            <fieldset className="flex flex-col gap-0.5" data-slot="dokter-urutkan-grup">
+                <legend className="mb-1 text-sm font-semibold">Urutkan</legend>
+
+                <Select
+                    value={nilai.sort}
+                    disabled={nonaktif}
+                    onValueChange={(value) => {
+                        onUbah({ ...nilai, sort: value as SortDokter });
+                    }}
+                >
+                    <SelectTrigger
+                        aria-label="Urutkan"
+                        data-slot="dokter-urutkan"
+                        className="h-11 w-full"
+                    >
+                        <SelectValue />
+                    </SelectTrigger>
+
+                    <SelectContent>
+                        {SORT_DOKTER.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
             </fieldset>
         </div>
     );
@@ -1073,10 +1136,14 @@ function cariMasterPopuler(
  *
  * The `Tersedia telemedisin` badge is drawn for every card because eligibility is enforced
  * server-side: `v_dokter_katalog` only publishes verified, active, STR-valid doctors with
- * `tersedia_telemedisin = 1`, so a card in this list cannot be anything else. The `ulasan`
- * count and `pengalaman_tahun` are deliberately absent - `DokterResource` does not publish
- * either on the list endpoint yet (F03 AC-11 is backend-blocked), and inventing a number
- * would be worse than omitting it.
+ * `tersedia_telemedisin = 1`, so a card in this list cannot be anything else.
+ *
+ * `pengalaman_tahun` and `jumlah_ulasan` are the two fields the F03 backend commit added to
+ * the list projection, and both are drawn **only when positive**. `DokterResource` int-casts
+ * both, so a `NULL` column arrives as `0`; printing "0 tahun pengalaman" would present an
+ * unfilled column as a fact, and "0 ulasan" would be a scoreboard for a doctor who has
+ * simply not been reviewed. Omitting the badge is the honest reading of both zeros, and it
+ * is one rule applied to both counts rather than two different policies.
  */
 function DoctorCard({
     id,
@@ -1086,6 +1153,8 @@ function DoctorCard({
     biaya,
     rating,
     konsultasi,
+    pengalaman,
+    ulasan,
 }: {
     id: number;
     nama: string;
@@ -1099,7 +1168,15 @@ function DoctorCard({
     biaya: number | string | null;
     rating: number | string | null;
     konsultasi: number;
+    /** `dokter.pengalaman_tahun`, `0` when unset. Optional so a stale cached row cannot crash the card. */
+    pengalaman?: number | null;
+    /** Recomputed review count from `ulasan_dokter`; `0` means no reviews yet. */
+    ulasan?: number | null;
 }) {
+    const pengalamanTampil =
+        typeof pengalaman === 'number' && pengalaman > 0 ? pengalaman : null;
+    const ulasanTampil = typeof ulasan === 'number' && ulasan > 0 ? ulasan : null;
+
     return (
         <Card className="h-full" data-slot="dokter-kartu">
             <CardContent className="flex h-full flex-col gap-3">
@@ -1123,13 +1200,31 @@ function DoctorCard({
                 </p>
 
                 <div className="mt-auto flex flex-wrap items-center gap-2">
-                    <Badge variant="secondary">Mulai {formatRupiah(biaya)}</Badge>
+                    <Badge variant="secondary" data-slot="dokter-biaya">
+                        Mulai {formatRupiah(biaya)}
+                    </Badge>
 
                     <Badge variant="outline">
                         <Star aria-hidden className="size-3" />
 
                         {formatDecimal(rating, 2)}
                     </Badge>
+
+                    {pengalamanTampil === null ? null : (
+                        <Badge variant="outline" data-slot="dokter-pengalaman">
+                            <Award aria-hidden className="size-3" />
+
+                            {`${String(pengalamanTampil)} tahun pengalaman`}
+                        </Badge>
+                    )}
+
+                    {ulasanTampil === null ? null : (
+                        <Badge variant="outline" data-slot="dokter-ulasan">
+                            <MessageSquare aria-hidden className="size-3" />
+
+                            {`${String(ulasanTampil)} ulasan`}
+                        </Badge>
+                    )}
 
                     <Badge variant="outline">
                         <Stethoscope aria-hidden className="size-3" />
