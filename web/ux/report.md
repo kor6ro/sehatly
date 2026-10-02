@@ -53,8 +53,9 @@ F09 Resep & detail obat.
 | **F09** | Daftar resep berstatus; band tindakan berikutnya; item wajib-field terbaca penuh; panel interaksi berlabel; stok habis bukan dead-end; lacak pesanan; notifikasi tanpa nama obat | Apple Health (3,80) + MyChart, Halodoc, Medisafe, BPOM | 3,80 @100% (bukan pemenang tunggal) | **Sedang** |
 | **F11** | Kotak masuk + filter + tandai baca; deep-link aman `tautan` API → rute SPA; pengingat terjadwal (obat/janji) + preferensi 2 tingkat + jam tenang; status dibaca vs terkirim dipisah; body push generik tanpa data medis | WhatsApp (3,59 @85%) pemenang rubrik; best-of: NHS App, SATUSEHAT Mobile, Medisafe, Google Calendar, Slack | 3,59 @85% (GCal 3,88 gagal independensi; SATUSEHAT 3,63 @40%) | **Sedang** |
 | **F12** | Batal: dialog konsekuensi (biaya/refund di muka, alasan terstruktur opsional, peringatan ireversibilitas, privasi); jadwal ulang: slot baru + pengaman "jadwal lama tetap berlaku sampai jadwal baru tersimpan" + handling selisih; refund: status enum `refund.status` + jumlah/tujuan/SLA per metode + state gateway lambat; integritas ledger P0 | **NHS App (3,40 @100%, ≥2 penerbit) pemenang rubrik**; best-of: Grab (3,83 @90% gagal independensi), Halodoc, Traveloka, Booking.com; Sehatly Fase 0 | 3,40 @100% (Grab skor tertinggi 3,83 tetapi 1 penerbit) | **Sedang** |
+| **F14** | Daftar dokter + kredensial (STR/SIP, verifikasi per-dokter, nonaktif ber-blast-radius); jadwal rutin multi-hari + salin + publish + libur seharian + blokir hapus berbooking; laporan periode agregat **tanpa export** (jujur, karena endpoint tidak ada) + peringatan ledger F12; audit trail read-only termasking; aksi massal Select All + action bar + type-to-confirm | **Jane (3,85 @100%, ≥2 penerbit) pemenang rubrik**; best-of: Shopify (4,29 @85% **gagal independensi**), Klinik Pintar (3,59), GitHub (3,47), Trustmedis (3,18), Practo Ray (3,00); regulasi Kemenkes STR/SIP + NN/g + NIST 800-92 | 3,85 @100% | **Sedang** (semua kontrak API = usulan; backend admin nol) |
 
-> Baris **F11** ditambahkan **2026-10-02** dari sesi benchmark lanjutan (di luar cakupan awal F05/F06/F08/F09 di laporan ini); detail: `web/ux/patterns/F11.md`, skor `web/ux/scores/F11.md`, bukti `web/ux/evidence/F11/*.md`. Baris **F12** ditambahkan **2026-10-02** dari sesi benchmark lanjutan yang sama; detail: `web/ux/patterns/F12.md`, skor `web/ux/scores/F12.md`, bukti `web/ux/evidence/F12/*.md`. Baris lain tidak diubah.
+> Baris **F11** ditambahkan **2026-10-02** dari sesi benchmark lanjutan (di luar cakupan awal F05/F06/F08/F09 di laporan ini); detail: `web/ux/patterns/F11.md`, skor `web/ux/scores/F11.md`, bukti `web/ux/evidence/F11/*.md`. Baris **F12** ditambahkan **2026-10-02** dari sesi benchmark lanjutan yang sama; detail: `web/ux/patterns/F12.md`, skor `web/ux/scores/F12.md`, bukti `web/ux/evidence/F12/*.md`. Baris **F14** ditambahkan **2026-10-02**; detail: `web/ux/patterns/F14.md`, skor `web/ux/scores/F14.md`, bukti `web/ux/evidence/F14/*.md`. Baris lain tidak diubah.
 
 Detail lengkap: `web/ux/patterns/F05.md`, `F06.md`, `F08.md`, `F09.md`; lintas flow:
 `web/ux/patterns/_global.md`; skor: `web/ux/scores/*.md`; bukti: `web/ux/evidence/*/*.md`.
@@ -79,7 +80,7 @@ daftar, dan **state kosong** — yang justru penting.
 | 6 | **F09/F13: antrean apoteker berbasis id ketik** (tidak ada endpoint daftar); **tidak ada endpoint majukan status pesanan** (`PesananObatService::ubahStatus` tak dipanggil route). | `apoteker-verifikasi-queue.tsx`; `PesananObatStateMachine`; `flows.md` F09 | **P1** | **M–L** | Sedang |
 | 7 | **F10: tidak ada endpoint daftar rekam medis** (index menurunkan id dari resep); tanpa linimasa kunjungan, pencarian, unduh/ekspor. | `rekam-dan-konsultasi-index-page.tsx`; `flows.md` F10 | **P1** | **M** | Sedang |
 | 8 | **F12: cacat ledger P0 + tidak ada jadwal ulang & refund.** `BookingService::batalkan()` selalu mengubah invoice → `dibatalkan` tanpa memeriksa `pembayaran.status` dan tanpa menulis baris `refund` — booking lunas bisa berakhir "dibatalkan" dengan uang tanpa jejak. Jadwal ulang greenfield; `refund` (tabel + enum) nol jalur tulis; webhook menolak `refund` 422; guard batal belum memuat `check_in`/`no_show`. | `BookingService.php:194-199`; `docs/schema-notes.md:1496-1502`; benchmark `web/ux/patterns/F12.md` §12; `web/ux/evidence/F12/sehatly-fase0.md` | **P0 (ledger) / P1 (fitur)** | **L** (backend baru) | Tinggi |
-| 9 | **F14 admin klinik absen total** (route/layar/aksi massal tak ada; kode RBAC `dokter.lihat`/`pdp.kelola` tak dikonsumsi). | `flows.md` F14 | **P2** | **L** (backend baru) | Tinggi |
+| 9 | **F14 admin klinik absen total** (route/layar/aksi massal tak ada; kode RBAC `dokter.lihat`/`jadwal.lihat`/`audit.lihat`/`pdp.kelola` tak dikonsumsi). **Benchmark selesai 2026-10-02** — `patterns/F14.md` §4 memuat kontrak API usulan & 3 kode izin baru (`dokter.kelola`, `jadwal.kelola`, `laporan.lihat`) yang wajib disetujui lebih dulu; tanpa itu UI mustahil. | `web/ux/evidence/F14/sehatly-fase0.md`; `web/ux/patterns/F14.md` §4/§12; `flows.md` F14 | **P2** | **L** (backend baru) | Tinggi |
 | 10 | **F15 offline belum ditangani di mana pun** (tanpa `navigator.onLine`/banner/antrean tulis); plus preferensi/reminder notifikasi F11 belum ada. | grep `offline/navigator.onLine` = nihil; `flows.md` F11/F15 | **P2** | **M** (potongan lintas-flow) | Sedang |
 
 **Rekomendasi urutan:** (a) putuskan 5 hal di §5; (b) tutup gap backend P0 (#1, #2, #3) agar UI
@@ -192,12 +193,9 @@ yang mereka setujui dan bagaimana menariknya.
 web/ux/
   flows.md                     # Fase 0: status + endpoint + realtime per flow (v0.2)
   rubric.md, pattern-template.md, BENCHMARK_PROMPT.md
-  evidence/F05/{halodoc,alodokter,practo,doctolib,zocdoc,calendly}.md
-  evidence/F06/{halodoc,gojek-gopay,tokopedia,traveloka,shopee,midtrans,xendit,baymard}.md
-  evidence/F08/{sehatly-fase0,whatsapp,halodoc,teladoc,amwell,doxy-me,apple-messages,nng,wcag}.md
-  evidence/F09/{halodoc,kimia-farma,mychart,apple-health-medications,medisafe,bpom-label}.md
-  scores/{F05,F06,F08,F09}.md
-  patterns/{F05,F06,F08,F09}.md, patterns/_global.md
+  evidence/{F05,F06,F08,F09,F11,F12,F13,F14}/*.md
+  scores/{F05,F06,F08,F09,F11,F12,F13,F14}.md
+  patterns/{F05,F06,F08,F09,F11,F12,F13,F14}.md, patterns/_global.md
   refs/current/*.png           # Fase 6: 34 screenshot 390/1280 (tidak di-commit)
   report.md                    # dokumen ini
 ```
