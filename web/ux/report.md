@@ -51,6 +51,9 @@ F09 Resep & detail obat.
 | **F06** | Ringkasan total di atas; CTA tunggal nonaktif sampai valid; metode dikelompokkan; instruksi VA/QR + expiry; polling status terminal; promo di bawah | Gojek/GoPay (3,41) + Midtrans, Xendit, Baymard, Shopee | 3,41 @85% | **Sedang–tinggi** |
 | **F08** | Status sesi di header; baris menunggu eksplisit; indikator mengetik; status kirim bertingkat; lampiran berbatas; pemulihan draft; strip reconnect + resync | WhatsApp (4,27) + NN/g, Apple, WCAG, Sehatly F0 | 4,27 @75% | **Sedang** |
 | **F09** | Daftar resep berstatus; band tindakan berikutnya; item wajib-field terbaca penuh; panel interaksi berlabel; stok habis bukan dead-end; lacak pesanan; notifikasi tanpa nama obat | Apple Health (3,80) + MyChart, Halodoc, Medisafe, BPOM | 3,80 @100% (bukan pemenang tunggal) | **Sedang** |
+| **F11** | Kotak masuk + filter + tandai baca; deep-link aman `tautan` API → rute SPA; pengingat terjadwal (obat/janji) + preferensi 2 tingkat + jam tenang; status dibaca vs terkirim dipisah; body push generik tanpa data medis | WhatsApp (3,59 @85%) pemenang rubrik; best-of: NHS App, SATUSEHAT Mobile, Medisafe, Google Calendar, Slack | 3,59 @85% (GCal 3,88 gagal independensi; SATUSEHAT 3,63 @40%) | **Sedang** |
+
+> Baris **F11** ditambahkan **2026-10-02** dari sesi benchmark lanjutan (di luar cakupan awal F05/F06/F08/F09 di laporan ini); detail: `web/ux/patterns/F11.md`, skor `web/ux/scores/F11.md`, bukti `web/ux/evidence/F11/*.md`. Baris lain tidak diubah.
 
 Detail lengkap: `web/ux/patterns/F05.md`, `F06.md`, `F08.md`, `F09.md`; lintas flow:
 `web/ux/patterns/_global.md`; skor: `web/ux/scores/*.md`; bukti: `web/ux/evidence/*/*.md`.

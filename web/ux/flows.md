@@ -44,7 +44,7 @@ dan `dokter.slot`. Yang benar: fallback di `slot-picker.tsx`/`jadwal.ts` adalah
 | F08 | Konsultasi chat/video | Pasien, dokter | sebagian | `POST /konsultasi/mulai`, `GET /konsultasi/{id}`, `PUT /konsultasi/{id}/terima`, `GET/POST /konsultasi/{id}/chat`, `POST /konsultasi/{id}/chat/baca`, `PUT /konsultasi/{id}/selesai` | **`konsultasi.{id}` → `private-konsultasi.{id}`, event `chat.pesan`** | Chat matang (reconnect, dedupe, read receipt REST). **Video belum ada** (tanpa WebRTC/getUserMedia). Tidak ada kontrol "terima"/"mulai konsultasi" di UI walau endpoint `terima` ada. Tidak ada typing indicator, read receipt tidak realtime. |
 | F09 | Resep dan detail obat | Pasien | ada | `GET /obat`, `POST /konsultasi/{id}/resep`, `GET /pasien/resep`, `GET /resep/{id}`, `GET /resep/{id}/cek-interaksi`, `POST /resep/{id}/verifikasi`, `GET /obat/{id}/stok`, `POST /resep/{id}/checkout`, `GET /pesanan-obat/{id}` | tidak ada | Antrean apoteker berbasis **id yang diketik manual** (tidak ada endpoint daftar antrean). Tidak ada endpoint majukan status pesanan. |
 | F10 | Riwayat dan rekam medis | Pasien | sebagian | `POST /konsultasi/{id}/rekam-medis`, `GET /rekam-medis/{id}`, `PUT /rekam-medis/{id}`, `PUT /rekam-medis/{id}/final`, `POST /rekam-medis/{id}/amandemen`, `GET /pasien/resep`, `GET /pasien/surat-keterangan`, `GET /surat-keterangan/{nomor_surat}/verify` | tidak ada | **Tidak ada endpoint daftar rekam medis** (index menurunkan id dari resep). Tidak ada linimasa kunjungan, pencarian, unduh/ekspor. |
-| F11 | Notifikasi dan pengingat | Pasien, dokter | sebagian | `GET /notifikasi`, `PUT /notifikasi/{id}/baca`, `PUT /notifikasi/baca-semua` (+ FCM push dari 5 produser) | tidak ada | Tidak ada pengingat terjadwal, preferensi kanal, atau status pengiriman. Hanya kotak masuk in-app. |
+| F11 | Notifikasi dan pengingat | Pasien, dokter | sebagian | `GET /notifikasi`, `PUT /notifikasi/{id}/baca`, `PUT /notifikasi/baca-semua`, `GET/POST /auth/devices`, `DELETE /auth/devices/{deviceId}` (+ FCM push dari 5 produser: booking dibuat/dibatalkan, pembayaran selesai, resep siap, pesan baru) | tidak ada | **Kotak masuk in-app ada** (`/notifikasi` + bel; badge `meta.unread`, tandai satu/semua, filter; diverifikasi dari kode 2026-10-02). Gap: tidak ada pengingat terjadwal, preferensi kanal, jam tenang, status pengiriman, atau arsip; `tautan` API belum dipetakan ke rute SPA (baris dirender teks); body push `bookingDibatalkan` memuat `alasan` bebas (risiko UU PDP). Benchmark + pola: `web/ux/patterns/F11.md`; skor: `web/ux/scores/F11.md`. |
 | F12 | Batal, jadwal ulang, refund | Pasien | sebagian | `PUT /booking/{id}/batalkan` | tidak ada | Batal ada (dengan alasan + guard status). **Tidak ada jadwal ulang** dan **tidak ada refund** (model `refund` + status refund ada, tidak dipakai). Tidak ada jendela waktu/biaia pembatalan. |
 | F13 | Dashboard dokter (jadwal, antrean, catatan, tulis resep) | Dokter | sebagian | `GET /dokter/booking`, `PUT /konsultasi/{id}/terima`, `PUT /konsultasi/{id}/selesai`, rekam medis, `POST /konsultasi/{id}/resep`, `GET /obat`, `POST /konsultasi/{id}/surat-keterangan` | `konsultasi.{id}` (hanya di layar konsultasi) | Tidak ada dasbor dokter terpadu (antrean, jadwal hari ini, "mulai ≤2 ketukan"). Tidak ada tulis jadwal (`dokter_jadwal` read-only). Tidak ada validasi dosis (hanya peringatan interaksi). |
 | F14 | Admin klinik (dokter, jadwal, laporan) | Admin klinik | **belum** | Tidak ada endpoint admin | tidak ada | Tidak ada route/layar admin. `dokter.lihat` dan `pdp.kelola` ada di RBAC tapi tidak dipakai route mana pun. Tidak ada aksi massal/laporan. |
@@ -60,8 +60,11 @@ dan `dokter.slot`. Yang benar: fallback di `slot-picker.tsx`/`jadwal.ts` adalah
   belum punya pemicu UI eksplisit.
 - **F08 video** — `tipe_layanan=video_call` dan kolom `room_id` ada, tetapi tidak
   ada provisioning token video / sinyal mulai-selesai. Praktis greenfield.
-- **F11 push FCM** — produser notifikasi + token perangkat ada; tidak ada
-  preferensi/reminder terjadwal.
+- **F11 pengingat, preferensi, dan status kirim** — produser notifikasi (5 metode/4 tipe),
+  token perangkat, dan **kotak masuk in-app** (`/notifikasi`, bel, tandai baca) sudah ada;
+  **tidak ada** endpoint/tabel untuk pengingat terjadwal, preferensi kanal, jam tenang,
+  atau status pengiriman, dan tidak ada kolom kanal/arsip di `notifikasi`
+  (perlu backend baru; kontrak + AC terblokir ada di `patterns/F11.md` §12).
 - **F09 antrean apoteker** — tidak ada endpoint daftar antrean; `ApotekerQueuePage`
   meminta id resep diketik manual.
 - **F14 admin** — `dokter.lihat`, `pdp.kelola`, dan kode admin lain ada di
@@ -130,7 +133,7 @@ pemilik produk.
 | F08 | Halodoc | Teladoc, Amwell | WhatsApp (pola chat) |
 | F09 | Halodoc, Kimia Farma | MyChart, Apple Health Medications | label obat BPOM |
 | F10 | MySiloam, SATUSEHAT Mobile | MyChart, Apple Health | linimasa/timeline app |
-| F11 | Halodoc | Doctolib, Zocdoc | pola notifikasi Android/iOS |
+| F11 | Halodoc, SATUSEHAT Mobile | NHS App, Medisafe | Google Calendar, WhatsApp (+ jam tenang: Slack) |
 | F12 | Traveloka, Halodoc | Doctolib, Zocdoc | pola refund e-commerce |
 | F13 | — | Practo Ray, Doctolib Pro, Doxy.me | pola dasbor padat (Linear/Notion) |
 | F14 | — | Practo Ray, Jane App, SimplePractice | tabel data padat |
