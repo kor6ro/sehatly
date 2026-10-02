@@ -34,7 +34,7 @@ import {
  * | --- | --- | --- |
  * | a route that throws is contained and the sidebar survives | F3-01 BLOCKER | the shell is gone, so `[data-sidebar="sidebar"]` never becomes visible and the navigation click cannot happen |
  * | no stack trace reaches the user | F3-01 BLOCKER | the body carries React's own error page |
- * | all fourteen destinations are reachable at 390 px | F3-04 MAJOR | there is no `[data-sidebar="trigger"]` to click |
+ * | all fifteen destinations are reachable at 390 px | F3-04 MAJOR | there is no `[data-sidebar="trigger"]` to click |
  * | no destination carries a hardcoded id | F3-06 MAJOR | a link is `/konsultasi/1` and 404s for this account |
  * | every destination renders inside the shell | F3-06 MAJOR | the shell is destroyed, or a raw English error card is shown |
  */
@@ -46,7 +46,7 @@ const DESKTOP = { width: 1280, height: 900 };
 const PONSEL = { width: 390, height: 844 };
 
 /**
- * The fourteen nav destinations a patient account is offered, as paths.
+ * The fifteen nav destinations a patient account is offered, as paths.
  *
  * Written out rather than counted, because "the drawer has links" would pass with the three
  * F3-04 measured. A destination added later fails here until this list is updated, which is
@@ -57,6 +57,7 @@ const TUJUAN_PASIEN: ReadonlyArray<string> = [
     '/profil',
     '/profil/keluarga',
     '/profil/alergi',
+    '/profil/perangkat',
     '/profil/privasi',
     '/dokter',
     '/booking',
@@ -150,6 +151,8 @@ async function daftar(browser: Browser): Promise<void> {
     await page.getByLabel('Kata sandi').fill(SANDI);
     await page.getByLabel('Tanggal lahir').fill('1994-07-19');
     await page.getByLabel('Alamat lengkap').fill('Jl. Uji Robustness No. 7, Bandung');
+    // Register requires the two UU PDP consents since commit `aacb7e8`.
+    await page.getByRole('checkbox', { name: /Saya menyetujui/ }).check();
 
     const [respons] = await Promise.all([
         page.waitForResponse((r) => r.url().includes('/api/v1/auth/register')),
@@ -185,11 +188,11 @@ async function daftar(browser: Browser): Promise<void> {
 async function masuk(page: Page): Promise<void> {
     await page.goto('/login');
 
-    await expect(page.getByLabel('Nomor telepon atau email')).toBeVisible({
+    await expect(page.getByLabel('Nomor telepon')).toBeVisible({
         timeout: 60_000,
     });
 
-    await page.getByLabel('Nomor telepon atau email').fill(telepon);
+    await page.getByLabel('Nomor telepon').fill(telepon);
     await page.getByLabel('Kata sandi').fill(SANDI);
 
     const [respons] = await Promise.all([
@@ -335,7 +338,7 @@ test.describe('App shell robustness (F3-01, F3-04, F3-06)', () => {
         );
     });
 
-    test('all fourteen destinations are reachable at 390 px', async ({ page }) => {
+    test('all fifteen destinations are reachable at 390 px', async ({ page }) => {
         test.setTimeout(180_000);
 
         await page.setViewportSize(DESKTOP);
@@ -350,7 +353,7 @@ test.describe('App shell robustness (F3-01, F3-04, F3-06)', () => {
          */
         const desktop = await tujuanSidebar(page);
 
-        expect(desktop, 'desktop harus menawarkan 14 tujuan').toHaveLength(14);
+        expect(desktop, 'desktop harus menawarkan 15 tujuan').toHaveLength(15);
         await page.setViewportSize(PONSEL);
 
         await expect(page.locator('[data-slot="mobile-nav"]')).toBeVisible();
@@ -387,7 +390,7 @@ test.describe('App shell robustness (F3-01, F3-04, F3-06)', () => {
             'drawer ponsel harus menawarkan tujuan yang sama persis dengan sidebar desktop',
         ).toEqual(desktop);
 
-        expect(ponsel, 'daftar tujuan yang dikumpulkan harus lengkap').toHaveLength(14);
+        expect(ponsel, 'daftar tujuan yang dikumpulkan harus lengkap').toHaveLength(15);
 
         for (const tujuan of TUJUAN_PASIEN) {
             await expect(

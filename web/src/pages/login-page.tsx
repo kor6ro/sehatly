@@ -8,7 +8,7 @@ import { login, type Identifier } from '@/lib/api/auth';
 import { ApiError } from '@/lib/http';
 import { getAccessToken } from '@/lib/token';
 import { useDocumentTitle } from '@/hooks/use-document-title';
-import { PESAN_TELEPON_INTERIM, apakahTeleponInterimValid } from '@/lib/telepon';
+import { PESAN_TELEPON_FORMAT, apakahTeleponValid } from '@/lib/telepon';
 import { setPendingOtp } from '@/stores/pending-otp';
 import { Field, FieldInput, FormErrorSummary } from '@/components/form/field';
 import { Button } from '@/components/ui/button';
@@ -25,10 +25,11 @@ import { AuthLayout } from '@/pages/auth-layout';
  * plus `LoginRequest`'s own `regex:/^\+?[0-9]{8,20}$/` on the phone. These mirror all
  * three so an obviously-invalid value does not cost a round trip.
  *
- * The phone rule is stricter than the server's on one point, deliberately: `+62...` is
- * refused until the backend normalises the two spellings, because the exact-match lookup
- * would otherwise answer "wrong password" for a number that is correct (F01 §4.4 #2,
- * AC-1 interim). The server remains the authority for everything else.
+ * The phone rule mirrors the server's `/^\+?[0-9]{8,20}$/` after the backend
+ * normalisation landed (commit `aacb7e8`): `08xx`, `62xx` and `+62xx` are all
+ * accepted and sent as typed. `AuthRequest::prepareForValidation()` folds them into
+ * the canonical `08…` before the lookup, so the two spellings reach one account. The
+ * server remains the authority for everything else.
  */
 type IdentifierKind = 'no_telepon' | 'email';
 
@@ -47,7 +48,7 @@ function schemaFor(kind: IdentifierKind) {
                       .trim()
                       .min(1, 'Isi nomor telepon.')
                       .max(20, 'Nomor telepon maksimal 20 karakter.')
-                      .refine(apakahTeleponInterimValid, PESAN_TELEPON_INTERIM),
+                      .refine(apakahTeleponValid, PESAN_TELEPON_FORMAT),
         password: z
             .string()
             .min(1, 'Isi kata sandi.')
@@ -207,7 +208,7 @@ export function LoginPage() {
                     hint={
                         kind === 'email'
                             ? undefined
-                            : 'Gunakan nomor yang aktif di WhatsApp/SMS. Contoh: 0812 3456 7890.'
+                            : 'Gunakan nomor yang aktif di WhatsApp/SMS. Format 08xx atau +628xx sama-sama diterima.'
                     }
                     errors={[
                         ...(errors.identifier?.message === undefined

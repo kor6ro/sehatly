@@ -7,15 +7,11 @@ import { expectNoA11yViolations } from './a11y';
  * F01 `/login`, `/register`, `/otp` and `/profil/perangkat`, mocked end to end.
  *
  * Every `/api/v1/auth/**` request is intercepted, so the file pins the CLIENT's branches -
- * the interim phone rule, the optional-field grouping, the OTP slot behaviour, the inline
- * 422, the 429 wait, offline gating, the device revoke - without a live Laravel API and
- * without touching real data. Fixtures are synthetic.
- *
- * AC-4 (resend after expiry) and AC-7 (resend cooldown with exactly one request) are
- * deliberately absent: `POST /auth/otp/resend` does not exist, so the resend control is
- * rendered disabled with a visible reason. Faking those tests would certify a request that
- * cannot be made. `f01-ac4-copy-kedaluwarsa` covers only the honest part that IS built:
- * the expired copy and the absence of the old "masuk kembali" sentence.
+ * both accepted phone spellings, the consent gate, the optional-field grouping, the OTP
+ * slot behaviour, the inline 422 with `meta.sisa_percobaan`, the 429 wait from
+ * `meta.retry_after`, resend with a 60-second cooldown and exactly one request, the
+ * device revoke, and both logout actions - without a live Laravel API and without
+ * touching real data. Fixtures are synthetic.
  *
  * Two viewports for every scenario: 390x844 and 1280x900, pinned to `Asia/Jakarta`.
  */
@@ -45,6 +41,9 @@ type MockState = {
     login: Array<Record<string, unknown>>;
     register: Array<Record<string, unknown>>;
     verify: Array<Record<string, unknown>>;
+    resend: Array<Record<string, unknown>>;
+    logout: Array<Record<string, unknown>>;
+    logoutAll: number;
     devices: DeviceUji[];
     deletes: string[];
     getDevices: number;
@@ -54,6 +53,7 @@ type OpsiMock = {
     onLogin?: (body: Record<string, unknown>, state: MockState) => HasilPost;
     onRegister?: (body: Record<string, unknown>, state: MockState) => HasilPost;
     onVerify?: (body: Record<string, unknown>, state: MockState) => HasilPost;
+    onResend?: (body: Record<string, unknown>, state: MockState) => HasilPost;
     onDelete?: (deviceId: string, state: MockState) => HasilPost;
     devices?: DeviceUji[];
 };
@@ -94,6 +94,9 @@ const DEVICE_LAIN: DeviceUji = {
     dibuat_at: '2026-09-01T00:00:00.000000Z',
 };
 
+const PESAN_CONSENT_WAJIB =
+    'Anda harus menyetujui Syarat dan Ketentuan serta Kebijakan Privasi untuk mendaftar.';
+
 function otpChallenge(tujuan: 'login' | 'verifikasi_telepon'): Record<string, unknown> {
     return {
         tujuan,
@@ -120,6 +123,9 @@ async function pasangMock(page: Page, opsi: OpsiMock = {}): Promise<MockState> {
         login: [],
         register: [],
         verify: [],
+        resend: [],
+        logout: [],
+        logoutAll: 0,
         devices: opsi.devices === undefined ? [] : [...opsi.devices],
         deletes: [],
         getDevices: 0,
@@ -188,6 +194,62 @@ async function pasangMock(page: Page, opsi: OpsiMock = {}): Promise<MockState> {
             };
 
             return balas(route, hasil);
+        }
+
+        if (jalur === '/api/v1/auth/otp/resend' && metode === 'POST') {
+            const body = JSON.parse(request.postData() ?? '{}') as Record<string, unknown>;
+
+            state.resend.push(body);
+
+            const hasil = opsi.onResend?.(body, state) ?? {
+                status: 200,
+                body: envelope(
+                    {
+                        otp: {
+                            kedaluwarsa_at: new Date(Date.now() + 300_000).toISOString(),
+                            ttl_detik: 300,
+                            kanal: 'whatsapp',
+                        },
+                    },
+                    'Jika akun terdaftar, kode OTP baru telah dikirim.',
+                ),
+            };
+
+            return balas(route, hasil);
+        }
+
+        if (jalur === '/api/v1/auth/logout' && metode === 'POST') {
+            const body = JSON.parse(request.postData() ?? '{}') as Record<string, unknown>;
+
+            state.logout.push(body);
+
+            return balas(route, {
+                status: 200,
+                body: envelope(
+                    {
+                        refresh_token: { dicabut: true },
+                        access_token: { dihapus: true },
+                        perangkat: { dimatikan: 0 },
+                    },
+                    'Logout berhasil.',
+                ),
+            });
+        }
+
+        if (jalur === '/api/v1/auth/logout-all' && metode === 'POST') {
+            state.logoutAll += 1;
+
+            return balas(route, {
+                status: 200,
+                body: envelope(
+                    {
+                        refresh_token: { dicabut: true, jumlah: 2 },
+                        access_token: { dihapus: true },
+                        perangkat: { dimatikan: 2 },
+                    },
+                    'Logout dari semua perangkat berhasil.',
+                ),
+            });
         }
 
         if (jalur === '/api/v1/auth/devices' && metode === 'GET') {
@@ -277,12 +339,44 @@ async function pasangSesi(page: Page, deviceId?: string): Promise<void> {
     }, { deviceId: deviceId ?? null });
 }
 
+/**
+ * Record every `sehatly:flash` the SPA dispatches.
+ *
+ * The sonner toast itself auto-dismisses after a few seconds, so asserting on the
+ * rendered toast makes a sign-out test fail whenever the preceding steps were slow.
+ * The dispatched event is the app's own contract and does not expire.
+ */
+async function pasangPerekamFlash(page: Page): Promise<void> {
+    await page.addInitScript(() => {
+        const w = window as unknown as { __flashF01?: string[] };
+
+        w.__flashF01 = [];
+
+        window.addEventListener('sehatly:flash', (event) => {
+            const detail = (event as CustomEvent<{ message?: string }>).detail;
+
+            if (typeof detail?.message === 'string') {
+                w.__flashF01?.push(detail.message);
+            }
+        });
+    });
+}
+
+async function pesanFlash(page: Page): Promise<string[]> {
+    return await page.evaluate(() => {
+        const w = window as unknown as { __flashF01?: string[] };
+
+        return w.__flashF01 ?? [];
+    });
+}
+
 async function pasangPendingOtp(
     page: Page,
     opsi: { kedaluwarsaMs?: number; noTelepon?: string } = {},
 ): Promise<void> {
     await page.addInitScript(
         (nilai: { kedaluwarsaMs: number; noTelepon: string }) => {
+            sessionStorage.setItem('sehatly.device_id', 'dev-uji-otp');
             sessionStorage.setItem(
                 'sehatly.pending_otp',
                 JSON.stringify({
@@ -316,6 +410,18 @@ async function isiOtp(page: Page, kode: string): Promise<void> {
     await page.locator('[data-input-otp]').pressSequentially(kode);
 }
 
+async function isiRegistrasi(page: Page): Promise<void> {
+    await page.getByLabel('Nama lengkap').fill('Siti Rahma');
+    await page.getByLabel('Nomor telepon').fill('081234567890');
+    await page.getByLabel('Kata sandi').fill('rahasia123');
+    await page.getByLabel('Tanggal lahir').fill('1990-05-17');
+    await page.getByLabel('Alamat lengkap').fill('Jl. Merdeka No. 10, Bandung');
+}
+
+function lokatorPersetujuan(page: Page): Locator {
+    return page.getByRole('checkbox', { name: /Saya menyetujui/ });
+}
+
 for (const vp of VIEWPORTS) {
     test.describe(`F01 auth ${vp.nama} ${vp.width}x${vp.height}`, () => {
         test.use({
@@ -323,14 +429,16 @@ for (const vp of VIEWPORTS) {
             timezoneId: 'Asia/Jakarta',
         });
 
-        test('f01-ac1-nomor-telepon-interim', async ({ page }) => {
+        test('f01-ac1-nomor-dua-bentuk', async ({ page }) => {
             const state = await pasangMock(page);
 
             await page.goto('/login');
 
             await expect(page.getByLabel('Nomor telepon')).toBeVisible();
             await expect(
-                page.getByText('Gunakan nomor yang aktif di WhatsApp/SMS. Contoh: 0812 3456 7890.'),
+                page.getByText(
+                    'Gunakan nomor yang aktif di WhatsApp/SMS. Format 08xx atau +628xx sama-sama diterima.',
+                ),
             ).toBeVisible();
             await expect(page.getByPlaceholder('08xx xxxx xxxx')).toBeVisible();
             await expect(
@@ -339,23 +447,28 @@ for (const vp of VIEWPORTS) {
                 ),
             ).toBeVisible();
 
+            // The international spelling is accepted now that the server normalises it,
+            // and it is sent as typed: the client does not canonicalise.
             await isiLogin(page, { identitas: '+6281234567890', sandi: 'rahasia123' });
-            await page.getByRole('button', { name: 'Lanjutkan' }).click();
-
-            await expect(
-                page.getByText('Gunakan format 08xx xxxx xxxx (tanpa awalan +62).'),
-            ).toBeVisible();
-            expect(state.login.length).toBe(0);
-
-            await page.getByLabel('Nomor telepon').fill('081234567890');
             await page.getByRole('button', { name: 'Lanjutkan' }).click();
 
             await expect.poll(() => state.login.length).toBe(1);
             expect(state.login[0]).toEqual({
-                no_telepon: '081234567890',
+                no_telepon: '+6281234567890',
                 password: 'rahasia123',
             });
             await expect(page).toHaveURL(/\/otp$/);
+
+            // The local spelling still works and is sent unchanged too.
+            await page.goto('/login');
+            await isiLogin(page, { identitas: '081234567890', sandi: 'rahasia123' });
+            await page.getByRole('button', { name: 'Lanjutkan' }).click();
+
+            await expect.poll(() => state.login.length).toBe(2);
+            expect(state.login[1]).toEqual({
+                no_telepon: '081234567890',
+                password: 'rahasia123',
+            });
         });
 
         test('f01-ac2-opsional', async ({ page }) => {
@@ -374,11 +487,8 @@ for (const vp of VIEWPORTS) {
                 page.locator('label span[aria-hidden="true"]', { hasText: '*' }),
             ).toHaveCount(6);
 
-            await page.getByLabel('Nama lengkap').fill('Siti Rahma');
-            await page.getByLabel('Nomor telepon').fill('081234567890');
-            await page.getByLabel('Kata sandi').fill('rahasia123');
-            await page.getByLabel('Tanggal lahir').fill('1990-05-17');
-            await page.getByLabel('Alamat lengkap').fill('Jl. Merdeka No. 10, Bandung');
+            await isiRegistrasi(page);
+            await lokatorPersetujuan(page).check();
 
             await page.getByRole('button', { name: 'Daftar' }).click();
 
@@ -389,6 +499,39 @@ for (const vp of VIEWPORTS) {
 
             expect('email' in body).toBe(false);
             expect('tempat_lahir' in body).toBe(false);
+        });
+
+        test('f01-ac2b-persetujuan-wajib', async ({ page }) => {
+            const state = await pasangMock(page);
+
+            await page.goto('/register');
+
+            await expect(
+                page.getByText(
+                    /Saya menyetujui Syarat dan Ketentuan serta Kebijakan Privasi Sehatly\./,
+                ),
+            ).toBeVisible();
+
+            await isiRegistrasi(page);
+
+            // Unchecked: the submit is blocked client-side, the server is never asked,
+            // and the inline error says why.
+            await page.getByRole('button', { name: 'Daftar' }).click();
+
+            await expect(page.getByText(PESAN_CONSENT_WAJIB)).toBeVisible();
+            expect(state.register.length).toBe(0);
+
+            // Checked: one request, and both mandatory booleans are `true`.
+            await lokatorPersetujuan(page).check();
+            await page.getByRole('button', { name: 'Daftar' }).click();
+
+            await expect.poll(() => state.register.length).toBe(1);
+            await expect(page).toHaveURL(/\/otp$/);
+
+            const body = state.register[0] as Record<string, unknown>;
+
+            expect(body.persetujuan_syarat_ketentuan).toBe(true);
+            expect(body.persetujuan_kebijakan_privasi).toBe(true);
         });
 
         test('f01-ac3-otp-input', async ({ page }) => {
@@ -421,10 +564,10 @@ for (const vp of VIEWPORTS) {
             expect(await page.evaluate(() => window.scrollY)).toBe(0);
         });
 
-        test('f01-ac4-copy-kedaluwarsa', async ({ page }) => {
-            await pasangMock(page);
-            await pasangPendingOtp(page, { kedaluwarsaMs: -2_000 });
+        test('f01-ac4-kedaluwarsa-kirim-ulang', async ({ page }) => {
+            const state = await pasangMock(page);
 
+            await pasangPendingOtp(page, { kedaluwarsaMs: -2_000 });
             await page.goto('/otp');
 
             await expect(page.getByText('Kode sudah kedaluwarsa.')).toBeVisible();
@@ -435,13 +578,33 @@ for (const vp of VIEWPORTS) {
             const resend = page.locator('[data-slot="otp-resend"]');
 
             await expect(resend).toBeVisible();
-            await expect(resend).toBeDisabled();
-            await expect(resend).toHaveAttribute('aria-disabled', 'true');
+            await expect(resend).toBeEnabled();
+            await expect(resend).toHaveText('Kirim ulang kode');
+
+            // One click, one request, addressed to the same identifier the verify call
+            // will use, and with the locally stored device id.
+            await resend.click();
+
+            await expect.poll(() => state.resend.length).toBe(1);
+            expect(state.resend[0]).toEqual({
+                no_telepon: '081299998888',
+                tujuan: 'login',
+                device_id: 'dev-uji-otp',
+            });
+
+            // AC-4: the countdown is replaced from the response, not restarted beside it.
             await expect(
-                page.getByText(
-                    'Kirim ulang kode belum tersedia. Gunakan tombol Kembali untuk meminta kode baru.',
-                ),
+                page.getByText(/Kode baru telah dikirim ke nomor 0812\*+88\./),
             ).toBeVisible();
+            await expect(page.getByText('Kode sudah kedaluwarsa.')).toHaveCount(0);
+            await expect(page.locator('[data-slot="otp-countdown"]')).toHaveCount(1);
+            await expect(page.locator('[data-slot="otp-countdown"]')).toContainText(
+                /Kode berlaku \d+ menit \d+ detik lagi\./,
+            );
+
+            // The cooldown is visible on the button itself.
+            await expect(resend).toBeDisabled();
+            await expect(resend).toContainText(/Kirim ulang kode \(\d{1,2} dtk\)/);
         });
 
         test('f01-ac5-422-kedaluwarsa', async ({ page }) => {
@@ -500,11 +663,14 @@ for (const vp of VIEWPORTS) {
             const state = await pasangMock(page, {
                 onVerify: () => ({
                     status: 429,
-                    headers: { 'Retry-After': '45' },
                     body: {
                         success: false,
                         message: 'Terlalu banyak percobaan.',
                         errors: {},
+                        // The wait now comes from `meta.retry_after`, not from a header.
+                        // The real limiter also publishes `sisa_percobaan: 0`, which must
+                        // not render beside the wait message.
+                        meta: { retry_after: 45, sisa_percobaan: 0 },
                     },
                 }),
             });
@@ -518,10 +684,93 @@ for (const vp of VIEWPORTS) {
             await expect(
                 page.getByText('Terlalu banyak percobaan. Coba lagi dalam 45 detik.'),
             ).toBeVisible();
+            await expect(page.locator('[data-slot="otp-attempts"]')).toHaveCount(0);
 
             // One click, one request; the disabled while in-flight button cannot stack a
             // second one.
             expect(state.verify.length).toBe(1);
+        });
+
+        test('f01-ac6-429-tanpa-waktu', async ({ page }) => {
+            await pasangMock(page, {
+                onVerify: () => ({
+                    status: 429,
+                    body: {
+                        success: false,
+                        message: 'Terlalu banyak percobaan. Coba lagi nanti.',
+                        errors: {},
+                    },
+                }),
+            });
+
+            await pasangPendingOtp(page);
+            await page.goto('/otp');
+
+            await isiOtp(page, '123456');
+            await page.getByRole('button', { name: 'Verifikasi' }).click();
+
+            // No `meta.retry_after` and no header: the server's own message is shown.
+            await expect(
+                page.getByText('Terlalu banyak percobaan. Coba lagi nanti.'),
+            ).toBeVisible();
+        });
+
+        test('f01-ac6b-sisa-percobaan', async ({ page }) => {
+            const state = await pasangMock(page, {
+                onVerify: () => ({
+                    status: 422,
+                    body: {
+                        success: false,
+                        message: 'The given data was invalid.',
+                        errors: { kode: ['Kode OTP tidak valid.'] },
+                        meta: { sisa_percobaan: 3 },
+                    },
+                }),
+            });
+
+            await pasangPendingOtp(page);
+            await page.goto('/otp');
+
+            await isiOtp(page, '123456');
+            await page.getByRole('button', { name: 'Verifikasi' }).click();
+
+            await expect(
+                page.getByText('Sisa 3 percobaan. Setelah habis, minta kode baru.'),
+            ).toBeVisible();
+            expect(state.verify.length).toBe(1);
+        });
+
+        test('f01-ac7-resend-cooldown', async ({ page }) => {
+            const state = await pasangMock(page);
+
+            await pasangPendingOtp(page);
+            await page.goto('/otp');
+
+            const resend = page.locator('[data-slot="otp-resend"]');
+
+            await expect(resend).toBeEnabled();
+
+            // Two clicks in the same tick, before React can re-render the disabled
+            // state: the synchronous ref latch is what keeps this to one request.
+            await resend.evaluate((el) => {
+                const tombol = el as HTMLButtonElement;
+                tombol.click();
+                tombol.click();
+            });
+
+            await expect.poll(() => state.resend.length).toBe(1);
+
+            await page.waitForTimeout(300);
+
+            expect(state.resend.length).toBe(1);
+            await expect(resend).toBeDisabled();
+            await expect(resend).toContainText(/Kirim ulang kode \(\d{1,2} dtk\)/);
+
+            // One deadline, not two.
+            await expect(page.locator('[data-slot="otp-countdown"]')).toHaveCount(1);
+            await expect(page.locator('[data-slot="otp-countdown"]')).toContainText(
+                /Kode berlaku \d+ menit \d+ detik lagi\./,
+            );
         });
 
         test('f01-ac8-offline', async ({ page, context }) => {
@@ -560,10 +809,12 @@ for (const vp of VIEWPORTS) {
             const sebelum = permintaanAuth;
 
             await verify.click({ force: true });
+            await resend.click({ force: true });
             await page.waitForTimeout(300);
 
             expect(permintaanAuth).toBe(sebelum);
             expect(state.verify.length).toBe(0);
+            expect(state.resend.length).toBe(0);
             await expect(input).toHaveValue('123456');
 
             await context.setOffline(false);
@@ -607,19 +858,27 @@ for (const vp of VIEWPORTS) {
             await expect(page.locator('[data-slot="device-row"]')).toHaveCount(2);
             await expect(page.getByText('Perangkat Android 2.1.0')).toBeVisible();
             await expect(page.getByText('Perangkat iOS')).toBeVisible();
-            await expect(page.getByText('Perangkat ini')).toHaveCount(1);
+            await expect(
+                page.getByText('Perangkat ini', { exact: true }),
+            ).toHaveCount(1);
             await expect(page.getByText(/Android • Terakhir aktif/)).toBeVisible();
 
             const barisIos = page.locator('[data-slot="device-row"][data-platform="ios"]');
-            const dialog = page.locator('[data-slot="dialog-content"]');
+            const dialog = page.locator('[data-slot="device-revoke-dialog"]');
 
             await barisIos.getByRole('button', { name: 'Cabut' }).click();
 
             await expect(
                 dialog.getByRole('heading', { name: 'Cabut perangkat ini?' }),
             ).toBeVisible();
+
+            // The dialog does NOT claim the other device's session ends; it states the
+            // real effect and the deferred token-to-device mapping.
             await expect(
-                dialog.getByText('Perangkat ini akan keluar dan harus masuk kembali.'),
+                dialog.getByText(/Perangkat ini dihapus dari daftar\./),
+            ).toBeVisible();
+            await expect(
+                dialog.getByText(/Mengakhiri sesi perangkat lain dari daftar ini belum tersedia/),
             ).toBeVisible();
             await expect(dialog.getByRole('button', { name: 'Batal' })).toBeVisible();
 
@@ -658,12 +917,72 @@ for (const vp of VIEWPORTS) {
                 .getByRole('button', { name: 'Cabut' })
                 .click();
             await page
-                .locator('[data-slot="dialog-content"]')
+                .locator('[data-slot="device-revoke-dialog"]')
                 .getByRole('button', { name: 'Ya, cabut' })
                 .click();
 
             await expect(page.getByText('Perangkat tidak ditemukan.')).toBeVisible();
             expect(state.deletes.length).toBe(1);
+        });
+
+        test('f01-ac10b-logout-perangkat-ini', async ({ page }) => {
+            const state = await pasangMock(page, {
+                devices: [DEVICE_INI, DEVICE_LAIN],
+            });
+
+            await pasangPerekamFlash(page);
+            await pasangSesi(page, 'dev-uji-ini');
+            await page.goto('/profil/perangkat');
+
+            await page.locator('[data-slot="device-logout"]').click();
+
+            await expect.poll(() => state.logout.length).toBe(1);
+            expect(state.logout[0]).toEqual({ refresh_token: 'refresh-uji-f01' });
+
+            await expect(page).toHaveURL(/\/login$/);
+            await expect.poll(() => pesanFlash(page)).toContain('Anda telah keluar.');
+
+            // The local pair is gone: a reload of a guarded page cannot resurrect it.
+            const tersimpan = await page.evaluate(() =>
+                sessionStorage.getItem('sehatly.refresh_token'),
+            );
+
+            expect(tersimpan).toBeNull();
+        });
+
+        test('f01-ac10c-logout-semua-perangkat', async ({ page }) => {
+            const state = await pasangMock(page, {
+                devices: [DEVICE_INI, DEVICE_LAIN],
+            });
+
+            await pasangPerekamFlash(page);
+            await pasangSesi(page, 'dev-uji-ini');
+            await page.goto('/profil/perangkat');
+
+            await page.locator('[data-slot="device-logout-all"]').click();
+
+            const dialog = page.locator('[data-slot="device-logout-all-dialog"]');
+
+            await expect(
+                dialog.getByRole('heading', { name: 'Keluar dari semua perangkat?' }),
+            ).toBeVisible();
+            await expect(dialog.getByText(/termasuk perangkat ini/)).toBeVisible();
+            await expect(dialog.getByText(/Anda perlu masuk kembali/)).toBeVisible();
+
+            // Cancel first: nothing is sent.
+            await dialog.getByRole('button', { name: 'Batal' }).click();
+
+            await expect(dialog).toHaveCount(0);
+            expect(state.logoutAll).toBe(0);
+
+            await page.locator('[data-slot="device-logout-all"]').click();
+            await page.locator('[data-slot="device-logout-all-confirm"]').click();
+
+            await expect.poll(() => state.logoutAll).toBe(1);
+            await expect(page).toHaveURL(/\/login$/);
+            await expect
+                .poll(() => pesanFlash(page))
+                .toContain('Anda telah keluar dari semua perangkat.');
         });
 
         test('f01-ac11-privasi', async ({ page }) => {
@@ -715,6 +1034,16 @@ for (const vp of VIEWPORTS) {
             await page.goto('/register');
             await expectNoA11yViolations(page);
             await ukuranTarget(page.getByRole('button', { name: 'Daftar' }));
+
+            const kotakPersetujuan = await lokatorPersetujuan(page).boundingBox();
+
+            expect(kotakPersetujuan, 'checkbox consent harus punya bounding box').not.toBeNull();
+            expect(
+                Math.round((kotakPersetujuan as { width: number }).width),
+            ).toBeGreaterThanOrEqual(24);
+            expect(
+                Math.round((kotakPersetujuan as { height: number }).height),
+            ).toBeGreaterThanOrEqual(24);
 
             await pasangPendingOtp(page);
             await page.goto('/otp');
@@ -798,6 +1127,18 @@ for (const lebar of [390, 1280] as const) {
         await simpanBukti(page, 'otp', lebar);
     });
 
+    test(`f01-bukti-otp-kedaluwarsa-${lebar}`, async ({ page }) => {
+        test.skip(!rekam, 'capture only on demand');
+
+        await pasangMock(page);
+        await pasangPendingOtp(page, { kedaluwarsaMs: -2_000 });
+        await page.setViewportSize({ width: lebar, height: tinggi });
+        await page.goto('/otp');
+        await page.waitForLoadState('networkidle');
+
+        await simpanBukti(page, 'otp-kedaluwarsa', lebar);
+    });
+
     test(`f01-bukti-perangkat-${lebar}`, async ({ page }) => {
         test.skip(!rekam, 'capture only on demand');
 
@@ -835,5 +1176,17 @@ for (const lebar of [390, 1280] as const) {
             .click();
 
         await simpanBukti(page, 'perangkat-dialog', lebar);
+    });
+
+    test(`f01-bukti-perangkat-logout-all-${lebar}`, async ({ page }) => {
+        test.skip(!rekam, 'capture only on demand');
+
+        await pasangMock(page, { devices: [DEVICE_INI, DEVICE_LAIN] });
+        await pasangSesi(page, 'dev-uji-ini');
+        await page.setViewportSize({ width: lebar, height: tinggi });
+        await page.goto('/profil/perangkat');
+        await page.locator('[data-slot="device-logout-all"]').click();
+
+        await simpanBukti(page, 'perangkat-logout-all', lebar);
     });
 }

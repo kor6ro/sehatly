@@ -101,14 +101,14 @@ async function masuk(page: Page): Promise<void> {
 
     await page.goto('/login');
 
-    await expect(page.getByLabel('Nomor telepon atau email')).toBeVisible({
+    await expect(page.getByLabel('Nomor telepon')).toBeVisible({
         timeout: 60_000,
     });
 
     // Settle the mode toggle first: it is what re-renders the identifier control.
     await page.getByRole('button', { name: 'Telepon', exact: true }).click();
 
-    await isi(page.getByLabel('Nomor telepon atau email'), telepon);
+    await isi(page.getByLabel('Nomor telepon'), telepon);
     await isi(page.getByLabel('Kata sandi'), sandi);
 
     const [respons] = await Promise.all([

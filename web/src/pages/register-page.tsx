@@ -1,17 +1,20 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { AlertCircle } from 'lucide-react';
 import { register, type RegisterInput } from '@/lib/api/auth';
 import { ApiError } from '@/lib/http';
 import { getAccessToken } from '@/lib/token';
 import { useDocumentTitle } from '@/hooks/use-document-title';
-import { PESAN_TELEPON_INTERIM, apakahTeleponInterimValid } from '@/lib/telepon';
+import { PESAN_TELEPON_FORMAT, apakahTeleponValid } from '@/lib/telepon';
 import { setPendingOtp } from '@/stores/pending-otp';
 import { Field, FieldInput, FieldSelect, FormErrorSummary } from '@/components/form/field';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { SelectItem } from '@/components/ui/select';
 import { AuthLayout } from '@/pages/auth-layout';
 
@@ -27,6 +30,9 @@ import { AuthLayout } from '@/pages/auth-layout';
  * `email` and `tempat_lahir` are optional on the server (`nullable`) and are optional
  * here, marked as such on the label. `bahasa` is nullable too and defaults to `id`.
  */
+const PESAN_CONSENT_WAJIB =
+    'Anda harus menyetujui Syarat dan Ketentuan serta Kebijakan Privasi untuk mendaftar.';
+
 const schema = z.object({
     nama_lengkap: z
         .string()
@@ -37,7 +43,8 @@ const schema = z.object({
         .string()
         .trim()
         .min(1, 'Isi nomor telepon.')
-        .refine(apakahTeleponInterimValid, PESAN_TELEPON_INTERIM),
+        .max(20, 'Nomor telepon maksimal 20 karakter.')
+        .refine(apakahTeleponValid, PESAN_TELEPON_FORMAT),
     email: z
         .string()
         .trim()
@@ -57,6 +64,9 @@ const schema = z.object({
     tempat_lahir: z.string().trim().max(100, 'Maksimal 100 karakter.'),
     alamat_lengkap: z.string().trim().min(5, 'Alamat minimal 5 karakter.'),
     bahasa: z.enum(['id', 'en']),
+    persetujuan: z.boolean().refine((value) => value === true, {
+        message: PESAN_CONSENT_WAJIB,
+    }),
 });
 
 type RegisterForm = z.infer<typeof schema>;
@@ -92,11 +102,16 @@ export function RegisterPage() {
             tempat_lahir: '',
             alamat_lengkap: '',
             bahasa: 'id',
+            persetujuan: false,
         },
     });
 
+    const consentId = useId();
+    const consentErrorId = `${consentId}-error`;
+    const consentError = errors.persetujuan?.message;
     const jenisKelamin = watch('jenis_kelamin');
     const bahasa = watch('bahasa');
+    const persetujuan = watch('persetujuan');
 
     if (getAccessToken() !== null) {
         return <Navigate to="/dashboard" replace />;
@@ -113,6 +128,10 @@ export function RegisterPage() {
             tanggal_lahir: values.tanggal_lahir,
             alamat_lengkap: values.alamat_lengkap,
             bahasa: values.bahasa,
+            // The checkbox is one act, both consents are mandatory and the schema
+            // has already refused `false`; the server records one ledger row each.
+            persetujuan_syarat_ketentuan: values.persetujuan,
+            persetujuan_kebijakan_privasi: values.persetujuan,
         };
 
         // An empty optional field is omitted rather than sent as `''`, because
@@ -181,7 +200,7 @@ export function RegisterPage() {
 
                     <Field
                         label="Nomor telepon"
-                        hint="Kode OTP dikirim ke nomor ini. Gunakan nomor yang aktif di WhatsApp/SMS. Contoh: 0812 3456 7890."
+                        hint="Kode OTP dikirim ke nomor ini. Gunakan nomor yang aktif di WhatsApp/SMS. Format 08xx atau +628xx sama-sama diterima."
                         errors={[
                             ...messages(errors.no_telepon?.message),
                             ...fieldOf(serverError, 'no_telepon'),
@@ -308,28 +327,59 @@ export function RegisterPage() {
                 </fieldset>
 
                 {/**
-                 * Owner decision F02 §12 #4: one line of notice and two links, and NO
-                 * checkbox. `AuthRequest` accepts no consent field, so a checkbox here
-                 * would collect a value the server never receives - an affirmative that
-                 * goes nowhere. Consent is recorded by F02, per kind, after login.
+                 * Owner decision option (a) for F01 §12 #1: the two mandatory UU PDP
+                 * consents are taken HERE, at registration, and `RegisterRequest`
+                 * records one `persetujuan_pdp` row per field in the same transaction
+                 * as the account. The checkbox is required and unchecked blocks the
+                 * submit; the optional consents stay on F02.
                  */}
-                <p className="text-muted-foreground text-sm">
-                    Dengan mendaftar, Anda menyetujui{' '}
-                    <Link
-                        to="/syarat-ketentuan"
-                        className="text-primary underline-offset-4 hover:underline"
-                    >
-                        syarat dan ketentuan
-                    </Link>{' '}
-                    serta{' '}
-                    <Link
-                        to="/kebijakan-privasi"
-                        className="text-primary underline-offset-4 hover:underline"
-                    >
-                        kebijakan privasi
-                    </Link>{' '}
-                    Sehatly.
-                </p>
+                <div data-slot="register-consent" className="flex flex-col gap-1.5">
+                    <div className="flex items-start gap-3">
+                        <Checkbox
+                            id={consentId}
+                            checked={persetujuan}
+                            onCheckedChange={(checked) =>
+                                setValue('persetujuan', checked === true, {
+                                    shouldValidate: true,
+                                })
+                            }
+                            aria-invalid={consentError === undefined ? undefined : true}
+                            aria-describedby={
+                                consentError === undefined ? undefined : consentErrorId
+                            }
+                            className="after:absolute after:-inset-2.5 after:content-[''] relative mt-0.5 size-6"
+                        />
+
+                        <Label htmlFor={consentId} className="font-normal leading-relaxed">
+                            Saya menyetujui{' '}
+                            <Link
+                                to="/syarat-ketentuan"
+                                className="text-primary underline-offset-4 hover:underline"
+                            >
+                                Syarat dan Ketentuan
+                            </Link>{' '}
+                            serta{' '}
+                            <Link
+                                to="/kebijakan-privasi"
+                                className="text-primary underline-offset-4 hover:underline"
+                            >
+                                Kebijakan Privasi
+                            </Link>{' '}
+                            Sehatly.
+                        </Label>
+                    </div>
+
+                    {consentError === undefined ? null : (
+                        <p
+                            id={consentErrorId}
+                            className="text-destructive flex items-start gap-1.5 text-xs"
+                        >
+                            <AlertCircle aria-hidden className="mt-0.5 size-3 shrink-0" />
+
+                            {consentError}
+                        </p>
+                    )}
+                </div>
 
                 <Button type="submit" className="min-h-11" disabled={isSubmitting}>
                     {isSubmitting ? <Spinner /> : null}

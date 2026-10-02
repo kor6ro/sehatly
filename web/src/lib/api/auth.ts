@@ -47,6 +47,15 @@ export type RegisterInput = {
     tempat_lahir?: string;
     alamat_lengkap: string;
     bahasa?: 'id' | 'en';
+    /**
+     * The two mandatory UU PDP consents (owner option (a), F01 §12 #1).
+     *
+     * `RegisterRequest` validates both with `accepted`, so a missing or falsy value
+     * is a 422 on that field; this screen only ever sends `true`, and its checkbox
+     * blocks the submit otherwise. The optional consents stay on the F02 screen.
+     */
+    persetujuan_syarat_ketentuan: boolean;
+    persetujuan_kebijakan_privasi: boolean;
 };
 
 export type VerifyOtpInput = Identifier & {
@@ -108,24 +117,84 @@ export function verifyOtp(input: VerifyOtpInput) {
     });
 }
 
+/** The `otp` block `POST /auth/otp/resend` returns; no `tujuan`, no code. */
+export type OtpResendResult = {
+    otp: {
+        kedaluwarsa_at: string;
+        ttl_detik: number;
+        /** The channel that actually sent (`whatsapp`, `log`), read server-side. */
+        kanal: string;
+    };
+};
+
+export type ResendOtpInput = Identifier & {
+    tujuan: OtpTujuan;
+    device_id?: string;
+};
+
+/**
+ * `POST /api/v1/auth/otp/resend`
+ *
+ * Re-mints the code without a password. The response is deliberately generic
+ * ("Jika akun terdaftar..."), so the client cannot learn whether the identifier
+ * exists and must not try: it reuses the same identifier the verify step will send.
+ * Success closes the previous code server-side (`OtpService::issue()`), which is why
+ * the OTP screen replaces its countdown from the returned window rather than keeping
+ * two.
+ */
+export function resendOtp(input: ResendOtpInput) {
+    return request<OtpResendResult>('auth/otp/resend', {
+        method: 'POST',
+        json: input,
+        retry: 0,
+    });
+}
+
 export type LogoutResult = {
     refresh_token: { dicabut: boolean };
     access_token: { dihapus: boolean };
-    /** Count of `user_devices` rows deactivated, which the server does for *all* of them. */
+    /**
+     * Always `0` on the per-device logout: `user_refresh_tokens` carries no
+     * `device_id`, so the server cannot map this session to a device row and
+     * deactivates none. See `AuthController::logout`.
+     */
+    perangkat: { dimatikan: number };
+};
+
+export type LogoutAllResult = {
+    refresh_token: { dicabut: boolean; jumlah: number };
+    access_token: { dihapus: boolean };
     perangkat: { dimatikan: number };
 };
 
 /**
  * `POST /api/v1/auth/logout`
  *
- * `refresh_token` is **required in the body**. Omitting it is a 422, not a no-op, so the
- * button that calls this reads the stored pair first and reports plainly when the pair
- * is already gone rather than sending a request that cannot succeed.
+ * Per-device since commit `aacb7e8`: it revokes only the presented refresh token and
+ * deletes this request's access token, leaving other devices signed in. The
+ * `refresh_token` body field is still **required**; omitting it is a 422, so the
+ * caller reads the stored pair first.
  */
 export function logout(refreshToken: string) {
     return request<LogoutResult>('auth/logout', {
         method: 'POST',
         json: { refresh_token: refreshToken },
+        retry: 0,
+    });
+}
+
+/**
+ * `POST /api/v1/auth/logout-all`
+ *
+ * The broad action: every live refresh token for the account is revoked, the access
+ * token this request arrived on is deleted, and every `user_devices` row is
+ * deactivated. `LogoutAllRequest` declares an empty rule set, so the body is `{}` and
+ * the account is the authenticated one.
+ */
+export function logoutAll() {
+    return request<LogoutAllResult>('auth/logout-all', {
+        method: 'POST',
+        json: {},
         retry: 0,
     });
 }

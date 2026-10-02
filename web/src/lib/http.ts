@@ -218,6 +218,15 @@ export type ApiFailure = {
     success: false;
     message: string;
     errors: Record<string, string[]>;
+    /**
+     * The optional top-level `meta` block, as `ApiResponse::error()` publishes it.
+     *
+     * Two F01 failures carry it: an OTP-verify rejection adds `sisa_percobaan`
+     * (how many guesses the code has left) and a 429 adds `retry_after` (the
+     * same seconds the `Retry-After` header mirrors). It is optional because the
+     * vast majority of errors send `{}` or omit the key entirely.
+     */
+    meta?: Record<string, unknown>;
 };
 
 /**
@@ -248,11 +257,21 @@ export class ApiError extends Error {
      */
     readonly retryAfter: number | null;
 
+    /**
+     * The failure envelope's top-level `meta`, when the server sent one.
+     *
+     * `{}` rather than `null` so a caller never has to guard before reading a
+     * key. {@link sisaPercobaan} reads the one field the OTP screen needs and
+     * `retryAfter` already folds in `meta.retry_after`.
+     */
+    readonly meta: Record<string, unknown>;
+
     constructor(
         status: number,
         message: string,
         errors: Record<string, string[]> = {},
         retryAfter: number | null = null,
+        meta: Record<string, unknown> = {},
     ) {
         super(message);
 
@@ -263,6 +282,20 @@ export class ApiError extends Error {
         this.errors = errors;
 
         this.retryAfter = retryAfter;
+
+        this.meta = meta;
+    }
+
+    /**
+     * How many OTP guesses the presented code has left.
+     *
+     * `AuthController::otpRejection()` publishes `meta.sisa_percobaan` on a
+     * rejected verify, and this is the only endpoint that does - login and
+     * account lookup stay generic so the counter cannot be watched without
+     * holding the code. `null` when the key is absent, non-numeric or negative.
+     */
+    get sisaPercobaan(): number | null {
+        return angkaDari(this.meta.sisa_percobaan);
     }
 
     get isValidation(): boolean {
@@ -406,7 +439,6 @@ async function toApiError(error: unknown): Promise<ApiError> {
     if (error instanceof Error && 'response' in error) {
         const { response, data } = error as HTTPError;
         const failure = data as Partial<ApiFailure> | undefined;
-        const retryAfter = retryAfterOf(response);
 
         if (failure !== undefined && failure !== null && failure.success === false) {
             const message =
@@ -414,11 +446,14 @@ async function toApiError(error: unknown): Promise<ApiError> {
                     ? failure.message
                     : statusMessage(response.status);
 
+            const meta = normaliseMeta(failure.meta);
+
             return new ApiError(
                 response.status,
                 message,
                 normaliseErrors(failure.errors),
-                retryAfter,
+                retryAfterOf(response, meta),
+                meta,
             );
         }
 
@@ -426,14 +461,20 @@ async function toApiError(error: unknown): Promise<ApiError> {
             response.status,
             statusMessage(response.status),
             {},
-            retryAfter,
+            retryAfterOf(response, {}),
         );
     }
 
     return new ApiError(0, networkMessage(error));
 }
 
-function retryAfterOf(response: Response): number | null {
+function retryAfterOf(response: Response, meta: Record<string, unknown>): number | null {
+    const dariMeta = angkaDari(meta.retry_after);
+
+    if (dariMeta !== null) {
+        return dariMeta;
+    }
+
     const raw = response.headers.get('retry-after');
 
     if (raw === null) {
@@ -443,6 +484,21 @@ function retryAfterOf(response: Response): number | null {
     const seconds = Number.parseInt(raw.trim(), 10);
 
     return Number.isFinite(seconds) && seconds >= 0 ? seconds : null;
+}
+
+function normaliseMeta(meta: unknown): Record<string, unknown> {
+    if (meta === null || typeof meta !== 'object' || Array.isArray(meta)) {
+        return {};
+    }
+
+    return meta as Record<string, unknown>;
+}
+
+function angkaDari(value: unknown): number | null {
+    const parsed =
+        typeof value === 'number' ? value : Number.parseInt(String(value ?? ''), 10);
+
+    return Number.isFinite(parsed) && parsed >= 0 ? Math.trunc(parsed) : null;
 }
 
 function normaliseErrors(errors: unknown): Record<string, string[]> {

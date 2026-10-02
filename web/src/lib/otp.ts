@@ -34,3 +34,22 @@ export function pesanTerlaluBanyakOtp(
         ? 'Terlalu banyak percobaan. Coba lagi nanti.'
         : pesanServer;
 }
+
+/**
+ * `AuthController::otpRejection()` publishes `meta.sisa_percobaan` on a rejected
+ * verify; this is the warning the screen shows until the next attempt.
+ */
+export function pesanSisaPercobaanOtp(sisa: number): string {
+    return `Sisa ${Math.max(0, sisa)} percobaan. Setelah habis, minta kode baru.`;
+}
+
+/** The resend button's own label, cooldown included so the wait is visible. */
+export function labelKirimUlangOtp(cooldownDetik: number, sedangMengirim: boolean): string {
+    if (sedangMengirim) {
+        return 'Mengirim...';
+    }
+
+    return cooldownDetik > 0
+        ? `Kirim ulang kode (${cooldownDetik} dtk)`
+        : 'Kirim ulang kode';
+}

@@ -936,17 +936,27 @@ for (const vp of VIEWPORTS) {
 
             await page.goto('/register');
 
-            await expect(page.getByText('Dengan mendaftar')).toBeVisible();
+            /**
+             * Owner option (a) for F01 §12 #1: the two mandatory consents are now a
+             * checkbox on the registration form, collected by `POST /auth/register`
+             * itself (commit `aacb7e8`). The F02 screen owns only the three optional
+             * consents afterwards.
+             */
+            await expect(
+                page.getByText(
+                    /Saya menyetujui Syarat dan Ketentuan serta Kebijakan Privasi Sehatly\./,
+                ),
+            ).toBeVisible();
 
             await expect(
-                page.getByRole('link', { name: 'syarat dan ketentuan' }),
+                page.getByRole('link', { name: 'Syarat dan Ketentuan' }),
             ).toHaveAttribute('href', '/syarat-ketentuan');
 
             await expect(
-                page.getByRole('link', { name: 'kebijakan privasi' }),
+                page.getByRole('link', { name: 'Kebijakan Privasi' }),
             ).toHaveAttribute('href', '/kebijakan-privasi');
 
-            await expect(page.locator('input[type="checkbox"]')).toHaveCount(0);
+            await expect(page.getByRole('checkbox')).toHaveCount(1);
 
             await expectNoA11yViolations(page);
         });

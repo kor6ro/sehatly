@@ -131,6 +131,8 @@ async function daftarDanMasuk(page: Page): Promise<void> {
     await page.getByLabel('Kata sandi').fill('RahasiaKuat123');
     await page.getByLabel('Tanggal lahir').fill('1991-04-02');
     await page.getByLabel('Alamat lengkap').fill('Jl. Uji Resep No. 9, Jakarta');
+    // Register requires the two UU PDP consents since commit `aacb7e8`.
+    await page.getByRole('checkbox', { name: /Saya menyetujui/ }).check();
 
     const [respons] = await Promise.all([
         page.waitForResponse((r) => r.url().includes('/api/v1/auth/register')),
@@ -166,11 +168,11 @@ async function masuk(page: Page, siapa: 'dokter' | 'apoteker'): Promise<void> {
 
     await page.goto('/login');
 
-    await expect(page.getByLabel('Nomor telepon atau email')).toBeVisible({
+    await expect(page.getByLabel('Nomor telepon')).toBeVisible({
         timeout: 60_000,
     });
 
-    await page.getByLabel('Nomor telepon atau email').fill(telepon);
+    await page.getByLabel('Nomor telepon').fill(telepon);
     await page.getByLabel('Kata sandi').fill(sandi);
 
     const [respons] = await Promise.all([

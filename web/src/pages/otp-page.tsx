@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { AlertCircle, Info, ShieldCheck } from 'lucide-react';
-import { verifyOtp } from '@/lib/api/auth';
+import { AlertCircle, Check, Info, ShieldCheck } from 'lucide-react';
+import { resendOtp, verifyOtp } from '@/lib/api/auth';
 import { ApiError, establishSession } from '@/lib/http';
 import { getDeviceId } from '@/lib/token';
 import { queryClient } from '@/lib/query-client';
@@ -10,15 +10,20 @@ import { useDocumentTitle } from '@/hooks/use-document-title';
 import { useOnlineStatus } from '@/hooks/use-online-status';
 import {
     KODE_OTP_PANJANG,
+    labelKirimUlangOtp,
     pesanHitungMundurOtp,
     pesanRalatKodeOtp,
+    pesanSisaPercobaanOtp,
     pesanTerlaluBanyakOtp,
 } from '@/lib/otp';
 import {
     clearPendingOtp,
     describeIdentifier,
     getPendingOtp,
+    setPendingOtp,
+    type PendingOtp,
 } from '@/stores/pending-otp';
+import type { Identifier } from '@/lib/api/auth';
 import { Field, useFieldControl } from '@/components/form/field';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
@@ -30,6 +35,9 @@ import {
 } from '@/components/ui/input-otp';
 import { OfflineBanner } from '@/components/offline-banner';
 import { AuthLayout } from '@/pages/auth-layout';
+
+/** How long the resend button stays locked after a request, in seconds. */
+const COOLDOWN_KIRIM_ULANG = 60;
 
 /**
  * The six boxes, wired to their `Field`.
@@ -88,6 +96,9 @@ function OtpInput({
  * disabled on zero. A browser clock is not a trusted clock, and refusing to send a request
  * on the strength of a local countdown would reject a code the server would still accept -
  * which is the worse of the two failures.
+ *
+ * A resend replaces `kedaluwarsaAt` with the new code's own deadline, and the effect below
+ * re-runs against it, so one screen never shows two timers.
  */
 function useCountdown(kedaluwarsaAt: string | null, ttlDetik: number): number {
     const fallback = useMemo(
@@ -127,6 +138,13 @@ function useCountdown(kedaluwarsaAt: string | null, ttlDetik: number): number {
     return remaining;
 }
 
+/** `nomor 0812****88` / `email na**@contoh.id`, masked, never the full identifier. */
+function sebutanIdentifier(identifier: Identifier): string {
+    const tersamar = describeIdentifier(identifier);
+
+    return 'no_telepon' in identifier ? `nomor ${tersamar}` : `email ${tersamar}`;
+}
+
 /**
  * `/otp` - the second step of both auth flows, and the only place a token is issued.
  *
@@ -146,11 +164,14 @@ function useCountdown(kedaluwarsaAt: string | null, ttlDetik: number): number {
  * it, and a reload of this screen must still be able to verify - so the identifier comes
  * from `stores/pending-otp.ts`, not from `location.state`.
  *
- * ## Resend is disabled and says so
+ * ## Resend replaces the code and the timer, and says so generically
  *
- * `POST /auth/otp/resend` does not exist (F01 §4.4, `[TERBLOKIR backend]`). The button is
- * rendered with the pattern's cooldown label but is honestly unavailable, with a visible
- * reason, instead of calling a route that would 404. The recovery path is `Kembali`.
+ * `POST /auth/otp/resend` exists as of commit `aacb7e8`. The button is enabled, locked by
+ * a synchronous ref plus a 60-second cooldown so a rapid double-click produces exactly one
+ * request, and a success updates the stored `kedaluwarsa_at`/`ttl_detik` from the response
+ * - `OtpService::issue()` closed the old code, so the screen must not keep the old
+ * deadline. The success copy is the server's generic "if registered" confirmation and
+ * never states whether the account exists; failures stay inline, never in a toast.
  */
 export function OtpPage() {
     useDocumentTitle('Kode OTP | Sehatly');
@@ -159,12 +180,23 @@ export function OtpPage() {
     const online = useOnlineStatus();
     const inputRef = useRef<HTMLInputElement>(null);
     const offlineHintId = useId();
-    const resendHintId = useId();
-    const pending = useMemo(() => getPendingOtp(), []);
+    const [pending, setPending] = useState<PendingOtp | null>(() => getPendingOtp());
     const [kode, setKode] = useState('');
     const [serverError, setServerError] = useState<unknown>(null);
     const [submitting, setSubmitting] = useState(false);
     const [upayaFokus, setUpayaFokus] = useState(0);
+    const [resending, setResending] = useState(false);
+    const [resendCooldown, setResendCooldown] = useState(0);
+    const [resendNotice, setResendNotice] = useState<string | null>(null);
+    const [resendError, setResendError] = useState<unknown>(null);
+
+    /**
+     * Synchronous in-flight latches. `useState` is not enough: two clicks dispatched in
+     * the same tick both read the pre-update value, and "exactly one request per action"
+     * would be false for the second one.
+     */
+    const verifyLock = useRef(false);
+    const resendLock = useRef(false);
 
     const remaining = useCountdown(
         pending?.kedaluwarsa_at ?? null,
@@ -172,6 +204,7 @@ export function OtpPage() {
     );
 
     const kedaluwarsa = remaining === 0;
+    const cooldownAktif = resendCooldown > 0;
 
     /**
      * AC-3: focus enters slot 1 when the screen opens, and `preventScroll` keeps a small
@@ -186,10 +219,11 @@ export function OtpPage() {
     }, [pending]);
 
     /**
-     * AC-5: focus returns to slot 1 after a rejected code. It is an effect rather than a
-     * call in the catch block because the input is still `disabled` while the request is
-     * in flight; focusing into a disabled control is silently dropped. The counter makes
-     * two identical rejections two focus attempts.
+     * AC-5: focus returns to slot 1 after a rejected code, and after a successful resend
+     * the old code is gone so the field is cleared for the new one. It is an effect rather
+     * than a call in the catch block because the input is still `disabled` while the
+     * request is in flight; focusing into a disabled control is silently dropped. The
+     * counter makes two identical attempts two focus attempts.
      */
     useEffect(() => {
         if (upayaFokus === 0 || submitting) {
@@ -198,6 +232,24 @@ export function OtpPage() {
 
         inputRef.current?.focus({ preventScroll: true });
     }, [upayaFokus, submitting]);
+
+    /**
+     * The 60-second resend lock, visible on the button. Keyed on the boolean so the
+     * interval is created once per cooldown rather than restarted on every tick.
+     */
+    useEffect(() => {
+        if (!cooldownAktif) {
+            return;
+        }
+
+        const timer = globalThis.setInterval(() => {
+            setResendCooldown((sisa) => Math.max(0, sisa - 1));
+        }, 1000);
+
+        return () => {
+            globalThis.clearInterval(timer);
+        };
+    }, [cooldownAktif]);
 
     if (pending === null) {
         return <OtpContextMissing />;
@@ -217,6 +269,10 @@ export function OtpPage() {
             : [];
 
     const terlaluBanyak = serverError instanceof ApiError && serverError.status === 429;
+    const sisaPercobaan =
+        serverError instanceof ApiError && !terlaluBanyak
+            ? serverError.sisaPercobaan
+            : null;
     const gangguan =
         serverError instanceof ApiError &&
         !serverError.isValidation &&
@@ -233,12 +289,19 @@ export function OtpPage() {
         // The offline guard, the in-flight guard and the length guard all live here as
         // well as on the button, so a programmatic submit cannot produce a request the
         // disabled button promises will not happen.
-        if (!online || submitting || kode.length !== KODE_OTP_PANJANG) {
+        if (
+            !online ||
+            submitting ||
+            verifyLock.current ||
+            kode.length !== KODE_OTP_PANJANG
+        ) {
             return;
         }
 
-        setServerError(null);
+        verifyLock.current = true;
 
+        setServerError(null);
+        setResendNotice(null);
         setSubmitting(true);
 
         const deviceId = getDeviceId();
@@ -282,9 +345,75 @@ export function OtpPage() {
                 fokusSlotPertama();
             }
         } finally {
+            verifyLock.current = false;
             setSubmitting(false);
         }
     }
+
+    async function onResend(): Promise<void> {
+        if (
+            !online ||
+            resending ||
+            resendLock.current ||
+            cooldownAktif
+        ) {
+            return;
+        }
+
+        resendLock.current = true;
+
+        setResending(true);
+        setResendNotice(null);
+        setResendError(null);
+        setServerError(null);
+        // Locked immediately, before the request resolves, so a second click cannot
+        // slip through while the first is still in flight.
+        setResendCooldown(COOLDOWN_KIRIM_ULANG);
+
+        const deviceId = getDeviceId();
+
+        try {
+            const result = await resendOtp({
+                ...context.identifier,
+                tujuan: context.tujuan,
+                ...(deviceId === null ? {} : { device_id: deviceId }),
+            });
+
+            /**
+             * The server closed the previous code, so the screen replaces its deadline
+             * with the new one and drops the code typed for the old one. One timer.
+             */
+            const diperbarui: PendingOtp = {
+                ...context,
+                kedaluwarsa_at: result.data.otp.kedaluwarsa_at,
+                ttl_detik: result.data.otp.ttl_detik,
+            };
+
+            setPending(diperbarui);
+            setPendingOtp(diperbarui);
+            setKode('');
+            fokusSlotPertama();
+            setResendNotice(
+                `Kode baru telah dikirim ke ${sebutanIdentifier(context.identifier)}.`,
+            );
+        } catch (error) {
+            setResendError(error);
+
+            // The cooldown is released so the user can retry, except when the server
+            // itself named a wait - then that wait is the cooldown.
+            const retryAfter =
+                error instanceof ApiError && error.status === 429
+                    ? error.retryAfter
+                    : null;
+
+            setResendCooldown(retryAfter ?? 0);
+        } finally {
+            resendLock.current = false;
+            setResending(false);
+        }
+    }
+
+    const resendTerkunci = !online || resending || cooldownAktif;
 
     return (
         <AuthLayout
@@ -341,6 +470,25 @@ export function OtpPage() {
                     </Alert>
                 ) : null}
 
+                {resendError !== null ? (
+                    <Alert variant="destructive" role="alert" data-slot="otp-resend-error">
+                        <ShieldCheck />
+                        <AlertTitle>Gagal mengirim ulang kode</AlertTitle>
+                        <AlertDescription>
+                            <p>
+                                {resendError instanceof ApiError
+                                    ? pesanTerlaluBanyakOtp(
+                                          resendError.message,
+                                          resendError.status === 429
+                                              ? resendError.retryAfter
+                                              : null,
+                                      )
+                                    : 'Terjadi kesalahan yang tidak diketahui.'}
+                            </p>
+                        </AlertDescription>
+                    </Alert>
+                ) : null}
+
                 {/**
                  * `errors.kode` is the field the server puts every rejection reason on -
                  * expired, already used, wrong purpose - and the message is what tells
@@ -355,6 +503,22 @@ export function OtpPage() {
                         inputRef={inputRef}
                     />
                 </Field>
+
+                {/**
+                 * `meta.sisa_percobaan` from a rejected verify; disappears with the next
+                 * attempt or resend, because both replace the code the count belongs to.
+                 */}
+                {sisaPercobaan === null ? null : (
+                    <div
+                        role="status"
+                        data-slot="otp-attempts"
+                        className="border-warning/40 bg-warning/10 flex items-start gap-2 rounded-lg border p-3 text-sm"
+                    >
+                        <AlertCircle aria-hidden className="mt-0.5 size-4 shrink-0" />
+
+                        <p>{pesanSisaPercobaanOtp(sisaPercobaan)}</p>
+                    </div>
+                )}
 
                 {kedaluwarsa ? (
                     <div
@@ -374,6 +538,18 @@ export function OtpPage() {
                         className="text-muted-foreground text-sm tabular-nums"
                     >
                         {pesanHitungMundurOtp(remaining)}
+                    </p>
+                )}
+
+                {resendNotice === null ? null : (
+                    <p
+                        role="status"
+                        data-slot="otp-resend-success"
+                        className="text-foreground flex items-start gap-2 text-sm"
+                    >
+                        <Check aria-hidden className="text-success mt-0.5 size-4 shrink-0" />
+
+                        {resendNotice}
                     </p>
                 )}
 
@@ -405,18 +581,18 @@ export function OtpPage() {
                     type="button"
                     variant="outline"
                     className="min-h-11"
-                    disabled
-                    aria-disabled="true"
-                    aria-describedby={online ? resendHintId : `${resendHintId} ${offlineHintId}`}
+                    disabled={resendTerkunci}
+                    aria-disabled={resendTerkunci ? true : undefined}
+                    aria-describedby={online ? undefined : offlineHintId}
+                    onClick={() => {
+                        void onResend();
+                    }}
                     data-slot="otp-resend"
                 >
-                    Kirim ulang kode (60 dtk)
-                </Button>
+                    {resending ? <Spinner /> : null}
 
-                <p id={resendHintId} className="text-muted-foreground text-xs">
-                    Kirim ulang kode belum tersedia. Gunakan tombol Kembali untuk meminta
-                    kode baru.
-                </p>
+                    {labelKirimUlangOtp(resendCooldown, resending)}
+                </Button>
 
                 <Button
                     type="button"

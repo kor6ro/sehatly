@@ -89,6 +89,8 @@ async function daftarDanMasuk(page: import('@playwright/test').Page): Promise<vo
     await page.getByLabel('Kata sandi').fill('RahasiaKuat123');
     await page.getByLabel('Tanggal lahir').fill('1995-04-11');
     await page.getByLabel('Alamat lengkap').fill('Jl. Uji Coba No. 1, Bandung');
+    // Register requires the two UU PDP consents since commit `aacb7e8`.
+    await page.getByRole('checkbox', { name: /Saya menyetujui/ }).check();
 
     /**
      * The OTP is read out of the server's own response rather than typed from a constant.
