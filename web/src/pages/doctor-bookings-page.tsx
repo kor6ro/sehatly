@@ -69,6 +69,7 @@ export function DoctorBookingsPage() {
             rows={list.data?.data.booking ?? []}
             headerTitle="Booking masuk"
             headerDescription="Booking yang masuk pada akun dokter ini."
+            denganBannerOffline
             headerAction={
                 <span className="text-muted-foreground text-sm">
                     {me.data?.data.user.nama_lengkap ?? '-'}

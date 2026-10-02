@@ -1,6 +1,15 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { XCircle } from 'lucide-react';
+import {
+    AlertCircle,
+    Ban,
+    Bell,
+    CalendarClock,
+    Check,
+    CheckCircle2,
+    WifiOff,
+    XCircle,
+} from 'lucide-react';
 import {
     batalkanBookingMutation,
     bisaDibatalkan,
@@ -12,9 +21,10 @@ import { BookingStatusBadge, BookingStatusNote } from '@/features/booking/bookin
 import { describeRange, isEmptyPage, isPastLastPage } from '@/lib/api/pagination';
 import { ApiError } from '@/lib/http';
 import { formatTanggal, formatWaktu } from '@/lib/format';
-import { formatRentangJamZona } from '@/lib/waktu';
+import { formatJamZona, formatRentangJamZona } from '@/lib/waktu';
 import type { Booking, StatusBooking } from '@/lib/api/types';
-import { dispatchFlash } from '@/lib/flash';
+import { useOnlineStatus } from '@/hooks/use-online-status';
+import { OfflineBanner } from '@/components/offline-banner';
 import { PageHeader } from '@/components/layout/page-header';
 import { Pagination } from '@/components/layout/pagination';
 import { SkeletonRows } from '@/components/states/loading-state';
@@ -24,7 +34,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Spinner } from '@/components/ui/spinner';
-import { Field, FieldInput, FieldSelect } from '@/components/form/field';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { Field, FieldInput, FieldSelect, FieldTextarea } from '@/components/form/field';
 import { SelectItem } from '@/components/ui/select';
 import {
     Dialog,
@@ -63,7 +75,40 @@ import {
  * blank where a number belongs and would promise a queue position the system has never
  * assigned. `nomor_booking` is the identifier a patient can actually quote, and it is
  * published by `NomorDokumen`; that is the one shown.
+ *
+ * ## F12: the cancellation surface, without the blocked backend parts
+ *
+ * The dialog below implements the pattern's `[SIAP]` slice: an explicit reason vocabulary
+ * over the single `alasan_pembatalan` column, the three consequence lines, a visible
+ * "Batal", a `destructive` confirm, one in-flight latch, an inline success card and an
+ * inline 422. The policy block, the refund card and the reschedule form are
+ * `[TERBLOKIR backend]` and are deliberately absent: no numbers are invented, no second
+ * request is sent and the reschedule control is rendered disabled with its reason.
  */
+
+/**
+ * The five quick reasons, in the order the pattern lists them.
+ *
+ * They are the UI's own wording, not enum members: `alasan_pembatalan` is one free-text
+ * `VARCHAR(255)`, so the chosen chip is written into it verbatim and nothing new is stored.
+ * "Lainnya" is the only member that reveals the `textarea`.
+ */
+const ALASAN_CEPAT = [
+    'Jadwal saya berubah',
+    'Belum bisa hadir',
+    'Sudah konsultasi di tempat lain',
+    'Alasan pribadi',
+    'Lainnya',
+] as const;
+
+type AlasanCepat = (typeof ALASAN_CEPAT)[number];
+
+/**
+ * The privacy warning that sits beside the free-text note, per F12 §9 and UU PDP 27/2022.
+ */
+const HINT_PRIVASI =
+    'Jangan tuliskan detail kondisi medis atau keluhan — cukup alasan umum.';
+
 export function BookingList({
     filters,
     onPageChange,
@@ -75,6 +120,7 @@ export function BookingList({
     meta,
     rows,
     doctorName,
+    denganBannerOffline = false,
     onRetry,
     headerTitle,
     headerDescription,
@@ -93,18 +139,115 @@ export function BookingList({
     rows: Booking[];
     /** Doctor list only: a `dokter_id -> name` map, since the resource has no `dokter` key. */
     doctorName?: (booking: Booking) => string;
+    /**
+     * Whether this list renders the shared offline banner itself.
+     *
+     * Defaults to `false` because the list is embedded in `booking-create-page`, whose
+     * `BookingForm` already mounts an `OfflineBanner`; rendering another one put two
+     * `[data-testid="offline-banner"]` elements on one screen. The two list pages pass
+     * `true`; the create page does not.
+     */
+    denganBannerOffline?: boolean;
     onRetry: () => void;
     headerTitle: string;
     headerDescription: string;
     headerAction?: React.ReactNode;
 }) {
     const [membatalkan, setMembatalkan] = useState<Booking | null>(null);
-    const [alasan, setAlasan] = useState('');
+    const [dialogTerbuka, setDialogTerbuka] = useState(false);
+    const [alasanCepat, setAlasanCepat] = useState<AlasanCepat | null>(null);
+    const [catatanAlasan, setCatatanAlasan] = useState('');
     const [cancelError, setCancelError] = useState<unknown>(null);
+    const [suksesBatal, setSuksesBatal] = useState(false);
+
+    /**
+     * The synchronous double-submit latch.
+     *
+     * `batalkan.isPending` disables the button on the next render, but two clicks
+     * dispatched inside one task (a double click, a trackpad, a scripted `.click()` pair)
+     * both reach the handler before that render. The ref is set before `mutate()` is
+     * called, so the second invocation returns immediately and exactly one
+     * `PUT /booking/{id}/batalkan` leaves the client.
+     */
+    const mengirimRef = useRef(false);
+
+    const online = useOnlineStatus();
 
     const batalkan = useMutation(batalkanBookingMutation());
 
     const range = describeRange(meta);
+
+    const namaDokterTerpilih =
+        membatalkan === null
+            ? ''
+            : (doctorName?.(membatalkan) ??
+              `Dokter #${String(membatalkan.dokter_id)}`);
+
+    function bukaDialog(row: Booking): void {
+        setCancelError(null);
+        setAlasanCepat(null);
+        setCatatanAlasan('');
+        setMembatalkan(row);
+        setDialogTerbuka(true);
+    }
+
+    /**
+     * The request body's `alasan_pembatalan`, or `null` when there is nothing to send.
+     *
+     * A chip fills the column directly; "Lainnya" with an empty note is NOT a reason, so it
+     * falls through to no field at all. The server treats the field as `nullable|string|max:255`,
+     * and an absent key is the `{}` the pattern requires when the patient skips.
+     */
+    function alasanDikirim(): string | null {
+        if (alasanCepat === null) {
+            return null;
+        }
+
+        if (alasanCepat === 'Lainnya') {
+            const catatan = catatanAlasan.trim();
+
+            return catatan === '' ? null : catatan.slice(0, 255);
+        }
+
+        return alasanCepat;
+    }
+
+    function konfirmasiBatal(): void {
+        if (membatalkan === null || !online || mengirimRef.current) {
+            return;
+        }
+
+        mengirimRef.current = true;
+
+        const alasanFinal = alasanDikirim();
+
+        batalkan.mutate(
+            {
+                id: membatalkan.id,
+                input:
+                    alasanFinal === null
+                        ? {}
+                        : { alasan_pembatalan: alasanFinal },
+            },
+            {
+                /**
+                 * No `dispatchFlash` here, and the reason is privacy rather than taste:
+                 * the server's message names the booking, and the pattern's success
+                 * confirmation is an inline card that a screen reader can re-read. Nothing
+                 * about the doctor or the reason is put into a toast.
+                 */
+                onSuccess: () => {
+                    mengirimRef.current = false;
+                    setSuksesBatal(true);
+                    setDialogTerbuka(false);
+                },
+                onError: (mutationError) => {
+                    mengirimRef.current = false;
+                    setCancelError(mutationError);
+                },
+            },
+        );
+    }
 
     return (
         <>
@@ -113,6 +256,10 @@ export function BookingList({
                 description={headerDescription}
                 action={headerAction}
             />
+
+            {denganBannerOffline ? (
+                <OfflineBanner message="Anda sedang offline. Pembatalan dan jadwal ulang memerlukan koneksi." />
+            ) : null}
 
             <Card>
                 <CardContent>
@@ -153,6 +300,28 @@ export function BookingList({
                     </div>
                 </CardContent>
             </Card>
+
+            {suksesBatal ? (
+                <div
+                    role="status"
+                    aria-live="polite"
+                    data-slot="cancel-success"
+                    className="border-success/40 bg-success/10 flex items-start gap-2 rounded-lg border p-3"
+                >
+                    <CheckCircle2
+                        aria-hidden
+                        className="text-success mt-0.5 size-4 shrink-0"
+                    />
+
+                    <div className="flex flex-col gap-0.5 text-sm">
+                        <p className="font-medium">Janji temu dibatalkan.</p>
+
+                        <p>
+                            Slot ini sudah dilepas dan dapat dipesan orang lain.
+                        </p>
+                    </div>
+                </div>
+            ) : null}
 
             {loading ? (
                 <SkeletonRows rows={4} />
@@ -207,11 +376,14 @@ export function BookingList({
                                     row={row}
                                     namaDokter={doctorName?.(row)}
                                     canCancel={bisaDibatalkan(row.status)}
-                    deleting={batalkan.isPending}
+                                    deleting={batalkan.isPending}
+                                    online={online}
                                     onCancel={() => {
-                                        setCancelError(null);
-                                        setAlasan('');
-                                        setMembatalkan(row);
+                                        if (!online) {
+                                            return;
+                                        }
+
+                                        bukaDialog(row);
                                     }}
                                 />
                             </li>
@@ -223,118 +395,264 @@ export function BookingList({
             )}
 
             <Dialog
-                open={membatalkan !== null}
+                open={dialogTerbuka}
                 onOpenChange={(open) => {
-                    if (!open) {
-                        setMembatalkan(null);
-                    }
+                    setDialogTerbuka(open);
                 }}
             >
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Batalkan booking</DialogTitle>
+                <DialogContent className="max-h-[90dvh] overflow-y-auto">
+                    {membatalkan === null ? null : (
+                        <>
+                            <DialogHeader>
+                                <DialogTitle>Batalkan janji temu?</DialogTitle>
 
-                        <DialogDescription>
-                            Booking {membatalkan?.nomor_booking ?? ''} akan
-                            berstatus `dibatalkan` dan slotnya dilepas agar dapat
-                            dipesan kembali. Tindakan ini dicatat pada server
-                            dengan nama akun Anda.
-                        </DialogDescription>
-                    </DialogHeader>
+                                <DialogDescription className="text-base">
+                                    Janji temu {membatalkan.nomor_booking} dengan{' '}
+                                    {namaDokterTerpilih} pada{' '}
+                                    {formatTanggal(
+                                        membatalkan.tanggal_kunjungan,
+                                    )}{' '}
+                                    pukul{' '}
+                                    {formatJamZona(
+                                        membatalkan.slot_mulai,
+                                        membatalkan.tanggal_kunjungan ?? '',
+                                    )}{' '}
+                                    akan dibatalkan.
+                                </DialogDescription>
+                            </DialogHeader>
 
-                    <Field
-                        label="Alasan pembatalan"
-                        errors={
-                            cancelError instanceof ApiError
-                                ? cancelError.fieldErrors('alasan_pembatalan')
-                                : []
-                        }
-                        hint="Opsional, maksimal 255 karakter."
-                    >
-                        <FieldInput
-                            value={alasan}
-                            maxLength={255}
-                            placeholder="Contoh: jadwal saya berubah."
-                            onChange={(event) => {
-                                setAlasan(event.target.value);
-                            }}
-                        />
-                    </Field>
+                            <ul
+                                data-slot="cancel-consequences"
+                                className="flex flex-col gap-2"
+                            >
+                                <li className="flex items-start gap-2 text-sm">
+                                    <CalendarClock
+                                        aria-hidden
+                                        className="text-muted-foreground mt-0.5 size-4 shrink-0"
+                                    />
 
-                    {cancelError instanceof ApiError ? (
-                        <p className="text-destructive text-sm">
-                            {cancelError.message}
-                        </p>
-                    ) : null}
+                                    <span>
+                                        Slot ini akan dilepas dan dapat dipesan
+                                        orang lain.
+                                    </span>
+                                </li>
 
-                    <DialogFooter>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => {
-                                setMembatalkan(null);
-                            }}
-                        >
-                            Batal
-                        </Button>
+                                <li className="flex items-start gap-2 text-sm">
+                                    <Ban
+                                        aria-hidden
+                                        className="text-muted-foreground mt-0.5 size-4 shrink-0"
+                                    />
 
-                        <Button
-                            type="button"
-                            variant="destructive"
-                            disabled={batalkan.isPending}
-                            onClick={() => {
-                                if (membatalkan === null) {
-                                    return;
-                                }
+                                    <span>
+                                        Setelah dikonfirmasi, pembatalan tidak
+                                        dapat dipulihkan.
+                                    </span>
+                                </li>
 
-                                batalkan.mutate(
-                                    {
-                                        id: membatalkan.id,
-                                        input:
-                                            alasan.trim() === ''
-                                                ? {}
-                                                : {
-                                                      alasan_pembatalan:
-                                                          alasan.trim(),
-                                                  },
-                                    },
-                                    {
-                                        onSuccess: (result) => {
-                                            setMembatalkan(null);
+                                <li className="flex items-start gap-2 text-sm">
+                                    <Bell
+                                        aria-hidden
+                                        className="text-muted-foreground mt-0.5 size-4 shrink-0"
+                                    />
 
-                                            dispatchFlash({
-                                                level: 'success',
-                                                message: result.message,
-                                            });
-                                        },
-                                        onError: (error) => {
-                                            /**
-                                             * Left open on failure, and the error shown
-                                             * inline. A 422 on `status` - the server's
-                                             * `Booking dengan status tersebut tidak
-                                             * dapat dibatalkan.` - means the booking
-                                             * ended between the render and the click,
-                                             * and closing the dialog would throw that
-                                             * away.
-                                             */
-                                            setCancelError(error);
-                                        },
-                                    },
-                                );
-                            }}
-                        >
-                            {batalkan.isPending ? (
-                                <Spinner />
-                            ) : (
-                                <XCircle />
+                                    <span>
+                                        {namaDokterTerpilih} akan menerima
+                                        pemberitahuan beserta alasan Anda.
+                                    </span>
+                                </li>
+                            </ul>
+
+                            {online ? null : (
+                                <p className="text-muted-foreground flex items-start gap-2 text-sm">
+                                    <WifiOff
+                                        aria-hidden
+                                        className="mt-0.5 size-4 shrink-0"
+                                    />
+
+                                    Anda sedang offline. Pembatalan memerlukan
+                                    koneksi internet.
+                                </p>
                             )}
 
-                            Batalkan booking
-                        </Button>
-                    </DialogFooter>
+                            <Separator />
+
+                            <div
+                                data-slot="cancel-reason"
+                                className="flex flex-col gap-2"
+                            >
+                                <p className="text-sm font-medium">
+                                    Alasan pembatalan{' '}
+                                    <span className="text-muted-foreground font-normal">
+                                        (opsional)
+                                    </span>
+                                </p>
+
+                                <ToggleGroup
+                                    type="single"
+                                    value={alasanCepat ?? ''}
+                                    onValueChange={(value) => {
+                                        setAlasanCepat(
+                                            value === ''
+                                                ? null
+                                                : (value as AlasanCepat),
+                                        );
+                                    }}
+                                    aria-label="Pilihan cepat alasan pembatalan"
+                                    data-slot="cancel-reason-chips"
+                                    className="flex flex-wrap gap-2"
+                                >
+                                    {ALASAN_CEPAT.map((pilihan) => (
+                                        <ToggleGroupItem
+                                            key={pilihan}
+                                            value={pilihan}
+                                            className="border-input min-h-11 rounded-md border px-3"
+                                        >
+                                            {alasanCepat === pilihan ? (
+                                                <Check aria-hidden />
+                                            ) : null}
+
+                                            {pilihan}
+                                        </ToggleGroupItem>
+                                    ))}
+                                </ToggleGroup>
+
+                                {alasanCepat === 'Lainnya' ? (
+                                    <Field
+                                        label="Catatan alasan"
+                                        hint={HINT_PRIVASI}
+                                        errors={
+                                            cancelError instanceof ApiError
+                                                ? cancelError.fieldErrors(
+                                                      'alasan_pembatalan',
+                                                  )
+                                                : []
+                                        }
+                                    >
+                                        <FieldTextarea
+                                            rows={3}
+                                            maxLength={255}
+                                            value={catatanAlasan}
+                                            placeholder="Contoh: jadwal saya berubah."
+                                            onChange={(event) => {
+                                                setCatatanAlasan(
+                                                    event.target.value,
+                                                );
+                                            }}
+                                        />
+                                    </Field>
+                                ) : (
+                                    <p className="text-muted-foreground text-xs">
+                                        {HINT_PRIVASI}
+                                    </p>
+                                )}
+                            </div>
+
+                            {cancelError === null ? null : (
+                                <CancelErrorNotice
+                                    error={cancelError}
+                                    onReload={onRetry}
+                                />
+                            )}
+
+                            <DialogFooter>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="min-h-11"
+                                    onClick={() => {
+                                        setDialogTerbuka(false);
+                                    }}
+                                >
+                                    Batal
+                                </Button>
+
+                                <Button
+                                    type="button"
+                                    variant="destructive"
+                                    className="min-h-11"
+                                    data-slot="confirm-cancel"
+                                    aria-disabled={
+                                        !online || batalkan.isPending || undefined
+                                    }
+                                    onClick={konfirmasiBatal}
+                                >
+                                    {batalkan.isPending ? (
+                                        <Spinner />
+                                    ) : (
+                                        <XCircle />
+                                    )}
+
+                                    Ya, batalkan janji temu
+                                </Button>
+                            </DialogFooter>
+                        </>
+                    )}
                 </DialogContent>
             </Dialog>
         </>
+    );
+}
+
+function CancelErrorNotice({
+    error,
+    onReload,
+}: {
+    error: unknown;
+    onReload: () => void;
+}) {
+    if (!(error instanceof ApiError)) {
+        return (
+            <Alert variant="destructive" data-slot="cancel-error">
+                <AlertCircle />
+
+                <AlertTitle>Pembatalan gagal</AlertTitle>
+
+                <AlertDescription>
+                    <p>
+                        Tidak dapat membatalkan janji temu. Periksa koneksi lalu
+                        coba lagi.
+                    </p>
+                </AlertDescription>
+            </Alert>
+        );
+    }
+
+    if (error.fieldErrors('status').length > 0) {
+        return (
+            <Alert variant="destructive" data-slot="cancel-error">
+                <AlertCircle />
+
+                <AlertTitle>Janji ini tidak dapat dibatalkan</AlertTitle>
+
+                <AlertDescription>
+                    <p>
+                        Janji dengan status ini tidak dapat dibatalkan. Muat
+                        ulang halaman untuk melihat status terbaru.
+                    </p>
+
+                    <Button
+                        type="button"
+                        variant="outline"
+                        className="mt-2 min-h-11"
+                        onClick={onReload}
+                    >
+                        Muat ulang
+                    </Button>
+                </AlertDescription>
+            </Alert>
+        );
+    }
+
+    return (
+        <Alert variant="destructive" data-slot="cancel-error">
+            <AlertCircle />
+
+            <AlertTitle>Pembatalan gagal</AlertTitle>
+
+            <AlertDescription>
+                <p>{error.message}</p>
+            </AlertDescription>
+        </Alert>
     );
 }
 
@@ -343,12 +661,14 @@ function BookingRow({
     namaDokter,
     canCancel,
     deleting,
+    online,
     onCancel,
 }: {
     row: Booking;
     namaDokter: string | undefined;
     canCancel: boolean;
     deleting: boolean;
+    online: boolean;
     onCancel: () => void;
 }) {
     return (
@@ -383,7 +703,7 @@ function BookingRow({
 
                     <Cell
                         label="Dokter"
-                        value={namaDokter ?? `Dokter #${row.dokter_id}`}
+                        value={namaDokter ?? `Dokter #${String(row.dokter_id)}`}
                     />
 
                     {/**
@@ -446,34 +766,75 @@ function BookingRow({
                 </p>
 
                 {/**
-                 * `STATUS_TIDAK_BISA_DIBATALKAN` is the server's own guard, reproduced
-                 * verbatim: `berlangsung`, `selesai`, `dibatalkan`, `kadaluarsa`.
-                 * Hiding the button is a courtesy - the service re-checks the status
-                 * inside the transaction, so a stale client cannot force it - and a 422
-                 * is still rendered inline if it happens.
+                 * `bisaDibatalkan` is the F12 UI guard - `menunggu_pembayaran` and
+                 * `terjadwal` only - which is deliberately narrower than the server's own
+                 * `STATUS_TIDAK_BISA_DIBATALKAN` (see `lib/api/booking.ts`). A status
+                 * outside it gets a sentence, never a dead button, and the server still
+                 * re-checks inside the transaction so a stale client cannot force a write.
                  */}
                 {canCancel ? (
-                    <div>
+                    <div className="flex flex-wrap items-center gap-2">
                         <Button
                             type="button"
                             variant="outline"
-                            size="sm"
+                            className="min-h-11"
+                            data-slot="reschedule-booking"
+                            aria-disabled="true"
+                            disabled
+                        >
+                            <CalendarClock />
+
+                            Jadwal ulang
+                        </Button>
+
+                        <Button
+                            type="button"
+                            variant="outline"
+                            className="min-h-11"
+                            data-slot="cancel-booking"
                             disabled={deleting}
+                            aria-disabled={!online || deleting || undefined}
                             onClick={onCancel}
                         >
                             <XCircle />
 
                             Batalkan
                         </Button>
+
+                        <p className="text-muted-foreground basis-full text-xs">
+                            Jadwal ulang belum tersedia.
+                        </p>
                     </div>
                 ) : (
-                    <p className="text-muted-foreground text-xs">
-                        Status `{'{'}{row.status}{'}'}` tidak dapat dibatalkan.
+                    <p
+                        className="text-muted-foreground text-xs"
+                        data-slot="cancel-blocked-note"
+                    >
+                        {penjelasanTidakBisaDibatalkan(row.status)}
                     </p>
                 )}
             </CardContent>
         </Card>
     );
+}
+
+function penjelasanTidakBisaDibatalkan(status: StatusBooking): string {
+    switch (status) {
+        case 'check_in':
+            return 'Anda sudah check in. Hubungi klinik bila perlu membatalkan.';
+        case 'berlangsung':
+            return 'Konsultasi sedang berlangsung sehingga janji tidak dapat dibatalkan.';
+        case 'selesai':
+            return 'Konsultasi sudah selesai sehingga janji tidak dapat dibatalkan.';
+        case 'dibatalkan':
+            return 'Janji temu ini sudah dibatalkan.';
+        case 'kadaluarsa':
+            return 'Janji temu ini sudah kedaluwarsa.';
+        case 'no_show':
+            return 'Janji ini ditandai tidak hadir sehingga tidak dapat dibatalkan.';
+        default:
+            return 'Janji dengan status ini tidak dapat dibatalkan.';
+    }
 }
 
 function Cell({

@@ -114,14 +114,36 @@ export function labelStatusBooking(value: StatusBooking): string {
  * `{"errors":{"status":["Booking dengan status tersebut tidak dapat dibatalkan."]}}`,
  * measured.
  *
- * The cancel button is hidden for exactly these four. Hiding it is a courtesy, not the
- * control: the server re-checks inside the transaction, so a stale client cannot force it.
+ * This is the **server's** guard and is kept as the mirror of
+ * `BookingRequest::STATUS_TIDAK_BISA_DIBATALKAN`, but it is deliberately **not** what
+ * decides whether the UI renders a cancel control. See {@link STATUS_BISA_DIBATALKAN}.
  */
 export const STATUS_TIDAK_BISA_DIBATALKAN: ReadonlyArray<StatusBooking> = [
     'berlangsung',
     'selesai',
     'dibatalkan',
     'kadaluarsa',
+];
+
+/**
+ * The two statuses the F12 pattern allows a patient to cancel from, and the only two the
+ * UI renders a cancel control for (F12 §10 AC-2).
+ *
+ * ## Why this is narrower than the server's guard, and why that is not a lie
+ *
+ * `BookingService::batalkan()` currently accepts `check_in` and `no_show` too, and F12
+ * §7 #9-#10 records both as defects: a `check_in` booking can already start a consultation
+ * and a `no_show` cancel overwrites the fact that the patient did not attend, without
+ * releasing the slot. The pattern's answer is to stop OFFERING those two while the backend
+ * guard is corrected (Pertanyaan #4), not to keep a button whose outcome is a corrupted
+ * record.
+ *
+ * The server still re-checks its own, wider guard inside the transaction, so a stale
+ * client cannot force anything; this list only decides what is drawn.
+ */
+export const STATUS_BISA_DIBATALKAN: ReadonlyArray<StatusBooking> = [
+    'menunggu_pembayaran',
+    'terjadwal',
 ];
 
 /**
@@ -149,8 +171,16 @@ export function labelDibatalkanOleh(value: DibatalkanOleh | null): string {
     }
 }
 
+/**
+ * Whether the UI may offer a cancel (and a reschedule) for this status.
+ *
+ * Reads {@link STATUS_BISA_DIBATALKAN}, not the server's wider guard - see that constant
+ * for why `check_in` and `no_show` are hidden. The same predicate gates both row actions,
+ * because the reschedule endpoint does not exist yet and a reschedule is not a thing to
+ * offer for a booking that cannot be cancelled.
+ */
 export function bisaDibatalkan(status: StatusBooking): boolean {
-    return !STATUS_TIDAK_BISA_DIBATALKAN.includes(status);
+    return STATUS_BISA_DIBATALKAN.includes(status);
 }
 
 // ============================================================================

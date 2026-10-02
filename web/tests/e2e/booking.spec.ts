@@ -290,8 +290,15 @@ test.describe('Module 2 booking', () => {
         });
 
         await batal.getByRole('button', { name: 'Batalkan' }).click();
+
+        /**
+         * F12's dialog replaced the single free-text field with a quick-reason
+         * `toggle-group`: the textarea only exists once "Lainnya" is chosen, so the live
+         * contract test drives that branch before typing.
+         */
+        await page.getByRole('button', { name: 'Lainnya' }).click();
         await page
-            .getByLabel('Alasan pembatalan')
+            .getByLabel('Catatan alasan')
             .fill('Batal otomatis oleh uji e2e.');
 
         const [batalkanRespons] = await Promise.all([
@@ -301,7 +308,7 @@ test.describe('Module 2 booking', () => {
                     r.request().method() === 'PUT',
             ),
             page
-                .getByRole('button', { name: 'Batalkan booking' })
+                .getByRole('button', { name: 'Ya, batalkan janji temu' })
                 .click(),
         ]);
 
