@@ -897,13 +897,13 @@ test.describe('Module 3 realtime consultation', () => {
         await patientPage.goto(`/rekam-medis/${rekamId}`);
 
         /**
-         * `.first()` throughout this test, and it is not a convenience.
+         * `.first()` throughout this test, and it is not a convenience: a status badge
+         * can appear more than once (card header and chain entry) once a chain exists.
          *
-         * A status badge appears TWICE for a single-version record: once in the card
-         * header for the record itself and once inside the chain entry, which is the
-         * same row. Playwright's strict mode rejects a locator that resolves to two
-         * elements, so an un-`.first()`ed assertion fails on the app rendering a chain
-         * at all - which is a feature, and the very thing the test checks next.
+         * F10 hides the chain block entirely for a single-version record
+         * (`rantai.length <= 1`): "no amendments" is stated by the absence of the
+         * block, and an entry that only repeats the card header is noise. The version
+         * itself is still visible through the header's `VersiBadge`.
          */
         await expect(
             patientPage
@@ -911,8 +911,11 @@ test.describe('Module 3 realtime consultation', () => {
                 .first(),
         ).toBeVisible({ timeout: 20_000 });
         await expect(
+            patientPage.locator('[data-slot="rekam-medis-rantai"]'),
+        ).toHaveCount(0);
+        await expect(
             patientPage.locator('[data-slot="rekam-medis-rantai-entri"]'),
-        ).toHaveCount(1);
+        ).toHaveCount(0);
         await expect(
             patientPage.locator('[data-slot="versi-badge"][data-versi="1"]').first(),
         ).toBeVisible();

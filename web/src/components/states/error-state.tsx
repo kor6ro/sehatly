@@ -123,7 +123,7 @@ export function ErrorState({
                         variant="outline"
                         size="sm"
                         onClick={onRetry}
-                        className="mt-1"
+                        className="mt-1 min-h-11"
                     >
                         <RefreshCw />
                         Coba lagi

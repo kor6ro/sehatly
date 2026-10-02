@@ -1,11 +1,11 @@
 import type { ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
-import { FileHeart, MessagesSquare } from 'lucide-react';
+import { MessagesSquare } from 'lucide-react';
 import { ApiError } from '@/lib/http';
 import { meOptions } from '@/lib/api/me';
 import { riwayatResepOptions } from '@/lib/api/resep';
-import { daftarKonsultasi, daftarRekamMedis } from '@/lib/api/tujuan';
+import { daftarKonsultasi, type ResepUntukTujuan } from '@/lib/api/tujuan';
 import { PageHeader } from '@/components/layout/page-header';
 import { SkeletonRows } from '@/components/states/loading-state';
 import { EmptyState } from '@/components/states/empty-state';
@@ -20,24 +20,25 @@ import {
 } from '@/components/ui/card';
 
 /**
- * `/konsultasi` and `/rekam-medis` - the two destinations the sidebar used to address by a
- * hardcoded id `1`.
+ * `/konsultasi` - the destination the sidebar used to address by a hardcoded id `1`.
  *
  * ## What the server will and will not let a client discover
  *
- * F3-06 named these two links as dead ends: `/konsultasi/1` and `/rekam-medis/1` belong to
- * whoever was seeded first, so every other account got a 404 card. The API publishes no
- * `GET /konsultasi` and no `GET /rekam-medis` list - `routes/api.php` registers only the
- * `{id}` reads, and the medical-record block says so in its own comment ("There is
- * deliberately NO list endpoint"). A list route is a backend change, and this page does not
- * pretend otherwise.
+ * F3-06 named the link as a dead end: `/konsultasi/1` belongs to whoever was seeded
+ * first, so every other account got a 404 card. The API publishes no `GET /konsultasi`
+ * list - `routes/api.php` registers only the `{id}` read - so a list route is a backend
+ * change, and this page does not pretend otherwise.
  *
- * What the API DOES publish is `ResepResource.konsultasi_id` and `ResepResource.rekam_medis_id`
- * on every row of `GET /api/v1/pasien/resep`. So the caller's own ids are derivable from a
- * list the server already serves them, and this page resolves them through
- * `lib/api/tujuan.ts` - the pure functions, which answer `null` rather than inventing an id.
- * The source list is the caller's own, so the page is tenant-correct by construction: a
- * consultation belonging to another patient cannot appear here even to be refused.
+ * What the API DOES publish is `ResepResource.konsultasi_id` on every row of
+ * `GET /api/v1/pasien/resep`. So the caller's own ids are derivable from a list the
+ * server already serves them, and this page resolves them through
+ * `lib/api/tujuan.ts` - the pure functions, which answer `null` rather than inventing
+ * an id. The source list is the caller's own, so the page is tenant-correct by
+ * construction: a consultation belonging to another patient cannot appear here even to
+ * be refused.
+ *
+ * `/rekam-medis` no longer uses this fallback: F10's hub reads the real
+ * `GET /api/v1/rekam-medis` index, which now exists.
  *
  * ## The rows are ids, and they are labelled as ids
  *
@@ -77,33 +78,10 @@ export function KonsultasiIndexPage() {
     );
 }
 
-export function RekamMedisIndexPage() {
-    return (
-        <DaftarTurunan
-            judul="Rekam medis"
-            ikon={<FileHeart aria-hidden className="size-4" />}
-            label="Rekam medis"
-            tujuan="/rekam-medis"
-            keDaftar={daftarRekamMedis}
-            deskripsi="Daftar nomor rekam medis dari resep milik akun ini."
-            tolakDetail="Daftar ini disusun dari resep milik akun pasien, sehingga akun dokter tidak dapat melihat daftar rekam medis dari halaman ini."
-            kosong={{
-                judul: 'Belum ada rekam medis',
-                detail: 'Rekam medis ditulis dokter pada sesi konsultasi yang sedang berjalan, lalu dapat dibuka kembali dari halaman ini.',
-            }}
-            aksiKosong={
-                <Button asChild variant="outline" size="sm">
-                    <Link to="/konsultasi">Lihat konsultasi</Link>
-                </Button>
-            }
-        />
-    );
-}
-
 /**
- * The shared body, because the two pages differ only in the noun and in which foreign key
- * they read. Two near-identical page components would be two places to forget a rule; this
- * is one place with the rules written down once.
+ * The shared body, because the two index pages differ only in the noun and in which foreign
+ * key they read. Two near-identical page components would be two places to forget a rule;
+ * this is one place with the rules written down once.
  */
 function DaftarTurunan({
     judul,
@@ -120,7 +98,7 @@ function DaftarTurunan({
     ikon: ReactNode;
     label: string;
     tujuan: string;
-    keDaftar: (resep: Parameters<typeof daftarRekamMedis>[0]) => number[];
+    keDaftar: (resep: readonly ResepUntukTujuan[]) => number[];
     deskripsi: string;
     tolakDetail: string;
     kosong: { judul: string; detail: string };

@@ -1,5 +1,7 @@
 import { History } from 'lucide-react';
-import { formatTanggal, formatWaktu, formatNikMasked } from '@/lib/format';
+import { Link } from 'react-router';
+import { formatTanggal, formatNikMasked } from '@/lib/format';
+import { formatWaktuZona } from '@/lib/waktu';
 import {
     LABEL_JENIS_DIAGNOSA,
     LABEL_STATUS_TINDAK_LANJUT,
@@ -49,23 +51,38 @@ export function RekamMedisView({
     className?: string;
 }) {
     const rantai = rekam.ran ?? [];
+    const terkiniTerlihat = rekam.adalah_versi_terkini && rantai.length > 1;
 
     return (
         <div className={className}>
             <Card data-slot="rekam-medis-view">
                 <CardHeader>
+                    <h2 className="sr-only">Isi rekam medis</h2>
+
                     <CardTitle className="flex flex-wrap items-center gap-2">
-                        Rekam medis
                         <StatusDokumenBadge status={rekam.status_dokumen} />
+
                         <VersiBadge
                             versi={rekam.versi}
                             terbaru={rekam.adalah_versi_terkini}
                         />
+
+                        {rantai.length > 1 ? (
+                            <span className="text-muted-foreground text-sm font-normal">
+                                dari {rantai.length} versi
+                            </span>
+                        ) : null}
+
+                        {terkiniTerlihat ? (
+                            <span className="text-primary text-sm font-normal">
+                                terkini
+                            </span>
+                        ) : null}
                     </CardTitle>
 
                     <CardDescription>
-                        Rincian rekam medis ini. Setiap kali dibuka, aksesnya
-                        dicatat demi keamanan data Anda.
+                        Setiap kali rekam medis dibuka, aksesnya dicatat demi keamanan
+                        data Anda.
                     </CardDescription>
                 </CardHeader>
 
@@ -86,7 +103,7 @@ export function RekamMedisView({
                         />
                         <Baris
                             label="Tanggal periksa"
-                            nilai={formatWaktu(rekam.tanggal_periksa)}
+                            nilai={formatWaktuZona(rekam.tanggal_periksa)}
                         />
                         {rekam.konsultasi_id === null ? (
                             <p className="text-warning text-xs">
@@ -143,7 +160,7 @@ export function RekamMedisView({
 
                                 <ul className="flex flex-col gap-1">
                                     {(rekam.diagnosa ?? []).map((baris) => (
-                                        <li key={baris.id} className="text-sm">
+                                        <li key={baris.id} className="text-base break-words">
                                             <Badge variant="secondary" className="mr-2">
                                                 {LABEL_JENIS_DIAGNOSA[baris.jenis] ??
                                                     baris.jenis}
@@ -171,14 +188,14 @@ export function RekamMedisView({
 
                                 <ul className="flex flex-col gap-1">
                                     {(rekam.tindakan ?? []).map((baris) => (
-                                        <li key={baris.id} className="text-sm">
+                                        <li key={baris.id} className="text-base break-words">
                                             <span className="font-mono">
                                                 {baris.icd9cm_kode ?? '-'}
                                             </span>{' '}
                                             {baris.nama_tindakan}
                                             <span className="text-muted-foreground">
                                                 {' '}
-                                                {formatWaktu(baris.tanggal_tindakan)}
+                                                {formatWaktuZona(baris.tanggal_tindakan)}
                                             </span>
                                         </li>
                                     ))}
@@ -199,7 +216,7 @@ export function RekamMedisView({
 
                                 <ul className="flex flex-col gap-1">
                                     {(rekam.lampiran ?? []).map((baris) => (
-                                        <li key={baris.id} className="text-sm">
+                                        <li key={baris.id} className="text-base break-words">
                                             <a
                                                 href={baris.file_url}
                                                 target="_blank"
@@ -221,7 +238,7 @@ export function RekamMedisView({
 
                     <Separator />
 
-                    <RantaiVersi rantai={rantai} />
+                    <RantaiVersi rantai={rantai} rekamId={rekam.id} />
                 </CardContent>
             </Card>
         </div>
@@ -233,31 +250,23 @@ export function RekamMedisView({
  *
  * The list is never truncated, which is `RekamMedisResource`'s own rule and this
  * component's: a medical record that silently hides a revision is the one thing it
- * may not do. When a chain has exactly one entry this says so, because "no
- * amendments" and "amendments not loaded" are different facts and only the count
- * distinguishes them.
+ * may not do. The block is hidden entirely for a single-entry chain - "no amendments"
+ * is stated by absence, and an entry that only repeats the card header is noise.
+ *
+ * An older revision is a LINK to its own `/rekam-medis/{id}`: opening one is a separate
+ * read and a separate `akses_rekam_medis_log` row, which is the correct accounting.
  */
 function RantaiVersi({
     rantai,
+    rekamId,
 }: {
     rantai: NonNullable<RekamMedis['ran']>;
+    rekamId: number;
 }) {
-    if (rantai.length === 0) {
-        return (
-            <p className="text-muted-foreground text-sm">
-                Rantai versi tidak termuat pada tampilan ini.
-            </p>
-        );
+    if (rantai.length <= 1) {
+        return null;
     }
 
-    /**
-     * The chain's head, derived the way the resource derives
-     * `adalah_versi_terkini`: the entry with the highest `versi`. `RekamMedisRantai`
-     * is a reduced projection and has no such flag of its own. This compared against
-     * the literal `255` - `TINYINT UNSIGNED`'s ceiling, not a version - so no chain
-     * ever marked its head and the one badge separating the current document from
-     * its superseded ancestors was permanently off.
-     */
     const versiTerbaru = rantai.reduce((tertinggi, entri) =>
         entri.versi > tertinggi ? entri.versi : tertinggi,
     0);
@@ -267,44 +276,65 @@ function RantaiVersi({
             <h3 className="flex items-center gap-2 text-sm font-semibold">
                 <History aria-hidden />
 
-                Rantai versi ({rantai.length})
+                Riwayat versi ({rantai.length})
             </h3>
 
             <ol className="flex flex-col gap-2">
-                {rantai.map((entri) => (
-                    <li
-                        key={entri.id}
-                        data-slot="rekam-medis-rantai-entri"
-                        data-versi={entri.versi}
-                        className="bg-muted/40 flex flex-col gap-1 rounded-md px-3 py-2"
-                    >
-                        <div className="flex flex-wrap items-center gap-2">
-                            <VersiBadge
-                                versi={entri.versi}
-                                terbaru={entri.versi === versiTerbaru}
-                            />
-                            <StatusDokumenBadge status={entri.status_dokumen} />
-                            <span className="text-muted-foreground text-xs tabular-nums">
-                                {formatWaktu(entri.dibuat_at)}
-                            </span>
-                        </div>
+                {rantai.map((entri) => {
+                    const terkini = entri.versi === versiTerbaru;
+                    const halamanIni = entri.id === rekamId;
 
-                        <p className="text-sm">
-                            {entri.keluhan_utama ?? '-'}
-                        </p>
+                    return (
+                        <li
+                            key={entri.id}
+                            data-slot="rekam-medis-rantai-entri"
+                            data-versi={entri.versi}
+                            className="bg-muted/40 flex flex-col gap-1 rounded-md px-3 py-2"
+                        >
+                            <div className="flex flex-wrap items-center gap-2">
+                                {halamanIni ? (
+                                    <span className="text-base font-medium">
+                                        Versi {entri.versi}
+                                    </span>
+                                ) : (
+                                    <Link
+                                        to={`/rekam-medis/${entri.id}`}
+                                        className="text-base font-medium underline"
+                                    >
+                                        Versi {entri.versi}
+                                    </Link>
+                                )}
 
-                        <p className="text-muted-foreground text-xs">
-                            Diagnosis kerja: {entri.diagnosis_kerja ?? '-'}
-                        </p>
+                                <VersiBadge versi={entri.versi} terbaru={terkini} />
 
-                        <p className="text-muted-foreground text-xs">
-                            Ditandatangani:{' '}
-                            {entri.ditandatangani_at === null
-                                ? 'belum'
-                                : formatWaktu(entri.ditandatangani_at)}
-                        </p>
-                    </li>
-                ))}
+                                <StatusDokumenBadge status={entri.status_dokumen} />
+
+                                {terkini ? (
+                                    <span className="text-primary text-sm">terkini</span>
+                                ) : null}
+
+                                <span className="text-muted-foreground text-xs tabular-nums">
+                                    {formatWaktuZona(entri.dibuat_at)}
+                                </span>
+                            </div>
+
+                            <p className="text-base break-words">
+                                {entri.keluhan_utama ?? '-'}
+                            </p>
+
+                            <p className="text-base break-words">
+                                Diagnosis kerja: {entri.diagnosis_kerja ?? '-'}
+                            </p>
+
+                            <p className="text-muted-foreground text-xs">
+                                Ditandatangani:{' '}
+                                {entri.ditandatangani_at === null
+                                    ? 'belum'
+                                    : formatWaktuZona(entri.ditandatangani_at)}
+                            </p>
+                        </li>
+                    );
+                })}
             </ol>
         </section>
     );
@@ -315,7 +345,7 @@ function Blok({ judul, isi }: { judul: string; isi: string | null }) {
         <div className="flex flex-col gap-1">
             <h3 className="text-sm font-semibold">{judul}</h3>
 
-            <p className="text-sm whitespace-pre-wrap break-words">
+            <p className="text-base break-words whitespace-pre-wrap">
                 {isi === null || isi === '' ? '-' : isi}
             </p>
         </div>
@@ -327,7 +357,7 @@ function Baris({ label, nilai }: { label: string; nilai: string }) {
         <div className="flex flex-col gap-0.5 sm:flex-row sm:gap-2">
             <span className="text-muted-foreground w-full text-xs sm:w-52">{label}</span>
 
-            <span className="text-sm break-words">{nilai}</span>
+            <span className="text-base break-words">{nilai}</span>
         </div>
     );
 }

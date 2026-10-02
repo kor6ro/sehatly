@@ -2,10 +2,16 @@ import { mutationOptions, queryOptions } from '@tanstack/react-query';
 import { request } from '@/lib/http';
 import { queryClient } from '@/lib/query-client';
 import { z } from 'zod';
-import type { RekamMedis } from '@/lib/api/types';
+import type {
+    AksesRekamMedis,
+    PeranAkses,
+    RekamMedis,
+    RekamMedisDaftar,
+    TujuanAkses,
+} from '@/lib/api/types';
 
 /**
- * The five medical-record endpoints.
+ * The seven medical-record endpoints.
  *
  * | method | path | guard | success |
  * | --- | --- | --- | --- |
@@ -14,6 +20,8 @@ import type { RekamMedis } from '@/lib/api/types';
  * | `PUT` | `/api/v1/rekam-medis/{id}/final` | `tipe:dokter` + `rekam_medis.final` | 200 |
  * | `POST` | `/api/v1/rekam-medis/{id}/amandemen` | `tipe:dokter` + `rekam_medis.final` | 201, TWO rows after |
  * | `GET` | `/api/v1/rekam-medis/{id}` | a party to it, else 404 | 200 + ONE access-log row |
+ * | `GET` | `/api/v1/rekam-medis` | a `pasien` row, else 403 | 200 + meta, writes NO log row |
+ * | `GET` | `/api/v1/rekam-medis/{id}/akses` | same as the detail read | 200 + meta, writes NO log row |
  *
  * ## Every successful read writes an `akses_rekam_medis_log` row
  *
@@ -283,5 +291,111 @@ export function amandemenRekamMedisMutation(id: number) {
                 result,
             );
         },
+    });
+}
+
+// ============================================================================
+// The list index and the access log: two reads that write NO log row
+// ============================================================================
+
+/**
+ * The Indonesian label for each `users.tipe` value the access log publishes.
+ *
+ * Keyed on {@link PeranAkses}, so a new account type in the generated `users.tipe`
+ * enum fails the type check here rather than rendering a raw column value.
+ */
+export const LABEL_PERAN_AKSES: Readonly<Record<PeranAkses, string>> = {
+    pasien: 'Pasien',
+    dokter: 'Dokter',
+    perawat: 'Perawat',
+    apoteker: 'Apoteker',
+    kurir: 'Kurir',
+    admin: 'Admin',
+    superadmin: 'Superadmin',
+};
+
+/**
+ * The Indonesian label for each `akses_rekam_medis_log.tujuan_akses` value.
+ *
+ * The vocabulary is closed and comes from `docs/enums.json`, so this map is total over
+ * the five generated values.
+ */
+export const LABEL_TUJUAN_AKSES: Readonly<Record<TujuanAkses, string>> = {
+    perawatan: 'Perawatan',
+    klaim: 'Klaim',
+    audit: 'Audit',
+    pasien_sendiri: 'Pasien sendiri',
+    kepentingan_hukum: 'Kepentingan hukum',
+};
+
+/** `GET /rekam-medis`'s query string. `per_page` is capped at 100 server-side. */
+export type DaftarRekamMedisFilters = {
+    page: number;
+    per_page: number;
+};
+
+/**
+ * `GET /api/v1/rekam-medis` - the caller patient's OWN list.
+ *
+ * `RekamMedisService::daftar()` selects through `DB::table()`, so no `RekamMedis`
+ * model is hydrated and no `akses_rekam_medis_log` row is written: a list names no
+ * single record, and one row per listed record would falsify the trail. That is what
+ * makes this the primary source for the hub - the detail read is reserved for a row
+ * the patient actually opens.
+ */
+export async function fetchDaftarRekamMedis(filters: DaftarRekamMedisFilters) {
+    return request<{ rekam_medis: RekamMedisDaftar[] }>('rekam-medis', {
+        searchParams: {
+            page: filters.page,
+            per_page: filters.per_page,
+        },
+    });
+}
+
+/**
+ * The index's cache key.
+ *
+ * A distinct third segment (`'daftar'`) keeps it apart from the detail key
+ * `['v1','rekam-medis', id]`; the two must never share a cache entry, because one
+ * writes an access-log row and the other does not.
+ */
+export const daftarRekamMedisQueryKey = ['v1', 'rekam-medis', 'daftar'] as const;
+
+export function daftarRekamMedisOptions(filters: DaftarRekamMedisFilters) {
+    return queryOptions({
+        queryKey: [...daftarRekamMedisQueryKey, filters],
+        queryFn: () => fetchDaftarRekamMedis(filters),
+    });
+}
+
+/** `GET /rekam-medis/{id}/akses`'s query string. */
+export type AksesRekamMedisFilters = {
+    page: number;
+    per_page: number;
+};
+
+/**
+ * `GET /api/v1/rekam-medis/{id}/akses` - the access history of ONE record.
+ *
+ * It reads the log ABOUT the record rather than the record itself, so it writes no
+ * `akses_rekam_medis_log` row. Ownership is answered by the same resolver as the
+ * detail read: a non-party gets 404 and an account with no profile gets 403.
+ */
+export async function fetchAksesRekamMedis(
+    id: number,
+    filters: AksesRekamMedisFilters,
+) {
+    return request<{ akses: AksesRekamMedis[] }>(`rekam-medis/${id}/akses`, {
+        searchParams: {
+            page: filters.page,
+            per_page: filters.per_page,
+        },
+    });
+}
+
+export function aksesRekamMedisOptions(id: number, filters: AksesRekamMedisFilters) {
+    return queryOptions({
+        queryKey: [...rekamMedisQueryKey, id, 'akses', filters],
+        queryFn: () => fetchAksesRekamMedis(id, filters),
     });
 }

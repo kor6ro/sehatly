@@ -56,6 +56,7 @@ export function Pagination({
                     onClick={() => {
                         onPageChange(meta.current_page - 1);
                     }}
+                    className="min-h-11"
                 >
                     <ChevronLeft />
 
@@ -74,6 +75,7 @@ export function Pagination({
                     onClick={() => {
                         onPageChange(meta.current_page + 1);
                     }}
+                    className="min-h-11"
                 >
                     Berikutnya
 

@@ -26,7 +26,18 @@ import { cn } from '@/lib/utils';
  * about it, in the calm register `AGENTS.md` requires. It does not say "Koneksi gagal" -
  * that names a symptom and leaves the user with nothing to act on.
  */
-export function OfflineBanner({ className }: { className?: string }) {
+export function OfflineBanner({
+    className,
+    message = 'Anda sedang luring. Periksa koneksi internet Anda.',
+}: {
+    className?: string;
+    /**
+     * Overrides the default sentence. F10's read-only history shows the cached-data
+     * variant ("Menampilkan data terakhir yang tersimpan."); flows that gate a write
+     * keep the default, which names the action.
+     */
+    message?: string;
+}) {
     const online = useOnlineStatus();
 
     if (online) {
@@ -44,7 +55,7 @@ export function OfflineBanner({ className }: { className?: string }) {
         >
             <WifiOff aria-hidden className="mt-0.5 size-4 shrink-0" />
 
-            <p>Anda sedang luring. Periksa koneksi internet Anda.</p>
+            <p>{message}</p>
         </div>
     );
 }

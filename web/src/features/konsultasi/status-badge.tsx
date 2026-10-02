@@ -85,7 +85,14 @@ const STATUS_DOKUMEN: Record<StatusDokumen, Treatment> = {
     },
     final: {
         icon: CircleCheck,
-        className: 'text-success-foreground bg-success border-transparent',
+        /**
+         * `text-foreground` in light mode for the same measured reason as
+         * `berlangsung` above: white on `--success` is 3.62:1 at badge size, below the
+         * 4.5:1 floor. The dark ink keeps the same fill at 5.23:1, and dark mode keeps
+         * the light-on-green pairing the token defines.
+         */
+        className:
+            'text-foreground bg-success border-transparent dark:text-success-foreground',
     },
     diamendemen: {
         icon: CircleSlash,

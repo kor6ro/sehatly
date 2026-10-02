@@ -19,9 +19,9 @@ import { DokterDashboardPage } from '@/pages/dokter-dashboard-page';
 import { KonsultasiPage } from '@/pages/konsultasi-page';
 import {
     KonsultasiIndexPage,
-    RekamMedisIndexPage,
 } from '@/pages/rekam-dan-konsultasi-index-page';
 import { RekamMedisPage } from '@/pages/rekam-medis-page';
+import { RiwayatRekamMedisPage } from '@/pages/riwayat-rekam-medis-page';
 import { ResepComposePage } from '@/pages/resep-compose-page';
 import { ResepDetailPage } from '@/pages/resep-detail-page';
 import { ApotekQueuePage } from '@/pages/apotek-queue-page';
@@ -249,7 +249,7 @@ export const router = createBrowserRouter([
                             },
                             {
                                 path: '/rekam-medis',
-                                element: <RekamMedisIndexPage />,
+                                element: <RiwayatRekamMedisPage />,
                                 errorElement: <RouteErrorBoundary />,
                             },
                             {

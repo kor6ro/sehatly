@@ -1,4 +1,4 @@
-import { mutationOptions } from '@tanstack/react-query';
+import { mutationOptions, queryOptions } from '@tanstack/react-query';
 import { request } from '@/lib/http';
 import { queryClient } from '@/lib/query-client';
 import { riwayatPesanQueryKey } from '@/lib/api/konsultasi';
@@ -100,5 +100,48 @@ export function buatSuratKeteranganMutation(konsultasiId: number) {
                 queryKey: [...riwayatPesanQueryKey, konsultasiId],
             });
         },
+    });
+}
+
+/** `GET /pasien/surat-keterangan`'s query string. `per_page` is clamped server-side. */
+export type DaftarSuratKeteranganFilters = {
+    page: number;
+    per_page: number;
+};
+
+/**
+ * `GET /api/v1/pasien/surat-keterangan` - the caller patient's own letters.
+ *
+ * `SuratKeteranganController::daftar()` paginates and answers the top-level `meta`
+ * block, and `SuratKeteranganResource` already eager-loads the patient, the doctor and
+ * the referral, so one page carries everything a list row renders. `file_url` is
+ * always `null` (no PDF renderer exists), so no download is offered from here.
+ */
+export async function daftarSuratKeterangan(
+    filters: DaftarSuratKeteranganFilters,
+) {
+    return request<{ surat_keterangan: SuratKeterangan[] }>(
+        'pasien/surat-keterangan',
+        {
+            searchParams: {
+                page: filters.page,
+                per_page: filters.per_page,
+            },
+        },
+    );
+}
+
+export const daftarSuratKeteranganQueryKey = [
+    'v1',
+    'pasien',
+    'surat-keterangan',
+] as const;
+
+export function daftarSuratKeteranganOptions(
+    filters: DaftarSuratKeteranganFilters,
+) {
+    return queryOptions({
+        queryKey: [...daftarSuratKeteranganQueryKey, filters],
+        queryFn: () => daftarSuratKeterangan(filters),
     });
 }

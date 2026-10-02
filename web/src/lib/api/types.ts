@@ -1056,6 +1056,92 @@ export type RekamMedis = {
     ran?: RekamMedisRantai[];
 };
 
+/**
+ * One row of `GET /api/v1/rekam-medis`, transcribed field by field from
+ * `App\Http\Resources\RekamMedisDaftarResource`.
+ *
+ * ## This is an INDEX shape, not a reduced {@link RekamMedis}
+ *
+ * The endpoint exists so a patient's list can be built without reading (and logging)
+ * every record: it publishes the identity, the examination instant, the two searchable
+ * clinical columns, the document status, the version and the doctor's name - and
+ * nothing else. No SOAP narrative, no child collections, no NIK, no access log. A
+ * client that needs the document opens `GET /rekam-medis/{id}`, which is a separate
+ * read and a separate `akses_rekam_medis_log` row.
+ *
+ * ## `tanggal_periksa` is an instant
+ *
+ * `RekamMedisDaftarResource::instan()` parses the raw `DATETIME` and emits
+ * `toISOString()`, so it is rendered with `formatWaktuZona` and carries its zone label.
+ * `versi` is an `int` and `adalah_versi_terkini` is the resource's own comparison of
+ * `versi` against the chain maximum, so the list and the detail cannot disagree about
+ * which revision is current.
+ */
+export type RekamMedisDaftar = {
+    id: number;
+    uuid: string;
+    /** ISO-8601 UTC, from a `DATETIME`. Render with `formatWaktuZona`. */
+    tanggal_periksa: string;
+    keluhan_utama: string | null;
+    diagnosis_kerja: string | null;
+    status_dokumen: StatusDokumen;
+    versi: number;
+    adalah_versi_terkini: boolean;
+    dokter: {
+        id: number;
+        /** The joined `users.nama_lengkap`; `null` only if the join found no user. */
+        nama_lengkap: string | null;
+    };
+};
+
+/**
+ * `akses_rekam_medis_log.tujuan_akses`, the five-value ENUM, in `docs/enums.json`
+ * declaration order.
+ *
+ * A closed vocabulary from the generated enum dump rather than a hand-written list: the
+ * log table is written by the server, so the client can only ever render these five and
+ * a sixth value must be a compile error rather than a label that falls through.
+ */
+export type TujuanAkses =
+    | 'perawatan'
+    | 'klaim'
+    | 'audit'
+    | 'pasien_sendiri'
+    | 'kepentingan_hukum';
+
+/**
+ * `users.tipe` as the access log publishes it in `peran`.
+ *
+ * Seven values, exactly `docs/enums.json`'s `users.tipe` and
+ * `AksesRekamMedisResource`'s own list. This is deliberately NOT {@link UserTipe},
+ * which is a broader union used elsewhere and does not mirror the generated dump.
+ * The access log publishes the KIND of account that opened the record, never the
+ * actor's name or id - see `AksesRekamMedisResource`'s docblock.
+ */
+export type PeranAkses =
+    | 'pasien'
+    | 'dokter'
+    | 'perawat'
+    | 'apoteker'
+    | 'kurir'
+    | 'admin'
+    | 'superadmin';
+
+/**
+ * One `akses_rekam_medis_log` row from `GET /api/v1/rekam-medis/{id}/akses`,
+ * transcribed from `App\Http\Resources\AksesRekamMedisResource`.
+ *
+ * Three fields and no fourth: the actor's name is **deliberately not published** by the
+ * server (data minimisation, UU PDP 27/2022 Pasal 5/34), and this client must not
+ * invent one. `waktu` is a `TIMESTAMP` emitted as an ISO-8601 UTC instant, rendered
+ * with `formatWaktuZona`.
+ */
+export type AksesRekamMedis = {
+    waktu: string;
+    peran: PeranAkses;
+    tujuan_akses: TujuanAkses;
+};
+
 // ============================================================================
 // resep / resep_item / resep_verifikasi / master_obat
 // ============================================================================

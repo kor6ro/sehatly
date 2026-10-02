@@ -1,16 +1,19 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router';
-import { Eye, FileHeart, PenLine } from 'lucide-react';
+import { Eye, FileHeart, PenLine, Printer, TriangleAlert } from 'lucide-react';
 import { ApiError } from '@/lib/http';
 import { meOptions } from '@/lib/api/me';
 import { rekamMedisOptions } from '@/lib/api/rekam-medis';
+import { useDocumentTitle } from '@/hooks/use-document-title';
 import { PageHeader } from '@/components/layout/page-header';
 import { SkeletonRows } from '@/components/states/loading-state';
 import { ErrorState, ForbiddenState, NotFoundState } from '@/components/states/error-state';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { RekamMedisView } from '@/features/rekam-medis/rekam-medis-view';
 import { RekamMedisEditForm } from '@/features/rekam-medis/rekam-medis-edit-form';
+import { RiwayatAksesPanel } from '@/features/rekam-medis/riwayat-akses-panel';
 
 /**
  * `/rekam-medis/:id` - the medical record, read-only for a patient and editable by its
@@ -48,6 +51,8 @@ export function RekamMedisPage() {
     const { id } = useParams<{ id: string }>();
     const rekamMedisId = Number(id);
     const [menyunting, setMenyunting] = useState(false);
+
+    useDocumentTitle('Rekam medis | Sehatly');
 
     const rekam = useQuery({
         ...rekamMedisOptions(rekamMedisId),
@@ -97,9 +102,9 @@ export function RekamMedisPage() {
 
                     <NotFoundState
                         title="Rekam medis tidak ditemukan"
-                        detail="Id tersebut tidak ada atau bukan milik pihak yang berhak. Daftar rekam medis milik akun ini ada di halaman Rekam medis."
+                        detail="Rekam medis ini tidak ada atau bukan milik akun ini."
                         action={
-                            <Button asChild variant="outline" size="sm">
+                            <Button asChild variant="outline" size="sm" className="min-h-11">
                                 <Link to="/rekam-medis">
                                     <FileHeart aria-hidden />
 
@@ -146,7 +151,6 @@ export function RekamMedisPage() {
         <>
             <PageHeader
                 title={`Rekam medis #${data.id}`}
-                description="Rincian rekam medis ini. Setiap kali dibuka, aksesnya dicatat demi keamanan data Anda."
                 action={
                     bolehUbah ? (
                         <Button
@@ -173,7 +177,35 @@ export function RekamMedisPage() {
             {menyunting && bolehUbah ? (
                 <RekamMedisEditForm rekam={data} />
             ) : (
-                <RekamMedisView rekam={data} />
+                <>
+                    <RekamMedisView rekam={data} />
+
+                    <RiwayatAksesPanel rekamMedisId={data.id} />
+
+                    <section data-slot="cetak" className="flex flex-col gap-3">
+                        <Alert data-slot="cetak-peringatan">
+                            <TriangleAlert aria-hidden />
+
+                            <AlertDescription>
+                                File hasil cetak berisi data kesehatan Anda. Hapus dari
+                                perangkat bersama setelah selesai.
+                            </AlertDescription>
+                        </Alert>
+
+                        <Button
+                            type="button"
+                            data-slot="cetak-button"
+                            className="min-h-11 w-full sm:w-fit"
+                            onClick={() => {
+                                window.print();
+                            }}
+                        >
+                            <Printer aria-hidden />
+
+                            Cetak atau simpan sebagai PDF
+                        </Button>
+                    </section>
+                </>
             )}
         </>
     );
