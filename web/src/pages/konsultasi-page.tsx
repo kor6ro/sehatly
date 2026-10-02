@@ -7,6 +7,7 @@ import {
     Pill,
     Play,
     Receipt,
+    Star,
 } from 'lucide-react';
 import { ApiError } from '@/lib/http';
 import { formatRupiah, formatWaktu } from '@/lib/format';
@@ -388,6 +389,37 @@ export function KonsultasiPage() {
                             />
                         </CardContent>
                     </Card>
+
+                    {/**
+                     * F04's entry point to the review write surface. Only the patient
+                     * sees it (`PUT /konsultasi/{id}/ulasan` resolves the caller's own
+                     * `pasien` row), and only once the consultation is `selesai` -
+                     * the same rule the endpoint enforces with a 422.
+                     */}
+                    {sisiSaya === 'pasien' && konsultasi.status === 'selesai' ? (
+                        <Card data-slot="cta-tulis-ulasan">
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Star aria-hidden />
+
+                                    Nilai konsultasi ini
+                                </CardTitle>
+
+                                <CardDescription>
+                                    Bagikan pengalaman Anda untuk membantu pasien lain
+                                    memilih dokter.
+                                </CardDescription>
+                            </CardHeader>
+
+                            <CardContent>
+                                <Button asChild className="min-h-11">
+                                    <Link to={`/konsultasi/${konsultasi.id}/ulasan`}>
+                                        Tulis ulasan
+                                    </Link>
+                                </Button>
+                            </CardContent>
+                        </Card>
+                    ) : null}
 
                     {bolehSoap ? (
                         <>

@@ -18,6 +18,7 @@ import { BookingCreatePage } from '@/pages/booking-create-page';
 import { DoctorBookingsPage } from '@/pages/doctor-bookings-page';
 import { DokterDashboardPage } from '@/pages/dokter-dashboard-page';
 import { KonsultasiPage } from '@/pages/konsultasi-page';
+import { KonsultasiUlasanPage } from '@/pages/konsultasi-ulasan-page';
 import {
     KonsultasiIndexPage,
 } from '@/pages/rekam-dan-konsultasi-index-page';
@@ -261,6 +262,19 @@ export const router = createBrowserRouter([
                             {
                                 path: '/konsultasi/:id',
                                 element: <KonsultasiPage />,
+                                errorElement: <RouteErrorBoundary />,
+                            },
+                            {
+                                /**
+                                 * F04's patient write surface, and the SPA destination
+                                 * of `NotificationService::ulasanDiminta()`'s
+                                 * `/api/v1/konsultasi/{id}/ulasan` link (see
+                                 * `features/notifikasi/deep-link.ts`). A three-segment
+                                 * path, so it is a distinct route from `/konsultasi/:id`
+                                 * and no ordering constraint is relied on.
+                                 */
+                                path: '/konsultasi/:id/ulasan',
+                                element: <KonsultasiUlasanPage />,
                                 errorElement: <RouteErrorBoundary />,
                             },
                             {

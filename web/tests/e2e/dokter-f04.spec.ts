@@ -5,27 +5,29 @@ import { expectNoA11yViolations } from './a11y';
 /**
  * F04 (profil dokter dan kepercayaan) mocked end to end at 390x844 and 1280x900.
  *
- * ## Scope: the SIAP slice, and only it
+ * ## Scope: the whole flow now that the backend unblocked reviews
  *
- * F04's review criteria (AC-4, AC-5, AC-6, AC-9) are `[TERBLOKIR backend ulasan]`:
- * `GET /dokter/{id}/ulasan` does not exist, the stored `rating_rata_rata`/`jumlah_ulasan`
- * aggregates are never recomputed from `ulasan_dokter` (F04 blocker #5), and there is no
- * write path. They are `test.fixme` below and never faked - a passing assertion against a
- * mocked review payload would publish a contract the API does not have. In fact this spec
- * asserts the opposite: no request whose path contains `ulasan` is ever made.
+ * AC-1/2/3/7/8/10/11/12 cover the profile built from `DokterDetailResource` plus
+ * `/jadwal` and `/slot`. AC-4/5/6/9 cover `GET /dokter/{id}/ulasan`: the summary (only
+ * at `total >= 5`), the clickable distribution, the sub-ratings, the item list with the
+ * doctor's reply, the exact policy sentence and a block-local error state. The write
+ * surface (`/konsultasi/:id/ulasan` -> `POST /konsultasi/{id}/ulasan`) has its own two
+ * specs below.
  *
  * ## Why every call is mocked
  *
  * Every criterion needs a response the live seed cannot produce on demand: a doctor with a
  * two-day schedule, an empty weekly schedule, a 404 detail, a 500 detail, a profile whose
- * bio/education/faskes are all null, and an offline transition. The reviews fixture word
- * ("Amoxicillin 500 mg") must never reach a real server, which mocking guarantees.
+ * bio/education/faskes are all null, a 128-review aggregate, a filtered page with no 5★
+ * rows, a failing review list, a `selesai` consultation and a pre-reviewed 422. The
+ * review fixture body ("Amoxicillin 500 mg") must never reach a real server, which
+ * mocking guarantees.
  *
- * ## The session for the one click-through
+ * ## The session for the click-throughs
  *
- * AC-1 taps `Pesan jadwal` -> `/booking/5`, and `/booking/:dokterId` sits behind
+ * AC-1 taps `Pesan jadwal` -> `/booking/5`, and both review surfaces sit behind
  * `RequireAuth`. An init script seeds the token pair (`sessionStorage`, the storage
- * `lib/token.ts` uses) so the criterion measures the CTA's own destination rather than the
+ * `lib/token.ts` uses) so a criterion measures its own destination rather than the
  * login redirect; every API call is still intercepted.
  */
 
@@ -188,6 +190,82 @@ const RAHASIA = {
     email: 'rahasia@example.test',
 };
 
+/**
+ * The aggregate fixture: 128 reviews whose distribution sums to `meta.total` when no
+ * filter is applied, so a test can tell a filtered page-set from the overall count.
+ */
+const DISTRIBUSI_128 = {
+    '1': 2,
+    '2': 3,
+    '3': 8,
+    '4': 30,
+    '5': 85,
+};
+
+/** Anonymous review with a doctor's reply; the body is the privacy test word. */
+const ULASAN_ANON: Record<string, unknown> = {
+    id: 901,
+    rating: 5,
+    rating_komunikasi: 5,
+    rating_akurasi: 4,
+    isi: 'Dokter menjelaskan dengan sabar dan jadwalnya tepat.',
+    is_anonim: true,
+    penulis: null,
+    balasan_dokter: 'Terima kasih atas kepercayaannya. Semoga lekas sembuh.',
+    dibalas_at: '2026-10-05T02:30:00.000000Z',
+    dibuat_at: '2026-10-04T09:00:00.000000Z',
+};
+
+/** Non-anonymous review: the API publishes only the masked short name. */
+const ULASAN_NAMED: Record<string, unknown> = {
+    id: 902,
+    rating: 4,
+    rating_komunikasi: 4,
+    rating_akurasi: null,
+    isi: 'Penjelasan mudah dipahami dan antreannya tidak lama.',
+    is_anonim: false,
+    penulis: 'Dewi S.',
+    balasan_dokter: null,
+    dibalas_at: null,
+    dibuat_at: '2026-10-03T09:00:00.000000Z',
+};
+
+/**
+ * `GET /konsultasi/{id}` for the write surface. Deliberately complete enough that the
+ * page's gates (`pasien`, `selesai`) pass; the SOAP fields carry no assertion value and
+ * are never rendered by the review page.
+ */
+const KONSULTASI_SELESAI: Record<string, unknown> = {
+    id: 11,
+    booking_id: null,
+    pasien_id: 1,
+    dokter_id: 5,
+    tipe: 'chat',
+    status: 'selesai',
+    room_id: '00000000-0000-4000-8000-000000000011',
+    mulai_at: '2026-10-01T02:00:00.000000Z',
+    selesai_at: '2026-10-01T02:15:00.000000Z',
+    total_durasi_detik: 900,
+    catatan_subjektif: 'Keluhan demam.',
+    catatan_objektif: 'Suhu 37,8 C.',
+    catatan_asessment: 'Observasi.',
+    catatan_plan: 'Istirahat dan cairan.',
+    diagnosis_kerja: null,
+    saran_tindak_lanjut: null,
+    biaya_konsultasi: '85000.00',
+    dibuat_at: '2026-10-01T01:55:00.000000Z',
+    diubah_at: '2026-10-01T02:15:00.000000Z',
+    pasien: { id: 1, nik: '3271••••••••1234', nama_lengkap: 'Pasien Uji F04' },
+    dokter: { id: 5, nama_lengkap: NAMA_DOKTER },
+    booking: null,
+    baca: {
+        pasien_user_id: 1,
+        pasien_last_read_at: '2026-10-01T02:15:00.000000Z',
+        dokter_user_id: 99,
+        dokter_last_read_at: '2026-10-01T02:15:00.000000Z',
+    },
+};
+
 function jendela(
     jadwalId: number,
     hari: number,
@@ -247,6 +325,15 @@ type State = {
     jadwal: Record<string, Array<Record<string, unknown>>>;
     slotStatus: number;
     slots: Array<Record<string, unknown>>;
+    ulasanStatus: number;
+    ulasanRows: Array<Record<string, unknown>>;
+    /** `meta.total` when no `rating` filter is applied. */
+    ulasanTotal: number;
+    ulasanMeta: Record<string, unknown>;
+    konsultasiStatus: number;
+    konsultasi: Record<string, unknown>;
+    kirimUlasanStatus: number;
+    kirimUlasanBody: Record<string, unknown> | null;
     permintaan: Permintaan[];
 };
 
@@ -256,6 +343,28 @@ type OpsiMock = {
     jadwal?: Record<string, Array<Record<string, unknown>>>;
     slotStatus?: number;
     slots?: Array<Record<string, unknown>>;
+    ulasanStatus?: number;
+    ulasanRows?: Array<Record<string, unknown>>;
+    ulasanTotal?: number;
+    ulasanMeta?: Record<string, unknown>;
+    konsultasiStatus?: number;
+    konsultasi?: Record<string, unknown>;
+    kirimUlasanStatus?: number;
+};
+
+const DISTRIBUSI_KOSONG = {
+    '1': 0,
+    '2': 0,
+    '3': 0,
+    '4': 0,
+    '5': 0,
+};
+
+const ULASAN_META_KOSONG = {
+    distribusi: { ...DISTRIBUSI_KOSONG },
+    rata_rata: null,
+    rata_rata_komunikasi: null,
+    rata_rata_akurasi: null,
 };
 
 async function balasJson(route: Route, status: number, body: unknown): Promise<void> {
@@ -284,6 +393,14 @@ async function pasangMock(page: Page, opsi: OpsiMock = {}): Promise<State> {
         jadwal: opsi.jadwal ?? jadwalDefault(),
         slotStatus: opsi.slotStatus ?? 200,
         slots: opsi.slots ?? [{ ...SLOT }],
+        ulasanStatus: opsi.ulasanStatus ?? 200,
+        ulasanRows: opsi.ulasanRows ?? [],
+        ulasanTotal: opsi.ulasanTotal ?? opsi.ulasanRows?.length ?? 0,
+        ulasanMeta: opsi.ulasanMeta ?? { ...ULASAN_META_KOSONG },
+        konsultasiStatus: opsi.konsultasiStatus ?? 200,
+        konsultasi: opsi.konsultasi ?? { ...KONSULTASI_SELESAI },
+        kirimUlasanStatus: opsi.kirimUlasanStatus ?? 201,
+        kirimUlasanBody: null,
         permintaan: [],
     };
 
@@ -357,6 +474,93 @@ async function pasangMock(page: Page, opsi: OpsiMock = {}): Promise<State> {
                 message: 'Daftar anggota keluarga berhasil dimuat.',
                 data: { anggota_keluarga: [] },
                 meta: meta(0, 100),
+            });
+        }
+
+        if (/^\/api\/v1\/konsultasi\/[^/]+\/ulasan$/.test(path) && method === 'POST') {
+            state.kirimUlasanBody = (request.postDataJSON() ?? null) as Record<
+                string,
+                unknown
+            > | null;
+
+            if (state.kirimUlasanStatus === 201) {
+                return balasJson(route, 201, {
+                    success: true,
+                    message: 'Ulasan berhasil disimpan.',
+                    data: { ulasan: { ...ULASAN_ANON, id: 999 } },
+                });
+            }
+
+            return balasJson(route, state.kirimUlasanStatus, {
+                success: false,
+                message: 'Data yang dikirim tidak valid.',
+                errors: {
+                    konsultasi_id: ['Konsultasi ini sudah memiliki ulasan.'],
+                },
+            });
+        }
+
+        if (/^\/api\/v1\/konsultasi\/[^/]+$/.test(path) && method === 'GET') {
+            if (state.konsultasiStatus !== 200) {
+                return balasJson(route, state.konsultasiStatus, {
+                    success: false,
+                    message:
+                        state.konsultasiStatus === 404
+                            ? 'Resource not found.'
+                            : 'Terjadi kesalahan pada server.',
+                    errors: {},
+                });
+            }
+
+            return balasJson(route, 200, {
+                success: true,
+                message: 'Detail konsultasi berhasil dimuat.',
+                data: { konsultasi: state.konsultasi },
+            });
+        }
+
+        if (/^\/api\/v1\/dokter\/[^/]+\/ulasan$/.test(path) && method === 'GET') {
+            if (state.ulasanStatus !== 200) {
+                return balasJson(route, state.ulasanStatus, {
+                    success: false,
+                    message: 'Terjadi kesalahan pada server.',
+                    errors: {},
+                });
+            }
+
+            const ratingParam = url.searchParams.get('rating');
+            const halaman = Math.max(1, Number(url.searchParams.get('page') ?? '1'));
+            const perPage = Math.max(1, Number(url.searchParams.get('per_page') ?? '10'));
+
+            /**
+             * `?rating=` narrows the page-set exactly as `UlasanDokterService::daftar()`
+             * does; the distribution in `meta` stays the FULL fixture, because the
+             * server computes the aggregate over every review.
+             */
+            const tersaring =
+                ratingParam === null
+                    ? state.ulasanRows
+                    : state.ulasanRows.filter(
+                          (row) => Number(row.rating) === Number(ratingParam),
+                      );
+
+            const total = ratingParam === null ? state.ulasanTotal : tersaring.length;
+            const awal = (halaman - 1) * perPage;
+            const baris = tersaring.slice(awal, awal + perPage);
+
+            return balasJson(route, 200, {
+                success: true,
+                message: 'Daftar ulasan berhasil dimuat.',
+                data: { ulasan: baris },
+                meta: {
+                    current_page: halaman,
+                    last_page: Math.max(1, Math.ceil(total / perPage)),
+                    per_page: perPage,
+                    total,
+                    from: baris.length === 0 ? null : awal + 1,
+                    to: baris.length === 0 ? null : awal + baris.length,
+                    ...state.ulasanMeta,
+                },
             });
         }
 
@@ -445,16 +649,6 @@ async function simpanGambar(page: Page, vp: Vp, keadaan: string): Promise<void> 
     });
 }
 
-/**
- * Blocked, not faked. `GET /dokter/{id}/ulasan` has no route, the stored aggregates are
- * never recomputed from `ulasan_dokter` (F04 blocker #5), and no write path exists, so all
- * four criteria need a backend change first.
- */
-test.fixme('f04-ac4-ulasan-render [TERBLOKIR backend ulasan]', async () => {});
-test.fixme('f04-ac5-rating-kecil [TERBLOKIR backend ulasan]', async () => {});
-test.fixme('f04-ac6-kebijakan [TERBLOKIR backend ulasan]', async () => {});
-test.fixme('f04-ac9-ulasan-500 [TERBLOKIR backend ulasan]', async () => {});
-
 for (const vp of VIEWPORTS) {
     test.describe(`F04 profil dokter ${vp.nama} ${vp.width}x${vp.height}`, () => {
         test.use({
@@ -467,7 +661,7 @@ for (const vp of VIEWPORTS) {
         test('f04-ac1-hero-cta', async ({ page }) => {
             await masukPalsu(page);
 
-            const state = await bukaProfil(page);
+            await bukaProfil(page);
 
             await expect(
                 page.getByRole('heading', { name: 'Profil dokter' }),
@@ -499,11 +693,6 @@ for (const vp of VIEWPORTS) {
             await simpanGambar(page, vp, 'profil');
 
             await expectNoA11yViolations(page);
-
-            // The reviews block is not built: no `/ulasan` request may leave the page.
-            expect(state.permintaan.some((row) => row.path.includes('ulasan'))).toBe(
-                false,
-            );
 
             await cta.click();
 
@@ -614,6 +803,178 @@ for (const vp of VIEWPORTS) {
             await expectNoA11yViolations(page);
         });
 
+        test('f04-ac4-ulasan-render', async ({ page }) => {
+            await bukaProfil(page, {
+                ulasanRows: [{ ...ULASAN_ANON }, { ...ULASAN_NAMED }],
+                ulasanTotal: 128,
+                ulasanMeta: {
+                    distribusi: { ...DISTRIBUSI_128 },
+                    rata_rata: 4.9,
+                    rata_rata_komunikasi: 4.8,
+                    rata_rata_akurasi: 4.7,
+                },
+            });
+
+            const blok = page.locator('[data-slot="reviews-block"]');
+            const ringkasan = blok.locator('[data-slot="ringkasan-rating"]');
+
+            // Summary and sub-ratings, all from the one response.
+            await expect(ringkasan).toContainText('dari 5');
+            await expect(ringkasan).toContainText('4,9');
+            await expect(ringkasan).toContainText('128 ulasan');
+            await expect(blok.getByText('Komunikasi')).toBeVisible();
+            await expect(blok.getByText('4,8')).toBeVisible();
+            await expect(blok.getByText('Akurasi')).toBeVisible();
+            await expect(blok.getByText('4,7')).toBeVisible();
+
+            // Five clickable bars, each a >=44px target with its numeric count.
+            const bar = blok.locator('[data-slot="distribusi-bintang"]');
+
+            await expect(bar).toHaveCount(5);
+
+            for (let index = 0; index < 5; index += 1) {
+                const kotak = await bar.nth(index).boundingBox();
+
+                expect(kotak?.height ?? 0).toBeGreaterThanOrEqual(44);
+            }
+
+            const bintangLima = blok.getByRole('button', {
+                name: 'Tampilkan hanya 5 bintang',
+            });
+
+            await expect(bintangLima).toBeVisible();
+            await expect(bintangLima).toContainText('85');
+
+            // Items: anonymous and masked author, verification, date, full body, reply.
+            const item = blok.locator('[data-slot="ulasan-item"]');
+
+            await expect(item).toHaveCount(2);
+            await expect(blok.getByText('Pasien', { exact: true })).toBeVisible();
+            await expect(blok.getByText('Dewi S.')).toBeVisible();
+            await expect(blok.getByText('Terverifikasi')).toHaveCount(2);
+            await expect(blok.getByText('04 Okt 2026')).toBeVisible();
+            await expect(blok.locator('[data-slot="balasan-dokter"]')).toContainText(
+                'Balasan dokter',
+            );
+            await expect(blok.locator('[data-slot="balasan-dokter"]')).toContainText(
+                'Terima kasih atas kepercayaannya.',
+            );
+            await expect(blok.getByText(ULASAN_ANON.isi as string)).toBeVisible();
+
+            await simpanGambar(page, vp, 'ulasan');
+
+            // Clicking 4★ filters the list with `?rating=4`.
+            const permintaanFilter = page.waitForRequest((request) => {
+                const alamat = new URL(request.url());
+
+                return (
+                    alamat.pathname.endsWith('/ulasan') &&
+                    alamat.searchParams.get('rating') === '4'
+                );
+            });
+
+            await blok
+                .getByRole('button', { name: 'Tampilkan hanya 4 bintang' })
+                .click();
+
+            await permintaanFilter;
+
+            // The filtered page-set has one row; the distribution still speaks about 128.
+            await expect(item).toHaveCount(1);
+            await expect(ringkasan).toContainText('128 ulasan');
+
+            await expectNoA11yViolations(page);
+        });
+
+        test('f04-ac5-rating-kecil', async ({ page }) => {
+            await bukaProfil(page, {
+                ulasanRows: [
+                    { ...ULASAN_NAMED },
+                    { ...ULASAN_ANON, id: 903, rating: 5, balasan_dokter: null, dibalas_at: null },
+                    { ...ULASAN_ANON, id: 904, rating: 3, balasan_dokter: null, dibalas_at: null },
+                ],
+                ulasanTotal: 3,
+                ulasanMeta: {
+                    distribusi: { '1': 0, '2': 0, '3': 1, '4': 1, '5': 1 },
+                    rata_rata: 4,
+                    rata_rata_komunikasi: 4.5,
+                    rata_rata_akurasi: null,
+                },
+            });
+
+            const blok = page.locator('[data-slot="reviews-block"]');
+
+            await expect(
+                blok.getByText('Belum cukup ulasan untuk menampilkan rating.'),
+            ).toBeVisible();
+            await expect(blok.locator('[data-slot="ulasan-belum-cukup"]')).toContainText(
+                '3 ulasan',
+            );
+
+            // No summary block, no distribution and no "dari 5" sentence below five
+            // reviews. Per-item stars still render - each review carries its own rating.
+            await expect(blok.locator('[data-slot="ringkasan-rating"]')).toHaveCount(0);
+            await expect(blok.locator('[data-slot="ringkasan-ulasan"]')).toHaveCount(0);
+            await expect(blok.locator('[data-slot="distribusi-bintang"]')).toHaveCount(0);
+            await expect(blok.getByText(/dari 5/)).toHaveCount(0);
+
+            await simpanGambar(page, vp, 'ulasan-kecil');
+
+            await expectNoA11yViolations(page);
+        });
+
+        test('f04-ac6-kebijakan', async ({ page }) => {
+            await bukaProfil(page, {
+                ulasanRows: [{ ...ULASAN_ANON }],
+                ulasanTotal: 1,
+                ulasanMeta: {
+                    distribusi: { '1': 0, '2': 0, '3': 0, '4': 0, '5': 1 },
+                    rata_rata: 5,
+                    rata_rata_komunikasi: 5,
+                    rata_rata_akurasi: 4,
+                },
+            });
+
+            const blok = page.locator('[data-slot="reviews-block"]');
+
+            await expect(blok.locator('[data-slot="kebijakan-ulasan"]')).toHaveText(
+                'Ulasan hanya dapat ditulis oleh pasien yang telah menyelesaikan konsultasi. Tidak ada ulasan berbayar atau berinsentif.',
+            );
+
+            // F04 §3/FTC: no provider control may hide or suppress a review.
+            await expect(page.getByRole('button', { name: /sembunyikan/i })).toHaveCount(0);
+            await expect(page.getByText(/sembunyikan ulasan/i)).toHaveCount(0);
+
+            await expectNoA11yViolations(page);
+        });
+
+        test('f04-ac9-ulasan-500', async ({ page }) => {
+            const state = await bukaProfil(page, { ulasanStatus: 500 });
+
+            const blok = page.locator('[data-slot="reviews-block"]');
+
+            await expect(blok.getByText('Ulasan belum dapat dimuat.')).toBeVisible();
+            await expect(
+                blok.getByRole('button', { name: 'Coba lagi' }),
+            ).toBeVisible();
+
+            // The rest of the profile survives the reviews failure.
+            await expect(page.getByRole('heading', { name: NAMA_DOKTER })).toBeVisible();
+            await expect(page.locator('[data-slot="schedule-preview"]')).toBeVisible();
+            await expect(page.locator('[data-slot="credential-trigger"]')).toBeVisible();
+            await expect(page.getByText(/Rp\s?85\.000/)).toBeVisible();
+
+            await simpanGambar(page, vp, 'ulasan-error');
+
+            await expectNoA11yViolations(page);
+
+            state.ulasanStatus = 200;
+
+            await blok.getByRole('button', { name: 'Coba lagi' }).click();
+
+            await expect(blok.getByText('Belum ada ulasan.')).toBeVisible();
+        });
+
         test('f04-ac7-404-500', async ({ page }) => {
             const state = await pasangMock(page, { detailStatus: 404 });
 
@@ -719,11 +1080,17 @@ for (const vp of VIEWPORTS) {
         });
 
         test('f04-ac11-privasi', async ({ page }) => {
-            const state = await bukaProfil(page, {
-                detail: {
-                    ...DOKTER,
-                    ulasan_contoh: 'Amoxicillin 500 mg',
-                    ...RAHASIA,
+            await bukaProfil(page, {
+                detail: { ...DOKTER, ...RAHASIA },
+                ulasanRows: [
+                    { ...ULASAN_ANON, isi: 'Amoxicillin 500 mg' },
+                ],
+                ulasanTotal: 1,
+                ulasanMeta: {
+                    distribusi: { '1': 0, '2': 0, '3': 0, '4': 0, '5': 1 },
+                    rata_rata: 5,
+                    rata_rata_komunikasi: 5,
+                    rata_rata_akurasi: 4,
                 },
             });
 
@@ -734,6 +1101,16 @@ for (const vp of VIEWPORTS) {
             expect(alamat).not.toContain('Amoxicillin');
             expect(alamat).not.toContain('STR-999');
             expect(alamat).not.toContain('0812');
+
+            // The review body IS page content, and must be - so the privacy checked here
+            // is that it stays out of every non-content surface: title, URL, aria-label
+            // and toast. The old AC-11 fixture asserted the text was nowhere because the
+            // reviews block did not exist; now it renders and the boundary moved.
+            await expect(
+                page
+                    .locator('[data-slot="reviews-block"]')
+                    .getByText('Amoxicillin 500 mg'),
+            ).toBeVisible();
 
             const label = await page.evaluate(() =>
                 Array.from(document.querySelectorAll('[aria-label]')).map(
@@ -757,7 +1134,6 @@ for (const vp of VIEWPORTS) {
             const html = await page.content();
 
             for (const kata of [
-                'Amoxicillin',
                 'STR-999',
                 'SIP-999',
                 RAHASIA.file_str_url,
@@ -768,10 +1144,6 @@ for (const vp of VIEWPORTS) {
             }
 
             await expect(page.locator('[data-sonner-toast]')).toHaveCount(0);
-
-            expect(state.permintaan.some((row) => row.path.includes('ulasan'))).toBe(
-                false,
-            );
 
             await expectNoA11yViolations(page);
         });
@@ -836,6 +1208,116 @@ for (const vp of VIEWPORTS) {
                 .boundingBox();
 
             expect(kredensial?.height ?? 0).toBeGreaterThanOrEqual(44);
+        });
+
+        test('f04-ulasan-tulis', async ({ page }) => {
+            await masukPalsu(page);
+
+            const state = await pasangMock(page, {
+                konsultasi: { ...KONSULTASI_SELESAI },
+            });
+
+            await page.goto('/konsultasi/11/ulasan');
+
+            await expect(
+                page.getByRole('heading', { name: 'Tulis ulasan' }),
+            ).toBeVisible({ timeout: 15_000 });
+
+            await expect(
+                page.getByText(`Untuk konsultasi #11 bersama ${NAMA_DOKTER}.`),
+            ).toBeVisible();
+            await expect(
+                page.locator('[data-slot="pilih-bintang-rating"]'),
+            ).toBeVisible();
+            await expect(
+                page.locator('[data-slot="pilih-bintang-komunikasi"]'),
+            ).toBeVisible();
+            await expect(
+                page.locator('[data-slot="pilih-bintang-akurasi"]'),
+            ).toBeVisible();
+
+            await expectNoA11yViolations(page);
+
+            // Submitting without a rating is refused locally and costs no request.
+            await page.getByRole('button', { name: 'Kirim ulasan' }).click();
+
+            await expect(page.getByText('Pilih rating terlebih dahulu.')).toBeVisible();
+
+            expect(
+                state.permintaan.some(
+                    (row) => row.method === 'POST' && row.path.endsWith('/ulasan'),
+                ),
+            ).toBe(false);
+
+            await page
+                .locator('[data-slot="pilih-bintang-rating"]')
+                .getByText('5 bintang', { exact: true })
+                .click();
+
+            await page
+                .getByLabel('Ulasan (opsional)')
+                .fill('Dokter menjelaskan dengan sabar.');
+
+            // Anonymity is the default, not a choice the patient has to make.
+            await expect(page.getByRole('checkbox', { name: /anonim/i })).toBeChecked();
+
+            // Back to the top first: a full-page capture paints the shell's fixed mobile
+            // nav at the current scroll offset, which would otherwise land over the form.
+            await page.evaluate(() => {
+                window.scrollTo(0, 0);
+            });
+
+            await simpanGambar(page, vp, 'ulasan-tulis');
+
+            await page.getByRole('button', { name: 'Kirim ulasan' }).click();
+
+            await expect(page.getByText('Ulasan berhasil dikirim.')).toBeVisible();
+
+            const body = state.kirimUlasanBody as Record<string, unknown> | null;
+
+            expect(body?.rating).toBe(5);
+            expect(body?.is_anonim).toBe(true);
+            expect(body?.isi).toBe('Dokter menjelaskan dengan sabar.');
+            expect(body?.rating_komunikasi).toBeUndefined();
+            expect(body?.rating_akurasi).toBeUndefined();
+
+            await simpanGambar(page, vp, 'ulasan-tulis-sukses');
+
+            await expectNoA11yViolations(page);
+        });
+
+        test('f04-ulasan-tulis-422', async ({ page }) => {
+            await masukPalsu(page);
+
+            await pasangMock(page, {
+                konsultasi: { ...KONSULTASI_SELESAI },
+                kirimUlasanStatus: 422,
+            });
+
+            await page.goto('/konsultasi/11/ulasan');
+
+            await expect(
+                page.getByRole('heading', { name: 'Tulis ulasan' }),
+            ).toBeVisible({ timeout: 15_000 });
+
+            await page
+                .locator('[data-slot="pilih-bintang-rating"]')
+                .getByText('4 bintang', { exact: true })
+                .click();
+
+            await page.getByRole('button', { name: 'Kirim ulasan' }).click();
+
+            await expect(
+                page.getByText('Konsultasi ini sudah memiliki ulasan.'),
+            ).toBeVisible();
+
+            // The form stays so the refusal is attached to it, and success did not render.
+            await expect(
+                page.getByRole('button', { name: 'Kirim ulasan' }),
+            ).toBeVisible();
+            await expect(page.getByText('Ulasan berhasil dikirim.')).toHaveCount(0);
+
+            await expectNoA11yViolations(page);
         });
     });
 }

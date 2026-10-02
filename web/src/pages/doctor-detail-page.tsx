@@ -4,7 +4,7 @@ import { ArrowLeft, Video } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { dokterDetailOptions } from '@/lib/api/dokter';
 import { ApiError } from '@/lib/http';
-import { formatDecimal, formatWaktu } from '@/lib/format';
+import { formatWaktu } from '@/lib/format';
 import { useDocumentTitle } from '@/hooks/use-document-title';
 import { useOnlineStatus } from '@/hooks/use-online-status';
 import { PageHeader } from '@/components/layout/page-header';
@@ -17,6 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CredentialPanel } from '@/features/dokter-profil/credential-panel';
 import { DoctorProfileHero } from '@/features/dokter-profil/doctor-profile-hero';
+import { ReviewsBlock } from '@/features/dokter-profil/reviews-block';
 import { SchedulePreview } from '@/features/dokter-profil/schedule-preview';
 
 /**
@@ -34,15 +35,17 @@ import { SchedulePreview } from '@/features/dokter-profil/schedule-preview';
  * | hero with `Pesan jadwal` -> `/booking/{id}` | `DokterDetailResource` |
  * | `Jadwal terdekat` + `Lihat jadwal lengkap` | `GET /dokter/{id}/jadwal` + `/slot` |
  * | `Kredensial & verifikasi` (collapsed) | `DokterDetailResource` |
+ * | `Ulasan pasien` (AC-4/5/6/9) | `GET /dokter/{id}/ulasan` |
  *
- * ## The reviews block is deliberately absent
+ * ## The reviews block reads the endpoint, and the stored aggregates are gone from here
  *
- * F04's review acceptance criteria (AC-4/5/6/9) are `[TERBLOKIR backend]`: no `/ulasan`
- * route exists, and `dokter.rating_rata_rata`/`jumlah_ulasan` are stored aggregates that
- * are never recomputed from `ulasan_dokter` (F04 blocker #5). So this page requests no
- * review endpoint, renders no distribution, no sub-ratings and no review list. The two
- * server scalars are kept only as plain numbers in `Informasi lain` - exactly what the API
- * published, with no stars and no summary sentence that would imply a review UI exists.
+ * The backend added `/dokter/{id}/ulasan` after this page was first built, so the page
+ * now renders {@link ReviewsBlock}: summary (only at `total >= 5`), distribution,
+ * sub-ratings, the list and the policy sentence - all from the one response. The old
+ * `Informasi lain` cells that printed `dokter.rating_rata_rata` / `dokter.jumlah_ulasan`
+ * were removed at the same time: those columns have no writer (F04 blocker #5), so
+ * keeping them beside the real aggregate would be two sources for one number, and the
+ * second one would lie.
  *
  * ## The 404 is still the interesting state
  *
@@ -166,6 +169,8 @@ export function DoctorDetailPage() {
 
             <CredentialPanel dokter={dokter} />
 
+            <ReviewsBlock dokterId={String(dokter.id)} />
+
             <Card>
                 <CardHeader>
                     <CardTitle className="text-base">Tentang dokter</CardTitle>
@@ -199,27 +204,11 @@ export function DoctorDetailPage() {
                     ) : null}
 
                     {/**
-                     * The aggregates are shown as the server's own scalars - no stars, no
-                     * "dari 5", no distribution - because the review endpoint that would
-                     * make a summary honest does not exist yet (F04 §12 #2). Labelling
-                     * them plainly keeps the numbers from being read as a verified
-                     * review summary.
+                     * One cell now. The rating and review count moved to the reviews
+                     * block, which reads them from `/ulasan` - the only source that is
+                     * recomputed from `ulasan_dokter`.
                      */}
                     <dl className="grid gap-4 sm:grid-cols-3">
-                        <Cell
-                            label="Rating"
-                            value={formatDecimal(dokter.rating_rata_rata, 2)}
-                        />
-
-                        <Cell
-                            label="Jumlah ulasan"
-                            value={
-                                dokter.jumlah_ulasan === null
-                                    ? '-'
-                                    : String(dokter.jumlah_ulasan)
-                            }
-                        />
-
                         <Cell label="Terdaftar" value={formatWaktu(dokter.dibuat_at)} />
                     </dl>
                 </CardContent>

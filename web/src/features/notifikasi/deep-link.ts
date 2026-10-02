@@ -28,6 +28,12 @@ const POLA_BOOKING = /^\/api\/v1\/booking\/([0-9]+)$/;
 const POLA_INVOICE = /^\/api\/v1\/invoice\/([0-9]+)$/;
 const POLA_RESEP = /^\/api\/v1\/resep\/([0-9]+)$/;
 const POLA_KONSULTASI = /^\/api\/v1\/konsultasi\/([0-9]+)\/chat$/;
+/**
+ * F04's review invitation, `NotificationService::ulasanDiminta()`'s `tautan`. The SPA
+ * destination is the write surface at `/konsultasi/:id/ulasan`, not the consultation
+ * itself: the whole point of the notification is that one tap starts the review.
+ */
+const POLA_ULASAN = /^\/api\/v1\/konsultasi\/([0-9]+)\/ulasan$/;
 
 /**
  * The two booking producers reach different audiences: a patient's own booking lives at
@@ -70,6 +76,12 @@ export function ruteDariTautan(
 
     if (konsultasi !== null) {
         return `/konsultasi/${konsultasi[1]}`;
+    }
+
+    const ulasan = POLA_ULASAN.exec(tautan);
+
+    if (ulasan !== null) {
+        return `/konsultasi/${ulasan[1]}/ulasan`;
     }
 
     return null;
