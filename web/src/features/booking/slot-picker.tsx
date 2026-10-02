@@ -65,7 +65,15 @@ export function SlotPicker({
     dokterId: string;
     tanggal: TanggalSlot | null;
     selected: string | null;
-    onSelect: (jamMulai: string) => void;
+    /**
+     * The chosen start time as `H:i:s`, plus the whole published row it came from.
+     *
+     * The string is what `POST /booking` validates; the row carries the `jadwal_id` and
+     * `jam_selesai` a reschedule must name (`PUT /booking/{id}/jadwal-ulang`), which no
+     * client-side recomputation could produce. Callers that only need the time can keep a
+     * one-argument handler.
+     */
+    onSelect: (jamMulai: string, slot: Slot) => void;
     className?: string;
 }) {
     const query = useQuery({
@@ -159,7 +167,7 @@ function SlotGrid({
     slots: Slot[];
     tanggal: TanggalSlot;
     selected: string | null;
-    onSelect: (jamMulai: string) => void;
+    onSelect: (jamMulai: string, slot: Slot) => void;
 }) {
     /**
      * A `div` with `role="listbox"` and `role="option"` buttons as direct children.
@@ -199,7 +207,7 @@ function SlotButton({
     slot: Slot;
     tanggal: TanggalSlot;
     selected: boolean;
-    onSelect: (jamMulai: string) => void;
+    onSelect: (jamMulai: string, slot: Slot) => void;
 }) {
     const alasan = slot.alasan === null ? null : labelAlasanSlot(slot.alasan);
 
@@ -223,7 +231,7 @@ function SlotButton({
             aria-selected={selected}
             disabled={!slot.tersedia}
             onClick={() => {
-                onSelect(slot.jam_mulai);
+                onSelect(slot.jam_mulai, slot);
             }}
             className={[
                 'focus-visible:ring-ring flex min-h-11 w-full flex-col gap-1 rounded-md border px-3 py-2 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none',

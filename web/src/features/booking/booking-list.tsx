@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import {
     AlertCircle,
     Ban,
@@ -7,20 +7,27 @@ import {
     CalendarClock,
     Check,
     CheckCircle2,
+    Wallet,
     WifiOff,
     XCircle,
 } from 'lucide-react';
 import {
     batalkanBookingMutation,
     bisaDibatalkan,
+    bisaDijadwalkanUlang,
+    kebijakanBookingOptions,
     labelStatusBooking,
     labelTipeLayanan,
     STATUS_BOOKING,
 } from '@/lib/api/booking';
+import type { KebijakanPembatalan } from '@/lib/api/booking';
+import type { Refund } from '@/lib/api/refund';
 import { BookingStatusBadge, BookingStatusNote } from '@/features/booking/booking-status-badge';
+import { RefundCard } from '@/features/booking/refund-card';
+import { RescheduleDialog } from '@/features/booking/reschedule-dialog';
 import { describeRange, isEmptyPage, isPastLastPage } from '@/lib/api/pagination';
 import { ApiError } from '@/lib/http';
-import { formatTanggal, formatWaktu } from '@/lib/format';
+import { formatTanggal, formatRupiah, formatWaktu } from '@/lib/format';
 import { formatJamZona, formatRentangJamZona } from '@/lib/waktu';
 import type { Booking, StatusBooking } from '@/lib/api/types';
 import { useOnlineStatus } from '@/hooks/use-online-status';
@@ -76,14 +83,19 @@ import {
  * assigned. `nomor_booking` is the identifier a patient can actually quote, and it is
  * published by `NomorDokumen`; that is the one shown.
  *
- * ## F12: the cancellation surface, without the blocked backend parts
+ * ## F12: the full cancellation, reschedule and refund surface
  *
  * The dialog below implements the pattern's `[SIAP]` slice: an explicit reason vocabulary
  * over the single `alasan_pembatalan` column, the three consequence lines, a visible
  * "Batal", a `destructive` confirm, one in-flight latch, an inline success card and an
- * inline 422. The policy block, the refund card and the reschedule form are
- * `[TERBLOKIR backend]` and are deliberately absent: no numbers are invented, no second
- * request is sent and the reschedule control is rendered disabled with its reason.
+ * inline 422. It now also renders the **server's** policy (`GET /booking/{id}/kebijakan`)
+ * and keeps the confirm disabled until that policy is on screen, so no cancellation can
+ * be confirmed without its consequence visible (AC-9 / AC-R1).
+ *
+ * The row's "Jadwal ulang" opens the same-row reschedule dialog (AC-R2/AC-R3), and a
+ * cancelled row renders the refund the backend wrote, matched by `booking_id` (AC-R4..R6).
+ * Nothing here computes a fee, an SLA, a refund amount or a completion date: every one of
+ * those is either rendered from the server or absent.
  */
 
 /**
@@ -109,6 +121,20 @@ type AlasanCepat = (typeof ALASAN_CEPAT)[number];
 const HINT_PRIVASI =
     'Jangan tuliskan detail kondisi medis atau keluhan — cukup alasan umum.';
 
+/**
+ * The patient's refund rows plus the query's own three states, passed down from the page
+ * that owns the `GET /pasien/refund` read.
+ *
+ * The list is shared with the doctor-side screen, and `GET /pasien/refund` is
+ * patient-scoped, so the doctor list passes nothing and renders no refund surface at all.
+ */
+export type RefundState = {
+    byBookingId: Map<number, Refund>;
+    loading: boolean;
+    error: unknown;
+    onRetry: () => void;
+};
+
 export function BookingList({
     filters,
     onPageChange,
@@ -120,6 +146,7 @@ export function BookingList({
     meta,
     rows,
     doctorName,
+    refundState,
     denganBannerOffline = false,
     onRetry,
     headerTitle,
@@ -139,6 +166,8 @@ export function BookingList({
     rows: Booking[];
     /** Doctor list only: a `dokter_id -> name` map, since the resource has no `dokter` key. */
     doctorName?: (booking: Booking) => string;
+    /** Patient list only. See {@link RefundState}. */
+    refundState?: RefundState;
     /**
      * Whether this list renders the shared offline banner itself.
      *
@@ -159,6 +188,23 @@ export function BookingList({
     const [catatanAlasan, setCatatanAlasan] = useState('');
     const [cancelError, setCancelError] = useState<unknown>(null);
     const [suksesBatal, setSuksesBatal] = useState(false);
+    const [menjadwalkan, setMenjadwalkan] = useState<Booking | null>(null);
+    const [dialogJadwalTerbuka, setDialogJadwalTerbuka] = useState(false);
+    const [suksesJadwal, setSuksesJadwal] = useState<{
+        lama: Booking;
+        baru: Booking;
+    } | null>(null);
+
+    /**
+     * The policy read is keyed by the booking whose dialog is open and is fetched lazily:
+     * id `0` disables it, so nothing is requested until a patient opens a cancel dialog.
+     * The confirm button is gated on this query's state rather than on a client-side
+     * computation - see {@link KebijakanBlok}.
+     */
+    const kebijakan = useQuery(kebijakanBookingOptions(membatalkan?.id ?? 0));
+
+    const kebijakanData = kebijakan.data?.data.kebijakan;
+    const kebijakanSiap = kebijakanData !== undefined;
 
     /**
      * The synchronous double-submit latch.
@@ -213,7 +259,12 @@ export function BookingList({
     }
 
     function konfirmasiBatal(): void {
-        if (membatalkan === null || !online || mengirimRef.current) {
+        if (
+            membatalkan === null ||
+            !online ||
+            !kebijakanSiap ||
+            mengirimRef.current
+        ) {
             return;
         }
 
@@ -323,6 +374,48 @@ export function BookingList({
                 </div>
             ) : null}
 
+            {suksesJadwal === null ? null : (
+                <div
+                    role="status"
+                    aria-live="polite"
+                    data-slot="reschedule-success"
+                    className="border-success/40 bg-success/10 flex items-start gap-2 rounded-lg border p-3"
+                >
+                    <CheckCircle2
+                        aria-hidden
+                        className="text-success mt-0.5 size-4 shrink-0"
+                    />
+
+                    <div className="flex flex-col gap-0.5 text-sm">
+                        <p className="font-medium">
+                            Jadwal berhasil dipindahkan.
+                        </p>
+
+                        <p>
+                            Jadwal lama{' '}
+                            {formatTanggal(
+                                suksesJadwal.lama.tanggal_kunjungan,
+                            )}{' '}
+                            pukul{' '}
+                            {formatJamZona(
+                                suksesJadwal.lama.slot_mulai,
+                                suksesJadwal.lama.tanggal_kunjungan ?? '',
+                            )}{' '}
+                            menjadi{' '}
+                            {formatTanggal(
+                                suksesJadwal.baru.tanggal_kunjungan,
+                            )}{' '}
+                            pukul{' '}
+                            {formatJamZona(
+                                suksesJadwal.baru.slot_mulai,
+                                suksesJadwal.baru.tanggal_kunjungan ?? '',
+                            )}
+                            .
+                        </p>
+                    </div>
+                </div>
+            )}
+
             {loading ? (
                 <SkeletonRows rows={4} />
             ) : error !== null ? (
@@ -376,14 +469,30 @@ export function BookingList({
                                     row={row}
                                     namaDokter={doctorName?.(row)}
                                     canCancel={bisaDibatalkan(row.status)}
+                                    canReschedule={bisaDijadwalkanUlang(
+                                        row.status,
+                                    )}
                                     deleting={batalkan.isPending}
                                     online={online}
+                                    refund={refundState?.byBookingId.get(
+                                        row.id,
+                                    )}
+                                    refundState={refundState}
                                     onCancel={() => {
                                         if (!online) {
                                             return;
                                         }
 
                                         bukaDialog(row);
+                                    }}
+                                    onReschedule={() => {
+                                        if (!online) {
+                                            return;
+                                        }
+
+                                        setSuksesJadwal(null);
+                                        setMenjadwalkan(row);
+                                        setDialogJadwalTerbuka(true);
                                     }}
                                 />
                             </li>
@@ -473,6 +582,46 @@ export function BookingList({
                                     koneksi internet.
                                 </p>
                             )}
+
+                            <div data-slot="cancel-policy">
+                                {kebijakan.isPending ? (
+                                    <div data-slot="cancel-policy-skeleton">
+                                        <SkeletonRows rows={2} />
+                                    </div>
+                                ) : kebijakanData === undefined ? (
+                                    <Alert
+                                        variant="destructive"
+                                        data-slot="cancel-policy-error"
+                                    >
+                                        <AlertCircle />
+
+                                        <AlertTitle className="text-foreground">
+                                            Kebijakan pembatalan tidak dapat
+                                            dimuat
+                                        </AlertTitle>
+
+                                        <AlertDescription>
+                                            <p>
+                                                Rincian kebijakan belum dapat
+                                                dimuat. Coba lagi.
+                                            </p>
+
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                className="mt-2 min-h-11"
+                                                onClick={() => {
+                                                    void kebijakan.refetch();
+                                                }}
+                                            >
+                                                Coba lagi
+                                            </Button>
+                                        </AlertDescription>
+                                    </Alert>
+                                ) : (
+                                    <KebijakanBlok kebijakan={kebijakanData} />
+                                )}
+                            </div>
 
                             <Separator />
 
@@ -571,8 +720,12 @@ export function BookingList({
                                     variant="destructive"
                                     className="min-h-11"
                                     data-slot="confirm-cancel"
+                                    disabled={!kebijakanSiap}
                                     aria-disabled={
-                                        !online || batalkan.isPending || undefined
+                                        !online ||
+                                        batalkan.isPending ||
+                                        !kebijakanSiap ||
+                                        undefined
                                     }
                                     onClick={konfirmasiBatal}
                                 >
@@ -589,6 +742,23 @@ export function BookingList({
                     )}
                 </DialogContent>
             </Dialog>
+
+            <RescheduleDialog
+                booking={menjadwalkan}
+                namaDokter={
+                    menjadwalkan === null
+                        ? ''
+                        : (doctorName?.(menjadwalkan) ??
+                          `Dokter #${String(menjadwalkan.dokter_id)}`)
+                }
+                open={dialogJadwalTerbuka}
+                onOpenChange={setDialogJadwalTerbuka}
+                online={online}
+                onSuccess={(lama, baru) => {
+                    setSuksesJadwal({ lama, baru });
+                }}
+                onReload={onRetry}
+            />
         </>
     );
 }
@@ -656,20 +826,78 @@ function CancelErrorNotice({
     );
 }
 
+/**
+ * The server's cancellation policy, rendered as natural language.
+ *
+ * The client decides two things only: which sentence the server's own `tujuan` calls for,
+ * and how to format its money. `gratis`, `biaya`, `jumlah_refund`, `tujuan` and `sla` all
+ * come off the wire, so a future policy change reaches the dialog without a client release.
+ * `sla` is `null` today; when it is not, it is a server string and is rendered verbatim
+ * rather than converted into a date this client would have to compute.
+ */
+function KebijakanBlok({ kebijakan }: { kebijakan: KebijakanPembatalan }) {
+    return (
+        <div
+            data-slot="cancel-policy-detail"
+            className="bg-muted/40 flex flex-col gap-1 rounded-lg border p-3 text-sm"
+        >
+            <p>
+                {kebijakan.gratis ? (
+                    <>
+                        Pembatalan ini <strong>gratis</strong>.
+                    </>
+                ) : (
+                    <>
+                        Pembatalan ini dikenakan biaya{' '}
+                        <strong className="tabular-nums">
+                            {formatRupiah(kebijakan.biaya)}
+                        </strong>
+                        .
+                    </>
+                )}
+            </p>
+
+            {kebijakan.tujuan === null ? (
+                <p>Tidak ada dana yang perlu dikembalikan.</p>
+            ) : (
+                <p>
+                    Dana yang kembali{' '}
+                    <strong className="tabular-nums">
+                        {formatRupiah(kebijakan.jumlah_refund)}
+                    </strong>{' '}
+                    ke <strong>{kebijakan.tujuan.label}</strong>.
+                </p>
+            )}
+
+            {kebijakan.sla === null ? null : (
+                <p>Dana dikembalikan dalam {kebijakan.sla}.</p>
+            )}
+        </div>
+    );
+}
+
 function BookingRow({
     row,
     namaDokter,
     canCancel,
+    canReschedule,
     deleting,
     online,
+    refund,
+    refundState,
     onCancel,
+    onReschedule,
 }: {
     row: Booking;
     namaDokter: string | undefined;
     canCancel: boolean;
+    canReschedule: boolean;
     deleting: boolean;
     online: boolean;
+    refund: Refund | undefined;
+    refundState: RefundState | undefined;
     onCancel: () => void;
+    onReschedule: () => void;
 }) {
     return (
         <Card>
@@ -774,18 +1002,26 @@ function BookingRow({
                  */}
                 {canCancel ? (
                     <div className="flex flex-wrap items-center gap-2">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            className="min-h-11"
-                            data-slot="reschedule-booking"
-                            aria-disabled="true"
-                            disabled
-                        >
-                            <CalendarClock />
+                        {canReschedule ? (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="min-h-11"
+                                data-slot="reschedule-booking"
+                                aria-disabled={!online || undefined}
+                                onClick={() => {
+                                    if (!online) {
+                                        return;
+                                    }
 
-                            Jadwal ulang
-                        </Button>
+                                    onReschedule();
+                                }}
+                            >
+                                <CalendarClock />
+
+                                Jadwal ulang
+                            </Button>
+                        ) : null}
 
                         <Button
                             type="button"
@@ -800,21 +1036,61 @@ function BookingRow({
 
                             Batalkan
                         </Button>
-
-                        <p className="text-muted-foreground basis-full text-xs">
-                            Jadwal ulang belum tersedia.
-                        </p>
                     </div>
                 ) : (
-                    <p
-                        className="text-muted-foreground text-xs"
-                        data-slot="cancel-blocked-note"
-                    >
-                        {penjelasanTidakBisaDibatalkan(row.status)}
-                    </p>
+                    <div className="flex flex-col items-start gap-2">
+                        <p
+                            className="text-muted-foreground text-xs"
+                            data-slot="cancel-blocked-note"
+                        >
+                            {penjelasanTidakBisaDibatalkan(row.status)}
+                        </p>
+
+                        {refund === undefined ? null : (
+                            <RefundLink bookingId={row.id} />
+                        )}
+                    </div>
                 )}
+
+                {refund !== undefined ? (
+                    <RefundCard refund={refund} />
+                ) : row.status === 'dibatalkan' && refundState !== undefined ? (
+                    refundState.loading ? (
+                        <div data-slot="refund-loading">
+                            <SkeletonRows rows={1} />
+                        </div>
+                    ) : refundState.error != null ? (
+                        <p
+                            data-slot="refund-unavailable"
+                            className="text-muted-foreground text-xs"
+                        >
+                            Status pengembalian dana belum tersedia.{' '}
+                            <button
+                                type="button"
+                                className="focus-visible:ring-ring rounded-md underline underline-offset-4 focus-visible:ring-2 focus-visible:outline-none"
+                                onClick={refundState.onRetry}
+                            >
+                                Coba lagi
+                            </button>
+                        </p>
+                    ) : null
+                ) : null}
             </CardContent>
         </Card>
+    );
+}
+
+function RefundLink({ bookingId }: { bookingId: number }) {
+    return (
+        <a
+            href={`#refund-${String(bookingId)}`}
+            data-slot="refund-link"
+            className="focus-visible:ring-ring inline-flex min-h-11 items-center gap-1.5 rounded-md text-sm font-medium underline underline-offset-4 focus-visible:ring-2 focus-visible:outline-none"
+        >
+            <Wallet aria-hidden className="size-4" />
+
+            Lihat pengembalian dana
+        </a>
     );
 }
 

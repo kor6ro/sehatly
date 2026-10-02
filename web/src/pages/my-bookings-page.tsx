@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { BookingList } from '@/features/booking/booking-list';
 import { bookingPasienOptions } from '@/lib/api/booking';
+import { refundPasienOptions } from '@/lib/api/refund';
+import type { Refund } from '@/lib/api/refund';
 import { dokterDetailOptions } from '@/lib/api/dokter';
 import { useDocumentTitle } from '@/hooks/use-document-title';
 import type { Booking, StatusBooking } from '@/lib/api/types';
@@ -43,6 +45,22 @@ export function MyBookingsPage() {
         }),
     );
 
+    /**
+     * The patient's refund rows, matched onto booking rows by `booking_id`.
+     *
+     * The list read and the refund read are independent, so a failing refund read must not
+     * take the booking list down with it: the page passes the refund query's own three
+     * states down and the list renders the card, a skeleton, or an honest "unavailable"
+     * note per cancelled row.
+     */
+    const refund = useQuery(refundPasienOptions());
+
+    const refundPerBooking = new Map<number, Refund>();
+
+    for (const row of refund.data ?? []) {
+        refundPerBooking.set(row.booking_id, row);
+    }
+
     const rows = list.data?.data.booking ?? [];
     const dokterIds = [...new Set(rows.map((row) => row.dokter_id))];
 
@@ -81,6 +99,14 @@ export function MyBookingsPage() {
                 namaPerDokter.get(booking.dokter_id) ??
                 `Dokter #${String(booking.dokter_id)}`
             }
+            refundState={{
+                byBookingId: refundPerBooking,
+                loading: refund.isPending,
+                error: refund.isError ? refund.error : null,
+                onRetry: () => {
+                    void refund.refetch();
+                },
+            }}
             denganBannerOffline
             onRetry={() => {
                 void list.refetch();

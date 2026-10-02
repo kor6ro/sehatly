@@ -42,6 +42,12 @@ import { Badge } from '@/components/ui/badge';
 type Treatment = {
     icon: LucideIcon;
     className: string;
+    /**
+     * Optional icon colour when the badge label must stay `text-foreground` for contrast.
+     * The label is normal-size text and is held to 4.5:1; the icon is a graphic and is
+     * held to 3:1, so it can carry the hue on its own.
+     */
+    iconClassName?: string;
 };
 
 const TREATMENT: Record<StatusBooking, Treatment> = {
@@ -71,7 +77,8 @@ const TREATMENT: Record<StatusBooking, Treatment> = {
     },
     dibatalkan: {
         icon: Ban,
-        className: 'text-destructive border-destructive',
+        className: 'text-foreground border-destructive',
+        iconClassName: 'text-destructive',
     },
     no_show: {
         icon: UserX,
@@ -100,7 +107,7 @@ export function BookingStatusBadge({
             className={cn('gap-1', treatment.className, className)}
             data-status={status}
         >
-            <Icon aria-hidden />
+            <Icon aria-hidden className={treatment.iconClassName} />
 
             {labelStatusBooking(status)}
         </Badge>

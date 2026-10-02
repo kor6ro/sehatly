@@ -183,6 +183,26 @@ export function bisaDibatalkan(status: StatusBooking): boolean {
     return STATUS_BISA_DIBATALKAN.includes(status);
 }
 
+/**
+ * `BookingRequest::STATUS_BISA_DIJADWAL_ULANG`, verbatim: the two a reschedule accepts.
+ *
+ * The set is deliberately the same pair {@link STATUS_BISA_DIBATALKAN} draws, and it is
+ * still spelled as its own constant because the two server constants are separate names
+ * that may diverge: `BookingService::jadwalUlang()` checks this one and raises
+ * `{"errors":{"status":["Booking dengan status tersebut tidak dapat dijadwalkan ulang."]}}`
+ * (measured) for anything else. Reading the server's own list rather than reusing the
+ * cancel list is what keeps a future backend change from silently widening a button.
+ */
+export const STATUS_BISA_DIJADWAL_ULANG: ReadonlyArray<StatusBooking> = [
+    'menunggu_pembayaran',
+    'terjadwal',
+];
+
+/** Whether the UI may offer a reschedule for this status. Mirrors the server constant. */
+export function bisaDijadwalkanUlang(status: StatusBooking): boolean {
+    return STATUS_BISA_DIJADWAL_ULANG.includes(status);
+}
+
 // ============================================================================
 // The request body
 // ============================================================================
@@ -231,6 +251,56 @@ export type CreateBookingInput = {
 /** `PUT /api/v1/booking/{id}/batalkan`. The reason is the only input and it is optional. */
 export type BatalkanBookingInput = {
     alasan_pembatalan?: string | null;
+};
+
+/**
+ * `PUT /api/v1/booking/{id}/jadwal-ulang`, which is `RescheduleBookingRequest::rules()`.
+ *
+ * `slot_selesai` is optional on the wire and **checked** rather than trusted: the server
+ * derives the end from the published slot and answers 422 on `slot_selesai` when the two
+ * disagree (`RescheduleBookingRequest`'s own docblock). The client holds the published end
+ * from the slot it selected, so it sends it - omitting it would be throwing away a value
+ * that makes the server's check a no-op instead of a confirmation.
+ */
+export type JadwalUlangInput = {
+    jadwal_id: number;
+    /** `Y-m-d`. A reschedule may change the date, so this is required. */
+    tanggal_kunjungan: string;
+    /** `H:i:s`, Asia/Jakarta wall clock, unconverted. */
+    slot_mulai: string;
+    /** `H:i:s`, only sent when the client already holds the published end. */
+    slot_selesai?: string;
+};
+
+/**
+ * The destination a refund would return through, as `RefundService::tujuan()` publishes it.
+ * `label` is the method's human name and carries no account number.
+ */
+export type TujuanRefund = {
+    metode_id: number;
+    label: string;
+    tipe: string;
+};
+
+/**
+ * `GET /api/v1/booking/{id}/kebijakan`'s `data.kebijakan`, transcribed from
+ * `RefundService::kebijakan()`.
+ *
+ * Every number here is **server-computed** and must be rendered, never re-derived: the
+ * owner's decision is that cancellation is free at any time with a full refund, and the
+ * endpoint is the only place that decision is expressed. `sla` is `null` today because no
+ * promised turnaround exists, so the UI shows the refund's own status and never a date.
+ */
+export type KebijakanPembatalan = {
+    gratis: boolean;
+    /** A `DECIMAL` string, `"0.00"` today. */
+    biaya: string;
+    /** The captured amount, or `"0.00"` when nothing was paid. */
+    jumlah_refund: string;
+    /** `null` means there is nothing to return. */
+    tujuan: TujuanRefund | null;
+    /** `null` until an SLA is decided; never guessed client-side. */
+    sla: string | null;
 };
 
 /**
@@ -298,6 +368,23 @@ export async function batalkanBooking(
     });
 }
 
+/** `GET /api/v1/booking/{id}/kebijakan` - the server-computed cancellation policy, always gratis today. */
+export async function fetchKebijakanBooking(id: number) {
+    return request<{ kebijakan: KebijakanPembatalan }>(
+        `booking/${id}/kebijakan`,
+        { retry: 0 },
+    );
+}
+
+/** `PUT /api/v1/booking/{id}/jadwal-ulang` - move the same row to a published slot. */
+export async function jadwalUlangBooking(id: number, input: JadwalUlangInput) {
+    return request<{ booking: Booking }>(`booking/${id}/jadwal-ulang`, {
+        method: 'PUT',
+        json: input,
+        retry: 0,
+    });
+}
+
 // ============================================================================
 // Cache keys and the invalidation graph
 // ============================================================================
@@ -307,6 +394,16 @@ export const bookingQueryKey = ['v1', 'booking'] as const;
 export const bookingPasienQueryKey = ['v1', 'booking', 'pasien'] as const;
 
 export const bookingDokterQueryKey = ['v1', 'booking', 'dokter'] as const;
+
+export const kebijakanBookingQueryKey = ['v1', 'booking', 'kebijakan'] as const;
+
+export function kebijakanBookingOptions(id: number) {
+    return queryOptions({
+        queryKey: [...kebijakanBookingQueryKey, id],
+        queryFn: () => fetchKebijakanBooking(id),
+        enabled: id > 0,
+    });
+}
 
 export function bookingPasienOptions(filters: BookingPasienFilters) {
     return queryOptions({
@@ -357,6 +454,29 @@ export function batalkanBookingMutation() {
     return mutationOptions({
         mutationFn: ({ id, input }: { id: number; input?: BatalkanBookingInput }) =>
             batalkanBooking(id, input ?? {}),
+        onSuccess: (result) => {
+            void queryClient.invalidateQueries({
+                queryKey: bookingQueryKey,
+            });
+
+            void queryClient.invalidateQueries({
+                queryKey: [...slotQueryKey, result.data.booking.dokter_id],
+            });
+        },
+    });
+}
+
+/**
+ * A reschedule invalidates the same three prefixes as a cancel.
+ *
+ * The old slot is released and the new one is consumed in one atomic server move, so both
+ * windows are stale after it, and the booking lists must be re-read rather than patched:
+ * the response is the new row, but the list is the server's answer about the whole page.
+ */
+export function jadwalUlangBookingMutation() {
+    return mutationOptions({
+        mutationFn: ({ id, input }: { id: number; input: JadwalUlangInput }) =>
+            jadwalUlangBooking(id, input),
         onSuccess: (result) => {
             void queryClient.invalidateQueries({
                 queryKey: bookingQueryKey,
