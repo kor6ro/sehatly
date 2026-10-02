@@ -241,14 +241,24 @@ Route::middleware('auth:sanctum')->group(function (): void {
 
     /*
     | Bookings. `POST` creates through `BookingService` (the `dokter` row lock
-    | is the whole double-booking story), `PUT .../batalkan` cancels, and
-    | `GET dokter/booking` is the doctor-side list.
+    | is the whole double-booking story), `PUT .../batalkan` cancels,
+    | `GET .../kebijakan` publishes the cancellation policy, and
+    | `PUT .../jadwal-ulang` moves the SAME row to a new published slot (F12).
     |
     | `dokter/booking` is a literal segment registered BEFORE the public
     | `dokter/{dokter}` wildcard below, so the literal is never swallowed by
     | it. It also carries `tipe:dokter`: "which account type is this" is
     | exactly the question that list asks, and a patient account is refused
     | before the controller runs.
+    |
+    | The F12 pair reuses existing codes on purpose. `booking.lihat` already
+    | means "read a booking you are a party to", and the policy is a read; no
+    | code in `RbacCatalog::PERMISSIONS` names schedule movement, and
+    | `booking.batal` is the only modification code held by exactly the two
+    | parties who may cancel - which is the audience a reschedule has. Adding
+    | a 25th code would be a catalogue policy change for one route; that
+    | option, and the reason it was not taken, is recorded in
+    | `web/ux/patterns/F12.md` section 12.
     */
     Route::post('booking', [BookingController::class, 'store'])
         ->middleware(['permission:booking.buat', 'throttle:booking'])
@@ -258,6 +268,16 @@ Route::middleware('auth:sanctum')->group(function (): void {
         ->whereNumber('id')
         ->middleware('permission:booking.batal')
         ->name('booking.batalkan');
+
+    Route::get('booking/{id}/kebijakan', [BookingController::class, 'kebijakan'])
+        ->whereNumber('id')
+        ->middleware('permission:booking.lihat')
+        ->name('booking.kebijakan');
+
+    Route::put('booking/{id}/jadwal-ulang', [BookingController::class, 'jadwalUlang'])
+        ->whereNumber('id')
+        ->middleware('permission:booking.batal')
+        ->name('booking.jadwal-ulang');
 
     Route::get('dokter/booking', [BookingController::class, 'indexDokter'])
         ->middleware(['permission:booking.lihat', 'tipe:dokter'])
@@ -1331,6 +1351,29 @@ Route::get('invoice/{id}', [PembayaranController::class, 'show'])
     ->whereNumber('id')
     ->middleware(['auth:sanctum', 'permission:pembayaran.bayar'])
     ->name('invoice.show');
+
+/*
+ | F12's refund read, the patient's own list, registered beside the payment
+ | routes rather than inside the earlier `pasien` prefix group because the
+ | controller is `PembayaranController` and the route is a payment read. The
+ | path prefix still names the CALLER, which is the convention
+ | `GET /pasien/resep` and `GET /pasien/surat-keterangan` follow - a `pasien`
+ | path served by the resource's controller.
+ |
+ | `whereNumber` is absent because there is no path parameter: the tenant is
+ | the authenticated account, resolved by `PasienRecordAccess::ownPasien()`,
+ | so there is no id for a caller to guess and nothing to constrain.
+ |
+ | `pembayaran.bayar` is reused as the gate for the same reason
+ | `GET /invoice/{id}` reuses it: the catalogue holds no `pembayaran.lihat`,
+ | and `EnsurePermission` answers an unknown code with a 500 rather than a
+ | 403, so a new code here would deny every caller until the catalogue moved
+ | with it. It refuses `dokter`, `apoteker` and `admin` and admits exactly the
+ | account type that can own a refund.
+ */
+Route::get('pasien/refund', [PembayaranController::class, 'refundIndex'])
+    ->middleware(['auth:sanctum', 'permission:pembayaran.bayar'])
+    ->name('pasien.refund.index');
 
 /*
 | The webhook is registered OUTSIDE every middleware group on purpose.

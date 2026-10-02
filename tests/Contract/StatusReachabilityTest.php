@@ -121,9 +121,9 @@ it('binds every published 401 and 403 to the same error envelope', function (): 
     }
 });
 
-it('publishes a 404 for all 80 operations, bound to the error envelope', function (): void {
+it('publishes a 404 for all 83 operations, bound to the error envelope', function (): void {
     // Structural, not reachability. The claim is that no operation advertises a
-    // 404 the error envelope cannot describe, and that the count is 80 -- so a
+    // 404 the error envelope cannot describe, and that the count is 83 -- so a
     // route appearing or disappearing moves this number rather than passing
     // quietly.
     $count = 0;
@@ -136,14 +136,14 @@ it('publishes a 404 for all 80 operations, bound to the error envelope', functio
         $count++;
     }
 
-    expect($count)->toBe(80);
+    expect($count)->toBe(83);
 });
 
 it('publishes 401 and 403 together, or neither, on every bearer operation', function (): void {
     // Both statuses come from `auth:sanctum` and the RBAC middleware, and both are
     // reachable on every bearer route. Publishing one without the other would tell
     // the mobile team to handle a status it can never see, or to miss one it can.
-    // The 401 half is proven live for all 55 in `SanctumAuthConformanceTest`; the
+    // The 401 half is proven live for all 58 in `SanctumAuthConformanceTest`; the
     // 403 half needs a role-bearing token and is documented as uncovered.
     $count = 0;
 
@@ -158,7 +158,7 @@ it('publishes 401 and 403 together, or neither, on every bearer operation', func
         $count++;
     }
 
-    expect($count)->toBe(55);
+    expect($count)->toBe(58);
 });
 
 it('publishes 429 only where a named rate limiter is registered', function (): void {
@@ -266,48 +266,53 @@ it('answers 404 with the error envelope when a public read is given an absent id
 
 /*
  |--------------------------------------------------------------------------
- | Finding 7: 27 operations publish a 422 with nothing describing what fails it
- |--------------------------------------------------------------------------
- |
- | Every one of these is a GET. A GET carries its input in the query string, and
- | the document publishes no `parameters` and no `requestBody` for any of them --
- | so the 422 is advertised with nothing saying what can trigger it. A generated
- | client cannot learn that `?page=` exists, and therefore cannot know what a 422
- | on this operation would be complaining about.
- |
- | F09's pharmacist queue is the second-newest member and the finding is unchanged
- | by its arrival: `GET /api/v1/resep` really does validate `status`/`page`/
- | `per_page` through `AntreanResepRequest` and really does answer 422 for a bad
- | one, and the document really does omit all three parameters. The count moved
- | 23 -> 24; the defect is the same one, on one more endpoint.
- |
- | F13's doctor list is the newest member and repeats it: `GET /api/v1/konsultasi`
- | validates `status`/`page`/`per_page` through `IndexKonsultasiRequest` and
- | answers a real 422, and the document publishes none of the three. The count
- | moved 24 -> 25; the defect is still the same one.
- |
- | F10's two medical-record reads move it once more, 25 -> 27: `GET /api/v1/rekam-medis`
- | validates `q`/`tanggal_dari`/`tanggal_sampai`/`page`/`per_page` through
- | `IndexRekamMedisRequest` and `GET /api/v1/rekam-medis/{id}/akses` validates
- | `page`/`per_page` through `IndexAksesRekamMedisRequest`, and the document
- | publishes none of either. The defect is the same one, on two more endpoints.
- |
- | WORSE, on the eight non-paginating, non-searchable reference endpoints the 422
- | is reachable only by sending a query parameter the endpoint explicitly
- | REFUSES. Proved live below: `?q=<anything>` answers 422 with
- * `Parameter "q" is not accepted by this endpoint. Accepted: (none).`, while
- * `?page=abc`, `?page=-1` and `?per_page=0` all answer 200.
- |
- | So the published 422 on those eight has exactly one reachable cause, and it is
- * a client mistake the document never warned about.
- |
- | THE DOCUMENT IS WRONG on both counts. `IndexReferensiRequest` validates
- * `page`/`per_page` properly for the PAGINATING endpoints -- `?page=abc` on
- * `/referensi/icd10` really does answer a correct 422 -- but none of it is
- * published, and for the non-paginating eight the rule set is unreachable in
- * every legitimate use.
- */
-it('finds_twenty_seven_gets_publishing_a_422_with_nothing_to_describe_what_fails_it', function (): void {
+  | Finding 7: 28 operations publish a 422 with nothing describing what fails it
+  |--------------------------------------------------------------------------
+  |
+  | Every one of these is a GET. A GET carries its input in the query string, and
+  | the document publishes no `parameters` and no `requestBody` for any of them --
+  | so the 422 is advertised with nothing saying what can trigger it. A generated
+  | client cannot learn that `?page=` exists, and therefore cannot know what a 422
+  | on this operation would be complaining about.
+  |
+  | F09's pharmacist queue is the second-newest member and the finding is unchanged
+  | by its arrival: `GET /api/v1/resep` really does validate `status`/`page`/
+  | `per_page` through `AntreanResepRequest` and really does answer 422 for a bad
+  | one, and the document really does omit all three parameters. The count moved
+  | 23 -> 24; the defect is the same one, on one more endpoint.
+  |
+  | F13's doctor list is the newest member and repeats it: `GET /api/v1/konsultasi`
+  | validates `status`/`page`/`per_page` through `IndexKonsultasiRequest` and
+  | answers a real 422, and the document publishes none of the three. The count
+  | moved 24 -> 25; the defect is still the same one.
+  |
+  | F10's two medical-record reads move it once more, 25 -> 27: `GET /api/v1/rekam-medis`
+  | validates `q`/`tanggal_dari`/`tanggal_sampai`/`page`/`per_page` through
+  | `IndexRekamMedisRequest` and `GET /api/v1/rekam-medis/{id}/akses` validates
+  | `page`/`per_page` through `IndexAksesRekamMedisRequest`, and the document
+  | publishes none of either. The defect is the same one, on two more endpoints.
+  |
+  | F12's patient refund list moves it 27 -> 28: `GET /api/v1/pasien/refund`
+  | validates `page`/`per_page` through `IndexRefundRequest` exactly as every
+  | other paginated list does, and the document publishes neither. The defect is
+  | the same one, on one more endpoint.
+  |
+  | WORSE, on the eight non-paginating, non-searchable reference endpoints the 422
+  | is reachable only by sending a query parameter the endpoint explicitly
+  | REFUSES. Proved live below: `?q=<anything>` answers 422 with
+  * `Parameter "q" is not accepted by this endpoint. Accepted: (none).`, while
+  * `?page=abc`, `?page=-1` and `?per_page=0` all answer 200.
+  |
+  | So the published 422 on those eight has exactly one reachable cause, and it is
+  * a client mistake the document never warned about.
+  |
+  | THE DOCUMENT IS WRONG on both counts. `IndexReferensiRequest` validates
+  * `page`/`per_page` properly for the PAGINATING endpoints -- `?page=abc` on
+  * `/referensi/icd10` really does answer a correct 422 -- but none of it is
+  * published, and for the non-paginating eight the rule set is unreachable in
+  * every legitimate use.
+  */
+it('finds_twenty_eight_gets_publishing_a_422_with_nothing_to_describe_what_fails_it', function (): void {
     $with422NoBody = [];
 
     foreach (ContractSpec::specOperations() as $key => $operation) {
@@ -318,7 +323,7 @@ it('finds_twenty_seven_gets_publishing_a_422_with_nothing_to_describe_what_fails
         $with422NoBody[] = $key;
     }
 
-    expect($with422NoBody)->toHaveCount(27);
+    expect($with422NoBody)->toHaveCount(28);
 
     // And not one of them publishes the query parameter its 422 is about.
     foreach ($with422NoBody as $key) {

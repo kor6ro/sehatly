@@ -8,6 +8,7 @@ use App\Enums\PembayaranGateway;
 use App\Enums\PembayaranStatus;
 use App\Models\Invoice;
 use App\Models\MasterMetodePembayaran;
+use App\Models\Pembayaran;
 use App\Support\Uang\Uang;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -92,6 +93,16 @@ final class MockPaymentGatewayService implements PaymentGatewayService
      * virtual account shows at a glance that it came from the mock.
      */
     public const PREFIX_REFERENSI = 'MOCK';
+
+    /**
+     * The prefix every minted REFUND reference carries.
+     *
+     * Separate from {@see PREFIX_REFERENSI} on purpose: a refund reference and
+     * a payment reference are different identifiers even for one payment, and a
+     * support ticket that says `REF-MOCK-...` names the reversal while
+     * `MOCK-...` names the capture.
+     */
+    public const PREFIX_REFUND = 'REF-';
 
     /**
      * The header the signature travels in.
@@ -184,6 +195,39 @@ final class MockPaymentGatewayService implements PaymentGatewayService
             'jumlah' => $jumlah,
             'instruksi' => $this->instruksi($metode, $toko),
             'toko' => $toko,
+        ];
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * ## The mock refunds DETERMINISTICALLY, and that is the specification
+     *
+     * There is no provider to ask and no API key to ask it with, so this
+     * implementation returns success for every call. That is not a stub that
+     * "happens to pass": it is the property the automatic-refund branch is
+     * tested against - an `e_wallet`/`qris`/`kartu_kredit` cancellation must
+     * reach `berhasil` through the gateway path, and a mock that sometimes
+     * failed would make that assertion flaky rather than meaningful. The
+     * failure branches are tested by substituting a gateway that returns
+     * `berhasil: false` or throws, which is why the caller reads the result
+     * rather than assuming it.
+     *
+     * The refund reference is `REF-` + the payment's own `nomor_referensi`, so
+     * two calls with the same payment produce the same string - deterministic
+     * in the strong sense, not merely "usually successful". `nomor_referensi`
+     * is NULLABLE in the schema (:963); a payment row this application mints
+     * always has one, and the `null` branch keeps the column's own contract
+     * rather than inventing a reference for a row that has none.
+     */
+    public function refund(Pembayaran $pembayaran): array
+    {
+        $referensi = $pembayaran->nomor_referensi;
+
+        return [
+            'berhasil' => true,
+            'referensi' => $referensi === null ? null : self::PREFIX_REFUND.(string) $referensi,
+            'pesan' => null,
         ];
     }
 

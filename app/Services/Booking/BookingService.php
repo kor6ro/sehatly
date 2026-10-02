@@ -13,6 +13,7 @@ use App\Models\Pasien;
 use App\Models\User;
 use App\Services\Notifikasi\NotificationService;
 use App\Services\Pasien\PasienRecordAccess;
+use App\Services\Payment\RefundService;
 use App\Support\Dokter\StrBerlaku;
 use App\Support\Dokumen\NomorDokumen;
 use App\Support\WaktuIndonesia;
@@ -69,6 +70,7 @@ class BookingService
         private readonly NomorDokumen $nomor,
         private readonly PasienRecordAccess $access,
         private readonly NotificationService $notifikasi,
+        private readonly RefundService $refund,
     ) {}
 
     /**
@@ -159,26 +161,34 @@ class BookingService
      * is a 404 that discloses nothing, while an account with neither row is a
      * 403 about the caller. Then the status guard: a booking that is already
      * over, or already ended as `dibatalkan` / `kadaluarsa`, is refused and
-     * left exactly as it was, and the linked invoice is cancelled with it.
+     * left exactly as it was.
+     *
+     * ## The money side is a LEDGER TRANSITION, not an invoice stamp
+     *
+     * This method used to set the linked invoice to `dibatalkan`
+     * unconditionally. For a PAID booking that produced exactly the state
+     * `database/migrations/2026_10_01_000064_refund_table.php:21-25` warns the
+     * ledger cannot explain: `pembayaran.status = 'berhasil'`, an invoice that
+     * says `dibatalkan`, and NO `refund` row - money in, no record of where it
+     * went. That was F12's P0 and it is gone. The transition is now
+     * {@see RefundService::catatPembatalan()}, called INSIDE this transaction
+     * so the booking, the invoice and the payment move together:
+     *
+     * - unpaid booking -> invoice `dibatalkan`, no refund row;
+     * - paid booking -> one `refund` row (full amount), `pembayaran.status =
+     *   'refund'`, invoice `refund_penuh`, with the row's first status decided
+     *   by the method's refund capability.
+     *
+     * The booking status guard is also what makes a double cancel idempotent:
+     * the second call is refused before any of this runs, and
+     * `RefundService`'s own non-`ditolak` guard is the second line of defence.
      *
      * @throws ValidationException
      */
     public function batalkan(User $pembuat, int $id, ?string $alasan): Booking
     {
         return DB::transaction(function () use ($pembuat, $id, $alasan): Booking {
-            $pasien = Pasien::query()->where('user_id', $pembuat->getKey())->first();
-
-            if ($pasien !== null) {
-                $booking = $this->access->bookingOrFail($pasien, $id);
-            } else {
-                $dokter = Dokter::query()->where('user_id', $pembuat->getKey())->first();
-
-                if ($dokter === null) {
-                    throw new AccessDeniedHttpException('Endpoint ini hanya untuk pemilik booking.');
-                }
-
-                $booking = $this->access->dokterBookingOrFail($dokter, $id);
-            }
+            $booking = $this->bookingUntuk($pembuat, $id);
 
             if (in_array($booking->status, BookingRequest::STATUS_TIDAK_BISA_DIBATALKAN, true)) {
                 throw ValidationException::withMessages([
@@ -191,12 +201,11 @@ class BookingService
             $booking->alasan_pembatalan = $alasan;
             $booking->save();
 
-            // `invoice.status` includes `dibatalkan`, so a cancelled booking
-            // must not leave an invoice still asking for money.
-            Invoice::query()
-                ->where('referensi_tipe', 'booking')
-                ->where('referensi_id', $booking->getKey())
-                ->update(['status' => 'dibatalkan']);
+            // The ledger transition. Loads the linked invoice and its
+            // `pembayaran` rows under row locks and decides between the unpaid
+            // branch (invoice `dibatalkan`, no refund row) and the paid branch
+            // (one full refund row, payment `refund`, invoice `refund_penuh`).
+            $this->refund->catatPembatalan($booking);
 
             $booking = $booking->refresh();
 
@@ -219,6 +228,204 @@ class BookingService
 
             return $booking;
         });
+    }
+
+    /**
+     * The uniform cancellation policy for one booking, as the server computes
+     * it.
+     *
+     * The route is the F12 policy surface, and the client MUST NOT compute any
+     * of it: the owner decided cancellation is free at any time with a full
+     * refund, and the numbers come from {@see RefundService::kebijakan()} -
+     * which reads the money actually captured rather than deriving it. Party
+     * scope is the same rule {@see batalkan()} uses, in the same order: another
+     * tenant's row is a 404, an account with neither profile row is a 403.
+     *
+     * @return array{gratis: bool, biaya: string, jumlah_refund: string, tujuan: array{metode_id: int, label: string, tipe: string}|null, sla: null}
+     */
+    public function kebijakan(User $pembuat, int $id): array
+    {
+        return $this->refund->kebijakan($this->bookingUntuk($pembuat, $id));
+    }
+
+    /**
+     * Move one booking to a new slot of the SAME doctor, on the SAME row.
+     *
+     * The owner's decision: a reschedule is an update of `booking`, never a
+     * new booking and never a new invoice. `nomor_booking`, `pasien_id`,
+     * `dokter_id`, the price and the invoice are all untouched - only
+     * `jadwal_id`, `faskes_id` (the new window's venue), `tanggal_kunjungan`,
+     * `slot_mulai` and `slot_selesai` change. No reschedule-count limit is
+     * applied because none was decided; see `web/ux/patterns/F12.md` section
+     * 12.
+     *
+     * ## The locking order is `create()`'s, and that is the whole mechanism
+     *
+     * The `dokter` row is locked FIRST - before this booking's own row and
+     * before the `dokter_jadwal` row - exactly as {@see create()} does, so a
+     * reschedule and a concurrent create for the same doctor serialise on the
+     * same lock instead of deadlocking against each other's booking-row locks.
+     * The booking row is then re-read under `lockForUpdate()` and the status
+     * guard runs on THAT read, so a status that changed between the ownership
+     * check and the lock is seen.
+     *
+     * Availability is NOT re-derived: the new start must be among the slots
+     * `SlotAvailabilityService::getSlotTerbuka()` publishes for the date and
+     * must belong to the named `${jadwal_id}`, and the capacity answer is
+     * `pastikanKapasitas()` - the same locking current read `create()` uses -
+     * with this booking's own id EXCLUDED, because the row already occupies a
+     * slot and must not count against itself.
+     *
+     * Old-schedule safety is structural rather than best-effort: every
+     * refusal above happens BEFORE the first assignment, so a taken slot, a
+     * holiday, an elapsed slot or an unpublished start leaves the row exactly
+     * as it was. The update runs last, inside the transaction.
+     *
+     * @param  array<string, mixed>  $data
+     *
+     * @throws SlotTakenException
+     * @throws ValidationException
+     */
+    public function jadwalUlang(User $pembuat, int $id, array $data): Booking
+    {
+        return DB::transaction(function () use ($pembuat, $id, $data): Booking {
+            // The tenant read, NOT locked: it only resolves which doctor to
+            // lock first.
+            $bookingAwal = $this->bookingUntuk($pembuat, $id);
+
+            // LOCK ORDER 1: the doctor, the same one serialisation point
+            // `create()` uses for every booking of this doctor.
+            $dokter = Dokter::query()
+                ->whereKey((int) $bookingAwal->dokter_id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            // LOCK ORDER 2: this booking's own row, then the guard on THAT
+            // read.
+            $booking = Booking::query()
+                ->whereKey((int) $bookingAwal->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if (! in_array((string) $booking->status, BookingRequest::STATUS_BISA_DIJADWAL_ULANG, true)) {
+                throw ValidationException::withMessages([
+                    'status' => ['Booking dengan status tersebut tidak dapat dijadwalkan ulang.'],
+                ]);
+            }
+
+            // LOCK ORDER 3: the named schedule row, scoped to this doctor. A
+            // row belonging to another doctor is not a slot this doctor
+            // publishes, and it is refused without disclosing whether it
+            // exists.
+            $jadwal = DokterJadwal::query()
+                ->whereKey((int) $data['jadwal_id'])
+                ->where('dokter_id', $dokter->getKey())
+                ->lockForUpdate()
+                ->first();
+
+            if ($jadwal === null) {
+                throw SlotTakenException::tidakDipublikasikan();
+            }
+
+            $tanggal = (string) $data['tanggal_kunjungan'];
+            $slotMulai = (string) $data['slot_mulai'];
+
+            // The same published-slot decision `create()` makes: the start
+            // must be a slot the schedule publishes for the date AND belong to
+            // the schedule row the request named.
+            $slot = collect($this->slot->getSlotTerbuka($dokter, $tanggal))
+                ->firstWhere('jam_mulai', $slotMulai);
+
+            if ($slot === null || (int) $slot['jadwal_id'] !== (int) $jadwal->getKey()) {
+                throw SlotTakenException::tidakDipublikasikan();
+            }
+
+            $this->tolakAlasan($slot);
+
+            $slotSelesai = (string) $slot['jam_selesai'];
+
+            // `slot_selesai` is accepted for the client that already holds the
+            // published slot, and CHECKED rather than trusted: the length
+            // belongs to the schedule row (`durasi_slot_menit`, :478), never
+            // to request arithmetic. A disagreement is a 422 naming the field
+            // instead of a silently accepted wrong end time.
+            if (isset($data['slot_selesai']) && (string) $data['slot_selesai'] !== $slotSelesai) {
+                throw ValidationException::withMessages([
+                    'slot_selesai' => ['Jam selesai tidak sesuai dengan slot yang dipublikasikan.'],
+                ]);
+            }
+
+            $kuota = $jadwal->kuota_per_sesi === null
+                ? SlotAvailabilityService::KUOTA_DEFAULT
+                : (int) $jadwal->kuota_per_sesi;
+
+            // The same locking current read `create()` uses, with this row
+            // excluded: the move must not count the booking's own old slot as
+            // an occupant of the new one.
+            $this->pastikanKapasitas(
+                $dokter,
+                $tanggal,
+                $slotMulai,
+                $slotSelesai,
+                $kuota,
+                (int) $booking->getKey(),
+            );
+
+            $booking->jadwal_id = $jadwal->getKey();
+            $booking->faskes_id = $slot['faskes_id'] === null ? null : (int) $slot['faskes_id'];
+            $booking->tanggal_kunjungan = $tanggal;
+            $booking->slot_mulai = $slotMulai;
+            $booking->slot_selesai = $slotSelesai;
+            $booking->save();
+
+            // The OTHER party, exactly as a cancellation notifies: the actor
+            // already knows. The body is generic and carries no clinical text;
+            // the new schedule travels in the inbox payload, not the push
+            // `isi`. See `NotificationService::bookingJadwalUlang()`.
+            $untuk = $pembuat->tipe === 'pasien'
+                ? $booking->dokter?->user
+                : $booking->pasien?->user;
+
+            if ($untuk !== null) {
+                $this->notifikasi->bookingJadwalUlang(
+                    $untuk,
+                    (int) $booking->getKey(),
+                    $tanggal,
+                    $slotMulai,
+                );
+            }
+
+            return $booking->refresh();
+        });
+    }
+
+    /**
+     * The booking the caller may act on, or the refusal that discloses nothing.
+     *
+     * The one ownership rule every booking action shares: the caller's own
+     * `pasien` row scopes patient bookings, the caller's own `dokter` row
+     * scopes doctor bookings, a row outside that scope is a 404 (never a 403,
+     * which would confirm it exists), and an account owning NEITHER profile
+     * row is a 403 about the caller. Extracted rather than restated so
+     * `batalkan()`, `kebijakan()` and `jadwalUlang()` cannot drift apart.
+     *
+     * @throws AccessDeniedHttpException when the account owns no profile row
+     */
+    private function bookingUntuk(User $pembuat, int $id): Booking
+    {
+        $pasien = Pasien::query()->where('user_id', $pembuat->getKey())->first();
+
+        if ($pasien !== null) {
+            return $this->access->bookingOrFail($pasien, $id);
+        }
+
+        $dokter = Dokter::query()->where('user_id', $pembuat->getKey())->first();
+
+        if ($dokter === null) {
+            throw new AccessDeniedHttpException('Endpoint ini hanya untuk pemilik booking.');
+        }
+
+        return $this->access->dokterBookingOrFail($dokter, $id);
     }
 
     /**
@@ -462,10 +669,24 @@ class BookingService
      * latest committed version, which is what makes the retry-after-commit in
      * the concurrency proof see the row the first transaction wrote.
      *
+     * `$kecualiBookingId` exists for the reschedule move and for nothing else.
+     * A booking being moved out of one slot and into another is COUNTED by the
+     * query while it still exists on its old slot, so without the exclusion a
+     * move within a window whose quota is 1 would count the row against itself
+     * (`terisi >= kuota` with `terisi = 1`) and refuse every move, including a
+     * no-op one to the same slot. `create()` never passes it: a new row has no
+     * id yet and must lose to every occupant.
+     *
      * @throws SlotTakenException
      */
-    private function pastikanKapasitas(Dokter $dokter, string $tanggal, string $slotMulai, string $slotSelesai, int $kuota): void
-    {
+    private function pastikanKapasitas(
+        Dokter $dokter,
+        string $tanggal,
+        string $slotMulai,
+        string $slotSelesai,
+        int $kuota,
+        ?int $kecualiBookingId = null,
+    ): void {
         $terisi = Booking::query()
             ->select('id')
             ->where('dokter_id', $dokter->getKey())
@@ -473,6 +694,7 @@ class BookingService
             ->whereNotIn('status', SlotAvailabilityService::STATUS_TIDAK_MENGKONSUMSI)
             ->where('slot_mulai', '<', $slotSelesai)
             ->where('slot_selesai', '>', $slotMulai)
+            ->when($kecualiBookingId !== null, fn (Builder $kueri) => $kueri->where('id', '!=', $kecualiBookingId))
             ->lockForUpdate()
             ->pluck('id')
             ->count();

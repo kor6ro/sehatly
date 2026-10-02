@@ -65,7 +65,7 @@ it('publishes the same count the portable route:list invocation reports', functi
     // The assertion below reads the SAME route collection through the framework
     // rather than shelling out, so it cannot be satisfied by a broken pipe or a
     // non-zero exit. The count it produces is asserted to equal the number of
-    // live operations, which is what makes the document's "80 routes" claim
+    // live operations, which is what makes the document's "83 routes" claim
     // checkable by a reader who runs the documented command.
     $routes = collect(Route::getRoutes())
         ->filter(static fn ($route): bool => str_starts_with($route->uri(), 'api/v1'));
@@ -80,7 +80,7 @@ it('publishes the same count the portable route:list invocation reports', functi
 
     expect($operations)->toBe(count(ContractSpec::liveOperations()));
     expect($operations)->toBe(count(ContractSpec::specOperations()));
-    expect($operations)->toBe(80);
+    expect($operations)->toBe(83);
 });
 
 it('agrees with the document on every route name and controller action', function (): void {
@@ -197,6 +197,6 @@ it('would fail if a route existed with no entry in the document', function (): v
 
     expect($undocumented)->toBe([$ghost]);
 
-    // The operation count assertion would fire too, since 81 is not 80.
-    expect(count(ContractSpec::liveOperations()))->not->toBe(80);
+    // The operation count assertion would fire too, since 84 is not 83.
+    expect(count(ContractSpec::liveOperations()))->not->toBe(83);
 });

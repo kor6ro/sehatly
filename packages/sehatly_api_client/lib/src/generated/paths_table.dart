@@ -107,6 +107,26 @@ const List<String> apiv1bookingidbatalkanMethods = <String>[
   'PUT',
 ];
 
+/// `/api/v1/booking/{id}/jadwal-ulang`
+///
+/// Answers: PUT (`booking.jadwal-ulang`).
+const String apiv1bookingidjadwalUlang = '/api/v1/booking/{id}/jadwal-ulang';
+
+/// The HTTP methods `apiv1bookingidjadwalUlang` answers.
+const List<String> apiv1bookingidjadwalUlangMethods = <String>[
+  'PUT',
+];
+
+/// `/api/v1/booking/{id}/kebijakan`
+///
+/// Answers: GET (`booking.kebijakan`).
+const String apiv1bookingidkebijakan = '/api/v1/booking/{id}/kebijakan';
+
+/// The HTTP methods `apiv1bookingidkebijakan` answers.
+const List<String> apiv1bookingidkebijakanMethods = <String>[
+  'GET',
+];
+
 /// `/api/v1/dokter`
 ///
 /// Answers: GET (`dokter.index`).
@@ -411,6 +431,16 @@ const String apiv1pasienprofil = '/api/v1/pasien/profil';
 const List<String> apiv1pasienprofilMethods = <String>[
   'GET',
   'PUT',
+];
+
+/// `/api/v1/pasien/refund`
+///
+/// Answers: GET (`pasien.refund.index`).
+const String apiv1pasienrefund = '/api/v1/pasien/refund';
+
+/// The HTTP methods `apiv1pasienrefund` answers.
+const List<String> apiv1pasienrefundMethods = <String>[
+  'GET',
 ];
 
 /// `/api/v1/pasien/resep`

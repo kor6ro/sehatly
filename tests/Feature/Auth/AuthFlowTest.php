@@ -1302,6 +1302,15 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         "'permission:booking.lihat'",
         "'permission:booking.buat'",
         "'permission:booking.batal'",
+        // F12's two booking routes. The policy read takes `booking.lihat`
+        // (already "read a booking you are a party to"), and the reschedule
+        // takes `booking.batal` - the only modification code held by exactly
+        // the two parties who may cancel, which is the audience a schedule
+        // move has. No code in the catalogue names schedule movement, and
+        // adding a 25th is a policy change this task does not make; see
+        // `web/ux/patterns/F12.md` section 12.
+        "'permission:booking.lihat'",
+        "'permission:booking.batal'",
         "'permission:booking.lihat'",
         "'tipe:dokter'",
         "'tipe:dokter'",
@@ -1390,6 +1399,11 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         // body rather than by a session.
         "'permission:pembayaran.bayar'",
         "'permission:pembayaran.bayar'",
+        // F12's patient refund list reuses the same code for the same reason:
+        // the catalogue has no `pembayaran.lihat`, so the patient read takes
+        // the payment grant, which already refuses `dokter`, `apoteker` and
+        // `admin` and admits exactly the account type that can own a refund.
+        "'permission:pembayaran.bayar'",
         // Todo 47's notification centre contributes THREE more, for THIRTY-FOUR
         // in total before F09. All three carry the same code and no `tipe:`:
         // `notifikasi.lihat` is granted to `pasien` and `superadmin`, so the
@@ -1408,7 +1422,8 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         "'permission:notifikasi.lihat'",
         "'permission:notifikasi.lihat'",
         "'permission:notifikasi.lihat'",
-        // F09's pharmacist queue contributes TWO more, for THIRTY-SIX in total.
+        // F09's pharmacist queue contributes TWO more; F12's three strings
+        // above bring the census to THIRTY-NINE in total.
         // `GET /api/v1/resep` carries the SAME pair as the verify write it
         // feeds - `permission:resep.verifikasi` is the grant (held by
         // `apoteker` and `superadmin`) and `tipe:apoteker` is the account type

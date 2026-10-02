@@ -205,15 +205,17 @@ it('types_every_meta_operation_as_paginated', function (): void {
 
     sort($paginated);
 
-    // Thirty-four after F-007, F02, F09, F13 and F10: the fourteen that were
-    // already paginated, plus the sixteen the old rule published as three-key
-    // envelopes, minus the one write the old rule wrongly paginated, plus F02's
-    // `GET /pdp/dokumen`, plus F09's pharmacist queue, plus F13's
+    // Thirty-five after F-007, F02, F09, F13, F10 and F12: the fourteen that
+    // were already paginated, plus the sixteen the old rule published as
+    // three-key envelopes, minus the one write the old rule wrongly paginated,
+    // plus F02's `GET /pdp/dokumen`, plus F09's pharmacist queue, plus F13's
     // `GET /api/v1/konsultasi` (the doctor's own list), plus F10's two
     // medical-record reads (`GET /api/v1/rekam-medis` and
-    // `GET /api/v1/rekam-medis/{id}/akses`). Re-measured on the regenerated
-    // document; the membership below stops the count drifting silently.
-    expect($paginated)->toHaveCount(34);
+    // `GET /api/v1/rekam-medis/{id}/akses`), plus F12's patient refund list
+    // (`GET /api/v1/pasien/refund`, which answers `pageMeta()`). Re-measured on
+    // the regenerated document; the membership below stops the count drifting
+    // silently.
+    expect($paginated)->toHaveCount(35);
 
     expect($paginated)->toContain('get /api/v1/dokter @200');
     expect($paginated)->toContain('get /api/v1/obat @200');
@@ -221,6 +223,7 @@ it('types_every_meta_operation_as_paginated', function (): void {
     expect($paginated)->toContain('get /api/v1/auth/devices @200');
     expect($paginated)->toContain('get /api/v1/pdp/dokumen @200');
     expect($paginated)->toContain('get /api/v1/pasien/surat-keterangan @200');
+    expect($paginated)->toContain('get /api/v1/pasien/refund @200');
     expect($paginated)->toContain('get /api/v1/resep @200');
     expect($paginated)->toContain('get /api/v1/konsultasi @200');
     expect($paginated)->toContain('get /api/v1/rekam-medis @200');

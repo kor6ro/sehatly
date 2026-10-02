@@ -53,6 +53,23 @@ abstract class BookingRequest extends FormRequest
     public const STATUS_TIDAK_BISA_DIBATALKAN = ['berlangsung', 'selesai', 'dibatalkan', 'kadaluarsa'];
 
     /**
+     * The states a reschedule may move: the two that are not yet under way.
+     *
+     * Deliberately NOT the complement of
+     * {@see STATUS_TIDAK_BISA_DIBATALKAN}, even though the cancel guard is
+     * written as a refusal list. The complement also contains `check_in` and
+     * `no_show`, and the F12 owner decision is narrower than the cancellation
+     * guard: a patient already checked in is in the clinic's hands, and a
+     * `no_show` is a recorded fact that moving the slot would overwrite. So
+     * the reschedule guard is an ALLOW list of exactly these two, and a test
+     * asserts the relationship between the three constants (`check_in` and
+     * `no_show` are cancellable per the old guard but not reschedulable).
+     *
+     * @var list<string>
+     */
+    public const STATUS_BISA_DIJADWAL_ULANG = ['menunggu_pembayaran', 'terjadwal'];
+
+    /**
      * Every `booking.status` value in the DDL's exact order (`:515-516`), for
      * the list filters. `no_show` is the eighth value an earlier draft of the
      * plan missed.

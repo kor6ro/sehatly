@@ -47,12 +47,13 @@ use Illuminate\Support\Facades\Log;
  * in the test, which is the only arrangement in which a client never has to
  * substring-parse a path to get an id out.
  *
- * ## The five events, and why these five
+ * ## The six events, and why these six
  *
  * | method | `tipe` | `tautan` | producer that should call it |
  * | --- | --- | --- | --- |
  * | `bookingDibuat` | `booking` | `/api/v1/booking/{id}` | `BookingService` (todo 27) |
  * | `bookingDibatalkan` | `booking` | `/api/v1/booking/{id}` | `BookingService` (todo 27) |
+ * | `bookingJadwalUlang` | `booking` | `/api/v1/booking/{id}` | `BookingService` (F12) |
  * | `pembayaranSelesai` | `pembayaran` | `/api/v1/invoice/{id}` | `PaymentService` (todo 45) |
  * | `resepSiap` | `resep` | `/api/v1/resep/{id}` | `ResepService` (todo 40) |
  * | `pesanBaru` | `chat` | `/api/v1/konsultasi/{id}/chat` | `KonsultasiController` (todo 26) |
@@ -95,6 +96,43 @@ final class NotificationService
     public function bookingDibatalkan(User $user, int $bookingId, string $alasan): Notifikasi
     {
         return $this->kirim($user, NotifikasiTipe::Booking, 'Booking dibatalkan.', 'Booking Anda dibatalkan: '.$alasan, '/api/v1/booking/'.$bookingId, ['booking_id' => $bookingId, 'alasan' => $alasan]);
+    }
+
+    /**
+     * A booking was moved to a new schedule. `tipe = 'booking'`.
+     *
+     * ## The body is GENERIC, deliberately
+     *
+     * A reschedule is F12's new notification trigger, and its recipients are
+     * the other party - which can be a DOCTOR. The push `isi` is the least
+     * private field this application has: it renders on a lock screen, in a
+     * notification tray, and on any device the account is signed into. So
+     * `isi` names no date, no time and no clinical detail beyond "your booking
+     * moved"; the new schedule travels in `payload`, which is read only after
+     * the recipient opens the app and is scoped to their own inbox row. The
+     * cancellation-reason free text that `bookingDibatalkan()` carries in its
+     * `isi` is a known privacy gap (F11/F12) and this method must not copy
+     * the pattern.
+     *
+     * The date and time in `payload` are the Asia/Jakarta wall-clock strings
+     * the booking row stores, unchanged: they are exactly what the in-app
+     * screen renders, and converting them here would be the seven-hour
+     * timezone defect `docs/timezone-policy.md` exists to prevent.
+     */
+    public function bookingJadwalUlang(User $user, int $bookingId, string $tanggal, string $slotMulai): Notifikasi
+    {
+        return $this->kirim(
+            $user,
+            NotifikasiTipe::Booking,
+            'Jadwal booking diubah.',
+            'Jadwal booking Anda telah dipindahkan.',
+            '/api/v1/booking/'.$bookingId,
+            [
+                'booking_id' => $bookingId,
+                'tanggal_kunjungan' => $tanggal,
+                'slot_mulai' => $slotMulai,
+            ],
+        );
     }
 
     /**

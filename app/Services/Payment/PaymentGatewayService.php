@@ -7,6 +7,7 @@ namespace App\Services\Payment;
 use App\Enums\PembayaranStatus;
 use App\Models\Invoice;
 use App\Models\MasterMetodePembayaran;
+use App\Models\Pembayaran;
 use App\Support\Uang\Uang;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -124,6 +125,53 @@ interface PaymentGatewayService
      * @return array{gateway: string, nomor_referensi: string, jumlah: string, instruksi: list<string>, toko: array<string, string>}
      */
     public function createTransaction(Invoice $invoice, MasterMetodePembayaran $metode): array;
+
+    /**
+     * Ask the provider to return a captured payment to its payer.
+     *
+     * The second WRITE-adjacent method on this contract, and the one F12's
+     * cancellation policy hangs on: a booking cancelled after its invoice was
+     * settled must leave a `refund` row behind, and for the `tipe` values in
+     * `config('payment.metode_tipe_refund_otomatis')` the gateway is where that
+     * money actually moves.
+     *
+     * ## It writes NOTHING here, exactly like {@see createTransaction()}
+     *
+     * This method talks to the provider and reports what the provider said. It
+     * does not create or mutate a `refund` row, flip a `pembayaran.status`, or
+     * touch `invoice` - {@see RefundService} owns the ledger and decides what a
+     * result MEANS. Keeping the provider conversation out of the ledger is the
+     * same separation {@see PaymentService} states for settlement, and it is
+     * what lets a test substitute a gateway that throws without touching a
+     * single row.
+     *
+     * ## Failure is a RETURN, an exception is ALSO a return - neither is a
+     * ## `ditolak`
+     *
+     * A refund that the provider refuses (a closed wallet, an expired card) and
+     * a refund that fails in transport (a timeout, a 5xx) are both reported
+     * here rather than raised past the caller: the first returns
+     * `berhasil: false`, the second is thrown and caught by the caller. **Both
+     * leave the refund in `diproses`** - the manual fallback - and neither is
+     * `ditolak`. `ditolak` is a POLICY outcome ("this refund will not be
+     * paid"), and a transport failure is not a policy. Conflating them would
+     * tell an admin a decision was made when none was.
+     *
+     * @param  Pembayaran  $pembayaran  the settled payment to reverse. Its
+     *                                  `nomor_referensi` (:963) is the
+     *                                  provider's transaction id and its
+     *                                  `jumlah` (:962) is the amount that was
+     *                                  captured - the implementation MUST NOT
+     *                                  recompute either, because a refund larger
+     *                                  than the capture is money created.
+     * @return array{berhasil: bool, referensi: string|null, pesan: string|null}
+     *                                                                           `berhasil` is the provider's verdict; `referensi` is the
+     *                                                                           provider's refund reference, stored in the delivery log and
+     *                                                                           nowhere else; `pesan` is a short provider explanation safe to log.
+     *                                                                           The keys are the contract - a caller reads them by name, and
+     *                                                                           a test asserts them off a real call rather than off this comment.
+     */
+    public function refund(Pembayaran $pembayaran): array;
 
     /**
      * Verify a provider notification and return it in THIS application's

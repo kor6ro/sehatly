@@ -6,8 +6,10 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Payment\BayarInvoiceRequest;
+use App\Http\Requests\Payment\IndexRefundRequest;
 use App\Http\Resources\InvoiceResource;
 use App\Http\Resources\PembayaranResource;
+use App\Http\Resources\RefundResource;
 use App\Models\Invoice;
 use App\Models\MasterMetodePembayaran;
 use App\Models\Pasien;
@@ -16,6 +18,7 @@ use App\Policies\InvoicePolicy;
 use App\Services\Pasien\PasienRecordAccess;
 use App\Services\Payment\PaymentGatewayService;
 use App\Services\Payment\PaymentService;
+use App\Services\Payment\RefundService;
 use App\Support\ApiResponse;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -23,13 +26,21 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * Three routes, and the gap between them is the whole design of this module.
+ * Four routes, and the gap between them is the whole design of this module.
  *
  * | route | auth | who |
  * | --- | --- | --- |
  * | `GET /api/v1/invoice/{id}` | `auth:sanctum` + `permission:pembayaran.bayar` | the patient, reading their own invoice |
  * | `POST /api/v1/invoice/{id}/bayar` | `auth:sanctum` + `permission:pembayaran.bayar` | the patient, for their own invoice |
+ * | `GET /api/v1/pasien/refund` | `auth:sanctum` + `permission:pembayaran.bayar` | the patient, reading their own refunds |
  * | `POST /api/v1/webhook/payment/{gateway}` | **none** - verified by HMAC instead | a payment provider |
+ *
+ * The refund read (F12) reuses `pembayaran.bayar` for the same reason the
+ * invoice read does: the catalogue has no `pembayaran.lihat`, and
+ * `EnsurePermission` treats an unknown code as a 500 rather than a 403, so
+ * inventing one here would deny every caller until the catalogue moved with
+ * it. The code already refuses `dokter`, `apoteker` and `admin` and admits
+ * exactly the account type that can own a refund.
  *
  * ## The read path adds a Policy, and the ORDER of the two checks is the design
  *
@@ -103,6 +114,7 @@ class PembayaranController extends Controller
         private readonly PaymentService $pembayaran,
         private readonly PaymentGatewayService $gateway,
         private readonly PasienRecordAccess $access,
+        private readonly RefundService $refund,
     ) {}
 
     /**
@@ -193,6 +205,40 @@ class PembayaranController extends Controller
         return ApiResponse::success(
             ['invoice' => new InvoiceResource($invoice)],
             'Tagihan berhasil dimuat.',
+        );
+    }
+
+    /**
+     * `GET /api/v1/pasien/refund` - the caller's own refunds, newest first,
+     * paginated with the project `meta` block.
+     *
+     * The path prefix names the CALLER (`pasien`) and this controller names
+     * the RESOURCE (`refund` is a payment event, not a booking field), the
+     * same split todo 34 and todo 40 used for `pasien/surat-keterangan` and
+     * `pasien/resep`; putting a payment list on `PasienController` would make
+     * that controller the owner of two modules.
+     *
+     * ## 403 for the caller, none of another patient's rows
+     *
+     * `ownPasien()` runs first and raises the 403 for an account that owns no
+     * `pasien` row - including a doctor account, which the route's
+     * `permission:pembayaran.bayar` gate already refuses one layer earlier.
+     * The list is then scoped through `invoice.pasien_id` inside
+     * `RefundService::daftarPasien()`, so another patient's refund is absent
+     * rather than refused. `dibuat_at DESC, id DESC` is a total order, so
+     * paging cannot repeat or skip a row.
+     */
+    public function refundIndex(IndexRefundRequest $request): JsonResponse
+    {
+        $pasien = $this->access->ownPasien($this->user($request));
+
+        $rows = $this->refund->daftarPasien($pasien, $request->validated())->withQueryString();
+
+        return ApiResponse::success(
+            ['refund' => RefundResource::collection($rows->getCollection())],
+            'Daftar refund berhasil dimuat.',
+            JsonResponse::HTTP_OK,
+            ApiResponse::pageMeta($rows),
         );
     }
 

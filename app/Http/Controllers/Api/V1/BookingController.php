@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Booking\CancelBookingRequest;
 use App\Http\Requests\Booking\IndexBookingRequest;
 use App\Http\Requests\Booking\IndexDokterBookingRequest;
+use App\Http\Requests\Booking\RescheduleBookingRequest;
 use App\Http\Requests\Booking\StoreBookingRequest;
 use App\Http\Resources\BookingResource;
 use App\Models\User;
@@ -83,6 +84,48 @@ class BookingController extends Controller
         return ApiResponse::success(
             ['booking' => new BookingResource($booking)],
             'Booking berhasil dibatalkan.',
+        );
+    }
+
+    /**
+     * `GET /api/v1/booking/{id}/kebijakan` - the uniform cancellation policy.
+     *
+     * A GET with no query inputs, so it carries no `FormRequest` and follows
+     * `GET /api/v1/invoice/{id}`: the input is the path parameter, the route
+     * gate is `permission:booking.lihat`, and the service's ownership split
+     * answers 404/403. The response is server-computed because the owner's
+     * decision (gratis, refund penuh, hybrid execution) is policy and the
+     * client must not re-derive it; see `RefundService::kebijakan()`.
+     */
+    public function kebijakan(Request $request, int $id): JsonResponse
+    {
+        return ApiResponse::success(
+            ['kebijakan' => $this->booking->kebijakan($this->user($request), $id)],
+            'Kebijakan pembatalan berhasil dimuat.',
+        );
+    }
+
+    /**
+     * `PUT /api/v1/booking/{id}/jadwal-ulang` - move the same row to a new
+     * published slot of the same doctor.
+     *
+     * The slot refusals are `SlotTakenException`, and they are caught here for
+     * the same reason `store()` catches them: the exception is a domain answer
+     * (422 with `errors.slot`) and `bootstrap/app.php` would otherwise render
+     * it as a sanitised 500. A status refusal is a `ValidationException` and
+     * travels through the kernel's 422 untouched.
+     */
+    public function jadwalUlang(RescheduleBookingRequest $request, int $id): JsonResponse
+    {
+        try {
+            $booking = $this->booking->jadwalUlang($this->user($request), $id, $request->validated());
+        } catch (SlotTakenException $e) {
+            return ApiResponse::error($e->getMessage(), $e->errors(), Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        return ApiResponse::success(
+            ['booking' => new BookingResource($booking)],
+            'Jadwal booking berhasil dipindahkan.',
         );
     }
 

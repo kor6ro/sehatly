@@ -63,6 +63,32 @@ return [
     'metode_tipe_qr' => ['qris', 'gerai_retail'],
 
     /*
+    | The `master_metode_pembayaran.tipe` (:929) values whose refunds the
+    | gateway can execute through its own refund API, and it is the F12
+    | cancellation policy's ONE branch point:
+    |
+    | - a `tipe` listed here gets an AUTOMATIC refund: `RefundService` calls
+    |   `PaymentGatewayService::refund()` when a paid booking is cancelled, and
+    |   the `refund` row lands in `berhasil` when the gateway answers success;
+    | - every other `tipe` gets a MANUAL refund: the row is written as
+    |   `diajukan` for an admin to process later (F14), because a bank transfer,
+    |   a cash payment, an insurance claim or a BPJS settlement has no
+    |   machine-executable reversal on our side.
+    |
+    | The three members are the nine-value ENUM's "money can be pushed back
+    | electronically, immediately" set. `va_bank` is deliberately ABSENT even
+    | though it is electronic: closing a virtual account does not move money to
+    | a destination we hold, so the refund needs an admin with a beneficiary
+    | instruction. `gerai_retail` is a cash-equivalent counter payment for the
+    | same reason. This is a DEPLOYMENT POLICY, not a schema fact - the schema
+    | maps no method to any refund capability, exactly as it maps no method to a
+    | channel (`metode_tipe_qr` above) - which is why it lives here and not in a
+    | conditional in the service. A test asserts the service reads this key
+    | rather than hardcoding the list.
+    */
+    'metode_tipe_refund_otomatis' => ['e_wallet', 'qris', 'kartu_kredit'],
+
+    /*
     | How many seconds a `pembayaran` row waits for a decision before the
     | patient is told to start again.
     |

@@ -1433,12 +1433,15 @@ test('the route table exposes the eight auth routes and the eleven patient route
         // entry - which is exactly how this line was found to be a duplicate of
         // `POST api/v1/resep/{id}/verifikasi` rather than a fifth todo-40 route.
         'POST api/v1/promo/validasi',
-        // Module 2 (booking) wires four routes into the same file, in
+        // Module 2 (booking) wires six routes into the same file, in
         // registration order: inside the `auth:sanctum` group, after the
-        // patient blocks and before the public directory block.
+        // patient blocks and before the public directory block. F12 appended
+        // the policy read and the reschedule move to the same block.
         'GET api/v1/pasien/booking',
         'POST api/v1/booking',
         'PUT api/v1/booking/{id}/batalkan',
+        'GET api/v1/booking/{id}/kebijakan',
+        'PUT api/v1/booking/{id}/jadwal-ulang',
         'GET api/v1/dokter/booking',
         // The three public doctor-directory routes. Todo 22 does not edit this file - it hands
         // its routes over as a paste-ready block and the orchestrator appends them - so they
@@ -1581,18 +1584,25 @@ test('the route table exposes the eight auth routes and the eleven patient route
         'GET api/v1/notifikasi',
         'PUT api/v1/notifikasi/{id}/baca',
         'PUT api/v1/notifikasi/baca-semua',
+        // F12's patient refund list, registered in the payment block near the
+        // end of `routes/api.php` (the controller is `PembayaranController`,
+        // and the path prefix names the caller) - so it is listed LAST in
+        // registration order. A `pasien` path a `--path=api/v1/pasien` filter
+        // DOES see, which is why the count below moves 13 -> 14.
+        'GET api/v1/pasien/refund',
     ]);
 
-    // THIRTEEN under the `pasien` filter: the ten above (profil read + write, two
-    // each for the family and allergy lists, and two each for the row-addressed
-    // update and delete) plus the patient booking list, todo 34's letter list,
-    // and todo 40's patient prescription history. `GET /api/v1/me` sits outside
-    // the `pasien` filter, and the other three booking routes live outside it too.
+    // FOURTEEN under the `pasien` filter: the ten above (profil read + write,
+    // two each for the family and allergy lists, and two each for the
+    // row-addressed update and delete) plus the patient booking list, todo
+    // 34's letter list, todo 40's patient prescription history, and F12's
+    // patient refund list. `GET /api/v1/me` sits outside the `pasien` filter,
+    // and the other booking routes live outside it too.
     $pasienRoutes = collect(array_keys($routes))
         ->filter(fn (string $key): bool => str_contains($key, 'api/v1/pasien'))
         ->all();
 
-    expect($pasienRoutes)->toHaveCount(13);
+    expect($pasienRoutes)->toHaveCount(14);
 
     $middlewareFor = static function (string $key) use ($routes): array {
         return array_values(array_filter(
@@ -1693,6 +1703,14 @@ test('the route table exposes the eight auth routes and the eleven patient route
             'POST api/v1/booking' => ['permission:booking.buat'],
             'GET api/v1/pasien/booking' => ['permission:booking.lihat'],
             'PUT api/v1/booking/{id}/batalkan' => ['permission:booking.batal'],
+            // F12's booking policy read and same-row reschedule. The policy is
+            // a read of a booking the caller is a party to, so it takes
+            // `booking.lihat`; no catalogue code names schedule movement and
+            // `booking.batal` is the modification grant held by exactly the
+            // two parties who may cancel, so the move reuses it rather than
+            // adding a 25th code for one route (pattern section 12).
+            'GET api/v1/booking/{id}/kebijakan' => ['permission:booking.lihat'],
+            'PUT api/v1/booking/{id}/jadwal-ulang' => ['permission:booking.batal'],
             'GET api/v1/dokter/booking' => ['permission:booking.lihat', 'tipe:dokter'],
             // F13's doctor list: `tipe:dokter` and NO `permission:`, because
             // `RbacCatalog::PERMISSIONS` holds no consultation read code -
@@ -1797,6 +1815,11 @@ test('the route table exposes the eight auth routes and the eleven patient route
             // where another patient's invoice is a 404 rather than a 403.
             'POST api/v1/invoice/{id}/bayar' => ['permission:pembayaran.bayar'],
             'GET api/v1/invoice/{id}' => ['permission:pembayaran.bayar'],
+            // F12's refund list reuses the same code for the same reason -
+            // there is no `pembayaran.lihat` - and the tenant half stays in
+            // `ownPasien()` plus the scoped query, so another patient's refund
+            // is absent rather than refused.
+            'GET api/v1/pasien/refund' => ['permission:pembayaran.bayar'],
             // ...and the webhook takes NEITHER, for the reason the `$anonymous`
             // set above gives. A route gate cannot express "you are a payment
             // provider"; an HMAC over the raw body can, and
@@ -1872,6 +1895,14 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         "'permission:booking.lihat'",
         "'permission:booking.buat'",
         "'permission:booking.batal'",
+        // F12 contributes THREE strings here and one more at the payment block
+        // below: `booking.lihat` for the policy read, `booking.batal` for the
+        // same-row reschedule (no catalogue code names schedule movement), and
+        // `pembayaran.bayar` for the patient refund list - the catalogue holds
+        // no `pembayaran.lihat`, so the read reuses the payment grant exactly
+        // as `GET /invoice/{id}` does. See pattern section 12.
+        "'permission:booking.lihat'",
+        "'permission:booking.batal'",
         "'permission:booking.lihat'",
         "'tipe:dokter'",
         "'tipe:dokter'",
@@ -1945,6 +1976,9 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         // nor a `tipe:` - it is authenticated by an HMAC over the raw body -
         // and so adds nothing to this census.
         "'permission:pembayaran.bayar'",
+        "'permission:pembayaran.bayar'",
+        // F12's patient refund list reuses the same code and adds a THIRD
+        // identical string for the third payment read.
         "'permission:pembayaran.bayar'",
         // Todo 47 contributes THREE strings for THREE routes, and no `tipe:` at
         // all: the three notification-centre routes wire only
