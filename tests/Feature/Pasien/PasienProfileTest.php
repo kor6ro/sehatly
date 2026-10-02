@@ -108,6 +108,8 @@ function pasienTestRegisterPayload(array $overrides = []): array
         'tempat_lahir' => 'Bandung',
         'alamat_lengkap' => 'Jl. Merdeka No. 1, Bandung, Jawa Barat 40115',
         'bahasa' => 'id',
+        'persetujuan_syarat_ketentuan' => true,
+        'persetujuan_kebijakan_privasi' => true,
     ], $overrides);
 }
 
@@ -1391,21 +1393,24 @@ test('the masker keeps four at each end, preserves the length, and refuses to fa
 // Contracts the endpoints depend on
 // =====================================================================
 
-test('the route table exposes the eight auth routes and the eleven patient routes with the expected middleware', function (): void {
+test('the route table exposes the ten auth routes and the eleven patient routes with the expected middleware', function (): void {
     $routes = collect(Route::getRoutes()->getRoutes())
         ->filter(fn ($route): bool => str_starts_with($route->uri(), 'api/v1'))
         ->keyBy(fn ($route): string => $route->methods()[0].' '.$route->uri())
         ->all();
 
-    // The eight Module 1 auth routes, unchanged. Asserted because this todo appended to
-    // `routes/api.php` and todo 20's own test asserts the same set, so either file changing
-    // alone is a failure rather than a silent drift.
+    // The ten Module 1 auth routes: the original eight, plus F01's
+    // `POST /auth/otp/resend` and `POST /auth/logout-all`. Asserted because this
+    // todo appended to `routes/api.php` and todo 20's own test asserts the same
+    // set, so either file changing alone is a failure rather than a silent drift.
     expect(array_keys($routes))->toEqualCanonicalizing([
         'POST api/v1/auth/register',
         'POST api/v1/auth/login',
         'POST api/v1/auth/otp/verify',
+        'POST api/v1/auth/otp/resend',
         'POST api/v1/auth/refresh',
         'POST api/v1/auth/logout',
+        'POST api/v1/auth/logout-all',
         'GET api/v1/auth/devices',
         'POST api/v1/auth/devices',
         'DELETE api/v1/auth/devices/{deviceId}',
@@ -1658,6 +1663,10 @@ test('the route table exposes the eight auth routes and the eleven patient route
         'POST api/v1/auth/register',
         'POST api/v1/auth/login',
         'POST api/v1/auth/otp/verify',
+        // F01's resend: anonymous by design. It mints a code with no prior
+        // credential, answers generically so it cannot enumerate accounts, and
+        // is bounded by its own `throttle:auth-otp-resend` limiter.
+        'POST api/v1/auth/otp/resend',
         'POST api/v1/auth/refresh',
         'GET api/v1/dokter',
         'GET api/v1/dokter/{dokter}',

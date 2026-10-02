@@ -6,7 +6,9 @@ pasien, serta direktori dokter publik. Basis diverifikasi:
 
 Resep per endpoint ada di:
 
-- `modul-1-auth.md` - 8 route `/api/v1/auth/*`.
+- `modul-1-auth.md` - 10 route `/api/v1/auth/*` (F01 menambahkan
+  `POST /auth/otp/resend` dan `POST /auth/logout-all`; tabel 22 endpoint di
+  bawah adalah snapshot verifikasi sebelum F01).
 - `modul-1-pasien.md` - 11 route `/api/v1/me` + `/api/v1/pasien/*`.
 - `modul-1-dokter.md` - 3 route `/api/v1/dokter*` + `/api/v1/master-spesialisasi`.
 

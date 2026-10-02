@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Auth;
 
+use App\Support\Telepon;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
@@ -52,6 +53,30 @@ abstract class AuthRequest extends FormRequest
     }
 
     /**
+     * Fold `+62…` / `62…` into the canonical local `08…` before any rule runs.
+     *
+     * This is what closes F01's P0 defect: `0812…` and `+62812…` used to be two
+     * accounts for one phone, because both the `unique:` rule and the lookup in
+     * `AuthController::resolveUser()` matched the submitted string exactly. Running
+     * the normaliser in `prepareForValidation()` means the rules, the controller and
+     * the `unique` check all see one canonical value, and `validated()` returns it,
+     * so the write and the lookup cannot disagree. {@see Telepon} owns the rule and
+     * records why the local form is canonical.
+     *
+     * `email` is deliberately untouched: it is case-folded by neither MySQL's
+     * `utf8mb4_unicode_ci` unique index nor this application, and changing address
+     * case here would be a second, unrelated decision.
+     */
+    protected function prepareForValidation(): void
+    {
+        $nomor = $this->input('no_telepon');
+
+        if (is_string($nomor)) {
+            $this->merge(['no_telepon' => Telepon::normalisasi($nomor)]);
+        }
+    }
+
+    /**
      * Rules for the two identifier fields, shared so they cannot drift.
      *
      * Both are `nullable` on their own -- an absent field is not a validation failure
@@ -60,10 +85,10 @@ abstract class AuthRequest extends FormRequest
      * when it is the field that was not sent, so a caller cannot smuggle an arbitrary
      * string into the email lookup.
      *
-     * `no_telepon` is matched exactly, never normalised. Storing and looking up the
-     * caller's own spelling is the predictable behaviour; a normaliser that rewrote
-     * `+62` to `0` would silently make an account unreachable for anyone who typed the
-     * form the other way round.
+     * `no_telepon` reaches these rules already canonical: {@see prepareForValidation()}
+     * folded `+62…`/`62…` into `08…` first, so the regex below is checked against the
+     * stored form and the `unique` rule cannot miss a duplicate that differs only by
+     * country-code spelling.
      *
      * @return array<string, list<string>>
      */

@@ -9,6 +9,27 @@ use Illuminate\Validation\Rule;
 /**
  * Validates `POST /api/v1/auth/register`.
  *
+ * ## Consent is collected HERE, in the same request and the same transaction
+ *
+ * The owner's decision (option (a), F01 §12 #1) is that the two mandatory UU PDP
+ * consents are taken at registration rather than on a later consent wall:
+ *
+ * | field | kind | required |
+ * | --- | --- | --- |
+ * | `persetujuan_syarat_ketentuan` | terms and conditions | yes, `accepted` |
+ * | `persetujuan_kebijakan_privasi` | privacy policy | yes, `accepted` |
+ *
+ * `accepted` rather than `boolean`: consent must be an affirmative act, so `true`,
+ * `1`, `'1'`, `'yes'` and `'on'` pass and `false`, `0`, `'0'`, `'no'` and an
+ * omitted field all fail. The controller writes one `persetujuan_pdp` row per
+ * field inside the account-creation transaction, through
+ * `PdpConsentService::catatVersiAktif()`, so an account can never exist without
+ * the ledger rows that authorise its existence.
+ *
+ * The three OPTIONAL consents (`pemasaran`, `berbagi_data_medis`,
+ * `komunikasi_tindak_lanjut`) are deliberately absent here. They stay on the F02
+ * screen and default off; a registration form is not the place to bundle them.
+ *
  * ## Why the patient demographics are collected here and not at `PUT /pasien/profil`
  *
  * The plan considered deferring the `pasien` row to the profile endpoint and settled on
@@ -81,6 +102,12 @@ class RegisterRequest extends AuthRequest
             'tempat_lahir' => ['nullable', 'string', 'max:100'],
             'alamat_lengkap' => ['required', 'string', 'min:5'],
             'bahasa' => ['nullable', 'string', Rule::in(self::BAHASA)],
+            // Both are the owner's mandatory consents. `accepted` is an
+            // affirmative act; a client that sends `false` is refused with a 422
+            // on the field rather than silently registered with a "declined"
+            // ledger row it never asked for.
+            'persetujuan_syarat_ketentuan' => ['required', 'accepted'],
+            'persetujuan_kebijakan_privasi' => ['required', 'accepted'],
         ];
     }
 
@@ -100,6 +127,8 @@ class RegisterRequest extends AuthRequest
             'tempat_lahir' => 'tempat lahir',
             'alamat_lengkap' => 'alamat lengkap',
             'bahasa' => 'bahasa',
+            'persetujuan_syarat_ketentuan' => 'persetujuan syarat dan ketentuan',
+            'persetujuan_kebijakan_privasi' => 'persetujuan kebijakan privasi',
         ];
     }
 }

@@ -190,6 +190,26 @@ const List<String> apiv1authlogoutMethods = <String>[
   'POST',
 ];
 
+/// `/api/v1/auth/logout-all`
+///
+/// Answers: POST (`auth.logout.all`).
+const String apiv1authlogoutAll = '/api/v1/auth/logout-all';
+
+/// The HTTP methods `apiv1authlogoutAll` answers.
+const List<String> apiv1authlogoutAllMethods = <String>[
+  'POST',
+];
+
+/// `/api/v1/auth/otp/resend`
+///
+/// Answers: POST (`auth.otp.resend`).
+const String apiv1authotpresend = '/api/v1/auth/otp/resend';
+
+/// The HTTP methods `apiv1authotpresend` answers.
+const List<String> apiv1authotpresendMethods = <String>[
+  'POST',
+];
+
 /// `/api/v1/auth/otp/verify`
 ///
 /// Answers: POST (`auth.otp.verify`).

@@ -25,10 +25,13 @@ use Illuminate\Support\Facades\Route;
 | controller. That is what makes a client able to parse one body shape
 | regardless of which layer failed.
 |
-| Module 1 -- authentication. Eight routes, and the plan's todo 20 text names
+| Module 1 -- authentication. Ten routes, and the plan's todo 20 text names
 | seven operations (register, login, otp/verify, refresh, logout, device
 | registration, device revocation); the eighth is `GET /auth/devices`, which the
-| device-management surface is useless without.
+| device-management surface is useless without. F01 added the ninth and tenth:
+| `POST /auth/otp/resend` (the password-free way to reopen an expired code) and
+| `POST /auth/logout-all`, which is the broad action the old logout performed
+| before it was made per-device.
 |
 | ## The rate limiter names are prefixed, and that is load-bearing
 |
@@ -102,6 +105,14 @@ Route::prefix('auth')->name('auth.')->group(function (): void {
         ->middleware('throttle:auth-otp-verify')
         ->name('otp.verify');
 
+    // The only anonymous route that mints an OTP without a prior credential, so
+    // its limiter is its own: 3 per five minutes, keyed on identifier + IP. See
+    // `AppServiceProvider::configureRateLimiting()` for why it is tighter than
+    // login's and why `device_id` is not part of the key.
+    Route::post('otp/resend', [AuthController::class, 'resendOtp'])
+        ->middleware('throttle:auth-otp-resend')
+        ->name('otp.resend');
+
     Route::post('refresh', [AuthController::class, 'refresh'])
         ->middleware('throttle:auth-refresh')
         ->name('refresh');
@@ -113,7 +124,14 @@ Route::prefix('auth')->name('auth.')->group(function (): void {
     | file in a later todo cannot be unprotected by omission.
     */
     Route::middleware('auth:sanctum')->group(function (): void {
+        // Per-device: revokes only the presented refresh token. `logout-all` is
+        // the separate, deliberate action that revokes every refresh token and
+        // deactivates every `user_devices` row. `user_refresh_tokens` has no
+        // `device_id`, so a narrower "revoke that other device" is not
+        // expressible without a schema change the owner deferred.
         Route::post('logout', [AuthController::class, 'logout'])->name('logout');
+
+        Route::post('logout-all', [AuthController::class, 'logoutAll'])->name('logout.all');
 
         Route::get('devices', [AuthController::class, 'devicesIndex'])->name('devices.index');
         Route::post('devices', [AuthController::class, 'devicesStore'])->name('devices.store');

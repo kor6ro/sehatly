@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\PersetujuanPdpJenis;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Http\Requests\Auth\LogoutAllRequest;
 use App\Http\Requests\Auth\LogoutRequest;
 use App\Http\Requests\Auth\RefreshTokenRequest;
 use App\Http\Requests\Auth\RegisterRequest;
+use App\Http\Requests\Auth\ResendOtpRequest;
 use App\Http\Requests\Auth\StoreDeviceRequest;
 use App\Http\Requests\Auth\VerifyOtpRequest;
 use App\Http\Resources\AuthTokenResource;
@@ -20,10 +23,14 @@ use App\Models\UserDevice;
 use App\Services\Audit\AuditLogWriter;
 use App\Services\Auth\OtpRejected;
 use App\Services\Auth\OtpService;
+use App\Services\Auth\PemilihPengirimOtp;
+use App\Services\Auth\PercobaanOtp;
 use App\Services\Auth\RefreshTokenRejected;
 use App\Services\Auth\TokenService;
+use App\Services\Pdp\PdpConsentService;
 use App\Support\ApiResponse;
 use App\Support\Rbac\RoleAssigner;
+use App\Support\Telepon;
 use App\Support\WaktuIndonesia;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
@@ -51,7 +58,9 @@ use Symfony\Component\HttpFoundation\Response;
  *
  * ```
  *   register          status = pending_verifikasi, telepon_terverifikasi = 0
- *        |            OTP minted with tujuan = verifikasi_telepon
+ *        |            the two mandatory PDP consent rows are written in the SAME
+ *        |            transaction, and an OTP with tujuan = verifikasi_telepon
+ *        |            is minted
  *        v
  *   otp/verify        --> status = aktif, telepon_terverifikasi = 1, last_login_at = now
  *        |            (a token is issued here and only here)
@@ -61,11 +70,20 @@ use Symfony\Component\HttpFoundation\Response;
  *        v
  *   otp/verify        --> a token is issued
  *
+ *   otp/resend        closes the previous code for the same purpose and mints a
+ *                     fresh one; answers the same generic envelope whether or not
+ *                     the account exists
+ *
  *   refresh           rotates the pair; replaying a spent token revokes every
  *                     live refresh token for the account and answers 401
  *
- *   logout            revokes the presented refresh token, deletes the Sanctum
- *                     access token, and deactivates every device row
+ *   logout            PER-DEVICE: revokes only the presented refresh token and
+ *                     deletes the Sanctum access token; every device row stays
+ *                     active, because `user_refresh_tokens` has no `device_id`
+ *                     and the server cannot tell which row the token belongs to
+ *
+ *   logout-all        revokes every live refresh token, deletes the access token
+ *                     and deactivates every `user_devices` row
  * ```
  *
  * Two transitions are refused rather than performed: a `nonaktif` or `ditangguhkan`
@@ -124,6 +142,7 @@ class AuthController extends Controller
         private readonly TokenService $tokens,
         private readonly RoleAssigner $roles,
         private readonly AuditLogWriter $audit,
+        private readonly PdpConsentService $konsen,
     ) {}
 
     /**
@@ -149,9 +168,13 @@ class AuthController extends Controller
         $kataSandiHash = Hash::make($input['password']);
 
         try {
-            $user = DB::transaction(function () use ($input, $kataSandiHash): User {
+            $user = DB::transaction(function () use ($input, $kataSandiHash, $request): User {
                 $user = new User;
                 $user->nama_lengkap = $input['nama_lengkap'];
+                // Already canonical `08…`: `RegisterRequest::prepareForValidation()`
+                // folded `+62…`/`62…` through `App\Support\Telepon` before any rule
+                // ran, so the `unique` check above and this write cannot disagree
+                // about which number an account has.
                 $user->no_telepon = $input['no_telepon'];
                 $user->email = $input['email'] ?? null;
                 $user->kata_sandi_hash = $kataSandiHash;
@@ -180,6 +203,31 @@ class AuthController extends Controller
                 // new patient would authenticate and then be refused by every
                 // `permission:`-gated route in todos 21, 27 and 47.
                 $this->roles->assign((int) $user->getKey(), 'pasien');
+
+                // The owner's option (a) for F01 §12 #1: the two MANDATORY UU PDP
+                // consents are taken in the registration request and recorded here,
+                // in the same transaction as the account. If either write fails the
+                // whole account rolls back, so a `users` row can never exist without
+                // the ledger rows that authorise it. The optional consents
+                // (`pemasaran`, `berbagi_data_medis`, `komunikasi_tindak_lanjut`)
+                // stay on the F02 screen and are not touched here.
+                //
+                // `catatVersiAktif()` is the F02 service's own write path, so the
+                // version authority, the append-only ledger rule and the audit
+                // observer all apply exactly as they do to
+                // `POST /api/v1/pdp/persetujuan` - no rule is restated here.
+                $this->konsen->catatVersiAktif(
+                    $user,
+                    PersetujuanPdpJenis::SyaratKetentuan->value,
+                    true,
+                    $request->ip(),
+                );
+                $this->konsen->catatVersiAktif(
+                    $user,
+                    PersetujuanPdpJenis::KebijakanPrivasi->value,
+                    true,
+                    $request->ip(),
+                );
 
                 return $user;
             });
@@ -259,6 +307,77 @@ class AuthController extends Controller
     }
 
     /**
+     * `POST /api/v1/auth/otp/resend`
+     *
+     * Re-mints the code for `$tujuan` without a password. It exists because the
+     * only other way to reopen a login code is `POST /auth/login`, which makes a
+     * client hold the password in memory on the OTP screen - the risk F01 §4.4
+     * names - and because a registration code has no second path at all.
+     *
+     * ## The response is generic, and that is the whole point
+     *
+     * An unknown identifier, a soft-deleted account and a `nonaktif`/`ditangguhkan`
+     * account all receive the SAME 200 body as a real one:
+     * `{otp: {kedaluwarsa_at, ttl_detik, kanal}}` with the same message. Nothing is
+     * minted for them, so the endpoint cannot be used to enumerate accounts. The
+     * two branches are kept byte-identical on purpose, and `OtpResendTest` asserts
+     * it under a frozen clock.
+     *
+     * ## It closes the previous code, because it goes through `issue()`
+     *
+     * `OtpService::issue()` supersedes any prior unused code for the same purpose
+     * by closing its validity window, in one transaction with the insert. Resend
+     * therefore cannot leave two live codes behind, which is what makes "the code
+     * in the SMS is the only code" true after a resend.
+     *
+     * ## `kanal` is derived from the driver that actually sends
+     *
+     * {@see PemilihPengirimOtp::kanalAktif()} reads the container binding's channel
+     * (`whatsapp` for `fonnte`, `log` for the local stand-in), so the response
+     * reports where the message really went. WhatsApp is one option among several;
+     * see `config/otp.php` and {@see PemilihPengirimOtp}.
+     *
+     * ## `device_id` is accepted and deliberately unused
+     *
+     * It is part of the published body for symmetry with `otp/verify`, but it is
+     * NOT folded into the rate-limit key: a caller controls `device_id` and could
+     * rotate it to buy fresh resend attempts against one number.
+     */
+    public function resendOtp(ResendOtpRequest $request): JsonResponse
+    {
+        $input = $request->validated();
+
+        $user = $this->resolveUser($request);
+
+        // The one message both branches answer with. It says "if registered"
+        // rather than "sent" because the caller is not entitled to know which.
+        $pesan = 'Jika akun terdaftar, kode OTP baru telah dikirim.';
+
+        if ($user !== null && ! in_array((string) $user->status, self::STATUS_DITOLAK, true)) {
+            $issued = $this->otp->issue($user, $input['tujuan'], (string) $user->no_telepon);
+
+            return ApiResponse::success([
+                'otp' => [
+                    'kedaluwarsa_at' => $issued->kedaluwarsaAt->toISOString(),
+                    'ttl_detik' => OtpService::TTL_MENIT * 60,
+                    'kanal' => PemilihPengirimOtp::kanalAktif(),
+                ],
+            ], $pesan);
+        }
+
+        // No account (or one that may not authenticate): the same envelope with a
+        // plausible window, and no row, no delivery and no audit write. The status
+        // is 200 rather than a 404 or a 403 so the two cases are indistinguishable.
+        return ApiResponse::success([
+            'otp' => [
+                'kedaluwarsa_at' => now()->addMinutes(OtpService::TTL_MENIT)->toISOString(),
+                'ttl_detik' => OtpService::TTL_MENIT * 60,
+                'kanal' => PemilihPengirimOtp::kanalAktif(),
+            ],
+        ], $pesan);
+    }
+
+    /**
      * `POST /api/v1/auth/otp/verify`
      *
      * The only endpoint in this controller that issues a token, and the only place
@@ -277,13 +396,13 @@ class AuthController extends Controller
         $user = $this->resolveUser($request);
 
         if ($user === null) {
-            return $this->otpRejection(OtpRejected::tidakDiketahui());
+            return $this->otpRejection(OtpRejected::tidakDiketahui(), $request);
         }
 
         try {
             $this->otp->consume($user, $input['tujuan'], $input['kode']);
         } catch (OtpRejected $rejected) {
-            return $this->otpRejection($rejected);
+            return $this->otpRejection($rejected, $request);
         }
 
         DB::transaction(function () use ($user): void {
@@ -341,26 +460,27 @@ class AuthController extends Controller
     }
 
     /**
-     * `POST /api/v1/auth/logout`
+     * `POST /api/v1/auth/logout` - the PER-DEVICE logout (owner decision F01 §12 #3).
      *
-     * Revokes the presented refresh token, deletes the Sanctum access token this request
-     * arrived on, and deactivates **every** `user_devices` row for the account.
+     * Revokes **only the presented refresh token** and deletes the Sanctum access
+     * token this request arrived on. It deliberately does NOT touch `user_devices`:
+     * a per-device logout must leave the other signed-in devices working, and
+     * `user_refresh_tokens` has **no `device_id` column** (`:204-212`), so the
+     * server cannot tell which device row this session belongs to. Deactivating
+     * "the current device" is therefore not expressible, and deactivating all of
+     * them is exactly what {@see logoutAll()} exists for.
      *
-     * The last part is the plan's rule and it is deliberately broad. The stated reason
-     * is that `user_devices.aktif` (`:197`) would otherwise never be written and a
-     * signed-out device would keep receiving that account's medical push
-     * notifications. The rule is broad because `user_refresh_tokens` has **no
-     * `device_id` column** (`:204-212`), so the server cannot tell which device a
-     * session belongs to and has no narrower correct action available; a `device_id`
-     * cannot be added, because the reference SQL is read-only law.
+     * ## The schema is NOT changed to make this narrower
      *
-     * The blast radius is bounded and recoverable rather than silent: each device
-     * re-activates itself by calling `POST /api/v1/auth/devices`, which sets `aktif = 1`
-     * for that row and touches `last_active_at`. `DELETE /api/v1/auth/devices/{deviceId}`
-     * is the scoped alternative for a caller who wants to end one session only. The
-     * tension between "deactivate the one device" and "deactivate all of them" is
-     * recorded in `.omo/evidence/task-20-sehatly.md` rather than resolved by picking
-     * the reading that happens to be implemented.
+     * A `device_id` column on `user_refresh_tokens` would let the server map a
+     * session to a row, but the reference SQL is read-only law and the owner's
+     * decision explicitly defers the mapping. So revoking *another* device from
+     * the device list is not built, and the response reports
+     * `perangkat.dimatikan: 0` - a truthful zero rather than a removed key, kept
+     * so existing clients that read the field do not break.
+     *
+     * A device that was deactivated by a previous `logout-all` re-activates itself
+     * by calling `POST /api/v1/auth/devices`, which sets `aktif = 1`.
      */
     public function logout(LogoutRequest $request): JsonResponse
     {
@@ -370,11 +490,6 @@ class AuthController extends Controller
         $refreshRevoked = $this->tokens->revoke((string) $request->validated('refresh_token'));
         $accessRevoked = $this->tokens->revokeCurrentAccessToken($request);
 
-        $devicesDeactivated = DB::table('user_devices')
-            ->where('user_id', $user->getKey())
-            ->where('aktif', true)
-            ->update(['aktif' => false]);
-
         // The session ends here, after the revocation above. Same shape as
         // the login write: an explicit call into the audit service, which is
         // the only producer of log rows.
@@ -383,8 +498,50 @@ class AuthController extends Controller
         return ApiResponse::success([
             'refresh_token' => ['dicabut' => $refreshRevoked],
             'access_token' => ['dihapus' => $accessRevoked],
-            'perangkat' => ['dimatikan' => $devicesDeactivated],
+            'perangkat' => ['dimatikan' => 0],
         ], 'Logout berhasil.');
+    }
+
+    /**
+     * `POST /api/v1/auth/logout-all` - "keluar dari semua perangkat".
+     *
+     * Revokes every live refresh token for the account, deletes the access token
+     * this request arrived on, and deactivates every `user_devices` row. This is
+     * the endpoint that owns the broad action the old `POST /auth/logout` used to
+     * perform; separating them is what makes the device list meaningful, because
+     * "sign out here" no longer signs out everywhere.
+     *
+     * The deactivation is deliberately part of this action: `user_devices.aktif`
+     * is what stops a signed-out installation from continuing to receive that
+     * account's medical push notifications, and only a caller who asked to leave
+     * every device has agreed to that.
+     *
+     * The rows are deactivated, never deleted - `user_devices` is the only record
+     * of which installations hold a push registration.
+     */
+    public function logoutAll(LogoutAllRequest $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        $refreshRevoked = $this->tokens->revokeAllForUser((int) $user->getKey());
+        $accessRevoked = $this->tokens->revokeCurrentAccessToken($request);
+
+        $devicesDeactivated = DB::table('user_devices')
+            ->where('user_id', $user->getKey())
+            ->where('aktif', true)
+            ->update(['aktif' => false]);
+
+        $this->audit->logout($user);
+
+        return ApiResponse::success([
+            'refresh_token' => [
+                'dicabut' => $refreshRevoked > 0,
+                'jumlah' => $refreshRevoked,
+            ],
+            'access_token' => ['dihapus' => $accessRevoked],
+            'perangkat' => ['dimatikan' => $devicesDeactivated],
+        ], 'Logout dari semua perangkat berhasil.');
     }
 
     /**
@@ -531,7 +688,15 @@ class AuthController extends Controller
     private function resolveUser(Request $request): ?User
     {
         if ($request->filled('no_telepon')) {
-            return User::query()->where('no_telepon', $request->input('no_telepon'))->first();
+            // The `FormRequest` already normalised this before validation, so this
+            // is normally a no-op. It is repeated because `resolveUser()` is also
+            // the lookup every caller goes through, and a future route that forgets
+            // `prepareForValidation()` must still find the account the canonical
+            // form belongs to - {@see Telepon::normalisasi()} is idempotent, so
+            // running it twice is free rather than wrong.
+            return User::query()
+                ->where('no_telepon', Telepon::normalisasi((string) $request->input('no_telepon')))
+                ->first();
         }
 
         if ($request->filled('email')) {
@@ -570,13 +735,23 @@ class AuthController extends Controller
      * where field-level detail belongs. The status is always 422: a bad code is bad
      * input, and a 401 here would tell the client its *session* had expired when its
      * session has not started yet.
+     *
+     * ## `meta.sisa_percobaan` is exposed HERE and nowhere else
+     *
+     * The owner's decision (F01 §12 #6) is that a client may see how many guesses a
+     * code has left so it can warn "sisa N percobaan" before the sixth burns the
+     * code. The number comes from {@see PercobaanOtp::sisa()}, which reads back the
+     * same limiter bucket the middleware just counted. `login` and every
+     * account-lookup response stay generic: a remaining-attempt counter there would
+     * be a probe an attacker could watch without holding the account's code.
      */
-    private function otpRejection(OtpRejected $rejected): JsonResponse
+    private function otpRejection(OtpRejected $rejected, Request $request): JsonResponse
     {
         return ApiResponse::error(
             'The given data was invalid.',
             ['kode' => [$rejected->getMessage()]],
             Response::HTTP_UNPROCESSABLE_ENTITY,
+            ['sisa_percobaan' => PercobaanOtp::sisa($request)],
         );
     }
 

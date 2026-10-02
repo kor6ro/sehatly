@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Support\Security;
 
 use App\Services\Auth\OtpSender;
+use App\Services\Auth\PemilihPengirimOtp;
 use Illuminate\Contracts\Foundation\Application;
+use LogicException;
 
 /**
  * F-005: refuse to boot outside local/testing while a delivery channel is the log.
@@ -61,6 +63,44 @@ final class PenjagaPengirimanProduksi
 
         if ($otp === 'fonnte' && (string) config('otp.fonnte.token') === '') {
             $masalah[] = 'OTP_DRIVER is "fonnte" but FONNTE_TOKEN is empty.';
+        }
+
+        // The declared channel and the active driver must agree. Without this,
+        // `OTP_CHANNEL=sms` with `OTP_DRIVER=fonnte` would tell patients a code
+        // was sent by SMS while it actually went over the unofficial WhatsApp
+        // gateway - a silent mismatch between the contract and the transport.
+        // WhatsApp is an option, so selecting another channel is allowed; what is
+        // refused is DECLARING one and delivering over another.
+        if (! in_array($otp, PemilihPengirimOtp::DRIVER, true)) {
+            $masalah[] = 'OTP_DRIVER is ['.$otp.'], which is not a known driver. Known: ['
+                .implode(', ', PemilihPengirimOtp::DRIVER).'].';
+        } else {
+            $kanalAktif = PemilihPengirimOtp::kanal($otp);
+
+            // The accessors validate the declared names, so a typo is collected
+            // here instead of throwing a `LogicException` out of a guard whose
+            // job is to report every problem in one message.
+            $kanalDipilih = null;
+            $kanalFallback = null;
+
+            try {
+                $kanalDipilih = PemilihPengirimOtp::kanalTerpilih();
+            } catch (LogicException $e) {
+                $masalah[] = 'OTP_CHANNEL: '.$e->getMessage();
+            }
+
+            try {
+                $kanalFallback = PemilihPengirimOtp::kanalFallback();
+            } catch (LogicException $e) {
+                $masalah[] = 'OTP_FALLBACK_CHANNEL: '.$e->getMessage();
+            }
+
+            if ($kanalDipilih !== null && $kanalDipilih !== $kanalAktif) {
+                $masalah[] = 'OTP_CHANNEL is ['.$kanalDipilih.'] but OTP_DRIVER is ['.$otp.'], which '
+                    .'delivers over ['.$kanalAktif.']. Set OTP_CHANNEL='.$kanalAktif
+                    .' or implement and select the ['.$kanalDipilih.'] channel'
+                    .' (declared fallback: ['.($kanalFallback ?? 'unknown').']).';
+            }
         }
 
         if ($push === 'fcm' && (string) config('push.firebase.credentials') === '') {

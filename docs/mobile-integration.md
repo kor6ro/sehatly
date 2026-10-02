@@ -359,24 +359,42 @@ out" has exactly one meaning.
   "data": {
     "refresh_token": { "dicabut": true },
     "access_token": { "dihapus": true },
-    "perangkat": { "dimatikan": 2 }
+    "perangkat": { "dimatikan": 0 }
   },
   "message": "Logout berhasil."
 }
 ```
 
-Those three booleans are **reports, not commands**. `refreshDicabut: false` is not
-an error; it means the token was already gone, which is exactly what an
-idempotent sign-out should tolerate. Note the three different Indonesian roots:
-`dicabut`, `dihapus`, `dimatikan`.
+Those three fields are **reports, not commands**. `dicabut: false` is not an
+error; it means the token was already gone, which is exactly what an idempotent
+sign-out should tolerate. Note the three different Indonesian roots: `dicabut`,
+`dihapus`, `dimatikan`.
+
+Logout is **per-device**: it revokes only the presented refresh token and the
+access token the call arrived on. `perangkat.dimatikan` is always `0` now, kept
+in the body so existing clients do not break. To end **every** session, call
+`POST /api/v1/auth/logout-all` (authenticated, no body), which revokes all
+refresh tokens and deactivates every `user_devices` row:
+
+```json
+{
+  "success": true,
+  "data": {
+    "refresh_token": { "dicabut": true, "jumlah": 2 },
+    "access_token": { "dihapus": true },
+    "perangkat": { "dimatikan": 3 }
+  },
+  "message": "Logout dari semua perangkat berhasil."
+}
+```
+
+`user_refresh_tokens` has no `device_id` column, so revoking *another specific*
+device is not expressible and is deferred; the device list's per-row action is
+`DELETE /api/v1/auth/devices/{deviceId}`.
 
 **Call 6 -- the local clear.** `SehatlyApiClient.signOut()` calls logout and then
 clears both stores *in a `finally`*, so an unreachable server still leaves no
-live credential on a device the user believes they have signed out of. That is
-broad -- logout deactivates **every** `user_devices` row for the account, because
-`user_refresh_tokens` has no `device_id` column and the server cannot tell which
-device a session belongs to. To end one session, use
-`DELETE /api/v1/auth/devices/{deviceId}`.
+live credential on a device the user believes they have signed out of.
 
 ### 2.3 Token lifetimes, and the OTP attempt rules
 
@@ -393,10 +411,19 @@ reason under `errors.kode`, which is how a client tells "resend" from "start ove
 `reset_kata_sandi` and `verifikasi_email` exist in the column and are **refused**
 by this endpoint on purpose: its effect is "issue a session", and neither needs one.
 
-There is **no resend endpoint**. To re-issue a login OTP, call
-`POST /api/v1/auth/login` again, which is throttled at 5 per minute on the
-identifier. Issuing a new OTP invalidates the previous unused one for the same
-purpose, so "resend" is a fresh login call, not a re-read of the old code.
+**There IS a resend endpoint: `POST /api/v1/auth/otp/resend`.** Body
+`{tujuan, no_telepon?, email?, device_id?}`; it mints a fresh code with no
+password, closes the previous unused code for the same purpose, and is throttled
+at 3 per five minutes per account + address. Its response is deliberately
+generic - an unknown, suspended or real account receives the same
+`{otp: {kedaluwarsa_at, ttl_detik, kanal}}` body and message, so it cannot be
+used to enumerate accounts. `kanal` reports the channel the code actually went
+out on. A 429 there carries `meta.retry_after` and the `Retry-After` header.
+
+On `POST /api/v1/auth/otp/verify`, a 422 carries `meta.sisa_percobaan` (guesses
+left before the code is burned) and the 429 carries `meta.sisa_percobaan: 0` plus
+`meta.retry_after`. `login` and account lookup stay generic and expose no
+attempt counter.
 
 An unknown identifier and a wrong password produce the **same** 401 body and take
 the same time by way of a decoy hash, so `/auth/login` is not a phone-number

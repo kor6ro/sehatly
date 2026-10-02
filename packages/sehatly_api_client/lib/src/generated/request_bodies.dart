@@ -1141,6 +1141,124 @@ class LogoutRequestBody {
   }
 }
 
+/// The request body `App\Http\Requests\Auth\LogoutAllRequest` validates.
+///
+/// Every field below was read from that class's `rules()`. A `required` rule is a
+/// constructor parameter, so omitting it is a compile error rather than a 422, and the
+/// Dart type is derived from the type rules, so a `boolean` field cannot be handed a
+/// `String`.
+///
+/// [toJson] emits the WIRE names, which for a dotted Laravel attribute path is the
+/// dotted path itself -- the same string `ValidationException::errors()` uses, so a 422
+/// message maps back to the field that caused it.
+class LogoutAllRequestBody {
+  /// The `FormRequest` class these rules were read from.
+  static const String formRequest = 'App\\Http\\Requests\\Auth\\LogoutAllRequest';
+
+  /// Creates the body.
+  ///
+  /// Required fields are `required this`, so omitting one is a compile error
+  /// rather than a 422. Optional fields are plain named parameters defaulting to
+  /// `null`, which is what keeps every `final` field initialised -- a body class with
+  /// NO required field (the reference endpoints read their rules off the route name, so
+  /// several are parameterless on some paths) would otherwise have uninitialised finals.
+  const LogoutAllRequestBody();
+
+  /// The declared field names, required first, then optional.
+  static const List<String> fields = <String>[];
+
+  /// The fields the server REJECTS when sent. A tenant key, in this project, is
+  /// written from the caller's own row, so sending one is a validation error.
+  static const List<String> prohibitedFields = <String>[];
+
+  /// The wire body, omitting every field left `null`.
+  ///
+  /// Omission rather than an explicit `null` is deliberate and matches the server:
+  /// Laravel treats `sometimes|nullable` and `required` differently, and sending an
+  /// explicit `null` for a `sometimes` field is not the same request as omitting it.
+  /// Always an empty map: this request declares no field on every path it
+  /// serves, because its rules are derived from the route name.
+  Map<String, Object?> toJson() => <String, Object?>{};
+}
+
+/// The request body `App\Http\Requests\Auth\ResendOtpRequest` validates.
+///
+/// Every field below was read from that class's `rules()`. A `required` rule is a
+/// constructor parameter, so omitting it is a compile error rather than a 422, and the
+/// Dart type is derived from the type rules, so a `boolean` field cannot be handed a
+/// `String`.
+///
+/// [toJson] emits the WIRE names, which for a dotted Laravel attribute path is the
+/// dotted path itself -- the same string `ValidationException::errors()` uses, so a 422
+/// message maps back to the field that caused it.
+class ResendOtpRequestBody {
+  /// The `FormRequest` class these rules were read from.
+  static const String formRequest = 'App\\Http\\Requests\\Auth\\ResendOtpRequest';
+
+  /// Creates the body.
+  ///
+  /// Required fields are `required this`, so omitting one is a compile error
+  /// rather than a 422. Optional fields are plain named parameters defaulting to
+  /// `null`, which is what keeps every `final` field initialised -- a body class with
+  /// NO required field (the reference endpoints read their rules off the route name, so
+  /// several are parameterless on some paths) would otherwise have uninitialised finals.
+  const ResendOtpRequestBody({
+    required this.tujuan,
+    this.deviceId,
+    this.email,
+    this.noTelepon,
+  });
+
+  /// `tujuan`, a closed set on the server.
+  final Object? tujuan;
+
+  /// `device_id`.
+  final Object? deviceId;
+
+  /// `email`.
+  final Object? email;
+
+  /// `no_telepon`.
+  final Object? noTelepon;
+
+  /// The values the server accepts for `tujuan`, read from its `Rule::in`.
+  ///
+  /// A `Set<String>` rather than a Dart enum on purpose: the rule's values are
+  /// data rather than a compile-time vocabulary, so the server may gain a member
+  /// without this package being released, and a set keeps the check honest
+  /// instead of failing to compile against a list it has never seen.
+  static const Set<String> tujuanAllowed = <String>{
+    'verifikasi_telepon',
+    'login',
+  };
+
+  /// The declared field names, required first, then optional.
+  static const List<String> fields = <String>[
+    'tujuan',
+    'device_id',
+    'email',
+    'no_telepon',
+  ];
+
+  /// The fields the server REJECTS when sent. A tenant key, in this project, is
+  /// written from the caller's own row, so sending one is a validation error.
+  static const List<String> prohibitedFields = <String>[];
+
+  /// The wire body, omitting every field left `null`.
+  ///
+  /// Omission rather than an explicit `null` is deliberate and matches the server:
+  /// Laravel treats `sometimes|nullable` and `required` differently, and sending an
+  /// explicit `null` for a `sometimes` field is not the same request as omitting it.
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      if (tujuan != null) 'tujuan': tujuan,
+      if (deviceId != null) 'device_id': deviceId,
+      if (email != null) 'email': email,
+      if (noTelepon != null) 'no_telepon': noTelepon,
+    };
+  }
+}
+
 /// The request body `App\Http\Requests\Auth\VerifyOtpRequest` validates.
 ///
 /// Every field below was read from that class's `rules()`. A `required` rule is a
@@ -1301,6 +1419,8 @@ class RegisterRequestBody {
     required this.namaLengkap,
     required this.noTelepon,
     required this.password,
+    required this.persetujuanKebijakanPrivasi,
+    required this.persetujuanSyaratKetentuan,
     required this.tanggalLahir,
     this.bahasa,
     this.email,
@@ -1321,6 +1441,12 @@ class RegisterRequestBody {
 
   /// `password`.
   final Object? password;
+
+  /// `persetujuan_kebijakan_privasi`.
+  final Object? persetujuanKebijakanPrivasi;
+
+  /// `persetujuan_syarat_ketentuan`.
+  final Object? persetujuanSyaratKetentuan;
 
   /// `tanggal_lahir`.
   final Object? tanggalLahir;
@@ -1363,6 +1489,8 @@ class RegisterRequestBody {
     'nama_lengkap',
     'no_telepon',
     'password',
+    'persetujuan_kebijakan_privasi',
+    'persetujuan_syarat_ketentuan',
     'tanggal_lahir',
     'bahasa',
     'email',
@@ -1385,6 +1513,8 @@ class RegisterRequestBody {
       if (namaLengkap != null) 'nama_lengkap': namaLengkap,
       if (noTelepon != null) 'no_telepon': noTelepon,
       if (password != null) 'password': password,
+      if (persetujuanKebijakanPrivasi != null) 'persetujuan_kebijakan_privasi': persetujuanKebijakanPrivasi,
+      if (persetujuanSyaratKetentuan != null) 'persetujuan_syarat_ketentuan': persetujuanSyaratKetentuan,
       if (tanggalLahir != null) 'tanggal_lahir': tanggalLahir,
       if (bahasa != null) 'bahasa': bahasa,
       if (email != null) 'email': email,

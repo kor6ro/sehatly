@@ -9,6 +9,7 @@ use App\Services\Audit\AuditScope;
 use App\Services\Auth\OtpSender;
 use App\Services\Auth\OtpService;
 use App\Services\Auth\PemilihPengirimOtp;
+use App\Services\Auth\PercobaanOtp;
 use App\Services\Notifikasi\PemilihPengirimPush;
 use App\Services\Notifikasi\PushDispatcher;
 use App\Services\Payment\MockPaymentGatewayService;
@@ -18,6 +19,7 @@ use App\Services\SuratKeterangan\StrQrTokenGenerator;
 use App\Support\ApiResponse;
 use App\Support\Security\PenjagaPengirimanProduksi;
 use App\Support\Security\PenjagaRahasiaWebhook;
+use App\Support\Telepon;
 use Carbon\CarbonImmutable;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Foundation\Http\Events\RequestHandled;
@@ -58,7 +60,10 @@ class AppServiceProvider extends ServiceProvider
     private const OTP_KIRIM_PER_JAM = 10;
 
     /** Guesses allowed against one issued code before it is burned. */
-    private const OTP_VERIFY_PER_KODE = 5;
+    private const OTP_VERIFY_PER_KODE = PercobaanOtp::MAKS_PER_KODE;
+
+    /** OTP resend requests allowed to one account from one address in five minutes. */
+    private const OTP_RESEND_PER_LIMA_MENIT = 3;
 
     /** Registrations allowed from one client address in an hour. */
     private const REGISTER_PER_JAM = 3;
@@ -370,6 +375,7 @@ class AppServiceProvider extends ServiceProvider
      * | `auth-login` | identifier | 5 | 60 s | `POST /auth/login` |
      * | `auth-login-ip` | client IP | 60 | 60 s | `POST /auth/login` |
      * | `auth-otp-send` | identifier + IP | 10 | 60 s | `POST /auth/register` |
+     * | `auth-otp-resend` | identifier + IP | 3 | 300 s | `POST /auth/otp/resend` |
      * | `otp-kirim` | identifier | 3 | 60 s | **not mounted - ceiling decision (F-002)** |
      * | `otp-kirim-jam` | identifier | 10 | 3600 s | **not mounted - ceiling decision (F-002)** |
      * | `auth-otp-verify` | `user_otp.id` | 5 | 300 s | `POST /auth/otp/verify` |
@@ -512,6 +518,23 @@ class AppServiceProvider extends ServiceProvider
             1,
         ));
 
+        // `POST /auth/otp/resend` is the only endpoint that mints an OTP with NO
+        // prior credential at all: `login` requires a password and `register`
+        // refuses a number that already exists, so resend is the one anonymous
+        // route that can be aimed at an arbitrary existing account. Its own
+        // budget is therefore deliberately tighter than login's - 3 per five
+        // minutes, keyed on identifier PLUS address - so a single host cannot
+        // exhaust one account's resend budget from many addresses, and many
+        // accounts cannot be sprayed from one address without a per-account
+        // ceiling. It is NOT keyed on `device_id`, which a caller controls and
+        // could rotate to buy fresh attempts.
+        RateLimiter::for('auth-otp-resend', fn (Request $request): Limit|SymfonyResponse => $this->guard(
+            'auth-otp-resend',
+            $this->throttleKey($request, 'auth-otp-resend'),
+            self::OTP_RESEND_PER_LIMA_MENIT,
+            5,
+        ));
+
         // The plan's `otp-kirim`, 3/min and 10/hour per phone number. Two limiters
         // rather than one closure returning an array, because
         // `OpenApiDocumentBuilder::limitFor()` reads `$limit->maxAttempts` off
@@ -532,14 +555,17 @@ class AppServiceProvider extends ServiceProvider
         // can happen first: the code is invalidated and the client is told why in the
         // same breath, and there is no window in which a client has been told 429
         // while the code is still good.
+        // The key derivation lives in `PercobaanOtp` because the controller has
+        // to read the SAME bucket back out to publish `meta.sisa_percobaan`; two
+        // copies of this arithmetic would drift and the reported number would
+        // stop describing the counter actually being spent. The class docblock
+        // carries the full argument.
         RateLimiter::for('auth-otp-verify', function (Request $request): Limit|SymfonyResponse {
             $tujuan = (string) $request->input('tujuan', '');
 
-            $otpId = $this->liveOtpId($request);
+            $otpId = PercobaanOtp::idKodeAktif($request);
 
-            $key = 'auth-otp-verify|'.($otpId === null
-                ? 'tanpa-kode|'.$this->throttleKey($request, 'auth-otp-verify')
-                : 'otp-'.$otpId);
+            $key = PercobaanOtp::kunciDari($otpId, $request);
 
             $cacheKey = $this->throttleCacheKey('auth-otp-verify', $key);
 
@@ -551,7 +577,10 @@ class AppServiceProvider extends ServiceProvider
                 $this->burnOtp($otpId);
             }
 
-            return $this->throttleResponse($cacheKey, self::OTP_VERIFY_PER_KODE);
+            // `sisa_percobaan` is 0 here by definition: the bucket is exhausted.
+            // It is still published so a client renders the same key on both
+            // sides of the boundary instead of null-checking.
+            return $this->throttleResponse($cacheKey, self::OTP_VERIFY_PER_KODE, ['sisa_percobaan' => 0]);
         });
 
         // -------------------------------------------------------- authenticated --
@@ -713,13 +742,23 @@ class AppServiceProvider extends ServiceProvider
      *   the boundary. They are NOT safelisted, so `config/cors.php` exposes them
      *   (F-011), which is what lets a browser client read the pair on a 429 as well
      *   as on an allowed response.
+     *
+     * `$meta` carries limiter-specific numbers into the envelope's optional
+     * fourth key. `retry_after` is always present and mirrors the `Retry-After`
+     * header, because a header is not readable by every client shape (a
+     * server-rendered page, a log scraper) while the envelope is. The OTP-verify
+     * limiter adds `sisa_percobaan`; no other limiter passes anything, so every
+     * pre-existing 429 gains exactly one documented key and no more.
+     *
+     * @param  array<string, mixed>  $meta
      */
-    private function throttleResponse(string $key, int $maxAttempts): SymfonyResponse
+    private function throttleResponse(string $key, int $maxAttempts, array $meta = []): SymfonyResponse
     {
         $response = ApiResponse::error(
             'Terlalu banyak permintaan. Silakan coba lagi nanti.',
             [],
             SymfonyResponse::HTTP_TOO_MANY_REQUESTS,
+            array_merge(['retry_after' => RateLimiter::availableIn($key)], $meta),
         );
 
         $response->headers->set('Retry-After', (string) RateLimiter::availableIn($key));
@@ -727,55 +766,6 @@ class AppServiceProvider extends ServiceProvider
         $response->headers->set('X-RateLimit-Remaining', (string) RateLimiter::remaining($key, $maxAttempts));
 
         return $response;
-    }
-
-    /**
-     * The `user_otp.id` of the code this request is trying to spend, or null.
-     *
-     * Null for anything that is not a shaped `POST /auth/otp/verify` body -- a
-     * synthetic request from the OpenAPI builder, a call that failed validation, an
-     * identifier that matches no account. The caller falls back to an
-     * identifier-plus-IP bucket in that case, which is the correct bound: there is
-     * no code to count attempts against.
-     *
-     * The row is resolved rather than derived from the request, because the only
-     * thing a client can be trusted not to change is which code it *believes* it is
-     * spending. Keying the bucket on a hash of the presented `kode` would hand an
-     * attacker five fresh attempts per guess and bound nothing at all.
-     *
-     * Deliberately NOT filtered on `sudah_dipakai`: the key must not move when the
-     * code is consumed, or a code the attacker already holds would get a new budget
-     * the moment it stopped being useful. `dihapus_at` is honoured because
-     * `AuthController::resolveUser()` honours it through `SoftDeletes`, and the two
-     * must agree about which accounts exist.
-     */
-    private function liveOtpId(Request $request): ?int
-    {
-        $column = match (true) {
-            $request->filled('no_telepon') => 'no_telepon',
-            $request->filled('email') => 'email',
-            default => null,
-        };
-
-        if ($column === null || ! $request->isMethod('POST')) {
-            return null;
-        }
-
-        $tujuan = (string) $request->input('tujuan', '');
-
-        if ($tujuan === '' || ! in_array($tujuan, OtpService::TUJUAN, true)) {
-            return null;
-        }
-
-        $id = DB::table('user_otp')
-            ->join('users', 'users.id', '=', 'user_otp.user_id')
-            ->where('users.'.$column, $request->input($column))
-            ->whereNull('users.dihapus_at')
-            ->where('user_otp.tujuan', $tujuan)
-            ->orderByDesc('user_otp.id')
-            ->value('user_otp.id');
-
-        return $id === null ? null : (int) $id;
     }
 
     /**
@@ -833,12 +823,22 @@ class AppServiceProvider extends ServiceProvider
      * `Str::transliterate()` is applied so an address that arrives in a different
      * Unicode normalisation form lands in the same bucket as its ASCII twin --
      * otherwise a case-and-normalisation variant is a free extra set of attempts.
+     *
+     * A phone number is folded to the canonical local `08...` first
+     * ({@see Telepon::normalisasi()}), because the middleware runs BEFORE the
+     * `FormRequest` normalises anything: without this, `0812...` and `+62812...`
+     * would be two rate-limit buckets for one account, and the per-account
+     * ceiling would be double what it claims.
      */
     private function identifier(Request $request): string
     {
-        $identifier = $request->input('no_telepon') ?? $request->input('email') ?? '';
+        $nomor = $request->input('no_telepon');
 
-        return Str::transliterate(Str::lower((string) $identifier));
+        if ($nomor !== null) {
+            return Str::transliterate(Str::lower((string) Telepon::normalisasi((string) $nomor)));
+        }
+
+        return Str::transliterate(Str::lower((string) ($request->input('email') ?? '')));
     }
 
     /**
@@ -966,12 +966,14 @@ class AppServiceProvider extends ServiceProvider
      * request that named no account was refused by the FormRequest before any OTP was
      * minted, so there is nothing to spray, and the fallback stops every anonymous
      * caller from sharing one global bucket a single client could exhaust for everyone.
+     *
+     * The phone number is folded to the canonical local `08...` for the reason
+     * {@see identifier()} gives: this runs before the `FormRequest`, and a
+     * `+62...`/`08...` pair must spend one budget, not two.
      */
     private function throttleKey(Request $request, string $limiter): string
     {
-        $identifier = $request->input('no_telepon') ?? $request->input('email') ?? '';
-
-        $identifier = Str::transliterate(Str::lower((string) $identifier));
+        $identifier = $this->identifier($request);
 
         return $limiter.'|'.$identifier.'|'.$request->ip();
     }

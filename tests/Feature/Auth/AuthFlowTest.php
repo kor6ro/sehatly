@@ -29,7 +29,7 @@ use Tests\Support\FakeOtpSender;
 | Module 1 auth endpoints
 |--------------------------------------------------------------------------
 |
-| Eight routes under `/api/v1/auth`, and every one of them is covered in both
+| Ten routes under `/api/v1/auth`, and every one of them is covered in both
 | directions: a happy path, and the failure the endpoint exists to refuse.
 |
 | **These are Pest closure tests, not a PHPUnit class, and that is
@@ -69,9 +69,12 @@ use Tests\Support\FakeOtpSender;
 /**
  * A complete, valid `POST /auth/register` payload, with overrides merged in.
  *
- * All nine keys are supplied, not just the required ones, so a test that changes
- * one field knows the other eight still validate and the failure it observes is
+ * All eleven keys are supplied, not just the required ones, so a test that changes
+ * one field knows the other ten still validate and the failure it observes is
  * the one it meant to cause.
+ *
+ * The two consent flags are the owner's mandatory consents (F01 decision #1),
+ * both `accepted`; a test that wants the refusal removes or falsifies one.
  *
  * @param  array<string, mixed>  $overrides
  * @return array<string, mixed>
@@ -88,6 +91,8 @@ function authRegisterPayload(array $overrides = []): array
         'tempat_lahir' => 'Bandung',
         'alamat_lengkap' => 'Jl. Merdeka No. 1, Bandung, Jawa Barat 40115',
         'bahasa' => 'id',
+        'persetujuan_syarat_ketentuan' => true,
+        'persetujuan_kebijakan_privasi' => true,
     ], $overrides);
 }
 
@@ -374,6 +379,64 @@ test('register creates the users row, the pasien row and the role grant, and sen
         ->and(authSender()->lastKodeFor(OtpService::TUJUAN_VERIFIKASI_TELEPON))
         ->toMatch('/^[0-9]{6}$/');
 });
+
+test('register writes the two mandatory consent rows in the same transaction as the account', function (): void {
+    // F01 decision #1, option (a): consent is taken in the registration request
+    // and the ledger rows are written atomically with the account, so a `users`
+    // row cannot exist without the consents that authorise it.
+    $this->postJson('/api/v1/auth/register', authRegisterPayload())->assertCreated();
+
+    $user = User::query()->where('no_telepon', authTestPhone())->firstOrFail();
+
+    $rows = DB::table('persetujuan_pdp')
+        ->where('user_id', $user->getKey())
+        ->orderBy('id')
+        ->get();
+
+    expect($rows)->toHaveCount(2);
+
+    $jenis = $rows->pluck('jenis')->all();
+    sort($jenis);
+
+    expect($jenis)->toBe(['kebijakan_privasi', 'syarat_ketentuan']);
+
+    foreach ($rows as $row) {
+        // The active version comes from `config/pdp.php` through `PdpDokumen`,
+        // never from the client, and `disetujui_at` is the server clock.
+        expect((bool) $row->disetujui)->toBeTrue()
+            ->and($row->versi_dokumen)->toBe(config('pdp.dokumen.'.$row->jenis.'.versi'))
+            ->and($row->disetujui_at)->not->toBeNull()
+            ->and($row->ip_address)->toBe('127.0.0.1');
+    }
+});
+
+test('register refuses missing or declined consent and writes nothing at all', function (string $field, mixed $value): void {
+    $payload = authRegisterPayload();
+
+    if ($value === null) {
+        unset($payload[$field]);
+    } else {
+        $payload[$field] = $value;
+    }
+
+    $response = $this->postJson('/api/v1/auth/register', $payload);
+
+    $response->assertStatus(422);
+    $response->assertJsonPath('success', false);
+    expect($response->json('errors'))->toHaveKey($field);
+
+    // The transaction never opened: no account, no patient row, no consent row,
+    // no role grant and no OTP. The consent ledger is the point of the refusal.
+    expect(User::query()->count())->toBe(0)
+        ->and(Pasien::query()->count())->toBe(0)
+        ->and(DB::table('persetujuan_pdp')->count())->toBe(0)
+        ->and(DB::table('user_otp')->count())->toBe(0);
+})->with([
+    'syarat ketentuan absent' => ['persetujuan_syarat_ketentuan', null],
+    'kebijakan privasi absent' => ['persetujuan_kebijakan_privasi', null],
+    'syarat ketentuan false' => ['persetujuan_syarat_ketentuan', false],
+    'kebijakan privasi false' => ['persetujuan_kebijakan_privasi', false],
+]);
 
 test('register never returns the plaintext OTP outside the local environment', function (): void {
     // `phpunit.xml` sets APP_ENV=testing, which is the point: the suite runs the
@@ -998,9 +1061,15 @@ test('a refresh token of the wrong length is a validation error, not a session f
 // POST /api/v1/auth/logout
 // =====================================================================
 
-test('logout revokes the refresh token, deletes the access token and deactivates every device', function (): void {
+test('logout revokes only the presented refresh token and leaves every device active', function (): void {
+    // F01 decision #3: logout is PER-DEVICE. It revokes the presented refresh
+    // token and the access token it arrived on, and touches nothing else -
+    // `user_refresh_tokens` has no `device_id`, so "the current device row" is
+    // not expressible, and deactivating all rows is `logout-all`'s job.
     $verified = authRegisterVerified();
     $user = $verified['user'];
+
+    $otherSession = authLoginVerified($user);
 
     authRegisterDevice($user, 'hp-1');
     authRegisterDevice($user, 'web-1');
@@ -1015,16 +1084,68 @@ test('logout revokes the refresh token, deletes the access token and deactivates
     $response->assertOk();
     $response->assertJsonPath('data.refresh_token.dicabut', true);
     $response->assertJsonPath('data.access_token.dihapus', true);
-    $response->assertJsonPath('data.perangkat.dimatikan', 3);
+    // The key is kept for contract compatibility and reports a truthful zero:
+    // a per-device logout cannot identify the device row to deactivate.
+    $response->assertJsonPath('data.perangkat.dimatikan', 0);
 
     expect((bool) UserRefreshToken::query()
         ->where('token_hash', hash('sha256', $verified['refresh']))
         ->value('dicabut'))->toBeTrue()
         ->and(DB::table('personal_access_tokens')->where('id', $accessTokenRowId)->count())->toBe(0)
-        ->and(UserDevice::query()->where('aktif', true)->count())->toBe(0)
+        // The OTHER session is untouched, and every device row is still active.
+        ->and((bool) UserRefreshToken::query()
+            ->where('token_hash', hash('sha256', $otherSession['refresh']))
+            ->value('dicabut'))->toBeFalse()
+        ->and(UserDevice::query()->where('aktif', true)->count())->toBe(3)
+        ->and(UserDevice::query()->count())->toBe(3);
+
+    // And the other session really still works: its refresh token rotates.
+    $this->postJson('/api/v1/auth/refresh', ['refresh_token' => $otherSession['refresh']])
+        ->assertOk();
+});
+
+test('logout-all revokes every refresh token and deactivates every device', function (): void {
+    // F01 decision #3's second half: the broad action the old logout performed
+    // is now its own deliberate endpoint.
+    $verified = authRegisterVerified();
+    $user = $verified['user'];
+
+    $otherSession = authLoginVerified($user);
+
+    authRegisterDevice($user, 'hp-1');
+    authRegisterDevice($user, 'web-1');
+    authRegisterDevice($user, 'hp-2');
+
+    $accessToken = authAccessTokenFor($user);
+    $accessTokenRowId = (int) DB::table('personal_access_tokens')->max('id');
+
+    $response = authAsToken($accessToken)->postJson('/api/v1/auth/logout-all');
+
+    $response->assertOk();
+    $response->assertJsonPath('data.refresh_token.dicabut', true);
+    $response->assertJsonPath('data.refresh_token.jumlah', 2);
+    $response->assertJsonPath('data.access_token.dihapus', true);
+    $response->assertJsonPath('data.perangkat.dimatikan', 3);
+
+    // Every live refresh token is revoked, including the other session's.
+    expect(UserRefreshToken::query()->where('dicabut', false)->count())->toBe(0)
+        ->and(DB::table('personal_access_tokens')->where('id', $accessTokenRowId)->count())->toBe(0)
         // Deactivated, never deleted: `user_devices` is the only record of which
         // installations hold a push registration.
+        ->and(UserDevice::query()->where('aktif', true)->count())->toBe(0)
         ->and(UserDevice::query()->count())->toBe(3);
+
+    $this->postJson('/api/v1/auth/refresh', ['refresh_token' => $otherSession['refresh']])
+        ->assertStatus(401);
+});
+
+test('logout-all requires an authenticated caller', function (): void {
+    authRegisterVerified();
+
+    authAsAnonymous()
+        ->postJson('/api/v1/auth/logout-all')
+        ->assertStatus(401)
+        ->assertJsonPath('message', 'Unauthenticated.');
 });
 
 test('the access token stops working after logout', function (): void {
@@ -1084,7 +1205,7 @@ test('registering a device upserts on the unique pair and sets it active', funct
         ->and((bool) $device->aktif)->toBeTrue();
 });
 
-test('re-registering a device updates it in place and reactivates it after a logout', function (): void {
+test('re-registering a device updates it in place and reactivates it after a logout-all', function (): void {
     $verified = authRegisterVerified();
     $user = $verified['user'];
 
@@ -1095,9 +1216,10 @@ test('re-registering a device updates it in place and reactivates it after a log
         'app_versi' => '1.0.0',
     ])->assertCreated();
 
-    // A logout deactivates every device row for the account.
+    // `logout-all` is the action that deactivates every device row for the
+    // account; a per-device logout deliberately leaves them active.
     authAsUser($user)
-        ->postJson('/api/v1/auth/logout', ['refresh_token' => $verified['refresh']])
+        ->postJson('/api/v1/auth/logout-all')
         ->assertOk();
 
     expect((bool) UserDevice::query()->value('aktif'))->toBeFalse();
@@ -1228,7 +1350,7 @@ test('every device endpoint refuses an unauthenticated caller with the 401 envel
 // Contracts the endpoints depend on
 // =====================================================================
 
-test('the route table exposes exactly the eight module 1 auth routes with the expected middleware', function (): void {
+test('the route table exposes exactly the ten module 1 auth routes with the expected middleware', function (): void {
     $routes = collect(Route::getRoutes()->getRoutes())
         ->filter(fn ($route): bool => str_starts_with($route->uri(), 'api/v1/auth'))
         ->keyBy(fn ($route): string => $route->methods()[0].' '.$route->uri())
@@ -1238,8 +1360,10 @@ test('the route table exposes exactly the eight module 1 auth routes with the ex
         'POST api/v1/auth/register',
         'POST api/v1/auth/login',
         'POST api/v1/auth/otp/verify',
+        'POST api/v1/auth/otp/resend',
         'POST api/v1/auth/refresh',
         'POST api/v1/auth/logout',
+        'POST api/v1/auth/logout-all',
         'GET api/v1/auth/devices',
         'POST api/v1/auth/devices',
         'DELETE api/v1/auth/devices/{deviceId}',
@@ -1255,7 +1379,9 @@ test('the route table exposes exactly the eight module 1 auth routes with the ex
     expect($middlewareFor('POST api/v1/auth/register'))->toContain('throttle:auth-otp-send')
         ->and($middlewareFor('POST api/v1/auth/login'))->toContain('throttle:auth-login')
         ->and($middlewareFor('POST api/v1/auth/otp/verify'))->toContain('throttle:auth-otp-verify')
+        ->and($middlewareFor('POST api/v1/auth/otp/resend'))->toContain('throttle:auth-otp-resend')
         ->and($middlewareFor('POST api/v1/auth/logout'))->toContain('auth:sanctum')
+        ->and($middlewareFor('POST api/v1/auth/logout-all'))->toContain('auth:sanctum')
         ->and($middlewareFor('GET api/v1/auth/devices'))->toContain('auth:sanctum')
         ->and($middlewareFor('POST api/v1/auth/devices'))->toContain('auth:sanctum')
         ->and($middlewareFor('DELETE api/v1/auth/devices/{deviceId}'))->toContain('auth:sanctum');

@@ -152,6 +152,7 @@ function rltAs(User $user): mixed
 test('setiap limiter F-002 menempel pada route yang benar', function (): void {
     $peta = [
         ['POST', 'api/v1/auth/login', 'throttle:auth-login-ip'],
+        ['POST', 'api/v1/auth/otp/resend', 'throttle:auth-otp-resend'],
         ['POST', 'api/v1/auth/refresh', 'throttle:auth-refresh'],
         ['POST', 'api/v1/booking', 'throttle:booking'],
         ['POST', 'api/v1/konsultasi/{id}/chat', 'throttle:chat'],
@@ -170,19 +171,20 @@ test('setiap limiter F-002 menempel pada route yang benar', function (): void {
         }
     }
 
-    expect($peta)->toHaveCount(9);
+    expect($peta)->toHaveCount(10);
 });
 
-test('limiter yang terpasang tepat sebelas, dan tiga tetap sengaja unmounted', function (): void {
+test('limiter yang terpasang tepat dua belas, dan tiga tetap sengaja unmounted', function (): void {
     $terpasang = rltTerpasang();
 
-    // The inventory with F-002 and F-009 applied: the three that were already
-    // mounted, the seven F-002 added, and `notifikasi-baca`. A name disappearing is a
-    // limiter that stopped being mounted; a name appearing is a limiter nobody
-    // recorded here.
+    // The inventory with F-002, F-009 and F01 applied: the three that were already
+    // mounted, the seven F-002 added, `notifikasi-baca`, and F01's
+    // `auth-otp-resend`. A name disappearing is a limiter that stopped being
+    // mounted; a name appearing is a limiter nobody recorded here.
     expect($terpasang)->toBe([
         'auth-login',
         'auth-login-ip',
+        'auth-otp-resend',
         'auth-otp-send',
         'auth-otp-verify',
         'auth-refresh',

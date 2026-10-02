@@ -432,7 +432,9 @@ final class OpenApiDocumentBuilder
                 'description' => 'Rate limited. This operation is limited to '
                     .$throttle['max'].' request(s) per '.$throttle['decay_seconds'].' second(s) by the `'
                     .'RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running '
-                    .'application at generation time, not asserted here. `errors` is `{}`.',
+                    .'application at generation time, not asserted here. `errors` is `{}` and `meta.retry_after` '
+                    .'is the seconds until the bucket frees, mirroring the `Retry-After` header; the OTP-verify '
+                    .'limiter additionally publishes `meta.sisa_percobaan` (0 by definition on this response).',
                 'content' => [
                     'application/json' => ['schema' => [
                         '$ref' => '#/components/schemas/ErrorEnvelope',
@@ -635,11 +637,14 @@ final class OpenApiDocumentBuilder
                 'type' => 'object',
                 'description' => '`{"success":false,"message":<message>,"errors":<errors>}`. Used for 401, '
                     .'403, 404, 429 and 500, all of which pass an empty map. `message` is a fixed string per '
-                    .'status, never the underlying exception text.',
+                    .'status, never the underlying exception text. `meta` is present on a 429 '
+                    .'(`retry_after`, plus `sisa_percobaan` on OTP verify) and absent everywhere else, so a '
+                    .'client must null-check it rather than assume it.',
                 'properties' => [
                     'success' => ['type' => 'boolean', 'const' => false],
                     'message' => ['type' => 'string'],
                     'errors' => $error,
+                    'meta' => $this->errorMetaSchema(),
                 ],
                 'required' => ['success', 'message', 'errors'],
                 'additionalProperties' => false,
@@ -652,15 +657,44 @@ final class OpenApiDocumentBuilder
                     .'that treats it as `{field: string}` silently drops every message after the first. '
                     .'`message` is the fixed string "The given data was invalid." -- never '
                     .'`ValidationException::summarize()`, which promotes the first field error and appends '
-                    .'"(and N more errors)" and would make `message` data-dependent.',
+                    .'"(and N more errors)" and would make `message` data-dependent. `meta` is present only '
+                    .'on `POST /auth/otp/verify`, carrying `sisa_percobaan`.',
                 'properties' => [
                     'success' => ['type' => 'boolean', 'const' => false],
                     'message' => ['type' => 'string'],
                     'errors' => $error,
+                    'meta' => $this->errorMetaSchema(),
                 ],
                 'required' => ['success', 'message', 'errors'],
                 'additionalProperties' => false,
             ],
+        ];
+    }
+
+    /**
+     * The optional `meta` key a failure envelope may carry.
+     *
+     * `ApiResponse::error()` appends `meta` only when it is not null, so the two
+     * keys below are OPTIONAL in both error schemas and a client must null-check
+     * the block. `additionalProperties: true` because the block is a numbers bag
+     * that may grow (a future limiter's own counter) without renumbering the
+     * three keys every client already reads - the same argument
+     * `ApiResponse` makes for `meta` itself.
+     *
+     * @return array<string, mixed>
+     */
+    private function errorMetaSchema(): array
+    {
+        return [
+            'type' => 'object',
+            'description' => 'Limiter-specific numbers, present only on the responses named in the schema '
+                .'descriptions above. `retry_after` mirrors the `Retry-After` header in seconds; '
+                .'`sisa_percobaan` is how many OTP guesses remain before the code is burned.',
+            'properties' => [
+                'retry_after' => ['type' => 'integer', 'minimum' => 0],
+                'sisa_percobaan' => ['type' => 'integer', 'minimum' => 0],
+            ],
+            'additionalProperties' => true,
         ];
     }
 

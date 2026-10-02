@@ -632,6 +632,8 @@ test('verifying the registration OTP writes a login row, and logout writes a log
         'tempat_lahir' => 'Bandung',
         'alamat_lengkap' => 'Jl. Al43 Login No. 1',
         'bahasa' => 'id',
+        'persetujuan_syarat_ketentuan' => true,
+        'persetujuan_kebijakan_privasi' => true,
     ];
 
     $this->postJson('/api/v1/auth/register', $payload)->assertCreated();

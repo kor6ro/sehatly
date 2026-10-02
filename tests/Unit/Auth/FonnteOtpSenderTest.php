@@ -103,3 +103,24 @@ test('pemilih driver memetakan log dan fonnte, dan menolak nama tak dikenal', fu
     expect(fn (): string => PemilihPengirimOtp::kelas('sms'))
         ->toThrow(LogicException::class);
 });
+
+test('setiap driver memetakan ke kanal yang benar-benar dikirim, dan WhatsApp hanyalah salah satu opsi', function (): void {
+    // F01 decision #5: WhatsApp is an OPTION, not the only channel. The mapping
+    // is driver -> channel, and the API publishes it in `otp.kanal`.
+    expect(PemilihPengirimOtp::kanal('fonnte'))->toBe('whatsapp')
+        ->and(PemilihPengirimOtp::kanal('log'))->toBe('log')
+        // The declared channels include the SMS/email fallbacks; only WhatsApp has
+        // a shipped sender today, and selecting another channel is refused loudly
+        // at boot rather than silently sending over WhatsApp.
+        ->and(PemilihPengirimOtp::KANAL)->toContain('whatsapp')
+        ->and(PemilihPengirimOtp::KANAL)->toContain('sms')
+        ->and(PemilihPengirimOtp::KANAL)->toContain('email');
+
+    // `config/otp.php` declares the preferred and fallback channels, and neither
+    // is hardcoded to WhatsApp: the fallback default is SMS.
+    expect(config('otp.channel'))->toBe('whatsapp')
+        ->and(config('otp.fallback_channel'))->toBe('sms');
+
+    expect(fn (): string => PemilihPengirimOtp::kanal('sms'))
+        ->toThrow(LogicException::class);
+});

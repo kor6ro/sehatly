@@ -100,3 +100,44 @@ test('produksi dengan driver nyata dan kredensial lengkap lolos', function (): v
     expect(fn () => PenjagaPengirimanProduksi::pastikan(app()))
         ->not->toThrow(PengirimanLogDiProduksiException::class);
 });
+
+test('produksi dengan OTP_CHANNEL yang tidak sesuai driver ditolak', function (): void {
+    // Declaring `sms` while the active driver delivers over WhatsApp is exactly
+    // the silent mismatch F01 decision #5 forbids: the patient is told one
+    // channel and the message travels another.
+    config([
+        'otp.driver' => 'fonnte',
+        'otp.fonnte.token' => 'TOKEN-ADA',
+        'otp.channel' => 'sms',
+        'push.driver' => 'fcm',
+        'push.firebase.credentials' => '/tmp/kredensial.json',
+    ]);
+
+    app()['env'] = 'production';
+
+    try {
+        PenjagaPengirimanProduksi::pastikan(app());
+        $this->fail('A production boot must be refused while OTP_CHANNEL and OTP_DRIVER disagree');
+    } catch (PengirimanLogDiProduksiException $e) {
+        expect($e->getMessage())->toContain('OTP_CHANNEL');
+    }
+});
+
+test('produksi dengan OTP_CHANNEL tak dikenal ditolak', function (): void {
+    config([
+        'otp.driver' => 'fonnte',
+        'otp.fonnte.token' => 'TOKEN-ADA',
+        'otp.channel' => 'telegram',
+        'push.driver' => 'fcm',
+        'push.firebase.credentials' => '/tmp/kredensial.json',
+    ]);
+
+    app()['env'] = 'production';
+
+    try {
+        PenjagaPengirimanProduksi::pastikan(app());
+        $this->fail('A production boot must be refused while OTP_CHANNEL is not a known channel');
+    } catch (PengirimanLogDiProduksiException $e) {
+        expect($e->getMessage())->toContain('OTP_CHANNEL');
+    }
+});

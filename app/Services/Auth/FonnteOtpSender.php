@@ -13,15 +13,29 @@ use Throwable;
 /**
  * F-005: the Fonnte (WhatsApp) OTP sender, for the prototype only.
  *
- * ## Fonnte is an UNOFFICIAL channel
+ * ## Fonnte is an UNOFFICIAL, SESSION-BASED gateway - NOT the WhatsApp Business API
  *
- * Fonnte drives WhatsApp Web on the operator's own number. It has no SLA, no
- * delivery guarantee, and a real risk of the number being blocked by WhatsApp.
- * `docs/otp-push-prototype.md` says so in full, and nothing here should be read as
- * production guidance. Before real patient data the channel must move to WhatsApp
- * Cloud API / an official BSP, or to a contracted SMS gateway - which is a
- * container binding change, not a rewrite, because this class sits behind
- * {@see OtpSender}.
+ * The research the owner asked for (F01 decision #5) is answered here: Fonnte
+ * (`https://api.fonnte.com/send`) is **not** the WhatsApp Business Cloud API and
+ * **not** a Meta Business Solution Provider. It is a session-based gateway that
+ * drives **WhatsApp Web** on a number the operator connects to it, which is why
+ * the request below is a form POST with a raw device token rather than a
+ * Meta-signed template send. The consequences that matter:
+ *
+ * - **No SLA, no delivery guarantee, no delivery-receipt contract.**
+ * - **The connected number can be blocked by WhatsApp at any time**, with no
+ *   appeal - for a health platform that is every login failing at once.
+ * - WhatsApp's terms do not sanction automated sending from a personal or
+ *   shared number, so the channel is disposable by design.
+ *
+ * Nothing here is production guidance, and WhatsApp is therefore an OPTION and
+ * never the only channel: `config('otp.channel')` names the preferred channel,
+ * `config('otp.fallback_channel')` names the fallback, and
+ * `PenjagaPengirimanProduksi` refuses a non-local boot where the declared channel
+ * and the active driver disagree. `docs/otp-push-prototype.md` carries the full
+ * argument. Before real patient data the channel must move to the WhatsApp Cloud
+ * API / an official BSP, or to a contracted SMS gateway - which is a container
+ * binding change, not a rewrite, because this class sits behind {@see OtpSender}.
  *
  * ## Delivery failure is LOGGED, never thrown
  *

@@ -12,7 +12,7 @@ info:
     drift from the code: a route added, renamed or removed changes it on the next run, and
     `--check` fails until the regenerated file is committed.
 
-    This document describes 99 routes across 87 distinct paths, read from the live route table.
+    This document describes 101 routes across 89 distinct paths, read from the live route table.
 
     ## Envelopes
 
@@ -907,7 +907,7 @@ paths:
           description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
         429:
-          description: 'Rate limited. This operation is limited to 5 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}`.'
+          description: 'Rate limited. This operation is limited to 5 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}` and `meta.retry_after` is the seconds until the bucket frees, mirroring the `Retry-After` header; the OTP-verify limiter additionally publishes `meta.sisa_percobaan` (0 by definition on this response).'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
         500:
           description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
@@ -952,6 +952,82 @@ paths:
         500:
           description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+  /api/v1/auth/logout-all:
+    post:
+      operationId: postApiV1AuthLogoutAll
+      summary: 'Create /api/v1/auth/logout-all.'
+      tags:
+        - auth
+      security:
+        -
+          sanctum: []
+      x-route-name: auth.logout.all
+      x-laravel-action: App\Http\Controllers\Api\V1\AuthController@logoutAll
+      x-middleware:
+        - 'auth:sanctum'
+      x-auth:
+        scheme: sanctum
+        transport: bearer
+      requestBody:
+        required: true
+        description: 'Validated by `App\Http\Requests\Auth\LogoutAllRequest::rules()`, which is read at generation time -- these properties are the live rules, not a transcription.'
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/LogoutAllRequestBody' } }
+      responses:
+        201:
+          description: 'Created. `data` holds the created resource.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
+        422:
+          description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ValidationErrorEnvelope' } } }
+        401:
+          description: 'Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        403:
+          description: 'Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        404:
+          description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        500:
+          description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+  /api/v1/auth/otp/resend:
+    post:
+      operationId: postApiV1AuthOtpResend
+      summary: 'Create /api/v1/auth/otp/resend.'
+      tags:
+        - auth
+      security: []
+      x-route-name: auth.otp.resend
+      x-laravel-action: App\Http\Controllers\Api\V1\AuthController@resendOtp
+      x-middleware:
+        - 'throttle:auth-otp-resend'
+      x-ratelimit:
+        limiter: auth-otp-resend
+        max: 3
+        decay_seconds: 300
+      requestBody:
+        required: true
+        description: 'Validated by `App\Http\Requests\Auth\ResendOtpRequest::rules()`, which is read at generation time -- these properties are the live rules, not a transcription.'
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/ResendOtpRequestBody' } }
+      responses:
+        201:
+          description: 'Created. `data` holds the created resource.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
+        422:
+          description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ValidationErrorEnvelope' } } }
+        404:
+          description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        429:
+          description: 'Rate limited. This operation is limited to 3 request(s) per 300 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}` and `meta.retry_after` is the seconds until the bucket frees, mirroring the `Retry-After` header; the OTP-verify limiter additionally publishes `meta.sisa_percobaan` (0 by definition on this response).'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        500:
+          description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
   /api/v1/auth/otp/verify:
     post:
       operationId: postApiV1AuthOtpVerify
@@ -983,7 +1059,7 @@ paths:
           description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
         429:
-          description: 'Rate limited. This operation is limited to 5 request(s) per 300 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}`.'
+          description: 'Rate limited. This operation is limited to 5 request(s) per 300 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}` and `meta.retry_after` is the seconds until the bucket frees, mirroring the `Retry-After` header; the OTP-verify limiter additionally publishes `meta.sisa_percobaan` (0 by definition on this response).'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
         500:
           description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
@@ -1019,7 +1095,7 @@ paths:
           description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
         429:
-          description: 'Rate limited. This operation is limited to 30 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}`.'
+          description: 'Rate limited. This operation is limited to 30 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}` and `meta.retry_after` is the seconds until the bucket frees, mirroring the `Retry-After` header; the OTP-verify limiter additionally publishes `meta.sisa_percobaan` (0 by definition on this response).'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
         500:
           description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
@@ -1055,7 +1131,7 @@ paths:
           description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
         429:
-          description: 'Rate limited. This operation is limited to 10 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}`.'
+          description: 'Rate limited. This operation is limited to 10 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}` and `meta.retry_after` is the seconds until the bucket frees, mirroring the `Retry-After` header; the OTP-verify limiter additionally publishes `meta.sisa_percobaan` (0 by definition on this response).'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
         500:
           description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
@@ -1104,7 +1180,7 @@ paths:
           description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
         429:
-          description: 'Rate limited. This operation is limited to 10 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}`.'
+          description: 'Rate limited. This operation is limited to 10 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}` and `meta.retry_after` is the seconds until the bucket frees, mirroring the `Retry-After` header; the OTP-verify limiter additionally publishes `meta.sisa_percobaan` (0 by definition on this response).'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
         500:
           description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
@@ -1654,7 +1730,7 @@ paths:
           description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
         429:
-          description: 'Rate limited. This operation is limited to 60 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}`.'
+          description: 'Rate limited. This operation is limited to 60 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}` and `meta.retry_after` is the seconds until the bucket frees, mirroring the `Retry-After` header; the OTP-verify limiter additionally publishes `meta.sisa_percobaan` (0 by definition on this response).'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
         500:
           description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
@@ -2069,7 +2145,7 @@ paths:
           description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
         429:
-          description: 'Rate limited. This operation is limited to 10 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}`.'
+          description: 'Rate limited. This operation is limited to 10 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}` and `meta.retry_after` is the seconds until the bucket frees, mirroring the `Retry-After` header; the OTP-verify limiter additionally publishes `meta.sisa_percobaan` (0 by definition on this response).'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
         500:
           description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
@@ -2120,7 +2196,7 @@ paths:
           description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
         429:
-          description: 'Rate limited. This operation is limited to 10 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}`.'
+          description: 'Rate limited. This operation is limited to 10 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}` and `meta.retry_after` is the seconds until the bucket frees, mirroring the `Retry-After` header; the OTP-verify limiter additionally publishes `meta.sisa_percobaan` (0 by definition on this response).'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
         500:
           description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
@@ -2897,7 +2973,7 @@ paths:
           description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
         429:
-          description: 'Rate limited. This operation is limited to 20 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}`.'
+          description: 'Rate limited. This operation is limited to 20 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}` and `meta.retry_after` is the seconds until the bucket frees, mirroring the `Retry-After` header; the OTP-verify limiter additionally publishes `meta.sisa_percobaan` (0 by definition on this response).'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
         500:
           description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
@@ -3630,7 +3706,7 @@ paths:
           description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
         429:
-          description: 'Rate limited. This operation is limited to 5 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}`.'
+          description: 'Rate limited. This operation is limited to 5 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}` and `meta.retry_after` is the seconds until the bucket frees, mirroring the `Retry-After` header; the OTP-verify limiter additionally publishes `meta.sisa_percobaan` (0 by definition on this response).'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
         500:
           description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
@@ -3740,7 +3816,7 @@ paths:
           description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
         429:
-          description: 'Rate limited. This operation is limited to 60 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}`.'
+          description: 'Rate limited. This operation is limited to 60 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}` and `meta.retry_after` is the seconds until the bucket frees, mirroring the `Retry-After` header; the OTP-verify limiter additionally publishes `meta.sisa_percobaan` (0 by definition on this response).'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
         500:
           description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
@@ -3823,7 +3899,7 @@ components:
       additionalProperties: false
     ErrorEnvelope:
       type: object
-      description: '`{"success":false,"message":<message>,"errors":<errors>}`. Used for 401, 403, 404, 429 and 500, all of which pass an empty map. `message` is a fixed string per status, never the underlying exception text.'
+      description: '`{"success":false,"message":<message>,"errors":<errors>}`. Used for 401, 403, 404, 429 and 500, all of which pass an empty map. `message` is a fixed string per status, never the underlying exception text. `meta` is present on a 429 (`retry_after`, plus `sisa_percobaan` on OTP verify) and absent everywhere else, so a client must null-check it rather than assume it.'
       properties:
         success:
           type: boolean
@@ -3834,6 +3910,11 @@ components:
           type: object
           description: 'A field-keyed map of messages. `ApiResponse::error()` casts it to an object so an empty set encodes as `{}` rather than `[]`. Keys are the dotted attribute path as submitted, which is exactly what `ValidationException::errors()` produces.'
           additionalProperties: { type: array, items: { type: string }, minItems: 1, description: 'Every message produced for this field. A field that fails more than one rule carries more than one entry; nothing is flattened into a single string.' }
+        meta:
+          type: object
+          description: 'Limiter-specific numbers, present only on the responses named in the schema descriptions above. `retry_after` mirrors the `Retry-After` header in seconds; `sisa_percobaan` is how many OTP guesses remain before the code is burned.'
+          properties: { retry_after: { type: integer, minimum: 0 }, sisa_percobaan: { type: integer, minimum: 0 } }
+          additionalProperties: true
       required:
         - success
         - message
@@ -3841,7 +3922,7 @@ components:
       additionalProperties: false
     ValidationErrorEnvelope:
       type: object
-      description: 'The 422 envelope. Identical in shape to `ErrorEnvelope` and deliberately declared as its own component rather than reused, because the thing that makes a 422 hard to consume is `errors` carrying MORE THAN ONE MESSAGE PER FIELD, and a client that treats it as `{field: string}` silently drops every message after the first. `message` is the fixed string "The given data was invalid." -- never `ValidationException::summarize()`, which promotes the first field error and appends "(and N more errors)" and would make `message` data-dependent.'
+      description: 'The 422 envelope. Identical in shape to `ErrorEnvelope` and deliberately declared as its own component rather than reused, because the thing that makes a 422 hard to consume is `errors` carrying MORE THAN ONE MESSAGE PER FIELD, and a client that treats it as `{field: string}` silently drops every message after the first. `message` is the fixed string "The given data was invalid." -- never `ValidationException::summarize()`, which promotes the first field error and appends "(and N more errors)" and would make `message` data-dependent. `meta` is present only on `POST /auth/otp/verify`, carrying `sisa_percobaan`.'
       properties:
         success:
           type: boolean
@@ -3852,6 +3933,11 @@ components:
           type: object
           description: 'A field-keyed map of messages. `ApiResponse::error()` casts it to an object so an empty set encodes as `{}` rather than `[]`. Keys are the dotted attribute path as submitted, which is exactly what `ValidationException::errors()` produces.'
           additionalProperties: { type: array, items: { type: string }, minItems: 1, description: 'Every message produced for this field. A field that fails more than one rule carries more than one entry; nothing is flattened into a single string.' }
+        meta:
+          type: object
+          description: 'Limiter-specific numbers, present only on the responses named in the schema descriptions above. `retry_after` mirrors the `Retry-After` header in seconds; `sisa_percobaan` is how many OTP guesses remain before the code is burned.'
+          properties: { retry_after: { type: integer, minimum: 0 }, sisa_percobaan: { type: integer, minimum: 0 } }
+          additionalProperties: true
       required:
         - success
         - message
@@ -4806,6 +4892,15 @@ components:
         - password
       additionalProperties: false
       x-enum-fields: []
+    LogoutAllRequestBody:
+      type: object
+      title: LogoutAllRequest
+      description: 'Request body for operations validated by `App\Http\Requests\Auth\LogoutAllRequest`. The properties below are read from that class''s `rules()` at generation time.'
+      x-form-request: App\Http\Requests\Auth\LogoutAllRequest
+      properties: []
+      required: []
+      additionalProperties: false
+      x-enum-fields: []
     LogoutRequestBody:
       type: object
       title: LogoutRequest
@@ -4928,6 +5023,10 @@ components:
         password:
           type: string
           x-laravel-rule: [string, 'min:8', 'max:255']
+        persetujuan_kebijakan_privasi:
+          x-laravel-rule: [accepted]
+        persetujuan_syarat_ketentuan:
+          x-laravel-rule: [accepted]
         tanggal_lahir:
           type: string
           format: date
@@ -4941,6 +5040,8 @@ components:
         - nama_lengkap
         - no_telepon
         - password
+        - persetujuan_kebijakan_privasi
+        - persetujuan_syarat_ketentuan
         - tanggal_lahir
       additionalProperties: false
       x-enum-fields:
@@ -4976,6 +5077,31 @@ components:
         - tanggal_kunjungan
       additionalProperties: false
       x-enum-fields: []
+    ResendOtpRequestBody:
+      type: object
+      title: ResendOtpRequest
+      description: 'Request body for operations validated by `App\Http\Requests\Auth\ResendOtpRequest`. The properties below are read from that class''s `rules()` at generation time.'
+      x-form-request: App\Http\Requests\Auth\ResendOtpRequest
+      properties:
+        device_id:
+          type: string
+          x-laravel-rule: [string, 'min:3', 'max:255']
+        email:
+          type: string
+          x-laravel-rule: [string, email, 'max:255']
+        no_telepon:
+          type: string
+          x-laravel-rule: [string, 'max:20']
+        tujuan:
+          type: string
+          enum: [verifikasi_telepon, login]
+          x-laravel-rule: [string, 'in:["verifikasi_telepon","login"]']
+      required:
+        - tujuan
+      additionalProperties: false
+      x-enum-fields:
+        tujuan:
+          - user_otp.tujuan
     RiwayatResepRequestBody:
       type: object
       title: RiwayatResepRequest

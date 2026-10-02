@@ -78,6 +78,8 @@ function headerRegisterPayload(array $overrides = []): array
         'tempat_lahir' => 'Bandung',
         'alamat_lengkap' => 'Jl. Asia Afrika No. 12, Bandung, Jawa Barat 40111',
         'bahasa' => 'id',
+        'persetujuan_syarat_ketentuan' => true,
+        'persetujuan_kebijakan_privasi' => true,
     ], $overrides);
 }
 

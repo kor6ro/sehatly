@@ -297,6 +297,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/logout-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create /api/v1/auth/logout-all. */
+        post: operations["postApiV1AuthLogoutAll"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/otp/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create /api/v1/auth/otp/resend. */
+        post: operations["postApiV1AuthOtpResend"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/otp/verify": {
         parameters: {
             query?: never;
@@ -1527,7 +1561,7 @@ export interface components {
             from: number | null;
             to: number | null;
         };
-        /** @description `{"success":false,"message":<message>,"errors":<errors>}`. Used for 401, 403, 404, 429 and 500, all of which pass an empty map. `message` is a fixed string per status, never the underlying exception text. */
+        /** @description `{"success":false,"message":<message>,"errors":<errors>}`. Used for 401, 403, 404, 429 and 500, all of which pass an empty map. `message` is a fixed string per status, never the underlying exception text. `meta` is present on a 429 (`retry_after`, plus `sisa_percobaan` on OTP verify) and absent everywhere else, so a client must null-check it rather than assume it. */
         ErrorEnvelope: {
             /** @constant */
             success: false;
@@ -1536,8 +1570,15 @@ export interface components {
             errors: {
                 [key: string]: string[];
             };
+            /** @description Limiter-specific numbers, present only on the responses named in the schema descriptions above. `retry_after` mirrors the `Retry-After` header in seconds; `sisa_percobaan` is how many OTP guesses remain before the code is burned. */
+            meta?: {
+                retry_after?: number;
+                sisa_percobaan?: number;
+            } & {
+                [key: string]: unknown;
+            };
         };
-        /** @description The 422 envelope. Identical in shape to `ErrorEnvelope` and deliberately declared as its own component rather than reused, because the thing that makes a 422 hard to consume is `errors` carrying MORE THAN ONE MESSAGE PER FIELD, and a client that treats it as `{field: string}` silently drops every message after the first. `message` is the fixed string "The given data was invalid." -- never `ValidationException::summarize()`, which promotes the first field error and appends "(and N more errors)" and would make `message` data-dependent. */
+        /** @description The 422 envelope. Identical in shape to `ErrorEnvelope` and deliberately declared as its own component rather than reused, because the thing that makes a 422 hard to consume is `errors` carrying MORE THAN ONE MESSAGE PER FIELD, and a client that treats it as `{field: string}` silently drops every message after the first. `message` is the fixed string "The given data was invalid." -- never `ValidationException::summarize()`, which promotes the first field error and appends "(and N more errors)" and would make `message` data-dependent. `meta` is present only on `POST /auth/otp/verify`, carrying `sisa_percobaan`. */
         ValidationErrorEnvelope: {
             /** @constant */
             success: false;
@@ -1545,6 +1586,13 @@ export interface components {
             /** @description A field-keyed map of messages. `ApiResponse::error()` casts it to an object so an empty set encodes as `{}` rather than `[]`. Keys are the dotted attribute path as submitted, which is exactly what `ValidationException::errors()` produces. */
             errors: {
                 [key: string]: string[];
+            };
+            /** @description Limiter-specific numbers, present only on the responses named in the schema descriptions above. `retry_after` mirrors the `Retry-After` header in seconds; `sisa_percobaan` is how many OTP guesses remain before the code is burned. */
+            meta?: {
+                retry_after?: number;
+                sisa_percobaan?: number;
+            } & {
+                [key: string]: unknown;
             };
         };
         /**
@@ -1968,6 +2016,11 @@ export interface components {
             password: string;
         };
         /**
+         * LogoutAllRequest
+         * @description Request body for operations validated by `App\Http\Requests\Auth\LogoutAllRequest`. The properties below are read from that class's `rules()` at generation time.
+         */
+        LogoutAllRequestBody: Record<string, never>;
+        /**
          * LogoutRequest
          * @description Request body for operations validated by `App\Http\Requests\Auth\LogoutRequest`. The properties below are read from that class's `rules()` at generation time.
          */
@@ -2016,6 +2069,8 @@ export interface components {
             nama_lengkap: string;
             no_telepon: string;
             password: string;
+            persetujuan_kebijakan_privasi: unknown;
+            persetujuan_syarat_ketentuan: unknown;
             /** Format: date */
             tanggal_lahir: string;
             tempat_lahir?: string;
@@ -2032,6 +2087,17 @@ export interface components {
             slot_selesai?: string;
             /** Format: date */
             tanggal_kunjungan: string;
+        };
+        /**
+         * ResendOtpRequest
+         * @description Request body for operations validated by `App\Http\Requests\Auth\ResendOtpRequest`. The properties below are read from that class's `rules()` at generation time.
+         */
+        ResendOtpRequestBody: {
+            device_id?: string;
+            email?: string;
+            no_telepon?: string;
+            /** @enum {string} */
+            tujuan: "verifikasi_telepon" | "login";
         };
         /**
          * RiwayatResepRequest
@@ -4176,7 +4242,7 @@ export interface operations {
                     "application/json": components["schemas"]["ValidationErrorEnvelope"];
                 };
             };
-            /** @description Rate limited. This operation is limited to 5 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}`. */
+            /** @description Rate limited. This operation is limited to 5 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}` and `meta.retry_after` is the seconds until the bucket frees, mirroring the `Retry-After` header; the OTP-verify limiter additionally publishes `meta.sisa_percobaan` (0 by definition on this response). */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -4266,6 +4332,137 @@ export interface operations {
             };
         };
     };
+    postApiV1AuthLogoutAll: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Validated by `App\Http\Requests\Auth\LogoutAllRequest::rules()`, which is read at generation time -- these properties are the live rules, not a transcription. */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LogoutAllRequestBody"];
+            };
+        };
+        responses: {
+            /** @description Created. `data` holds the created resource. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"];
+                };
+            };
+            /** @description Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource not found. Also answers a `{placeholder}` outside the route's own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationErrorEnvelope"];
+                };
+            };
+            /** @description Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    postApiV1AuthOtpResend: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Validated by `App\Http\Requests\Auth\ResendOtpRequest::rules()`, which is read at generation time -- these properties are the live rules, not a transcription. */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResendOtpRequestBody"];
+            };
+        };
+        responses: {
+            /** @description Created. `data` holds the created resource. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"];
+                };
+            };
+            /** @description Resource not found. Also answers a `{placeholder}` outside the route's own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationErrorEnvelope"];
+                };
+            };
+            /** @description Rate limited. This operation is limited to 3 request(s) per 300 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}` and `meta.retry_after` is the seconds until the bucket frees, mirroring the `Retry-After` header; the OTP-verify limiter additionally publishes `meta.sisa_percobaan` (0 by definition on this response). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     postApiV1AuthOtpVerify: {
         parameters: {
             query?: never;
@@ -4307,7 +4504,7 @@ export interface operations {
                     "application/json": components["schemas"]["ValidationErrorEnvelope"];
                 };
             };
-            /** @description Rate limited. This operation is limited to 5 request(s) per 300 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}`. */
+            /** @description Rate limited. This operation is limited to 5 request(s) per 300 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}` and `meta.retry_after` is the seconds until the bucket frees, mirroring the `Retry-After` header; the OTP-verify limiter additionally publishes `meta.sisa_percobaan` (0 by definition on this response). */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -4368,7 +4565,7 @@ export interface operations {
                     "application/json": components["schemas"]["ValidationErrorEnvelope"];
                 };
             };
-            /** @description Rate limited. This operation is limited to 30 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}`. */
+            /** @description Rate limited. This operation is limited to 30 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}` and `meta.retry_after` is the seconds until the bucket frees, mirroring the `Retry-After` header; the OTP-verify limiter additionally publishes `meta.sisa_percobaan` (0 by definition on this response). */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -4429,7 +4626,7 @@ export interface operations {
                     "application/json": components["schemas"]["ValidationErrorEnvelope"];
                 };
             };
-            /** @description Rate limited. This operation is limited to 10 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}`. */
+            /** @description Rate limited. This operation is limited to 10 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}` and `meta.retry_after` is the seconds until the bucket frees, mirroring the `Retry-After` header; the OTP-verify limiter additionally publishes `meta.sisa_percobaan` (0 by definition on this response). */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -4508,7 +4705,7 @@ export interface operations {
                     "application/json": components["schemas"]["ValidationErrorEnvelope"];
                 };
             };
-            /** @description Rate limited. This operation is limited to 10 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}`. */
+            /** @description Rate limited. This operation is limited to 10 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}` and `meta.retry_after` is the seconds until the bucket frees, mirroring the `Retry-After` header; the OTP-verify limiter additionally publishes `meta.sisa_percobaan` (0 by definition on this response). */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -5391,7 +5588,7 @@ export interface operations {
                     "application/json": components["schemas"]["ValidationErrorEnvelope"];
                 };
             };
-            /** @description Rate limited. This operation is limited to 60 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}`. */
+            /** @description Rate limited. This operation is limited to 60 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}` and `meta.retry_after` is the seconds until the bucket frees, mirroring the `Retry-After` header; the OTP-verify limiter additionally publishes `meta.sisa_percobaan` (0 by definition on this response). */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -6040,7 +6237,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Rate limited. This operation is limited to 10 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}`. */
+            /** @description Rate limited. This operation is limited to 10 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}` and `meta.retry_after` is the seconds until the bucket frees, mirroring the `Retry-After` header; the OTP-verify limiter additionally publishes `meta.sisa_percobaan` (0 by definition on this response). */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -6110,7 +6307,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Rate limited. This operation is limited to 10 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}`. */
+            /** @description Rate limited. This operation is limited to 10 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}` and `meta.retry_after` is the seconds until the bucket frees, mirroring the `Retry-After` header; the OTP-verify limiter additionally publishes `meta.sisa_percobaan` (0 by definition on this response). */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -7456,7 +7653,7 @@ export interface operations {
                     "application/json": components["schemas"]["ValidationErrorEnvelope"];
                 };
             };
-            /** @description Rate limited. This operation is limited to 20 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}`. */
+            /** @description Rate limited. This operation is limited to 20 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}` and `meta.retry_after` is the seconds until the bucket frees, mirroring the `Retry-After` header; the OTP-verify limiter additionally publishes `meta.sisa_percobaan` (0 by definition on this response). */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -8757,7 +8954,7 @@ export interface operations {
                     "application/json": components["schemas"]["ValidationErrorEnvelope"];
                 };
             };
-            /** @description Rate limited. This operation is limited to 5 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}`. */
+            /** @description Rate limited. This operation is limited to 5 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}` and `meta.retry_after` is the seconds until the bucket frees, mirroring the `Retry-After` header; the OTP-verify limiter additionally publishes `meta.sisa_percobaan` (0 by definition on this response). */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -8917,7 +9114,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Rate limited. This operation is limited to 60 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}`. */
+            /** @description Rate limited. This operation is limited to 60 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}` and `meta.retry_after` is the seconds until the bucket frees, mirroring the `Retry-After` header; the OTP-verify limiter additionally publishes `meta.sisa_percobaan` (0 by definition on this response). */
             429: {
                 headers: {
                     [name: string]: unknown;

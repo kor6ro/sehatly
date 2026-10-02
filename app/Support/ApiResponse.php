@@ -14,6 +14,7 @@ use Illuminate\Http\JsonResponse;
  * success -> {"success":true,"data":<data>,"message":<message>}
  * with meta -> {"success":true,"data":<data>,"message":<message>,"meta":<meta>}
  * failure  -> {"success":false,"message":<message>,"errors":<errors>}
+ * failure with meta -> {"success":false,"message":<message>,"errors":<errors>,"meta":<meta>}
  * ```
  *
  * `data` sits between `success` and `message` because the mobile client (todo 45) and
@@ -87,14 +88,30 @@ class ApiResponse
      * JSON object depending on whether it happened to be empty, and every client
      * would need a second shape check. A failure with no field-level detail is a real
      * case here: 401, 403, 404 and the sanitized 500 all pass an empty map.
+     *
+     * `$meta` is the same optional fourth key {@see success()} carries, and it is
+     * omitted entirely when null so every pre-existing failure body is unchanged
+     * byte for byte. It exists for two measured facts a client has to act on:
+     * `retry_after` on a 429 (seconds until the bucket frees, mirroring the
+     * `Retry-After` header) and `sisa_percobaan` on an OTP-verify 422/429 (how many
+     * guesses the code has left before it is burned). Both are numbers the server
+     * computed, never strings a client is expected to parse out of `message`.
+     *
+     * @param  array<string, mixed>|null  $meta  appended as the fourth key when not null
      */
-    public static function error(string $message, array $errors = [], int $status = 400): JsonResponse
+    public static function error(string $message, array $errors = [], int $status = 400, ?array $meta = null): JsonResponse
     {
-        return new JsonResponse([
+        $payload = [
             'success' => false,
             'message' => $message,
             'errors' => (object) $errors,
-        ], $status);
+        ];
+
+        if ($meta !== null) {
+            $payload['meta'] = $meta;
+        }
+
+        return new JsonResponse($payload, $status);
     }
 
     /**

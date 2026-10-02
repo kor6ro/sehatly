@@ -114,6 +114,11 @@ function rateRegisterPayload(array $overrides = []): array
         'tempat_lahir' => 'Surabaya',
         'alamat_lengkap' => 'Jl. Pahlawan No. 9, Surabaya, Jawa Timur 60171',
         'bahasa' => 'id',
+        // F01 decision #1: the two mandatory PDP consents are required by
+        // `RegisterRequest`, so every registration payload in this file carries
+        // them or the 429 under test would never be reached.
+        'persetujuan_syarat_ketentuan' => true,
+        'persetujuan_kebijakan_privasi' => true,
     ], $overrides);
 }
 
@@ -463,6 +468,7 @@ test('every limiter this application names is registered with its documented cei
         'auth-login' => [5, 60],
         'auth-login-ip' => [60, 60],
         'auth-otp-send' => [10, 60],
+        'auth-otp-resend' => [3, 300],
         'otp-kirim' => [3, 60],
         'otp-kirim-jam' => [10, 3600],
         'auth-otp-verify' => [5, OtpService::TTL_MENIT * 60],
@@ -480,7 +486,7 @@ test('every limiter this application names is registered with its documented cei
 
     foreach ($expected as $name => [$max, $decay]) {
         $input = match ($name) {
-            'auth-login', 'auth-otp-send', 'otp-kirim', 'otp-kirim-jam' => ['no_telepon' => rateTestPhone()],
+            'auth-login', 'auth-otp-send', 'auth-otp-resend', 'otp-kirim', 'otp-kirim-jam' => ['no_telepon' => rateTestPhone()],
             'auth-otp-verify' => ['no_telepon' => rateTestPhone(), 'tujuan' => OtpService::TUJUAN_LOGIN],
             'auth-refresh' => ['refresh_token' => str_repeat('a', 64)],
             default => [],

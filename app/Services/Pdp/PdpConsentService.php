@@ -146,6 +146,31 @@ final class PdpConsentService
     }
 
     /**
+     * Record a decision about whatever version is ACTIVE, without the caller
+     * having to know it.
+     *
+     * This exists for the registration flow, where the consents are written
+     * inside the account-creation transaction and there is no client-supplied
+     * `versi_dokumen` to compare: the server just wrote the account, so it is
+     * also the server that stamps the current version. The alternative -
+     * `AuthController` reading `PdpDokumen` itself and calling {@see catat()} -
+     * would put the version lookup in a second place, which is exactly the
+     * duplication this service exists to prevent.
+     *
+     * The rule is unchanged from {@see catat()}: a brand-new account has no
+     * prior row, so this appends; the ledger stays append-only and the version
+     * stays canonical.
+     *
+     * @param  string|null  $ip  the request's address, or null outside a request
+     *
+     * @throws LogicException when `$jenis` is not a value of the DDL ENUM
+     */
+    public function catatVersiAktif(User $user, string $jenis, bool $disetujui, ?string $ip = null): PersetujuanPdp
+    {
+        return $this->catat($user, $jenis, $this->dokumen->versiAktif($jenis), $disetujui, $ip);
+    }
+
+    /**
      * Every `jenis` with the row the ledger would read, in DDL order.
      *
      * The caller-facing shape is a checklist, and a checklist with a hole in it

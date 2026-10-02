@@ -1,8 +1,9 @@
 # Modul 1 - Autentikasi (`/api/v1/auth`)
 
-Delapan route autentikasi. Semua respons memakai amplop
+Sepuluh route autentikasi. Semua respons memakai amplop
 `{"success","data","message"}`; gagal memakai
-`{"success":false,"message","errors":{}}`.
+`{"success":false,"message","errors":{}}`; kegagalan OTP dan 429 dapat memuat
+`meta` (`sisa_percobaan`, `retry_after`).
 
 Aturan utama:
 
@@ -12,8 +13,16 @@ Aturan utama:
 - `POST /auth/refresh` memutar refresh token di dalam transaksi. Memakai ulang
   refresh token lama menghanguskan **semua** refresh token milik pengguna itu
   lalu mengembalikan 401 `"Sesi tidak valid. Silakan masuk kembali."`.
-- `POST /auth/logout` butuh header `Authorization` **dan** `refresh_token` di
-  badan. Setelah logout, access token lama menjadi 401.
+- `POST /auth/otp/resend` menerbitkan kode baru **tanpa kata sandi**, menutup
+  kode lama untuk tujuan yang sama, dan menjawab generik (tidak membocorkan
+  keberadaan akun).
+- `POST /auth/logout` bersifat **per perangkat**: hanya refresh token yang
+  dikirim yang dicabut. `POST /auth/logout-all` adalah aksi terpisah yang
+  mencabut semua refresh token dan menonaktifkan semua perangkat.
+- Nomor telepon dinormalisasi ke bentuk lokal `08...`; `+62812...` dan
+  `0812...` adalah akun yang sama.
+- Consent wajib UU PDP (`syarat_ketentuan`, `kebijakan_privasi`) diambil saat
+  daftar dan dicatat atomik di `persetujuan_pdp`.
 - Kode OTP dikembalikan di dalam respons **hanya** saat `APP_ENV=local`.
 
 Nilai `<NO_TELEPON>`, `<KODE_OTP>`, `<ACCESS_TOKEN>`, `<REFRESH_TOKEN>`,
@@ -26,12 +35,15 @@ BASE_URL="http://127.0.0.1:8123/api/v1"
 ## 1. `POST /auth/register` - 201
 
 Membuat `users` (`status=pending_verifikasi`, `tipe=pasien`) beserta baris
-`pasien`, lalu mengirim OTP `verifikasi_telepon`.
+`pasien`, mencatat dua baris consent wajib di `persetujuan_pdp`
+(`syarat_ketentuan`, `kebijakan_privasi`, dengan versi dari `config/pdp.php` dan
+IP permintaan) dalam transaksi yang sama, lalu mengirim OTP
+`verifikasi_telepon`. Kedua field consent wajib bernilai `accepted`.
 
 ```bash
 curl.exe -s -X POST "$BASE_URL/auth/register" \
   -H "Content-Type: application/json" \
-  -d '{"nama_lengkap":"<NAMA_LENGKAP>","no_telepon":"<NO_TELEPON>","email":"<EMAIL>","password":"<PASSWORD>","jenis_kelamin":"L","tanggal_lahir":"1990-01-01","tempat_lahir":"Jakarta","alamat_lengkap":"<ALAMAT>","bahasa":"id"}'
+  -d '{"nama_lengkap":"<NAMA_LENGKAP>","no_telepon":"<NO_TELEPON>","email":"<EMAIL>","password":"<PASSWORD>","jenis_kelamin":"L","tanggal_lahir":"1990-01-01","tempat_lahir":"Jakarta","alamat_lengkap":"<ALAMAT>","bahasa":"id","persetujuan_syarat_ketentuan":true,"persetujuan_kebijakan_privasi":true}'
 ```
 
 Respons terverifikasi (HTTP 201):
@@ -164,8 +176,11 @@ bukan access token (`GET /me` dengan access token baru tetap 200).
 
 ## 5. `POST /auth/logout` - 200
 
-Butuh header Bearer **dan** `refresh_token` di badan. Menghapus access token
-saat ini, mencabut refresh token yang diberikan, dan menonaktifkan perangkat.
+Butuh header Bearer **dan** `refresh_token` di badan. Bersifat **per
+perangkat**: menghapus access token saat ini dan mencabut refresh token yang
+diberikan saja; baris `user_devices` tidak diubah (`perangkat.dimatikan` selalu
+`0`, dipertahankan agar klien lama tidak rusak). Untuk keluar dari semua
+perangkat, panggil `POST /auth/logout-all` (bagian 10).
 
 ```bash
 curl.exe -s -X POST "$BASE_URL/auth/logout" \
@@ -177,7 +192,7 @@ curl.exe -s -X POST "$BASE_URL/auth/logout" \
 Respons terverifikasi (HTTP 200):
 
 ```json
-{"success":true,"data":{"refresh_token":{"dicabut":true},"access_token":{"dihapus":true},"perangkat":{"dimatikan":1}},"message":"Logout berhasil."}
+{"success":true,"data":{"refresh_token":{"dicabut":true},"access_token":{"dihapus":true},"perangkat":{"dimatikan":0}},"message":"Logout berhasil."}
 ```
 
 Jika refresh token sudah dicabut lebih dulu (misalnya oleh rotasi),
@@ -263,4 +278,46 @@ Perangkat milik pengguna lain atau tak dikenal (HTTP 404):
 
 ```json
 {"success":false,"message":"Resource not found.","errors":{}}
+```
+
+## 9. `POST /auth/otp/resend` - 200
+
+Menerbitkan ulang kode OTP tanpa kata sandi. Badan:
+`{tujuan, no_telepon?, email?, device_id?}` (`tujuan` = `verifikasi_telepon`
+atau `login`). Kode lama untuk tujuan yang sama ditutup. Respons **generik**:
+akun tak dikenal, akun nonaktif, dan akun nyata menjawab badan yang sama persis,
+sehingga endpoint tidak bisa dipakai untuk mendata akun. Dibatasi
+`throttle:auth-otp-resend` (3 per 5 menit per akun + IP).
+
+```bash
+curl.exe -s -X POST "$BASE_URL/auth/otp/resend" \
+  -H "Content-Type: application/json" \
+  -d '{"no_telepon":"<NO_TELEPON>","tujuan":"verifikasi_telepon"}'
+```
+
+Respons terverifikasi (HTTP 200):
+
+```json
+{"success":true,"data":{"otp":{"kedaluwarsa_at":"<TIMESTAMP>","ttl_detik":300,"kanal":"log"}},"message":"Jika akun terdaftar, kode OTP baru telah dikirim."}
+```
+
+`kanal` adalah kanal yang benar-benar dipakai driver aktif (`whatsapp` untuk
+`fonnte`, `log` untuk driver lokal). Rate limit (HTTP 429) memuat
+`meta.retry_after` dan header `Retry-After`.
+
+## 10. `POST /auth/logout-all` - 200
+
+"Keluar dari semua perangkat". Butuh Bearer, tanpa badan. Mencabut **semua**
+refresh token akun, menghapus access token saat ini, dan menonaktifkan semua
+baris `user_devices`.
+
+```bash
+curl.exe -s -X POST "$BASE_URL/auth/logout-all" \
+  -H "Authorization: Bearer <ACCESS_TOKEN>"
+```
+
+Respons terverifikasi (HTTP 200):
+
+```json
+{"success":true,"data":{"refresh_token":{"dicabut":true,"jumlah":2},"access_token":{"dihapus":true},"perangkat":{"dimatikan":3}},"message":"Logout dari semua perangkat berhasil."}
 ```
