@@ -1,30 +1,50 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router';
-import {
-    ArrowLeft,
-    Building2,
-    GraduationCap,
-    Mail,
-    Star,
-    Stethoscope,
-    Video,
-} from 'lucide-react';
-import { dokterDetailOptions, labelTipeDokter } from '@/lib/api/dokter';
+import { ArrowLeft, Video } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { dokterDetailOptions } from '@/lib/api/dokter';
 import { ApiError } from '@/lib/http';
-import { formatDecimal, formatRupiah, formatWaktu } from '@/lib/format';
+import { formatDecimal, formatWaktu } from '@/lib/format';
+import { useDocumentTitle } from '@/hooks/use-document-title';
+import { useOnlineStatus } from '@/hooks/use-online-status';
 import { PageHeader } from '@/components/layout/page-header';
+import { OfflineBanner } from '@/components/offline-banner';
 import { SkeletonRows } from '@/components/states/loading-state';
 import { EmptyState } from '@/components/states/empty-state';
 import { ErrorState, NotFoundState } from '@/components/states/error-state';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { CredentialPanel } from '@/features/dokter-profil/credential-panel';
+import { DoctorProfileHero } from '@/features/dokter-profil/doctor-profile-hero';
+import { SchedulePreview } from '@/features/dokter-profil/schedule-preview';
 
 /**
  * `/dokter/:id` - one doctor's public profile, with no session required.
  *
- * ## The 404 is the interesting state here
+ * ## What F04 adds to what was already here
+ *
+ * The page previously stopped at a static identity card: no schedule, no booking CTA, and
+ * the fee/credentials buried in a long `dl`. F04 §4.3/§10 keeps every honest fallback this
+ * page already had (`Bio belum diisi`, `Riwayat pendidikan belum dicatat`, `Belum ada
+ * afiliasi`) and adds the three things a patient decides with:
+ *
+ * | block | source |
+ * | --- | --- |
+ * | hero with `Pesan jadwal` -> `/booking/{id}` | `DokterDetailResource` |
+ * | `Jadwal terdekat` + `Lihat jadwal lengkap` | `GET /dokter/{id}/jadwal` + `/slot` |
+ * | `Kredensial & verifikasi` (collapsed) | `DokterDetailResource` |
+ *
+ * ## The reviews block is deliberately absent
+ *
+ * F04's review acceptance criteria (AC-4/5/6/9) are `[TERBLOKIR backend]`: no `/ulasan`
+ * route exists, and `dokter.rating_rata_rata`/`jumlah_ulasan` are stored aggregates that
+ * are never recomputed from `ulasan_dokter` (F04 blocker #5). So this page requests no
+ * review endpoint, renders no distribution, no sub-ratings and no review list. The two
+ * server scalars are kept only as plain numbers in `Informasi lain` - exactly what the API
+ * published, with no stars and no summary sentence that would imply a review UI exists.
+ *
+ * ## The 404 is still the interesting state
  *
  * `DokterController::show()` answers one 404 for **six** different situations: the id never
  * existed, `status_verifikasi` is not `terverifikasi`, the account is inactive,
@@ -44,27 +64,41 @@ import { Separator } from '@/components/ui/separator';
 export function DoctorDetailPage() {
     const { id } = useParams<{ id: string }>();
 
+    const online = useOnlineStatus();
+
     const detail = useQuery(dokterDetailOptions(id ?? ''));
+
+    /**
+     * `document.title` is `{nama dokter} | Sehatly` once the profile is known, and a fixed
+     * non-identifying title while it loads or fails. F04 AC-11: the title may name the
+     * doctor (public data the URL already implies) and must never carry review text, an STR
+     * or a NIK - none of which this page has.
+     */
+    const namaDokter = detail.data?.data.dokter.nama_lengkap;
+
+    useDocumentTitle(
+        namaDokter === undefined ? 'Profil dokter | Sehatly' : `${namaDokter} | Sehatly`,
+    );
 
     if (detail.isPending) {
         return (
-            <>
+            <Halaman>
                 <PageHeader title="Profil dokter" description="Memuat profil..." />
 
                 <SkeletonRows rows={5} />
-            </>
+            </Halaman>
         );
     }
 
     if (detail.isError) {
         if (detail.error instanceof ApiError && detail.error.isNotFound) {
             return (
-                <>
+                <Halaman>
                     <PageHeader title="Profil dokter" />
 
                     <NotFoundState
                         action={
-                            <Button asChild variant="outline" size="sm">
+                            <Button asChild variant="outline" size="sm" className="min-h-11">
                                 <Link to="/dokter">
                                     <ArrowLeft />
 
@@ -73,12 +107,12 @@ export function DoctorDetailPage() {
                             </Button>
                         }
                     />
-                </>
+                </Halaman>
             );
         }
 
         return (
-            <>
+            <Halaman>
                 <PageHeader title="Profil dokter" />
 
                 <ErrorState
@@ -88,24 +122,22 @@ export function DoctorDetailPage() {
                     }}
                 />
 
-                <Button asChild variant="outline" className="w-fit">
+                <Button asChild variant="outline" className="min-h-11 w-fit">
                     <Link to="/dokter">
                         <ArrowLeft />
 
                         Kembali ke direktori
                     </Link>
                 </Button>
-            </>
+            </Halaman>
         );
     }
 
     const dokter = detail.data.data.dokter;
-    const spesialisasiUtama = dokter.spesialisasi.find((row) => row.is_utama);
-    const spesialisasiLain = dokter.spesialisasi.filter((row) => !row.is_utama);
 
     return (
-        <>
-            <Button asChild variant="ghost" size="sm" className="w-fit">
+        <Halaman>
+            <Button asChild variant="ghost" className="min-h-11 w-fit">
                 <Link to="/dokter">
                     <ArrowLeft />
 
@@ -114,258 +146,98 @@ export function DoctorDetailPage() {
             </Button>
 
             <PageHeader
-                title={dokter.nama_lengkap}
-                description={`${labelTipeDokter(dokter.tipe)}${
-                    spesialisasiUtama?.nama === null ||
-                    spesialisasiUtama?.nama === undefined
-                        ? ''
-                        : ` - ${spesialisasiUtama.nama}`
-                }`}
+                title="Profil dokter"
+                description="Lihat kredensial, jadwal, dan ulasan pasien sebelum memesan."
             />
 
-            <div className="grid gap-6 lg:grid-cols-3">
-                <Card className="lg:col-span-2">
-                    <CardHeader>
-                        <CardTitle>Informasi dokter</CardTitle>
-                    </CardHeader>
-
-                    <CardContent className="flex flex-col gap-4">
-                        <dl className="grid gap-4 sm:grid-cols-2">
-                            <Cell
-                                label="Biaya konsultasi online"
-                                value={formatRupiah(dokter.biaya_konsultasi_online)}
-                            />
-
-                            <Cell
-                                label="Biaya di luar jam"
-                                value={formatRupiah(dokter.biaya_luar_jam)}
-                            />
-
-                            <Cell
-                                label="Durasi default"
-                                value={
-                                    dokter.durasi_default_menit === null
-                                        ? '-'
-                                        : `${dokter.durasi_default_menit} menit`
-                                }
-                            />
-
-                            <Cell
-                                label="Pengalaman"
-                                value={
-                                    dokter.pengalaman_tahun === null
-                                        ? '-'
-                                        : `${dokter.pengalaman_tahun} tahun`
-                                }
-                            />
-
-                            <Cell
-                                label="Rating"
-                                value={formatDecimal(dokter.rating_rata_rata, 2)}
-                            />
-
-                            <Cell
-                                label="Jumlah ulasan"
-                                value={
-                                    dokter.jumlah_ulasan === null
-                                        ? '-'
-                                        : String(dokter.jumlah_ulasan)
-                                }
-                            />
-
-                            <Cell
-                                label="Jumlah konsultasi"
-                                value={String(dokter.jumlah_konsultasi)}
-                            />
-
-                            <Cell label="Terdaftar" value={formatWaktu(dokter.dibuat_at)} />
-                        </dl>
-
-                        <Separator />
-
-                        <section className="flex flex-col gap-2">
-                            <h2 className="text-base font-semibold">Tentang dokter</h2>
-
-                            {dokter.bio === null || dokter.bio === '' ? (
-                                <EmptyState
-                                    compact
-                                    title="Bio belum diisi"
-                                    description="Dokter ini belum menambahkan deskripsi singkat pada profilnya."
-                                />
-                            ) : (
-                                <p className="text-sm leading-relaxed">{dokter.bio}</p>
-                            )}
-                        </section>
-
-                        <Separator />
-
-                        <section className="flex flex-col gap-3">
-                            <h2 className="text-base font-semibold">Spesialisasi</h2>
-
-                            {dokter.spesialisasi.length === 0 ? (
-                                <EmptyState
-                                    compact
-                                    title="Spesialisasi belum dicatat"
-                                    description="Belum ada relasi spesialisasi untuk dokter ini."
-                                />
-                            ) : (
-                                <>
-                                    <div className="flex flex-wrap items-center gap-2">
-                                        {spesialisasiUtama === undefined ? null : (
-                                            <Badge>{spesialisasiUtama.nama ?? '-'}</Badge>
-                                        )}
-
-                                        {spesialisasiLain.map((row) => (
-                                            <Badge
-                                                key={row.id ?? row.kode ?? row.nama}
-                                                variant="secondary"
-                                            >
-                                                {row.nama ?? '-'}
-                                            </Badge>
-                                        ))}
-                                    </div>
-
-                                    <p className="text-muted-foreground text-xs">
-                                        Urutan mengikuti `is_utama` lebih dulu, lalu nama.
-                                    </p>
-                                </>
-                            )}
-                        </section>
-
-                        <Separator />
-
-                        <section className="flex flex-col gap-3">
-                            <h2 className="text-base font-semibold">Pendidikan</h2>
-
-                            {dokter.pendidikan.length === 0 ? (
-                                <EmptyState
-                                    compact
-                                    title="Riwayat pendidikan belum dicatat"
-                                    description="Belum ada data jenjang atau institusi untuk dokter ini."
-                                />
-                            ) : (
-                                <ul className="flex flex-col gap-2">
-                                    {dokter.pendidikan.map((row) => (
-                                        <li
-                                            key={row.id}
-                                            className="flex items-start gap-2 text-sm"
-                                        >
-                                            <GraduationCap
-                                                aria-hidden
-                                                className="mt-0.5 size-4 shrink-0"
-                                            />
-
-                                            <span>
-                                                {row.jenjang ?? '-'} - {row.institusi ?? '-'}
-                                                {row.tahun_lulus === null
-                                                    ? ''
-                                                    : ` (${row.tahun_lulus})`}
-                                            </span>
-                                        </li>
-                                    ))}
-                                </ul>
-                            )}
-                        </section>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Informasi lain</CardTitle>
-                    </CardHeader>
-
-                    <CardContent className="flex flex-col gap-4">
-                        <div className="flex flex-wrap items-center gap-2">
-                            <Badge variant="secondary">
-                                <Star className="size-3" />
-
-                                {formatDecimal(dokter.rating_rata_rata, 2)}
-                            </Badge>
-
-                            {dokter.tersedia_telemedisin ? (
-                                <Badge>
-                                    <Video className="size-3" />
-
-                                    Telemedisin
-                                </Badge>
-                            ) : null}
-                        </div>
-
-                        <section className="flex flex-col gap-2">
-                            <h3 className="text-sm font-semibold">Fasilitas</h3>
-
-                            {dokter.faskes.length === 0 ? (
-                                <EmptyState
-                                    compact
-                                    title="Belum ada afiliasi"
-                                    description="Dokter ini tidak tertaut ke fasilitas kesehatan mana pun."
-                                />
-                            ) : (
-                                <ul className="flex flex-col gap-3">
-                                    {dokter.faskes.map((row) => (
-                                        <li
-                                            key={row.faskes_id}
-                                            className="flex flex-col gap-1 text-sm"
-                                        >
-                                            <span className="flex items-center gap-2 font-medium">
-                                                <Building2
-                                                    aria-hidden
-                                                    className="size-4 shrink-0"
-                                                />
-
-                                                {row.nama ?? '-'}
-                                            </span>
-
-                                            <span className="text-muted-foreground">
-                                                {row.kode_faskes ?? '-'}
-                                                {row.kelas_rs === null
-                                                    ? ''
-                                                    : ` - kelas ${row.kelas_rs}`}
-                                            </span>
-
-                                            {row.alamat === null ? null : (
-                                                <span className="text-muted-foreground">
-                                                    {row.alamat}
-                                                </span>
-                                            )}
-
-                                            {row.status_aktif ? null : (
-                                                <Badge variant="outline">
-                                                    Afiliasi tidak aktif
-                                                </Badge>
-                                            )}
-                                        </li>
-                                    ))}
-                                </ul>
-                            )}
-                        </section>
-
-                        {/**
-                         * The four fields `DokterDetailResource` withholds are named here
-                         * rather than left as a mystery: a patient looking for a licence
-                         * number, a phone number or an email should be told those are
-                         * deliberately admin-only rather than left wondering whether the
-                         * page failed to load them.
-                         */}
-                        <section className="text-muted-foreground flex flex-col gap-2 text-xs">
-                            <h3 className="text-foreground flex items-center gap-2 text-sm font-semibold">
-                                <Stethoscope className="size-4" />
-
-                                Tidak ditampilkan
-                            </h3>
-
-                            <p className="flex items-start gap-2">
-                                <Mail aria-hidden className="mt-0.5 size-3.5 shrink-0" />
-
-                                Nomor STR, nomor SIP, berkas STR, dan kontak langsung
-                                dokter tidak dipublikasikan. Kontak pasien ke dokter
-                                dilakukan melalui pemesanan konsultasi.
-                            </p>
-                        </section>
-                    </CardContent>
-                </Card>
+            {/**
+             * The wrapper carries the id the offline CTA points at through
+             * `aria-describedby`. `OfflineBanner` renders `null` while online, so the
+             * wrapper is empty then and the attribute is only set offline - the same
+             * pattern the public directory uses.
+             */}
+            <div id="dokter-alasan-offline">
+                <OfflineBanner message="Anda sedang offline. Jadwal dan pemesanan tidak dikirim sampai koneksi kembali." />
             </div>
-        </>
+
+            <DoctorProfileHero dokter={dokter} online={online} />
+
+            <SchedulePreview dokterId={String(dokter.id)} />
+
+            <CredentialPanel dokter={dokter} />
+
+            <Card>
+                <CardHeader>
+                    <CardTitle className="text-base">Tentang dokter</CardTitle>
+                </CardHeader>
+
+                <CardContent>
+                    {dokter.bio === null || dokter.bio === '' ? (
+                        <EmptyState
+                            compact
+                            title="Bio belum diisi"
+                            description="Dokter ini belum menambahkan deskripsi singkat pada profilnya."
+                        />
+                    ) : (
+                        <p className="text-base leading-relaxed">{dokter.bio}</p>
+                    )}
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle className="text-base">Informasi lain</CardTitle>
+                </CardHeader>
+
+                <CardContent className="flex flex-col gap-4">
+                    {dokter.tersedia_telemedisin ? (
+                        <Badge variant="outline" className="border-success/60 w-fit">
+                            <Video aria-hidden className="text-success" />
+
+                            Tersedia telemedisin
+                        </Badge>
+                    ) : null}
+
+                    {/**
+                     * The aggregates are shown as the server's own scalars - no stars, no
+                     * "dari 5", no distribution - because the review endpoint that would
+                     * make a summary honest does not exist yet (F04 §12 #2). Labelling
+                     * them plainly keeps the numbers from being read as a verified
+                     * review summary.
+                     */}
+                    <dl className="grid gap-4 sm:grid-cols-3">
+                        <Cell
+                            label="Rating"
+                            value={formatDecimal(dokter.rating_rata_rata, 2)}
+                        />
+
+                        <Cell
+                            label="Jumlah ulasan"
+                            value={
+                                dokter.jumlah_ulasan === null
+                                    ? '-'
+                                    : String(dokter.jumlah_ulasan)
+                            }
+                        />
+
+                        <Cell label="Terdaftar" value={formatWaktu(dokter.dibuat_at)} />
+                    </dl>
+                </CardContent>
+            </Card>
+        </Halaman>
+    );
+}
+
+/**
+ * The page frame: a readable column, the same shape `StaticPage` gives the public
+ * documents. The doctor profile is one task per screen (decide, then book), so it stays a
+ * single column at every width instead of inventing a second one for the desktop.
+ */
+function Halaman({ children }: { children: ReactNode }) {
+    return (
+        <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 p-4 md:p-6">
+            {children}
+        </main>
     );
 }
 
