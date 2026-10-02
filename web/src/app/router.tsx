@@ -35,6 +35,11 @@ import {
 import { PesananPage } from '@/pages/pesanan-page';
 import { PembayaranPage } from '@/pages/pembayaran-page';
 import { NotifikasiPage } from '@/pages/notifikasi-page';
+import { AdminDokterPage } from '@/pages/admin-dokter-page';
+import { AdminDokterDetailPage } from '@/pages/admin-dokter-detail-page';
+import { AdminLaporanPage } from '@/pages/admin-laporan-page';
+import { AdminAuditLogPage } from '@/pages/admin-audit-log-page';
+import { AdminPersetujuanPdpPage } from '@/pages/admin-persetujuan-pdp-page';
 import { PrivasiPage } from '@/pages/privasi-page';
 import { KebijakanPrivasiPage } from '@/pages/kebijakan-privasi-page';
 import { SyaratKetentuanPage } from '@/pages/syarat-ketentuan-page';
@@ -344,6 +349,57 @@ export const router = createBrowserRouter([
                             {
                                 path: '/notifikasi',
                                 element: <NotifikasiPage />,
+                                errorElement: <RouteErrorBoundary />,
+                            },
+
+                            /**
+                             * F14's admin surfaces. Six leaves, all behind
+                             * `RequireAuth`/`AppShell` because every
+                             * `/api/v1/admin/*` route is `auth:sanctum` +
+                             * `tipe:admin,superadmin`; each page gates on the
+                             * account type itself (F13's split) and renders
+                             * `ForbiddenState` for a non-admin, so a shared
+                             * admin guard component is not needed at the route
+                             * level and a non-admin still gets the shell's way
+                             * out.
+                             *
+                             * `/admin/dokter/:id` and `/admin/dokter/:id/jadwal`
+                             * are two-segment and three-segment paths, and
+                             * `/admin/dokter` is a literal that cannot be
+                             * swallowed by the parameter because its segment is
+                             * the last one. The `:id/jadwal` element is the same
+                             * detail page with the schedule tab preselected, so
+                             * the F14 contract's path and the pattern's
+                             * `?tab=jadwal` both address one screen.
+                             */
+                            {
+                                path: '/admin/dokter',
+                                element: <AdminDokterPage />,
+                                errorElement: <RouteErrorBoundary />,
+                            },
+                            {
+                                path: '/admin/dokter/:id',
+                                element: <AdminDokterDetailPage />,
+                                errorElement: <RouteErrorBoundary />,
+                            },
+                            {
+                                path: '/admin/dokter/:id/jadwal',
+                                element: <AdminDokterDetailPage tabAwal="jadwal" />,
+                                errorElement: <RouteErrorBoundary />,
+                            },
+                            {
+                                path: '/admin/laporan',
+                                element: <AdminLaporanPage />,
+                                errorElement: <RouteErrorBoundary />,
+                            },
+                            {
+                                path: '/admin/audit-log',
+                                element: <AdminAuditLogPage />,
+                                errorElement: <RouteErrorBoundary />,
+                            },
+                            {
+                                path: '/admin/persetujuan-pdp',
+                                element: <AdminPersetujuanPdpPage />,
                                 errorElement: <RouteErrorBoundary />,
                             },
                         ],

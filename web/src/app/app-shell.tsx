@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import {
+    BarChart3,
     CalendarDays,
     ClipboardCheck,
     ClipboardList,
@@ -11,6 +12,7 @@ import {
     MessagesSquare,
     Package,
     Pill,
+    ScrollText,
     ShieldAlert,
     ShieldCheck,
     Stethoscope,
@@ -198,6 +200,91 @@ function MenuLink({
     );
 }
 
+/**
+ * The whole navigation an `admin`/`superadmin` account sees.
+ *
+ * ## Why it replaces the generic nav instead of adding to it
+ *
+ * The F14 pattern's RBAC boundary is "a menu the account may not use is not
+ * rendered". The generic nav offers patient-owned booking, consultation and
+ * prescription destinations that an admin cannot open (the role holds no
+ * `rekam_medis.lihat`/`resep.lihat` and the patient routes are profile-owned),
+ * so the honest answer is a nav of the admin's own destinations plus the public
+ * directory - which is exactly the AC-11 assertion (zero Rekam medis/Resep
+ * links on an admin account) rather than a disabled menu.
+ */
+function AdminNav({
+    pathname,
+    onNavigate,
+}: {
+    pathname: string;
+    onNavigate: () => void;
+}) {
+    return (
+        <>
+            <SidebarGroup>
+                <SidebarGroupLabel>Umum</SidebarGroupLabel>
+
+                <SidebarMenu>
+                    <MenuLink
+                        to="/dashboard"
+                        icon={ClipboardList}
+                        label="Dashboard"
+                        pathname={pathname}
+                        onNavigate={onNavigate}
+                    />
+
+                    <MenuLink
+                        to="/dokter"
+                        icon={Stethoscope}
+                        label="Direktori dokter"
+                        pathname={pathname}
+                        onNavigate={onNavigate}
+                    />
+                </SidebarMenu>
+            </SidebarGroup>
+
+            <SidebarGroup>
+                <SidebarGroupLabel>Admin klinik</SidebarGroupLabel>
+
+                <SidebarMenu>
+                    <MenuLink
+                        to="/admin/dokter"
+                        icon={HeartPulse}
+                        label="Dokter"
+                        pathname={pathname}
+                        onNavigate={onNavigate}
+                    />
+
+                    <MenuLink
+                        to="/admin/laporan"
+                        icon={BarChart3}
+                        label="Laporan"
+                        pathname={pathname}
+                        onNavigate={onNavigate}
+                    />
+
+                    <MenuLink
+                        to="/admin/audit-log"
+                        icon={ScrollText}
+                        label="Jejak audit"
+                        pathname={pathname}
+                        onNavigate={onNavigate}
+                    />
+
+                    <MenuLink
+                        to="/admin/persetujuan-pdp"
+                        icon={ShieldCheck}
+                        label="Persetujuan PDP"
+                        pathname={pathname}
+                        onNavigate={onNavigate}
+                    />
+                </SidebarMenu>
+            </SidebarGroup>
+        </>
+    );
+}
+
 function AppSidebar() {
     const navigate = useNavigate();
     const location = useLocation();
@@ -248,6 +335,20 @@ function AppSidebar() {
     const isDokter = user?.tipe === 'dokter';
     const isApotek = user?.tipe === 'apoteker' || user?.tipe === 'superadmin';
 
+    /**
+     * F14's account-type guard, and the reason the nav is split further down.
+     *
+     * The backend's whole `/admin` group is `tipe:admin,superadmin`. The role
+     * holds no `rekam_medis.lihat` and no `resep.lihat` (`RbacCatalog`), so for
+     * an admin the clinical groups are not merely irrelevant - following them
+     * would be a 403. The F14 pattern's RBAC rule is "a control that may not be
+     * used is not rendered", so an admin nav carries the admin destinations and
+     * the public directory, and the patient/doctor/clinical groups are omitted.
+     * This branch is why AC-11 can assert zero Rekam medis/Resep links for an
+     * admin account.
+     */
+    const isAdmin = user?.tipe === 'admin' || user?.tipe === 'superadmin';
+
     return (
         <Sidebar collapsible="icon">
             <SidebarHeader>
@@ -261,6 +362,10 @@ function AppSidebar() {
             <SidebarSeparator />
 
             <SidebarContent>
+                {isAdmin ? (
+                    <AdminNav pathname={pathname} onNavigate={tutupDrawer} />
+                ) : (
+                    <>
                 <SidebarGroup>
                     <SidebarGroupLabel>Pasien</SidebarGroupLabel>
 
@@ -509,6 +614,8 @@ function AppSidebar() {
                         />
                     </SidebarMenu>
                 </SidebarGroup>
+                    </>
+                )}
             </SidebarContent>
 
             <SidebarFooter>
