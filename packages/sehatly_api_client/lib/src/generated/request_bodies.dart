@@ -1843,6 +1843,7 @@ class IndexDokterRequestBody {
     this.page,
     this.perPage,
     this.search,
+    this.sort,
     this.spesialisasi,
     this.tersediaTelemedisin,
     this.tipe,
@@ -1857,6 +1858,9 @@ class IndexDokterRequestBody {
   /// `search`.
   final Object? search;
 
+  /// `sort`, a closed set on the server.
+  final Object? sort;
+
   /// `spesialisasi`.
   final Object? spesialisasi;
 
@@ -1865,6 +1869,21 @@ class IndexDokterRequestBody {
 
   /// `tipe`, a closed set on the server.
   final Object? tipe;
+
+  /// The values the server accepts for `sort`, read from its `Rule::in`.
+  ///
+  /// A `Set<String>` rather than a Dart enum on purpose: the rule's values are
+  /// data rather than a compile-time vocabulary, so the server may gain a member
+  /// without this package being released, and a set keeps the check honest
+  /// instead of failing to compile against a list it has never seen.
+  static const Set<String> sortAllowed = <String>{
+    'relevan',
+    'rating',
+    'pengalaman',
+    'biaya_asc',
+    'biaya_desc',
+    'ulasan',
+  };
 
   /// The values the server accepts for `tipe`, read from its `Rule::in`.
   ///
@@ -1887,6 +1906,7 @@ class IndexDokterRequestBody {
     'page',
     'per_page',
     'search',
+    'sort',
     'spesialisasi',
     'tersedia_telemedisin',
     'tipe',
@@ -1906,6 +1926,7 @@ class IndexDokterRequestBody {
       if (page != null) 'page': page,
       if (perPage != null) 'per_page': perPage,
       if (search != null) 'search': search,
+      if (sort != null) 'sort': sort,
       if (spesialisasi != null) 'spesialisasi': spesialisasi,
       if (tersediaTelemedisin != null) 'tersedia_telemedisin': tersediaTelemedisin,
       if (tipe != null) 'tipe': tipe,

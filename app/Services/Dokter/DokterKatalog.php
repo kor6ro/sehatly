@@ -89,6 +89,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string|null $rating_rata_rata
  * @property int|null $jumlah_konsultasi
  * @property string|null $spesialisasi
+ * @property int|null $pengalaman_tahun selected from the joined `dokter` row; not a view column
+ * @property int|null $jumlah_ulasan RECOMPUTED and attached after the page is chosen; never `dokter.jumlah_ulasan`
  * @property-read Dokter $dokter
  */
 class DokterKatalog extends Model

@@ -9,6 +9,7 @@ use App\Models\MasterSpesialisasi;
 use App\Models\User;
 use App\Services\Dokter\DokterDirectoryService;
 use App\Services\Dokter\DokterKatalog;
+use App\Services\Dokter\UlasanDokterService;
 use App\Support\Rbac\RbacCatalog;
 use App\Support\Schema\SqlSchemaParser;
 use App\Support\WaktuIndonesia;
@@ -247,6 +248,45 @@ function direktoriFaskes(string $nama): Faskes
     $faskes->save();
 
     return $faskes;
+}
+
+/**
+ * One `ulasan_dokter` row for `$dokterId`, plus the patient and the finished
+ * consultation its foreign keys require.
+ *
+ * `ulasan_dokter.konsultasi_id` is `NOT NULL UNIQUE` (`:1052`) and both
+ * `pasien_id` and `dokter_id` are `NOT NULL` foreign keys (`:1053`-`:1054`), so a
+ * review cannot be written without a fresh patient and a fresh `selesai` session.
+ * Written through the query builder on purpose: these tests measure the directory,
+ * not the F04 write path.
+ */
+function direktoriUlasan(int $dokterId, int $rating): void
+{
+    $pasienId = (int) DB::table('pasien')->insertGetId([
+        'user_id' => direktoriUser('Pasien '.Str::upper(Str::random(6)), 'pasien')->getKey(),
+        'nomor_rm' => 'RM-DIR-'.Str::upper(Str::random(8)),
+        'jenis_kelamin' => 'P',
+        'tanggal_lahir' => '1990-05-17',
+        'alamat_lengkap' => 'Jl. Uji Direktori No. 1, Jakarta',
+    ]);
+
+    $konsultasiId = (int) DB::table('konsultasi')->insertGetId([
+        'pasien_id' => $pasienId,
+        'dokter_id' => $dokterId,
+        'tipe' => 'chat',
+        'status' => 'selesai',
+        'mulai_at' => '2026-10-01 09:00:00',
+        'selesai_at' => '2026-10-01 09:15:00',
+        'total_durasi_detik' => 900,
+    ]);
+
+    DB::table('ulasan_dokter')->insert([
+        'konsultasi_id' => $konsultasiId,
+        'pasien_id' => $pasienId,
+        'dokter_id' => $dokterId,
+        'rating' => $rating,
+        'is_anonim' => 1,
+    ]);
 }
 
 /**
@@ -795,6 +835,234 @@ test('per_page defaults to 15 and 100 is accepted', function (): void {
         ->and($response->json('meta.per_page'))->toBe(15)
         ->and($response->json('data.dokter'))->toHaveCount(12)
         ->and($this->getJson('/api/v1/dokter?per_page=100')->assertOk()->json('meta.per_page'))->toBe(100);
+});
+
+/*
+|--------------------------------------------------------------------------
+| F03 §4.4: the `?sort=` vocabulary and the recomputed review count
+|--------------------------------------------------------------------------
+|
+| The binding contract is `web/ux/patterns/F03.md` §4.4. Two owner decisions
+| shape every assertion below:
+|
+| 1. `?sort=` is a closed six-value vocabulary; anything else is a 422, never a
+|    silent fallback.
+| 2. `jumlah_ulasan` -- both the sort key and the published field -- is
+|    RECOMPUTED from `ulasan_dokter`. The stored `dokter.jumlah_ulasan` and
+|    `dokter.rating_rata_rata` are set to decoy values in every test here and
+|    must never decide an order or a printed count.
+|
+| `sort=relevan` is the pre-F03 order unchanged, so the existing ordering tests
+| above still describe the default.
+|
+*/
+
+test('?sort= accepts the six approved values and rejects every other string', function (): void {
+    direktoriDokter(direktoriUser('Sort Diterima'));
+
+    foreach (DokterDirectoryService::SORT_VALUES as $sort) {
+        $this->getJson('/api/v1/dokter?sort='.$sort)->assertOk();
+    }
+
+    // `terbaru` is F04's review-list vocabulary (`IndexUlasanDokterRequest`),
+    // deliberately not this endpoint's; `murah` and `terlama` are UI labels.
+    foreach (['terbaru', 'murah', 'terlama', 'rating_asc', 'ULASAN'] as $nilai) {
+        $this->getJson('/api/v1/dokter?sort='.urlencode($nilai))
+            ->assertStatus(422)
+            ->assertJsonPath('success', false)
+            ->assertJsonStructure(['message', 'errors' => ['sort']]);
+    }
+
+    // An array where a string is expected is the same 422, not a coercion.
+    $this->getJson('/api/v1/dokter?sort[]=rating')
+        ->assertStatus(422)
+        ->assertJsonStructure(['errors' => ['sort']]);
+});
+
+test('sort=relevan is byte-for-byte the default order, and reviews do not move it', function (): void {
+    $a = direktoriDokter(direktoriUser('Relevan A'), ['rating_rata_rata' => '4.50', 'jumlah_konsultasi' => 10]);
+    $b = direktoriDokter(direktoriUser('Relevan B'), ['rating_rata_rata' => '4.90', 'jumlah_konsultasi' => 5]);
+
+    // Decoys: `relevan` is the unchanged pre-F03 order, so the recomputed review
+    // average must NOT reorder it. `rating` (next test) is where it does.
+    direktoriUlasan((int) $a->getKey(), 1);
+    direktoriUlasan((int) $b->getKey(), 5);
+
+    $tanpaSort = direktoriIds($this->getJson('/api/v1/dokter')->assertOk()->json());
+    $eksplisit = direktoriIds($this->getJson('/api/v1/dokter?sort=relevan')->assertOk()->json());
+
+    expect($eksplisit)->toBe($tanpaSort)
+        ->and($eksplisit)->toBe([(int) $b->getKey(), (int) $a->getKey()]);
+});
+
+test('biaya_asc and biaya_desc order by biaya_konsultasi_online with the id tiebreaker', function (): void {
+    $mahal = direktoriDokter(direktoriUser('Biaya Mahal'), ['biaya_konsultasi_online' => '150000.00']);
+    $murah = direktoriDokter(direktoriUser('Biaya Murah'), ['biaya_konsultasi_online' => '25000.00']);
+    $sedang = direktoriDokter(direktoriUser('Biaya Sedang'), ['biaya_konsultasi_online' => '85000.00']);
+    $murahLain = direktoriDokter(direktoriUser('Biaya Murah Lain'), ['biaya_konsultasi_online' => '25000.00']);
+
+    $naik = direktoriIds($this->getJson('/api/v1/dokter?sort=biaya_asc')->assertOk()->json());
+    $turun = direktoriIds($this->getJson('/api/v1/dokter?sort=biaya_desc')->assertOk()->json());
+
+    // The two 25.000 rows tie on the fee; only the unique `dokter_id ASC`
+    // tiebreaker separates them, which is what keeps paginated pages disjoint.
+    expect($naik)->toBe([
+        (int) $murah->getKey(),
+        (int) $murahLain->getKey(),
+        (int) $sedang->getKey(),
+        (int) $mahal->getKey(),
+    ])
+        ->and($murah->getKey())->toBeLessThan($murahLain->getKey())
+        ->and($turun)->toBe([
+            (int) $mahal->getKey(),
+            (int) $sedang->getKey(),
+            (int) $murah->getKey(),
+            (int) $murahLain->getKey(),
+        ]);
+});
+
+test('sort=pengalaman orders by the stored pengalaman_tahun, most experienced first', function (): void {
+    $baru = direktoriDokter(direktoriUser('Pengalaman Baru'), ['pengalaman_tahun' => 0]);
+    $lama = direktoriDokter(direktoriUser('Pengalaman Lama'), ['pengalaman_tahun' => 22]);
+    $lamaLain = direktoriDokter(direktoriUser('Pengalaman Lama Lain'), ['pengalaman_tahun' => 22]);
+    $sedang = direktoriDokter(direktoriUser('Pengalaman Sedang'), ['pengalaman_tahun' => 8]);
+
+    $json = $this->getJson('/api/v1/dokter?sort=pengalaman')->assertOk()->json();
+
+    expect(direktoriIds($json))->toBe([
+        (int) $lama->getKey(),
+        (int) $lamaLain->getKey(),
+        (int) $sedang->getKey(),
+        (int) $baru->getKey(),
+    ])
+        ->and($lama->getKey())->toBeLessThan($lamaLain->getKey())
+        // The field the card renders is now on the wire, from the real
+        // `dokter.pengalaman_tahun` column the view does not carry.
+        ->and($json['data']['dokter'][0]['pengalaman_tahun'])->toBe(22)
+        ->and($json['data']['dokter'][3]['pengalaman_tahun'])->toBe(0);
+});
+
+test('sort=rating orders by the RECOMPUTED average, never the stored decoy', function (): void {
+    // The stored values are the trap: the decoy says 5.00 while holding no
+    // reviews at all, and the winner says 0.00 while its reviews average 5.00.
+    $decoy = direktoriDokter(direktoriUser('Rating Decoy'), ['rating_rata_rata' => '5.00', 'jumlah_ulasan' => 99]);
+    $pemenang = direktoriDokter(direktoriUser('Rating Pemenang'), ['rating_rata_rata' => '0.00']);
+    $tieKecil = direktoriDokter(direktoriUser('Rating Tie Kecil'), ['rating_rata_rata' => '0.00']);
+    $kedua = direktoriDokter(direktoriUser('Rating Kedua'), ['rating_rata_rata' => '0.00']);
+
+    direktoriUlasan((int) $pemenang->getKey(), 5);
+    direktoriUlasan((int) $pemenang->getKey(), 5);
+    direktoriUlasan((int) $tieKecil->getKey(), 5);
+    direktoriUlasan((int) $kedua->getKey(), 4);
+
+    // `pemenang` and `tieKecil` tie at AVG 5.00; the tiebreak is the review
+    // count (Baymard's "weight the average by the number of reviews"), so the
+    // two-review doctor is first. A doctor with no reviews has a NULL average
+    // and sorts last, behind the recomputed 4.00, despite the highest decoy.
+    expect(direktoriIds($this->getJson('/api/v1/dokter?sort=rating')->assertOk()->json()))->toBe([
+        (int) $pemenang->getKey(),
+        (int) $tieKecil->getKey(),
+        (int) $kedua->getKey(),
+        (int) $decoy->getKey(),
+    ]);
+});
+
+test('sort=ulasan orders by the RECOMPUTED count, and the count is published per row', function (): void {
+    $banyak = direktoriDokter(direktoriUser('Ulasan Banyak'), ['jumlah_ulasan' => 3]);
+    $sedikit = direktoriDokter(direktoriUser('Ulasan Sedikit'), ['jumlah_ulasan' => 77]);
+    $kosong = direktoriDokter(direktoriUser('Ulasan Kosong'), ['jumlah_ulasan' => 50]);
+
+    direktoriUlasan((int) $banyak->getKey(), 3);
+    direktoriUlasan((int) $banyak->getKey(), 4);
+    direktoriUlasan((int) $banyak->getKey(), 5);
+    direktoriUlasan((int) $sedikit->getKey(), 5);
+
+    $json = $this->getJson('/api/v1/dokter?sort=ulasan')->assertOk()->json();
+
+    expect(direktoriIds($json))->toBe([
+        (int) $banyak->getKey(),
+        (int) $sedikit->getKey(),
+        (int) $kosong->getKey(),
+    ])
+        ->and(array_column($json['data']['dokter'], 'jumlah_ulasan'))->toBe([3, 1, 0]);
+
+    // The default order publishes the same recomputed field, per row: the
+    // stored decoys (3, 77, 50) are not what a card will print.
+    $bawaan = $this->getJson('/api/v1/dokter')->assertOk()->json();
+    $perId = [];
+
+    foreach ($bawaan['data']['dokter'] as $baris) {
+        $perId[(int) $baris['id']] = $baris['jumlah_ulasan'];
+    }
+
+    expect($perId[(int) $banyak->getKey()])->toBe(3)
+        ->and($perId[(int) $sedikit->getKey()])->toBe(1)
+        ->and($perId[(int) $kosong->getKey()])->toBe(0);
+});
+
+test('the recomputed count is ONE batched query: the query count does not grow with the page', function (): void {
+    $satu = direktoriDokter(direktoriUser('Batch Satu'));
+    direktoriUlasan((int) $satu->getKey(), 5);
+
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+    $halamanSatu = app(DokterDirectoryService::class)->list([]);
+    $jumlahSatu = count(DB::getQueryLog());
+    DB::disableQueryLog();
+
+    for ($i = 2; $i <= 4; $i++) {
+        $dokter = direktoriDokter(direktoriUser('Batch '.$i));
+        direktoriUlasan((int) $dokter->getKey(), 5);
+        direktoriUlasan((int) $dokter->getKey(), 4);
+    }
+
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+    $halamanEmpat = app(DokterDirectoryService::class)->list([]);
+    $jumlahEmpat = count(DB::getQueryLog());
+    DB::disableQueryLog();
+
+    // The pagination count, the page SELECT, and ONE grouped COUNT for the
+    // page's ids: three, whether the page holds one doctor or four with eight
+    // reviews. A per-row aggregate would make the second number grow with the
+    // page, which is the N+1 this pins shut.
+    expect($halamanSatu->getCollection())->toHaveCount(1)
+        ->and($halamanEmpat->getCollection())->toHaveCount(4)
+        ->and($jumlahSatu)->toBe(3)
+        ->and($jumlahEmpat)->toBe($jumlahSatu);
+});
+
+test('the batched count is the same number F04 agregat() reports for one doctor', function (): void {
+    $dokter = direktoriDokter(direktoriUser('Agregat Sama'));
+    $dokterId = (int) $dokter->getKey();
+
+    foreach ([5, 4, 4] as $rating) {
+        direktoriUlasan($dokterId, $rating);
+    }
+
+    $service = app(UlasanDokterService::class);
+
+    expect($service->jumlahUntuk([$dokterId]))->toBe([$dokterId => 3])
+        // The batch is the same COUNT as the per-doctor aggregate F04 publishes,
+        // so the list card and the review page cannot disagree about `jumlah`.
+        ->and($service->agregat($dokterId)['jumlah'])->toBe(3);
+});
+
+test('the batched count follows the page, not the first page', function (): void {
+    $dua = direktoriDokter(direktoriUser('Halaman Ulasan Dua'));
+    $satu = direktoriDokter(direktoriUser('Halaman Ulasan Satu'));
+
+    direktoriUlasan((int) $dua->getKey(), 5);
+    direktoriUlasan((int) $dua->getKey(), 4);
+    direktoriUlasan((int) $satu->getKey(), 5);
+
+    $pertama = $this->getJson('/api/v1/dokter?sort=ulasan&per_page=1&page=1')->assertOk()->json();
+    $kedua = $this->getJson('/api/v1/dokter?sort=ulasan&per_page=1&page=2')->assertOk()->json();
+
+    expect($pertama['data']['dokter'][0]['id'])->toBe((int) $dua->getKey())
+        ->and($pertama['data']['dokter'][0]['jumlah_ulasan'])->toBe(2)
+        ->and($kedua['data']['dokter'][0]['id'])->toBe((int) $satu->getKey())
+        ->and($kedua['data']['dokter'][0]['jumlah_ulasan'])->toBe(1);
 });
 
 /*

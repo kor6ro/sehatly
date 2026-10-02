@@ -58,14 +58,31 @@ use Illuminate\Http\Resources\Json\JsonResource;
 class DokterResource extends JsonResource
 {
     /**
-     * Exactly the view's seven columns, renamed, plus the constant verification state.
+     * The view's seven published columns, plus the verification constant, plus the
+     * two fields F03 §4.4 adds to the list card.
      *
-     * `durasi_default_menit` and `jumlah_ulasan` are **absent, not null**. Both are
-     * real `dokter` columns (`:422`, `:424`) and both are in the detail projection,
-     * but the view does not select them (`:1172`-`:1178`) and inventing a `null` for
-     * a value that was never read would tell a client the doctor has no reviews
-     * rather than that the list endpoint does not report them. Omission is the
-     * honest answer; the detail endpoint is where those two live.
+     * | field | source |
+     * | --- | --- |
+     * | `pengalaman_tahun` | `dokter.pengalaman_tahun` (`:418`), selected from the joined row by {@see DokterDirectoryService::query()} |
+     * | `jumlah_ulasan` | **recomputed** from `ulasan_dokter` for the page's ids by {@see DokterDirectoryService::lampirkanJumlahUlasan()} |
+     *
+     * **`jumlah_ulasan` is not `dokter.jumlah_ulasan`.** That column has no writer
+     * (`UlasanDokterService`'s class docblock), so publishing it would print a
+     * number no patient ever produced; F03 §4.4 item 3 and the owner decision say to
+     * recompute instead. The value is the same `COUNT(*)` F04's `agregat()` reports,
+     * batched into one query per page so the resource cannot be N+1.
+     *
+     * `durasi_default_menit` stays **absent, not null**: it is a real `dokter`
+     * column (`:422`) that neither the view nor the list projection reads, and a
+     * `null` would say "unset" for a value that was never fetched. The detail
+     * endpoint is where it lives.
+     *
+     * `rating_rata_rata` remains the view's stored column: F03 §4.4 lists it as an
+     * already-published scalar, the UI renders it, and this round's approved scope
+     * changes the SORT for `?sort=rating` only. Sorting by the recomputed average
+     * while the card still prints the stored one is the known asymmetry recorded in
+     * the F03 backend report; republishing it belongs with the same decision for the
+     * detail resource's counters.
      *
      * @return array<string, mixed>
      */
@@ -75,9 +92,11 @@ class DokterResource extends JsonResource
             'id' => $this->resource->dokter_id,
             'nama_lengkap' => $this->resource->nama_lengkap,
             'tipe' => $this->resource->tipe,
+            'pengalaman_tahun' => (int) $this->resource->pengalaman_tahun,
             'spesialisasi' => $this->resource->spesialisasi,
             'biaya_konsultasi_online' => $this->resource->biaya_konsultasi_online,
             'rating_rata_rata' => $this->resource->rating_rata_rata,
+            'jumlah_ulasan' => (int) $this->resource->jumlah_ulasan,
             'jumlah_konsultasi' => $this->resource->jumlah_konsultasi,
             'status_verifikasi' => 'terverifikasi',
         ];

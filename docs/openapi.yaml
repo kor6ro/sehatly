@@ -4820,6 +4820,10 @@ components:
         search:
           type: string
           x-laravel-rule: [string, 'max:150']
+        sort:
+          type: string
+          enum: [relevan, rating, pengalaman, biaya_asc, biaya_desc, ulasan]
+          x-laravel-rule: [string, 'in:["relevan","rating","pengalaman","biaya_asc","biaya_desc","ulasan"]']
         spesialisasi:
           type: string
           x-laravel-rule: [string, 'max:10', exists]

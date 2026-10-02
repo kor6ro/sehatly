@@ -1991,6 +1991,8 @@ export interface components {
             page?: number;
             per_page?: number;
             search?: string;
+            /** @enum {string} */
+            sort?: "relevan" | "rating" | "pengalaman" | "biaya_asc" | "biaya_desc" | "ulasan";
             spesialisasi?: string;
             tersedia_telemedisin?: boolean;
             /** @enum {string} */

@@ -6,6 +6,7 @@ namespace App\Services\Dokter;
 
 use App\Models\Dokter;
 use App\Models\MasterSpesialisasi;
+use App\Models\UlasanDokter;
 use App\Support\Dokter\StrBerlaku;
 use App\Support\Schema\SqlSchemaParser;
 use App\Support\WaktuIndonesia;
@@ -182,6 +183,56 @@ use Illuminate\Pagination\LengthAwarePaginator;
  * the pages with nothing red. `DokterDirectoryTest`'s "the emitted ORDER BY really
  * carries the unique tiebreaker" asserts the SQL string instead, and the pagination
  * test keeps the behavioural half of the claim.
+ *
+ * ## `?sort=` is a six-value closed vocabulary, and every mode is total
+ *
+ * F03 §4.4 approves exactly `relevan` (the default), `rating`, `pengalaman`,
+ * `biaya_asc`, `biaya_desc` and `ulasan`; {@see SORT_VALUES} is that list and
+ * {@see IndexDokterRequest} rejects anything else with a 422 rather than silently
+ * falling back. `relevan` is the pre-F03 order, unchanged, so a caller that never
+ * sends `sort` sees byte-identical ordering.
+ *
+ * | sort | primary key | source |
+ * | --- | --- | --- |
+ * | `relevan` | `rating_rata_rata DESC`, `jumlah_konsultasi DESC` | the view, as before |
+ * | `rating` | `AVG(rating) DESC`, review count `DESC` | **recomputed** from `ulasan_dokter` |
+ * | `ulasan` | review count `DESC` | **recomputed** from `ulasan_dokter` |
+ * | `pengalaman` | `pengalaman_tahun DESC` | `dokter.pengalaman_tahun` (`:418`), a real stored column |
+ * | `biaya_asc` | `biaya_konsultasi_online ASC` | the view |
+ * | `biaya_desc` | `biaya_konsultasi_online DESC` | the view |
+ *
+ * **The two review modes never read `dokter.rating_rata_rata` or
+ * `dokter.jumlah_ulasan`.** F04's owner decision is that those two columns have no
+ * writer and would lie (they are seeded at their DDL defaults and never updated), so
+ * the order is a correlated `AVG`/`COUNT` subquery over `ulasan_dokter`, which the
+ * DDL's `idx_ulasan_dokter (dokter_id, rating)` (`:1065`) already indexes. The
+ * average is the primary key the owner approved; the review count is the tiebreak,
+ * which is the useful half of Baymard's "weight the average by the number of
+ * reviews" - two doctors at 4.50 are not equal when one has 200 reviews and the
+ * other has one. A doctor with no reviews has a `NULL` average and is sorted last
+ * by MySQL under `DESC`, which is the honest place for "nothing to average".
+ *
+ * **The displayed `rating_rata_rata` is still the view's stored column.** F03 §4.4
+ * lists it as an already-published field and the UI renders it; this round's
+ * approved scope changes the ORDER for `sort=rating`, not the published scalar. The
+ * asymmetry is deliberate and is reported rather than hidden: sorting by the real
+ * reviews before the card can show the real average is visibly odd, and the follow-up
+ * that republishes a recomputed average belongs with the same decision for the detail
+ * resource's `jumlah_ulasan`.
+ *
+ * **Every mode appends `dokter_id ASC`.** `pengalaman_tahun` is a `SMALLINT`
+ * defaulting to `0`, `biaya_konsultasi_online` is a `DECIMAL(12,2)` defaulting to
+ * `0`, and a review count ties at every value from zero up, so the same
+ * pagination-repeats-a-row argument as the default order applies to all of them.
+ *
+ * ## `jumlah_ulasan` on the page is ONE extra query, not one per row
+ *
+ * The list resource publishes a review count per row (never the stored column), and
+ * {@see lampirkanJumlahUlasan()} asks
+ * {@see UlasanDokterService::jumlahUntuk()} for the page's ids in one grouped
+ * `COUNT`, after `paginate()` has already chosen the rows. The constant query cost
+ * is the point: `DokterDirectoryTest` pins that a page of four doctors with reviews
+ * costs exactly the same number of queries as a page of one.
  */
 class DokterDirectoryService
 {
@@ -240,6 +291,31 @@ class DokterDirectoryService
     public const SEARCH_MAX = 150;
 
     /**
+     * The closed `?sort=` vocabulary F03 §4.4 approves, in the order it names it.
+     *
+     * `relevan` is first because it is the default, and {@see IndexDokterRequest}
+     * publishes this list verbatim as the query parameter's `enum`, so the
+     * generated contract and this constant cannot disagree.
+     *
+     * @var list<string>
+     */
+    public const SORT_VALUES = ['relevan', 'rating', 'pengalaman', 'biaya_asc', 'biaya_desc', 'ulasan'];
+
+    /** The default sort: the pre-F03 order, unchanged. */
+    public const SORT_DEFAULT = 'relevan';
+
+    /**
+     * `$ulasan` is F04's aggregate service, asked for the page's recomputed review
+     * counts in ONE query ({@see lampirkanJumlahUlasan()}). The ORDER BY subqueries
+     * for `sort=rating`/`sort=ulasan` are built in this class instead, because only
+     * this class knows the list's FROM clause; both read the same `ulasan_dokter`
+     * rows, and neither reads the stored `dokter.jumlah_ulasan`.
+     */
+    public function __construct(
+        private readonly UlasanDokterService $ulasan,
+    ) {}
+
+    /**
      * The resolved "today" for one instance, cached per request.
      *
      * Two directory calls in the same request must agree on the boundary, or a
@@ -270,13 +346,15 @@ class DokterDirectoryService
         $this->applySpesialisasi($query, $filters);
         $this->applySearch($query, $filters);
         $this->applyTersediaTelemedisin($query, $filters);
+        $this->applySort($query, $filters);
 
-        return $query
-            ->orderByDesc('v_dokter_katalog.rating_rata_rata')
-            ->orderByDesc('v_dokter_katalog.jumlah_konsultasi')
-            ->orderBy('v_dokter_katalog.dokter_id')
+        $halaman = $query
             ->paginate($this->perPage($filters))
             ->withQueryString();
+
+        $this->lampirkanJumlahUlasan($halaman->getCollection());
+
+        return $halaman;
     }
 
     /**
@@ -369,6 +447,12 @@ class DokterDirectoryService
     {
         $query = DokterKatalog::query()
             ->select(DokterKatalog::kolomTerpilih())
+            // `pengalaman_tahun` is a real `dokter` column (`:418`) and NOT one of
+            // the view's seven (`:1172`-`:1178`), so the list projection selects it
+            // from the joined table by name. The join is already there for the
+            // eligibility rule, and `SMALLINT UNSIGNED NOT NULL DEFAULT 0` cannot
+            // make the projection ambiguous or null.
+            ->addSelect('d.pengalaman_tahun')
             ->join('dokter as d', 'd.id', '=', 'v_dokter_katalog.dokter_id')
             ->join('users as u', 'u.id', '=', 'd.user_id')
             ->whereNull('u.dihapus_at');
@@ -568,5 +652,118 @@ class DokterDirectoryService
         $nilai = filter_var($filters['tersedia_telemedisin'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
 
         $query->where('d.tersedia_telemedisin', $nilai === true);
+    }
+
+    /**
+     * `?sort=` -> the ORDER BY, one branch per approved value.
+     *
+     * The default is the first branch rather than an arm that omits the ORDER BY,
+     * so an absent `sort` and `sort=relevan` cannot diverge; the FormRequest has
+     * already narrowed the vocabulary to {@see SORT_VALUES}, and the `default`
+     * here is only the guard for a direct caller of this service.
+     *
+     * **The two recomputed review orders are correlated subqueries, not joins.**
+     * A `LEFT JOIN (SELECT dokter_id, AVG(...) ... GROUP BY dokter_id)` would
+     * compute the aggregate for every doctor in the table on every request, even
+     * one that only asked for `biaya_asc`, and it would put an aggregate row in
+     * the FROM that `paginate()`'s `count(*)` then has to collapse. The subquery is
+     * evaluated per candidate row, uses `idx_ulasan_dokter (dokter_id, rating)`
+     * (`:1065`), and touches no row of the result set - so the count query stays
+     * exactly the count of eligible doctors.
+     */
+    private function applySort(Builder $query, array $filters): void
+    {
+        $sort = (string) ($filters['sort'] ?? self::SORT_DEFAULT);
+
+        match ($sort) {
+            'rating' => $query
+                ->orderByDesc($this->subqueryRataRataUlasan())
+                ->orderByDesc($this->subqueryJumlahUlasan())
+                ->orderBy('v_dokter_katalog.dokter_id'),
+            'ulasan' => $query
+                ->orderByDesc($this->subqueryJumlahUlasan())
+                ->orderBy('v_dokter_katalog.dokter_id'),
+            'pengalaman' => $query
+                ->orderByDesc('d.pengalaman_tahun')
+                ->orderBy('v_dokter_katalog.dokter_id'),
+            'biaya_asc' => $query
+                ->orderBy('v_dokter_katalog.biaya_konsultasi_online')
+                ->orderBy('v_dokter_katalog.dokter_id'),
+            'biaya_desc' => $query
+                ->orderByDesc('v_dokter_katalog.biaya_konsultasi_online')
+                ->orderBy('v_dokter_katalog.dokter_id'),
+            default => $query
+                ->orderByDesc('v_dokter_katalog.rating_rata_rata')
+                ->orderByDesc('v_dokter_katalog.jumlah_konsultasi')
+                ->orderBy('v_dokter_katalog.dokter_id'),
+        };
+    }
+
+    /**
+     * `AVG(ulasan_dokter.rating)` for the row's doctor, as a correlated subquery.
+     *
+     * `NULL` when the doctor has no reviews, and MySQL sorts `NULL` LAST under
+     * `DESC`, which is where "nothing to average" belongs. This is the same
+     * average F04's {@see UlasanDokterService::agregat()} recomputes for the review
+     * page; it is deliberately NOT `dokter.rating_rata_rata`, which has no writer
+     * and would sort by a number no patient ever gave.
+     *
+     * @return Builder<UlasanDokter>
+     */
+    private function subqueryRataRataUlasan(): Builder
+    {
+        return UlasanDokter::query()
+            ->selectRaw('AVG(rating)')
+            ->whereColumn('ulasan_dokter.dokter_id', 'v_dokter_katalog.dokter_id');
+    }
+
+    /**
+     * `COUNT(*)` of the row's reviews, as a correlated subquery.
+     *
+     * The tiebreak for `sort=rating` and the primary key for `sort=ulasan`. The
+     * staged-column alternative (`dokter.jumlah_ulasan`) is never read anywhere in
+     * this class.
+     *
+     * @return Builder<UlasanDokter>
+     */
+    private function subqueryJumlahUlasan(): Builder
+    {
+        return UlasanDokter::query()
+            ->selectRaw('COUNT(*)')
+            ->whereColumn('ulasan_dokter.dokter_id', 'v_dokter_katalog.dokter_id');
+    }
+
+    /**
+     * Attach the RECOMPUTED `jumlah_ulasan` to every row of one page.
+     *
+     * Called AFTER `paginate()` for two reasons: the count is only needed for the
+     * rows actually returned, and the page's own query plan is then untouched. The
+     * count itself is ONE grouped `COUNT` for the page's ids
+     * ({@see UlasanDokterService::jumlahUntuk()}), so a page of a hundred doctors
+     * costs one query more than a page of one - the N+1 this method exists to
+     * prevent. Ids with no review row are filled with `0`, because "this doctor has
+     * no reviews" is a fact the card should be able to print.
+     *
+     * The attribute is set on the read-only {@see DokterKatalog} projection, whose
+     * `$incrementing` is false and which has no timestamps, so nothing can be
+     * persisted through it; the view carries no `jumlah_ulasan` column for the
+     * attribute to shadow (`DokterKatalog::KOLOM`), and a test asserts the
+     * published value differs from the stored `dokter.jumlah_ulasan` decoy.
+     *
+     * @param  Collection<int, DokterKatalog>  $dokter
+     */
+    private function lampirkanJumlahUlasan(Collection $dokter): void
+    {
+        if ($dokter->isEmpty()) {
+            return;
+        }
+
+        $jumlah = $this->ulasan->jumlahUntuk(
+            $dokter->map(static fn (DokterKatalog $baris): int => (int) $baris->dokter_id)->all(),
+        );
+
+        foreach ($dokter as $baris) {
+            $baris->setAttribute('jumlah_ulasan', $jumlah[(int) $baris->dokter_id] ?? 0);
+        }
     }
 }

@@ -13,15 +13,22 @@ use Illuminate\Validation\Rule;
  *
  * ## Why every unknown filter is a 422 here rather than an empty list
  *
- * All four filters draw from a **closed vocabulary the DDL defines**, not from
+ * Every filter that is not free text draws from a **closed vocabulary**, not from
  * user-authored data:
  *
- * | filter | vocabulary | DDL |
+ * | filter | vocabulary | source |
  * | --- | --- | --- |
  * | `tipe` | 7 values | `dokter.tipe` `ENUM(...)` at `:412` |
  * | `spesialisasi` | 16 codes or their ids | `master_spesialisasi.kode` / `.id` at `:404` / `:403` |
  * | `search` | free text over `users.nama_lengkap` | `VARCHAR(150) NOT NULL` at `:135` |
  * | `tersedia_telemedisin` | a boolean | `TINYINT(1) NOT NULL DEFAULT 1` at `:426` |
+ * | `sort` | 6 values | F03 §4.4's approved list, {@see DokterDirectoryService::SORT_VALUES} |
+ *
+ * `sort` is the one row with no DDL behind it, so the contract is F03 §4.4
+ * itself. Its vocabulary lives on the service as a constant that this rule and
+ * {@see DokterDirectoryService::applySort()} both consume, so the value the
+ * generated contract publishes and the value the query actually applies cannot
+ * drift; `relevan` is the default and is the pre-F03 order unchanged.
  *
  * `Rule::in(DokterDirectoryService::TIPE_DOKTER)` therefore rejects
  * `?tipe=dokter` and `?tipe=spesialis` with `errors.tipe` rather than quietly
@@ -89,6 +96,11 @@ class IndexDokterRequest extends FormRequest
                 'max:'.DokterDirectoryService::SEARCH_MAX,
             ],
             'tersedia_telemedisin' => ['nullable', 'boolean'],
+            'sort' => [
+                'nullable',
+                'string',
+                Rule::in(DokterDirectoryService::SORT_VALUES),
+            ],
             'page' => ['nullable', 'integer', 'min:1'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:'.DokterDirectoryService::PER_PAGE_MAX],
         ];

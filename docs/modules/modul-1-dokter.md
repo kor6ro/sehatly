@@ -33,8 +33,9 @@ BASE_URL="http://127.0.0.1:8123/api/v1"
 ## 1. `GET /dokter` - 200
 
 Filter: `spesialisasi` (kode atau id), `tipe`, `search` (nama),
-`tersedia_telemedisin`. Urut `rating_rata_rata DESC` lalu
-`jumlah_konsultasi DESC`. `?page=&per_page=` (maksimal 100).
+`tersedia_telemedisin`. Urut `?sort=` (F03 §4.4): `relevan` (bawaan, yaitu
+`rating_rata_rata DESC` lalu `jumlah_konsultasi DESC`), `rating`, `pengalaman`,
+`biaya_asc`, `biaya_desc`, `ulasan`. `?page=&per_page=` (maksimal 100).
 
 ```bash
 curl.exe -s "$BASE_URL/dokter?per_page=2"
@@ -46,8 +47,11 @@ Respons terverifikasi (HTTP 200):
 {"success":true,"data":{"dokter":[{"id":2,"nama_lengkap":"<NAMA_DOKTER>","tipe":"dokter_spesialis","spesialisasi":"Spesialis Anak, Spesialis Kulit & Kelamin","biaya_konsultasi_online":"150000.00","rating_rata_rata":"4.85","jumlah_konsultasi":980,"status_verifikasi":"terverifikasi"}]},"message":"Daftar dokter berhasil dimuat.","meta":{"current_page":1,"last_page":2,"per_page":1,"total":2,"from":1,"to":1}}
 ```
 
-Kunci tiap item: `{id,nama_lengkap,tipe,spesialisasi,biaya_konsultasi_online,
-rating_rata_rata,jumlah_konsultasi,status_verifikasi}`.
+Kunci tiap item: `{id,nama_lengkap,tipe,pengalaman_tahun,spesialisasi,
+biaya_konsultasi_online,rating_rata_rata,jumlah_ulasan,jumlah_konsultasi,
+status_verifikasi}`. `pengalaman_tahun` berasal dari kolom `dokter`;
+`jumlah_ulasan` **dihitung ulang** dari `ulasan_dokter`, bukan kolom
+tersimpan `dokter.jumlah_ulasan`.
 
 Filter terverifikasi:
 

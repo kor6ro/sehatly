@@ -185,6 +185,46 @@ final class UlasanDokterService
     }
 
     /**
+     * The `jumlah` of {@see agregat()}, for MANY doctors in ONE grouped query.
+     *
+     * F03's directory list publishes a review count on every row, and asking
+     * {@see agregat()} once per row would run one aggregate per doctor - N+1 by
+     * construction. This is the batch spelling of the SAME count, over the same
+     * `idx_ulasan_dokter (dokter_id, rating)` index (`telemedicine_test.sql:1065`),
+     * so "the number of reviews" still has exactly one definition: `COUNT(*)` of
+     * the doctor's `ulasan_dokter` rows. Nothing here reads `dokter.jumlah_ulasan`.
+     *
+     * A doctor with no review is ABSENT from the result rather than present with
+     * `0`. The caller already knows which ids it asked about, so "no group" is
+     * the honest SQL answer for "nothing to count"; it also means a future
+     * caller cannot mistake "not asked about" for "reviewed zero times".
+     * {@see DokterDirectoryService} fills the absent ids with `0`.
+     *
+     * @param  list<int>  $dokterIds
+     * @return array<int, int> dokter_id => jumlah
+     */
+    public function jumlahUntuk(array $dokterIds): array
+    {
+        if ($dokterIds === []) {
+            return [];
+        }
+
+        $baris = UlasanDokter::query()
+            ->whereIn('ulasan_dokter.dokter_id', $dokterIds)
+            ->selectRaw('ulasan_dokter.dokter_id, COUNT(*) as jumlah')
+            ->groupBy('ulasan_dokter.dokter_id')
+            ->get();
+
+        $jumlah = [];
+
+        foreach ($baris as $satu) {
+            $jumlah[(int) $satu->dokter_id] = (int) $satu->jumlah;
+        }
+
+        return $jumlah;
+    }
+
+    /**
      * One page of a doctor's reviews, newest first unless asked otherwise.
      *
      * `rating` narrows the LIST only; the aggregate the controller publishes is
