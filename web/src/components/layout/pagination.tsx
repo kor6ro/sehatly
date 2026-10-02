@@ -18,15 +18,25 @@ import { cn } from '@/lib/utils';
  * The range line comes from `describeRange`, which returns `null` for an empty page so the
  * control can render nothing rather than "0-0 dari 0" next to an empty state that already
  * says there is nothing there.
+ *
+ * ## `numbered` is opt-in, so the twenty other call sites do not change
+ *
+ * F03 §5 asks the directory for numbered pages (`< 1 2 3 >`), because a patient comparing
+ * results wants to jump straight to page 3 rather than press "Berikutnya" twice. Rendering
+ * numbers everywhere would change every list screen in the product, so the prop defaults to
+ * `false` and the directory passes `true`. The window is capped at seven entries with
+ * first/last always visible, so `last_page: 40` cannot produce forty buttons.
  */
 export function Pagination({
     meta,
     onPageChange,
     className,
+    numbered = false,
 }: {
     meta: ApiMeta | undefined;
     onPageChange: (page: number) => void;
     className?: string;
+    numbered?: boolean;
 }) {
     if (meta === undefined || meta.last_page <= 1) {
         return null;
@@ -47,7 +57,7 @@ export function Pagination({
                 <p className="text-muted-foreground text-sm">{range}</p>
             )}
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
                 <Button
                     type="button"
                     variant="outline"
@@ -63,9 +73,57 @@ export function Pagination({
                     Sebelumnya
                 </Button>
 
-                <span className="text-muted-foreground text-sm tabular-nums">
-                    {meta.current_page} / {meta.last_page}
-                </span>
+                {numbered ? (
+                    <div className="flex flex-wrap items-center gap-1">
+                        {nomorHalaman(meta).map((nomor, index, daftar) => {
+                            const sebelumnya = daftar[index - 1];
+                            const adaJeda =
+                                sebelumnya !== undefined && nomor - sebelumnya > 1;
+
+                            return (
+                                <span
+                                    key={nomor}
+                                    className="flex items-center gap-1"
+                                >
+                                    {adaJeda ? (
+                                        <span
+                                            aria-hidden
+                                            className="text-muted-foreground px-1 text-sm"
+                                        >
+                                            …
+                                        </span>
+                                    ) : null}
+
+                                    <Button
+                                        type="button"
+                                        variant={
+                                            nomor === meta.current_page
+                                                ? 'default'
+                                                : 'outline'
+                                        }
+                                        size="sm"
+                                        aria-current={
+                                            nomor === meta.current_page
+                                                ? 'page'
+                                                : undefined
+                                        }
+                                        aria-label={`Halaman ${nomor}`}
+                                        className="min-h-11 min-w-11 tabular-nums"
+                                        onClick={() => {
+                                            onPageChange(nomor);
+                                        }}
+                                    >
+                                        {nomor}
+                                    </Button>
+                                </span>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    <span className="text-muted-foreground text-sm tabular-nums">
+                        {meta.current_page} / {meta.last_page}
+                    </span>
+                )}
 
                 <Button
                     type="button"
@@ -84,4 +142,23 @@ export function Pagination({
             </div>
         </nav>
     );
+}
+
+/**
+ * The page numbers to render: all of them up to seven, otherwise first, last and the
+ * current neighbourhood.
+ *
+ * Items are unique and ascending by construction, which matters because they are React
+ * keys: a `Set` de-duplicates the case where `current_page` already is `1` or `last_page`.
+ */
+function nomorHalaman(meta: ApiMeta): number[] {
+    if (meta.last_page <= 7) {
+        return Array.from({ length: meta.last_page }, (_unused, index) => index + 1);
+    }
+
+    const terlihat = new Set([1, meta.last_page, meta.current_page - 1, meta.current_page, meta.current_page + 1]);
+
+    return [...terlihat]
+        .filter((nomor) => nomor >= 1 && nomor <= meta.last_page)
+        .sort((a, b) => a - b);
 }

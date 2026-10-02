@@ -1,4 +1,4 @@
-import { queryOptions } from '@tanstack/react-query';
+import { keepPreviousData, queryOptions } from '@tanstack/react-query';
 import { request } from '@/lib/http';
 import type { DokterDetail, DokterRingkas, DokterTipe, Spesialisasi } from '@/lib/api/types';
 
@@ -116,10 +116,37 @@ export const spesialisasiQueryKey = ['v1', 'master-spesialisasi'] as const;
  * Every filter is in the key, so switching from page 3 to page 1, or adding a
  * specialisation, is a different cache entry and cannot show a stale page under new
  * filters.
+ *
+ * ## Why previous data is kept as a placeholder
+ *
+ * F03 §6: a filter change on a slow connection must dim the existing results and say
+ * `Menghitung hasil…`, never blank the list and jump the scroll position. Without a
+ * placeholder React Query has no data for the new key on first fetch, so `isPending`
+ * would replace the rows with skeletons. `keepPreviousData` keeps the last page
+ * rendered while `isFetching` is true, which is exactly the signal the page uses to
+ * swap the count for `Menghitung hasil…` and to dim the list.
  */
 export function dokterOptions(filters: DokterFilters) {
     return queryOptions({
         queryKey: [...dokterQueryKey, filters],
+        queryFn: () => fetchDokter(filters),
+        placeholderData: keepPreviousData,
+    });
+}
+
+/**
+ * The count-only query behind the mobile sheet's `Tampilkan {n} hasil`.
+ *
+ * The sheet edits a **draft** filter set that is not applied until the patient
+ * confirms, so the applied list's `meta.total` cannot answer "how many results would
+ * this draft produce?". This reads the same endpoint with `per_page: 1` and uses only
+ * `meta.total`. The key is separate from {@link dokterOptions} (`count` plus the
+ * filters object, and `per_page: 1` never equals the list's 12), so it can never
+ * collide with a cached list page.
+ */
+export function dokterCountOptions(filters: DokterFilters) {
+    return queryOptions({
+        queryKey: [...dokterQueryKey, 'count', filters],
         queryFn: () => fetchDokter(filters),
     });
 }
