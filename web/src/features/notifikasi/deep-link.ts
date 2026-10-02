@@ -22,6 +22,9 @@ import type { TipeNotifikasi, UserTipe } from '@/lib/api/types';
  * `exec` on an already-anchored pattern: the capture group is digits, and it cannot be
  * reached at all unless the whole string matched. Nothing here reads `payload`, so a
  * producer that puts a wrong id in the payload cannot steer the route.
+ *
+ * One case sits beside the table: a reminder notification (`payload.pengingat_id` from
+ * `PengingatPengirim`) opens `/pengingat`. See {@link punyaPengingatId}.
  */
 
 const POLA_BOOKING = /^\/api\/v1\/booking\/([0-9]+)$/;
@@ -36,6 +39,34 @@ const POLA_KONSULTASI = /^\/api\/v1\/konsultasi\/([0-9]+)\/chat$/;
 const POLA_ULASAN = /^\/api\/v1\/konsultasi\/([0-9]+)\/ulasan$/;
 
 /**
+ * The four whitelisted shapes, as one anchored alternation. Used only to decide whether a
+ * reminder notification's `tautan` is a path this client already trusts; it never
+ * produces a destination by itself.
+ */
+const POLA_TAUTAN_DIKENAL =
+    /^\/api\/v1\/(?:booking|invoice|resep)\/[0-9]+$|^\/api\/v1\/konsultasi\/[0-9]+\/(?:chat|ulasan)$/;
+
+/**
+ * A reminder notification carries `payload.pengingat_id` from `PengingatPengirim`.
+ *
+ * The payload is used as a DISCRIMINATOR, never as a destination: the value must be a
+ * positive integer, and the row still becomes a link only when its `tautan` is either
+ * `null` (a drug reminder; the backend publishes no page path for one) or one of the four
+ * whitelisted API paths (an appointment reminder, which carries the booking path). The id
+ * itself is discarded - the destination is the constant `/pengingat` - so a payload that
+ * lies about the id cannot steer the router.
+ */
+function punyaPengingatId(payload: unknown): boolean {
+    if (typeof payload !== 'object' || payload === null) {
+        return false;
+    }
+
+    const id = (payload as Record<string, unknown>).pengingat_id;
+
+    return typeof id === 'number' && Number.isInteger(id) && id > 0;
+}
+
+/**
  * The two booking producers reach different audiences: a patient's own booking lives at
  * `/booking`, while a doctor's incoming booking lives at `/dokter/booking`. The API
  * cannot tell the client which one a row is for, so the current account decides. The
@@ -45,7 +76,17 @@ const POLA_ULASAN = /^\/api\/v1\/konsultasi\/([0-9]+)\/ulasan$/;
 export function ruteDariTautan(
     tautan: string | null,
     tipePengguna: UserTipe | undefined,
+    payload?: unknown,
 ): string | null {
+    /**
+     * A reminder notification opens the reminders screen. It is checked FIRST because an
+     * appointment reminder also carries `/api/v1/booking/{id}` as its `tautan`, and the
+     * row is a reminder to manage rather than the booking itself.
+     */
+    if (punyaPengingatId(payload) && (tautan === null || POLA_TAUTAN_DIKENAL.test(tautan))) {
+        return '/pengingat';
+    }
+
     if (tautan === null) {
         return null;
     }

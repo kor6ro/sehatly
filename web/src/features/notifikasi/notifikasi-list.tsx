@@ -183,7 +183,7 @@ export function NotifikasiList({
             ) : (
                 <ul data-slot="notifikasi-list" className="flex flex-col divide-y">
                     {rows.map((row) => {
-                        const rute = ruteDariTautan(row.tautan, tipePengguna);
+                        const rute = ruteDariTautan(row.tautan, tipePengguna, row.payload);
                         const belumDibaca = row.dibaca_at === null;
 
                         return (

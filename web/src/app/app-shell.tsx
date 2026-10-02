@@ -1,7 +1,9 @@
 import type { LucideIcon } from 'lucide-react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import {
+    AlarmClock,
     BarChart3,
+    Bell,
     CalendarDays,
     ClipboardCheck,
     ClipboardList,
@@ -490,6 +492,37 @@ function AppSidebar() {
                         />
                     </SidebarMenu>
                 </SidebarGroup>
+
+                {/**
+                 * F11's two self-service screens, for the two roles the pattern names -
+                 * the patient who owns the reminder and the doctor who receives the
+                 * notification. The endpoints carry `permission:notifikasi.lihat`,
+                 * which every role holds except `perawat`/`kurir`; those two are
+                 * already outside this nav, and admin gets {@link AdminNav} instead.
+                 */}
+                {isPasien || isDokter ? (
+                    <SidebarGroup>
+                        <SidebarGroupLabel>Notifikasi &amp; pengingat</SidebarGroupLabel>
+
+                        <SidebarMenu>
+                            <MenuLink
+                                to="/profil/notifikasi"
+                                icon={Bell}
+                                label="Notifikasi"
+                                pathname={pathname}
+                                onNavigate={tutupDrawer}
+                            />
+
+                            <MenuLink
+                                to="/pengingat"
+                                icon={AlarmClock}
+                                label="Pengingat"
+                                pathname={pathname}
+                                onNavigate={tutupDrawer}
+                            />
+                        </SidebarMenu>
+                    </SidebarGroup>
+                ) : null}
 
                 {/**
                  * Module 3's two screens, and the two that needed the F3-06 fix. Both point

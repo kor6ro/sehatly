@@ -37,6 +37,8 @@ import {
 import { PesananPage } from '@/pages/pesanan-page';
 import { PembayaranPage } from '@/pages/pembayaran-page';
 import { NotifikasiPage } from '@/pages/notifikasi-page';
+import { ProfilNotifikasiPage } from '@/pages/profil-notifikasi-page';
+import { PengingatPage } from '@/pages/pengingat-page';
 import { AdminDokterPage } from '@/pages/admin-dokter-page';
 import { AdminDokterDetailPage } from '@/pages/admin-dokter-detail-page';
 import { AdminLaporanPage } from '@/pages/admin-laporan-page';
@@ -69,7 +71,7 @@ import { SyaratKetentuanPage } from '@/pages/syarat-ketentuan-page';
  * nearest ancestor that does - REPLACING that ancestor's element. So an `errorElement` on
  * the `AppShell` route, which looks like the tidier single place to put it, would destroy
  * the sidebar on every page failure and reproduce the defect exactly. Declaring it on all
- * twenty-six leaves means a page failure replaces one `<Outlet />`'s content and nothing
+ * twenty-eight leaves means a page failure replaces one `<Outlet />`'s content and nothing
  * else. The full two-boundary argument is in `app/error-boundary.tsx`.
  *
  * `web/tests/e2e/app-shell-robustness.spec.ts` walks this table in a real browser and fails
@@ -89,7 +91,7 @@ export const router = createBrowserRouter([
         element: <RootLayout />,
         /**
          * The backstop for `RootLayout` itself. It is the parent of every route below, so
-         * it only ever sees an error that no leaf claimed - which, with twenty-six leaves
+         * it only ever sees an error that no leaf claimed - which, with twenty-eight leaves
          * carrying an `errorElement`, means an error in the layout rather than in a page.
          */
         errorElement: <RouteErrorBoundary />,
@@ -192,6 +194,17 @@ export const router = createBrowserRouter([
                             {
                                 path: '/profil/privasi',
                                 element: <PrivasiPage />,
+                                errorElement: <RouteErrorBoundary />,
+                            },
+                            {
+                                /**
+                                 * F11's preference surface. `GET|PUT /profil/notifikasi`
+                                 * carry `auth:sanctum` + `permission:notifikasi.lihat`,
+                                 * so it sits inside `RequireAuth` like every other
+                                 * profile leaf.
+                                 */
+                                path: '/profil/notifikasi',
+                                element: <ProfilNotifikasiPage />,
                                 errorElement: <RouteErrorBoundary />,
                             },
 
@@ -374,6 +387,16 @@ export const router = createBrowserRouter([
                             {
                                 path: '/notifikasi',
                                 element: <NotifikasiPage />,
+                                errorElement: <RouteErrorBoundary />,
+                            },
+                            {
+                                /**
+                                 * F11's reminder CRUD. All four routes carry the same
+                                 * `permission:notifikasi.lihat` guard as the inbox, so
+                                 * the page lives in the same shell group.
+                                 */
+                                path: '/pengingat',
+                                element: <PengingatPage />,
                                 errorElement: <RouteErrorBoundary />,
                             },
 

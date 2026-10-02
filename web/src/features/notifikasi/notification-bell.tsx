@@ -127,7 +127,11 @@ export function NotificationBell() {
                         className="flex max-h-80 flex-col overflow-y-auto"
                     >
                         {rows.map((row) => {
-                            const rute = ruteDariTautan(row.tautan, tipePengguna);
+                            const rute = ruteDariTautan(
+                                row.tautan,
+                                tipePengguna,
+                                row.payload,
+                            );
                             const belumDibaca = row.dibaca_at === null;
 
                             return (
