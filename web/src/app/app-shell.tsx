@@ -10,6 +10,7 @@ import {
     LayoutDashboard,
     LogOut,
     MessagesSquare,
+    MonitorSmartphone,
     Package,
     Pill,
     ScrollText,
@@ -408,6 +409,14 @@ function AppSidebar() {
                                     to="/profil/privasi"
                                     icon={ShieldCheck}
                                     label="Privasi dan data"
+                                    pathname={pathname}
+                                    onNavigate={tutupDrawer}
+                                />
+
+                                <MenuLink
+                                    to="/profil/perangkat"
+                                    icon={MonitorSmartphone}
+                                    label="Perangkat"
                                     pathname={pathname}
                                     onNavigate={tutupDrawer}
                                 />

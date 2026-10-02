@@ -237,7 +237,23 @@ export class ApiError extends Error {
 
     readonly errors: Record<string, string[]>;
 
-    constructor(status: number, message: string, errors: Record<string, string[]> = {}) {
+    /**
+     * The server's own `Retry-After`, in seconds, when it sent one.
+     *
+     * A 429 without a wait is a dead end: "too many attempts" tells the user nothing
+     * about when trying again could work. Laravel's throttle middleware sends the header
+     * on every limited endpoint, so the value is read once here rather than re-derived
+     * from a message that may not contain it. `null` when absent or not a number of
+     * seconds - the caller falls back to the server's prose.
+     */
+    readonly retryAfter: number | null;
+
+    constructor(
+        status: number,
+        message: string,
+        errors: Record<string, string[]> = {},
+        retryAfter: number | null = null,
+    ) {
         super(message);
 
         this.name = 'ApiError';
@@ -245,6 +261,8 @@ export class ApiError extends Error {
         this.status = status;
 
         this.errors = errors;
+
+        this.retryAfter = retryAfter;
     }
 
     get isValidation(): boolean {
@@ -388,6 +406,7 @@ async function toApiError(error: unknown): Promise<ApiError> {
     if (error instanceof Error && 'response' in error) {
         const { response, data } = error as HTTPError;
         const failure = data as Partial<ApiFailure> | undefined;
+        const retryAfter = retryAfterOf(response);
 
         if (failure !== undefined && failure !== null && failure.success === false) {
             const message =
@@ -399,13 +418,31 @@ async function toApiError(error: unknown): Promise<ApiError> {
                 response.status,
                 message,
                 normaliseErrors(failure.errors),
+                retryAfter,
             );
         }
 
-        return new ApiError(response.status, statusMessage(response.status));
+        return new ApiError(
+            response.status,
+            statusMessage(response.status),
+            {},
+            retryAfter,
+        );
     }
 
     return new ApiError(0, networkMessage(error));
+}
+
+function retryAfterOf(response: Response): number | null {
+    const raw = response.headers.get('retry-after');
+
+    if (raw === null) {
+        return null;
+    }
+
+    const seconds = Number.parseInt(raw.trim(), 10);
+
+    return Number.isFinite(seconds) && seconds >= 0 ? seconds : null;
 }
 
 function normaliseErrors(errors: unknown): Record<string, string[]> {

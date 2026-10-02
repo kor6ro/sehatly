@@ -1,11 +1,19 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { ShieldCheck } from 'lucide-react';
+import { AlertCircle, Info, ShieldCheck } from 'lucide-react';
 import { verifyOtp } from '@/lib/api/auth';
 import { ApiError, establishSession } from '@/lib/http';
 import { getDeviceId } from '@/lib/token';
 import { queryClient } from '@/lib/query-client';
 import { dispatchFlash } from '@/lib/flash';
+import { useDocumentTitle } from '@/hooks/use-document-title';
+import { useOnlineStatus } from '@/hooks/use-online-status';
+import {
+    KODE_OTP_PANJANG,
+    pesanHitungMundurOtp,
+    pesanRalatKodeOtp,
+    pesanTerlaluBanyakOtp,
+} from '@/lib/otp';
 import {
     clearPendingOtp,
     describeIdentifier,
@@ -20,37 +28,36 @@ import {
     InputOTPGroup,
     InputOTPSlot,
 } from '@/components/ui/input-otp';
+import { OfflineBanner } from '@/components/offline-banner';
 import { AuthLayout } from '@/pages/auth-layout';
-
-/**
- * `OtpService::KODE_DIGIT`. Six, zero-padded, and always transported as a **string**: a
- * code may begin with `0`, and a client that parsed it as a number would submit five
- * digits that can never match.
- */
-const KODE_DIGIT = 6;
 
 /**
  * The six boxes, wired to their `Field`.
  *
- * `InputOTP` renders an `<input>` with `inputMode="numeric"`, so the `Field` plumbing is
- * applied to it by hand - `useFieldControl` is exported for exactly this, and the kit's
- * `InputOTP` cannot be modified (relocated registry code).
+ * `InputOTP` renders an `<input>` with `inputMode="numeric"` and the `data-input-otp`
+ * attribute, so the `Field` plumbing is applied to it by hand - `useFieldControl` is
+ * exported for exactly this, and the kit's `InputOTP` cannot be modified (relocated
+ * registry code). Slots are 44 px and 8 px apart so each one is a full touch target; the
+ * whole row is one logical field with `autocomplete="one-time-code"`.
  */
 function OtpInput({
     value,
     onChange,
     disabled,
+    inputRef,
 }: {
     value: string;
     onChange: (value: string) => void;
     disabled: boolean;
+    inputRef: React.RefObject<HTMLInputElement | null>;
 }) {
     const control = useFieldControl();
 
     return (
         <InputOTP
             id={control.id}
-            maxLength={KODE_DIGIT}
+            ref={inputRef}
+            maxLength={KODE_OTP_PANJANG}
             value={value}
             onChange={onChange}
             disabled={disabled}
@@ -60,9 +67,13 @@ function OtpInput({
             aria-describedby={control.describedBy}
             containerClassName="justify-start"
         >
-            <InputOTPGroup>
-                {Array.from({ length: KODE_DIGIT }, (_unused, index) => (
-                    <InputOTPSlot key={index} index={index} />
+            <InputOTPGroup className="gap-2 tabular-nums">
+                {Array.from({ length: KODE_OTP_PANJANG }, (_unused, index) => (
+                    <InputOTPSlot
+                        key={index}
+                        index={index}
+                        className="h-11 w-11 rounded-md border text-base"
+                    />
                 ))}
             </InputOTPGroup>
         </InputOTP>
@@ -134,25 +145,69 @@ function useCountdown(kedaluwarsaAt: string | null, ttlDetik: number): number {
  * `VerifyOtpRequest` identifies the account by phone or email and has no other handle on
  * it, and a reload of this screen must still be able to verify - so the identifier comes
  * from `stores/pending-otp.ts`, not from `location.state`.
+ *
+ * ## Resend is disabled and says so
+ *
+ * `POST /auth/otp/resend` does not exist (F01 §4.4, `[TERBLOKIR backend]`). The button is
+ * rendered with the pattern's cooldown label but is honestly unavailable, with a visible
+ * reason, instead of calling a route that would 404. The recovery path is `Kembali`.
  */
 export function OtpPage() {
+    useDocumentTitle('Kode OTP | Sehatly');
+
     const navigate = useNavigate();
+    const online = useOnlineStatus();
+    const inputRef = useRef<HTMLInputElement>(null);
+    const offlineHintId = useId();
+    const resendHintId = useId();
     const pending = useMemo(() => getPendingOtp(), []);
     const [kode, setKode] = useState('');
     const [serverError, setServerError] = useState<unknown>(null);
     const [submitting, setSubmitting] = useState(false);
+    const [upayaFokus, setUpayaFokus] = useState(0);
 
-    const remaining = useCountdown(pending?.kedaluwarsa_at ?? null, pending?.ttl_detik ?? 300);
+    const remaining = useCountdown(
+        pending?.kedaluwarsa_at ?? null,
+        pending?.ttl_detik ?? 300,
+    );
+
+    const kedaluwarsa = remaining === 0;
+
+    /**
+     * AC-3: focus enters slot 1 when the screen opens, and `preventScroll` keeps a small
+     * viewport from jumping past the heading to the input.
+     */
+    useEffect(() => {
+        if (pending === null) {
+            return;
+        }
+
+        inputRef.current?.focus({ preventScroll: true });
+    }, [pending]);
+
+    /**
+     * AC-5: focus returns to slot 1 after a rejected code. It is an effect rather than a
+     * call in the catch block because the input is still `disabled` while the request is
+     * in flight; focusing into a disabled control is silently dropped. The counter makes
+     * two identical rejections two focus attempts.
+     */
+    useEffect(() => {
+        if (upayaFokus === 0 || submitting) {
+            return;
+        }
+
+        inputRef.current?.focus({ preventScroll: true });
+    }, [upayaFokus, submitting]);
 
     if (pending === null) {
         return <OtpContextMissing />;
     }
 
-    // Bound to a local after the guard so the closures below see a non-nullable value.
     const context = pending;
 
-    const kodeErrors =
-        serverError instanceof ApiError ? serverError.fieldErrors('kode') : [];
+    const kodeErrors = (
+        serverError instanceof ApiError ? serverError.fieldErrors('kode') : []
+    ).map(pesanRalatKodeOtp);
     const identifierErrors =
         serverError instanceof ApiError
             ? [
@@ -161,10 +216,24 @@ export function OtpPage() {
               ]
             : [];
 
+    const terlaluBanyak = serverError instanceof ApiError && serverError.status === 429;
+    const gangguan =
+        serverError instanceof ApiError &&
+        !serverError.isValidation &&
+        !terlaluBanyak &&
+        identifierErrors.length === 0;
+
+    const fokusSlotPertama = (): void => {
+        setUpayaFokus((nilai) => nilai + 1);
+    };
+
     async function onSubmit(event: React.FormEvent<HTMLFormElement>): Promise<void> {
         event.preventDefault();
 
-        if (kode.length !== KODE_DIGIT) {
+        // The offline guard, the in-flight guard and the length guard all live here as
+        // well as on the button, so a programmatic submit cannot produce a request the
+        // disabled button promises will not happen.
+        if (!online || submitting || kode.length !== KODE_OTP_PANJANG) {
             return;
         }
 
@@ -204,7 +273,14 @@ export function OtpPage() {
             await navigate('/dashboard', { replace: true });
         } catch (error) {
             setServerError(error);
-            setKode('');
+
+            /**
+             * AC-5: a rejected code keeps what was typed and puts focus back on slot 1,
+             * and no toast is dispatched anywhere on this path - the message is inline.
+             */
+            if (error instanceof ApiError && error.fieldErrors('kode').length > 0) {
+                fokusSlotPertama();
+            }
         } finally {
             setSubmitting(false);
         }
@@ -213,15 +289,42 @@ export function OtpPage() {
     return (
         <AuthLayout
             title="Kode OTP"
-            description={`Masukkan ${KODE_DIGIT} digit kode yang dikirim ke ${describeIdentifier(context.identifier)}.`}
+            description={`Masukkan ${KODE_OTP_PANJANG} digit kode yang dikirim ke ${describeIdentifier(context.identifier)}.`}
         >
+            <OfflineBanner />
+
+            <Alert role="status" data-slot="otp-share-warning">
+                <Info />
+                <AlertTitle>Rahasiakan kode ini</AlertTitle>
+                <AlertDescription>
+                    <p>
+                        Jangan bagikan kode ini kepada siapa pun, termasuk yang mengaku
+                        dari Sehatly.
+                    </p>
+                </AlertDescription>
+            </Alert>
+
             <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
-                {serverError instanceof ApiError && !serverError.isValidation ? (
+                {terlaluBanyak ? (
+                    <Alert variant="destructive" role="alert">
+                        <ShieldCheck />
+                        <AlertDescription>
+                            <p>
+                                {pesanTerlaluBanyakOtp(
+                                    (serverError as ApiError).message,
+                                    (serverError as ApiError).retryAfter,
+                                )}
+                            </p>
+                        </AlertDescription>
+                    </Alert>
+                ) : null}
+
+                {gangguan ? (
                     <Alert variant="destructive" role="alert">
                         <ShieldCheck />
                         <AlertTitle>Gagal memverifikasi</AlertTitle>
                         <AlertDescription>
-                            <p>{serverError.message}</p>
+                            <p>{(serverError as ApiError).message}</p>
                         </AlertDescription>
                     </Alert>
                 ) : null}
@@ -245,21 +348,53 @@ export function OtpPage() {
                  * on the control, not collapsed into a single banner.
                  */}
                 <Field label="Kode OTP" errors={kodeErrors} required>
-                    <OtpInput value={kode} onChange={setKode} disabled={submitting} />
+                    <OtpInput
+                        value={kode}
+                        onChange={setKode}
+                        disabled={submitting}
+                        inputRef={inputRef}
+                    />
                 </Field>
 
-                <p
-                    className="text-muted-foreground text-xs"
-                    data-slot="otp-countdown"
-                >
-                    {remaining > 0
-                        ? `Kode berlaku ${Math.floor(remaining / 60)} menit ${remaining % 60} detik lagi.`
-                        : 'Kode mungkin sudah kedaluwarsa. Kirim ulang dengan masuk kembali.'}
-                </p>
+                {kedaluwarsa ? (
+                    <div
+                        role="status"
+                        aria-live="polite"
+                        data-slot="otp-countdown"
+                        className="border-warning/40 bg-warning/10 flex items-start gap-2 rounded-lg border p-3 text-sm"
+                    >
+                        <AlertCircle aria-hidden className="mt-0.5 size-4 shrink-0" />
+                        <p>Kode sudah kedaluwarsa.</p>
+                    </div>
+                ) : (
+                    <p
+                        role="timer"
+                        aria-live="off"
+                        data-slot="otp-countdown"
+                        className="text-muted-foreground text-sm tabular-nums"
+                    >
+                        {pesanHitungMundurOtp(remaining)}
+                    </p>
+                )}
+
+                {!online ? (
+                    <p id={offlineHintId} className="text-muted-foreground text-sm">
+                        Anda sedang luring. Verifikasi dan kirim ulang tidak tersedia
+                        sampai koneksi kembali.
+                    </p>
+                ) : null}
 
                 <Button
                     type="submit"
-                    disabled={submitting || kode.length !== KODE_DIGIT}
+                    className="min-h-11"
+                    disabled={submitting || kode.length !== KODE_OTP_PANJANG || !online}
+                    aria-disabled={
+                        submitting || kode.length !== KODE_OTP_PANJANG || !online
+                            ? true
+                            : undefined
+                    }
+                    aria-describedby={online ? undefined : offlineHintId}
+                    data-slot="otp-verify"
                 >
                     {submitting ? <Spinner /> : null}
 
@@ -268,7 +403,25 @@ export function OtpPage() {
 
                 <Button
                     type="button"
+                    variant="outline"
+                    className="min-h-11"
+                    disabled
+                    aria-disabled="true"
+                    aria-describedby={online ? resendHintId : `${resendHintId} ${offlineHintId}`}
+                    data-slot="otp-resend"
+                >
+                    Kirim ulang kode (60 dtk)
+                </Button>
+
+                <p id={resendHintId} className="text-muted-foreground text-xs">
+                    Kirim ulang kode belum tersedia. Gunakan tombol Kembali untuk meminta
+                    kode baru.
+                </p>
+
+                <Button
+                    type="button"
                     variant="ghost"
+                    className="min-h-11"
                     onClick={() => {
                         clearPendingOtp();
 
@@ -312,6 +465,7 @@ function OtpContextMissing() {
                     <Button
                         type="button"
                         size="sm"
+                        className="min-h-11"
                         onClick={() => {
                             void navigate('/login', { replace: true });
                         }}

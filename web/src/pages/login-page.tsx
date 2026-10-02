@@ -7,11 +7,14 @@ import { KeyRound } from 'lucide-react';
 import { login, type Identifier } from '@/lib/api/auth';
 import { ApiError } from '@/lib/http';
 import { getAccessToken } from '@/lib/token';
+import { useDocumentTitle } from '@/hooks/use-document-title';
+import { PESAN_TELEPON_INTERIM, apakahTeleponInterimValid } from '@/lib/telepon';
 import { setPendingOtp } from '@/stores/pending-otp';
 import { Field, FieldInput, FormErrorSummary } from '@/components/form/field';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Spinner } from '@/components/ui/spinner';
+import { ErrorState } from '@/components/states/error-state';
 import { AuthLayout } from '@/pages/auth-layout';
 
 /**
@@ -22,14 +25,13 @@ import { AuthLayout } from '@/pages/auth-layout';
  * plus `LoginRequest`'s own `regex:/^\+?[0-9]{8,20}$/` on the phone. These mirror all
  * three so an obviously-invalid value does not cost a round trip.
  *
- * The server remains the authority: `LoginRequest` is what actually decides, and its 422
- * is rendered per field below. Client validation here is a convenience, never a substitute.
+ * The phone rule is stricter than the server's on one point, deliberately: `+62...` is
+ * refused until the backend normalises the two spellings, because the exact-match lookup
+ * would otherwise answer "wrong password" for a number that is correct (F01 §4.4 #2,
+ * AC-1 interim). The server remains the authority for everything else.
  */
-const TELEPON_RULE = /^\+?[0-9]{8,20}$/;
-
 type IdentifierKind = 'no_telepon' | 'email';
 
-/** Built per kind because the two fields have genuinely different rules. */
 function schemaFor(kind: IdentifierKind) {
     return z.object({
         identifier:
@@ -45,7 +47,7 @@ function schemaFor(kind: IdentifierKind) {
                       .trim()
                       .min(1, 'Isi nomor telepon.')
                       .max(20, 'Nomor telepon maksimal 20 karakter.')
-                      .regex(TELEPON_RULE, 'Nomor telepon harus 8 sampai 20 digit.'),
+                      .refine(apakahTeleponInterimValid, PESAN_TELEPON_INTERIM),
         password: z
             .string()
             .min(1, 'Isi kata sandi.')
@@ -69,10 +71,7 @@ type LoginForm = z.infer<ReturnType<typeof schemaFor>>;
  * carries exactly one. `no_telepon` wins when both are sent, which is why only one is ever
  * sent here.
  */
-function toIdentifier(
-    values: LoginForm,
-    kind: IdentifierKind,
-): Identifier {
+function toIdentifier(values: LoginForm, kind: IdentifierKind): Identifier {
     if (kind === 'email') {
         return { email: values.identifier };
     }
@@ -81,6 +80,11 @@ function toIdentifier(
     // account that was registered as `0812 3456` unreachable.
     return { no_telepon: values.identifier };
 }
+
+const PESAN_KEAMANAN_TELEPON =
+    'Kami akan mengirim kode 6 digit ke nomor ini untuk memastikan akun Anda aman.';
+const PESAN_KEAMANAN_EMAIL =
+    'Kami akan mengirim kode 6 digit ke email ini untuk memastikan akun Anda aman.';
 
 /**
  * `/login`
@@ -94,6 +98,8 @@ function toIdentifier(
  * on the first authenticated request.
  */
 export function LoginPage() {
+    useDocumentTitle('Masuk | Sehatly');
+
     const navigate = useNavigate();
     const [kind, setKind] = useState<IdentifierKind>('no_telepon');
     const [serverError, setServerError] = useState<unknown>(null);
@@ -132,6 +138,10 @@ export function LoginPage() {
             applyLoginFailure(error, setServerError, setError);
         }
     }
+
+    const kirimUlang = (): void => {
+        void handleSubmit(onSubmit)();
+    };
 
     return (
         <AuthLayout
@@ -180,8 +190,25 @@ export function LoginPage() {
                     </Alert>
                 ) : null}
 
+                {/**
+                 * Everything the two branches above do not claim: a 500, a 429, a dropped
+                 * connection. The values already typed stay in the form, and the retry
+                 * re-submits them, which is what AC-9 asks for.
+                 */}
+                {serverError instanceof ApiError &&
+                !serverError.isUnauthorized &&
+                !serverError.isForbidden &&
+                !serverError.isValidation ? (
+                    <ErrorState error={serverError} onRetry={kirimUlang} />
+                ) : null}
+
                 <Field
-                    label="Nomor telepon atau email"
+                    label={kind === 'email' ? 'Email' : 'Nomor telepon'}
+                    hint={
+                        kind === 'email'
+                            ? undefined
+                            : 'Gunakan nomor yang aktif di WhatsApp/SMS. Contoh: 0812 3456 7890.'
+                    }
                     errors={[
                         ...(errors.identifier?.message === undefined
                             ? []
@@ -195,19 +222,25 @@ export function LoginPage() {
                         inputMode={kind === 'email' ? 'email' : 'numeric'}
                         autoComplete="username"
                         placeholder={
-                            kind === 'email' ? 'nama@contoh.id' : '081234567890'
+                            kind === 'email' ? 'nama@contoh.id' : '08xx xxxx xxxx'
                         }
                         {...register('identifier')}
                     />
                 </Field>
 
-                <div className="flex items-center gap-1 text-xs">
-                    <span className="text-muted-foreground">Gunakan</span>
+                <div
+                    className="flex flex-wrap items-center gap-2"
+                    role="group"
+                    aria-label="Jenis identitas"
+                >
+                    <span className="text-muted-foreground text-xs">Gunakan</span>
 
                     <Button
                         type="button"
                         variant={kind === 'no_telepon' ? 'secondary' : 'ghost'}
                         size="sm"
+                        className="min-h-11"
+                        aria-pressed={kind === 'no_telepon'}
                         onClick={() => setKind('no_telepon')}
                     >
                         Telepon
@@ -217,6 +250,8 @@ export function LoginPage() {
                         type="button"
                         variant={kind === 'email' ? 'secondary' : 'ghost'}
                         size="sm"
+                        className="min-h-11"
+                        aria-pressed={kind === 'email'}
                         onClick={() => setKind('email')}
                     >
                         Email
@@ -239,15 +274,16 @@ export function LoginPage() {
                     />
                 </Field>
 
-                <Button type="submit" disabled={isSubmitting}>
+                <Button type="submit" className="min-h-11" disabled={isSubmitting}>
                     {isSubmitting ? <Spinner /> : null}
 
                     {isSubmitting ? 'Mengirim kode...' : 'Lanjutkan'}
                 </Button>
 
-                <p className="text-muted-foreground text-xs">
-                    Langkah kedua adalah kode OTP yang dikirim ke nomor telepon
-                    terdaftar. Kode dibutuhkan untuk mendapatkan sesi.
+                <p className="text-muted-foreground text-sm">
+                    {kind === 'no_telepon'
+                        ? PESAN_KEAMANAN_TELEPON
+                        : PESAN_KEAMANAN_EMAIL}
                 </p>
             </form>
         </AuthLayout>

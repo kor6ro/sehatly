@@ -6,6 +6,8 @@ import { z } from 'zod';
 import { register, type RegisterInput } from '@/lib/api/auth';
 import { ApiError } from '@/lib/http';
 import { getAccessToken } from '@/lib/token';
+import { useDocumentTitle } from '@/hooks/use-document-title';
+import { PESAN_TELEPON_INTERIM, apakahTeleponInterimValid } from '@/lib/telepon';
 import { setPendingOtp } from '@/stores/pending-otp';
 import { Field, FieldInput, FieldSelect, FormErrorSummary } from '@/components/form/field';
 import { Button } from '@/components/ui/button';
@@ -22,9 +24,8 @@ import { AuthLayout } from '@/pages/auth-layout';
  * MySQL 1364 - a 500. A `pasien` row cannot be created empty, which means the row cannot
  * be deferred past this call either.
  *
- * `confirmed` is deliberately absent from the password, for the reason `RegisterRequest`
- * gives: it is a server-rendered-form convention, and a JSON client sending the same value
- * twice gains nothing.
+ * `email` and `tempat_lahir` are optional on the server (`nullable`) and are optional
+ * here, marked as such on the label. `bahasa` is nullable too and defaults to `id`.
  */
 const schema = z.object({
     nama_lengkap: z
@@ -35,7 +36,8 @@ const schema = z.object({
     no_telepon: z
         .string()
         .trim()
-        .regex(/^\+?[0-9]{8,20}$/, 'Nomor telepon harus 8 sampai 20 digit.'),
+        .min(1, 'Isi nomor telepon.')
+        .refine(apakahTeleponInterimValid, PESAN_TELEPON_INTERIM),
     email: z
         .string()
         .trim()
@@ -66,6 +68,8 @@ type RegisterForm = z.infer<typeof schema>;
  * code was sent to.
  */
 export function RegisterPage() {
+    useDocumentTitle('Daftar | Sehatly');
+
     const navigate = useNavigate();
     const [serverError, setServerError] = useState<unknown>(null);
 
@@ -92,6 +96,7 @@ export function RegisterPage() {
     });
 
     const jenisKelamin = watch('jenis_kelamin');
+    const bahasa = watch('bahasa');
 
     if (getAccessToken() !== null) {
         return <Navigate to="/dashboard" replace />;
@@ -157,115 +162,150 @@ export function RegisterPage() {
             >
                 <FormErrorSummary error={serverError} />
 
-                <Field
-                    label="Nama lengkap"
-                    errors={messages(errors.nama_lengkap?.message)}
-                    required
+                <fieldset
+                    data-slot="register-group"
+                    data-grup="data-akun"
+                    className="flex flex-col gap-4"
                 >
-                    <FieldInput autoComplete="name" {...bind('nama_lengkap')} />
-                </Field>
+                    <legend className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                        Data akun
+                    </legend>
 
-                <Field
-                    label="Nomor telepon"
-                    hint="Kode OTP dikirim ke nomor ini."
-                    errors={[
-                        ...messages(errors.no_telepon?.message),
-                        ...fieldOf(serverError, 'no_telepon'),
-                    ]}
-                    required
-                >
-                    <FieldInput
-                        type="tel"
-                        inputMode="numeric"
-                        autoComplete="tel"
-                        placeholder="081234567890"
-                        {...bind('no_telepon')}
-                    />
-                </Field>
-
-                <Field
-                    label="Email"
-                    hint="Opsional. Bisa digunakan untuk masuk jika nomor telepon tidak tersedia."
-                    errors={[
-                        ...messages(errors.email?.message),
-                        ...fieldOf(serverError, 'email'),
-                    ]}
-                >
-                    <FieldInput
-                        type="email"
-                        autoComplete="email"
-                        {...bind('email')}
-                    />
-                </Field>
-
-                <Field
-                    label="Kata sandi"
-                    errors={[
-                        ...messages(errors.password?.message),
-                        ...fieldOf(serverError, 'password'),
-                    ]}
-                    required
-                >
-                    <FieldInput
-                        type="password"
-                        autoComplete="new-password"
-                        {...bind('password')}
-                    />
-                </Field>
-
-                <div className="grid gap-4 sm:grid-cols-2">
                     <Field
-                        label="Jenis kelamin"
-                        errors={messages(errors.jenis_kelamin?.message)}
+                        label="Nama lengkap"
+                        errors={messages(errors.nama_lengkap?.message)}
                         required
                     >
-                        <FieldSelect
-                            value={jenisKelamin}
-                            onValueChange={(value) =>
-                                setValue('jenis_kelamin', value as 'L' | 'P')
-                            }
-                        >
-                            <SelectItem value="L">Laki-laki</SelectItem>
-                            <SelectItem value="P">Perempuan</SelectItem>
-                        </FieldSelect>
+                        <FieldInput autoComplete="name" {...bind('nama_lengkap')} />
                     </Field>
 
                     <Field
-                        label="Tanggal lahir"
+                        label="Nomor telepon"
+                        hint="Kode OTP dikirim ke nomor ini. Gunakan nomor yang aktif di WhatsApp/SMS. Contoh: 0812 3456 7890."
                         errors={[
-                            ...messages(errors.tanggal_lahir?.message),
-                            ...fieldOf(serverError, 'tanggal_lahir'),
+                            ...messages(errors.no_telepon?.message),
+                            ...fieldOf(serverError, 'no_telepon'),
                         ]}
                         required
                     >
                         <FieldInput
-                            type="date"
-                            max={new Date().toISOString().slice(0, 10)}
-                            {...bind('tanggal_lahir')}
+                            type="tel"
+                            inputMode="numeric"
+                            autoComplete="tel"
+                            placeholder="08xx xxxx xxxx"
+                            {...bind('no_telepon')}
                         />
                     </Field>
-                </div>
 
-                <Field
-                    label="Tempat lahir"
-                    errors={[
-                        ...messages(errors.tempat_lahir?.message),
-                        ...fieldOf(serverError, 'tempat_lahir'),
-                    ]}
-                >
-                    <FieldInput {...bind('tempat_lahir')} />
-                </Field>
+                    <Field
+                        label="Email (opsional)"
+                        hint="Bisa digunakan untuk masuk jika nomor telepon tidak tersedia."
+                        errors={[
+                            ...messages(errors.email?.message),
+                            ...fieldOf(serverError, 'email'),
+                        ]}
+                    >
+                        <FieldInput
+                            type="email"
+                            autoComplete="email"
+                            {...bind('email')}
+                        />
+                    </Field>
 
-                <Field
-                    label="Alamat lengkap"
-                    errors={[
-                        ...messages(errors.alamat_lengkap?.message),
-                        ...fieldOf(serverError, 'alamat_lengkap'),
-                    ]}
-                    required
+                    <Field
+                        label="Kata sandi"
+                        errors={[
+                            ...messages(errors.password?.message),
+                            ...fieldOf(serverError, 'password'),
+                        ]}
+                        required
+                    >
+                        <FieldInput
+                            type="password"
+                            autoComplete="new-password"
+                            {...bind('password')}
+                        />
+                    </Field>
+                </fieldset>
+
+                <fieldset
+                    data-slot="register-group"
+                    data-grup="data-diri"
+                    className="flex flex-col gap-4"
                 >
-                    <FieldInput {...bind('alamat_lengkap')} />
-                </Field>
+                    <legend className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                        Data diri
+                    </legend>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <Field
+                            label="Jenis kelamin"
+                            errors={messages(errors.jenis_kelamin?.message)}
+                            required
+                        >
+                            <FieldSelect
+                                value={jenisKelamin}
+                                onValueChange={(value) =>
+                                    setValue('jenis_kelamin', value as 'L' | 'P')
+                                }
+                            >
+                                <SelectItem value="L">Laki-laki</SelectItem>
+                                <SelectItem value="P">Perempuan</SelectItem>
+                            </FieldSelect>
+                        </Field>
+
+                        <Field
+                            label="Tanggal lahir"
+                            errors={[
+                                ...messages(errors.tanggal_lahir?.message),
+                                ...fieldOf(serverError, 'tanggal_lahir'),
+                            ]}
+                            required
+                        >
+                            <FieldInput
+                                type="date"
+                                max={new Date().toISOString().slice(0, 10)}
+                                {...bind('tanggal_lahir')}
+                            />
+                        </Field>
+                    </div>
+
+                    <Field
+                        label="Tempat lahir (opsional)"
+                        errors={[
+                            ...messages(errors.tempat_lahir?.message),
+                            ...fieldOf(serverError, 'tempat_lahir'),
+                        ]}
+                    >
+                        <FieldInput {...bind('tempat_lahir')} />
+                    </Field>
+
+                    <Field
+                        label="Alamat lengkap"
+                        errors={[
+                            ...messages(errors.alamat_lengkap?.message),
+                            ...fieldOf(serverError, 'alamat_lengkap'),
+                        ]}
+                        required
+                    >
+                        <FieldInput {...bind('alamat_lengkap')} />
+                    </Field>
+
+                    <Field
+                        label="Bahasa"
+                        errors={messages(errors.bahasa?.message)}
+                    >
+                        <FieldSelect
+                            value={bahasa}
+                            onValueChange={(value) =>
+                                setValue('bahasa', value as 'id' | 'en')
+                            }
+                        >
+                            <SelectItem value="id">Indonesia</SelectItem>
+                            <SelectItem value="en">Inggris</SelectItem>
+                        </FieldSelect>
+                    </Field>
+                </fieldset>
 
                 {/**
                  * Owner decision F02 §12 #4: one line of notice and two links, and NO
@@ -291,7 +331,7 @@ export function RegisterPage() {
                     Sehatly.
                 </p>
 
-                <Button type="submit" disabled={isSubmitting}>
+                <Button type="submit" className="min-h-11" disabled={isSubmitting}>
                     {isSubmitting ? <Spinner /> : null}
 
                     {isSubmitting ? 'Mendaftarkan...' : 'Daftar'}

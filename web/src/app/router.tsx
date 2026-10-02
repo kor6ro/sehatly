@@ -8,6 +8,7 @@ import { RegisterPage } from '@/pages/register-page';
 import { OtpPage } from '@/pages/otp-page';
 import { DashboardPage } from '@/pages/dashboard-page';
 import { ProfilePage } from '@/pages/profile-page';
+import { DevicesPage } from '@/pages/devices-page';
 import { FamilyPage } from '@/pages/family-page';
 import { AllergyPage } from '@/pages/allergy-page';
 import { DoctorDirectoryPage } from '@/pages/doctor-directory-page';
@@ -170,6 +171,16 @@ export const router = createBrowserRouter([
                             {
                                 path: '/profil/keluarga',
                                 element: <FamilyPage />,
+                                errorElement: <RouteErrorBoundary />,
+                            },
+                            {
+                                /**
+                                 * F01 §4.3/§10: the device list. Inside `RequireAuth`
+                                 * because `GET|DELETE /auth/devices` are the caller's own
+                                 * sessions and carry `auth:sanctum`.
+                                 */
+                                path: '/profil/perangkat',
+                                element: <DevicesPage />,
                                 errorElement: <RouteErrorBoundary />,
                             },
                             {
