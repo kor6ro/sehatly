@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 /**
- * Seeds the RBAC kernel: 5 roles, 24 permissions and their 69 role/permission
+ * Seeds the RBAC kernel: 5 roles, 25 permissions and their 71 role/permission
  * grants.
  *
  * ## None of this data is in `telemedicine_test.sql`
@@ -36,8 +36,8 @@ use RuntimeException;
  * | Table | Contract | Consequence for this seeder |
  * | --- | --- | --- |
  * | `roles` | `:152-154`, `id SMALLINT UNSIGNED AUTO_INCREMENT`, `nama VARCHAR(50) NOT NULL UNIQUE`, `deskripsi VARCHAR(255) NULL` | 5 rows, no timestamps |
- * | `permissions` | `:158-160`, `id SMALLINT UNSIGNED AUTO_INCREMENT`, `kode VARCHAR(100) NOT NULL UNIQUE`, `nama VARCHAR(100) NOT NULL` | 24 rows, `kode` and `nama` both mandatory |
- * | `role_permissions` | `:164-168`, composite `PRIMARY KEY (role_id, permission_id)`, **no `id`**, both FKs `ON DELETE CASCADE` | 69 rows of exactly the pair |
+ * | `permissions` | `:158-160`, `id SMALLINT UNSIGNED AUTO_INCREMENT`, `kode VARCHAR(100) NOT NULL UNIQUE`, `nama VARCHAR(100) NOT NULL` | 25 rows, `kode` and `nama` both mandatory |
+ * | `role_permissions` | `:164-168`, composite `PRIMARY KEY (role_id, permission_id)`, **no `id`**, both FKs `ON DELETE CASCADE` | 71 rows of exactly the pair |
  *
  * **None of the three has `dibuat_at` or `diubah_at`.** Passing timestamps here would
  * be MySQL 1054 on all three, so this seeder inserts bare column sets and the models
@@ -151,17 +151,19 @@ use RuntimeException;
  * medicine search "is doctor-only (`tipe:dokter`)", so granting a pharmacist drug
  * lookup would assert a consumer the plan does not name. Flagged, not filled.
  *
- * **`admin` (10 grants)** - `promo.validasi` and `pdp.kelola` are the two
+ * **`admin` (11 grants)** - `promo.validasi` and `pdp.kelola` are the two
  * administrative registries, and `audit.lihat` is separated from everything clinical
  * on purpose: the plan's own audit-log acceptance criterion argues that widening
  * `audit.lihat` "widens the blast radius", so it is not granted to any role that also
  * holds a clinical write. `booking.lihat`/`booking.batal`, `pesanan.lihat` and
- * `jadwal.lihat` are the operational views. **No `rekam_medis.*`, no `resep.buat`,
- * no `konsultasi.*`**: an administrator is not a clinician, and giving the role
- * clinical write would put a write-capable grant on the account type that can read
- * the audit log.
+ * `jadwal.lihat` are the operational views. F14 adds `laporan.lihat`, the only
+ * permission added outside the plan's original list: the report aggregates
+ * `booking`/`invoice` counts and no code in the catalogue named that resource.
+ * **No `rekam_medis.*`, no `resep.buat`, no `konsultasi.*`**: an administrator is
+ * not a clinician, and giving the role clinical write would put a write-capable
+ * grant on the account type that can read the audit log.
  *
- * **`superadmin` (all 24)** - written out in full, not computed, so the seeded table
+ * **`superadmin` (all 25)** - written out in full, not computed, so the seeded table
  * *is* the policy and can be read without running code. There is no code-level
  * bypass anywhere in the middleware; see {@see RbacCatalog}.
  */
@@ -217,7 +219,7 @@ class RbacSeeder extends Seeder
     }
 
     /**
-     * The 24 `permissions` rows.
+     * The 25 `permissions` rows.
      *
      * Both columns are `NOT NULL` and `kode` is `UNIQUE`, so a duplicate or a null
      * label is a MySQL error rather than a silent bad row. Each `nama` is

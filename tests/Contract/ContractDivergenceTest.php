@@ -205,17 +205,27 @@ it('types_every_meta_operation_as_paginated', function (): void {
 
     sort($paginated);
 
-    // Thirty-five after F-007, F02, F09, F13, F10 and F12: the fourteen that
+    // Forty after F-007, F02, F09, F13, F10, F12 and F14: the fourteen that
     // were already paginated, plus the sixteen the old rule published as
     // three-key envelopes, minus the one write the old rule wrongly paginated,
     // plus F02's `GET /pdp/dokumen`, plus F09's pharmacist queue, plus F13's
     // `GET /api/v1/konsultasi` (the doctor's own list), plus F10's two
     // medical-record reads (`GET /api/v1/rekam-medis` and
     // `GET /api/v1/rekam-medis/{id}/akses`), plus F12's patient refund list
-    // (`GET /api/v1/pasien/refund`, which answers `pageMeta()`). Re-measured on
-    // the regenerated document; the membership below stops the count drifting
-    // silently.
-    expect($paginated)->toHaveCount(35);
+    // (`GET /api/v1/pasien/refund`, which answers `pageMeta()`), plus F14's
+    // FIVE paginated admin reads. Re-measured on the regenerated document; the
+    // membership below stops the count drifting silently.
+    //
+    // F14 contributes five, not nine. The rule is the action's own
+    // `pageMeta()`/`singlePageMeta()` call, so the four admin READS that answer
+    // a week-length or filtered list are members - `GET /admin/dokter`,
+    // `GET /admin/dokter/{id}/jadwal`, `GET /admin/audit-log` and
+    // `GET /admin/persetujuan-pdp` - and `GET /admin/dokter/{id}/libur` makes
+    // five. The remaining four admin operations are deliberately not paginated:
+    // the three `GET /admin/laporan/*` reports answer aggregates over a date
+    // range and `GET /admin/dokter/{id}` answers one row, and inventing a `meta`
+    // for a one-row object would publish a page size that means nothing.
+    expect($paginated)->toHaveCount(40);
 
     expect($paginated)->toContain('get /api/v1/dokter @200');
     expect($paginated)->toContain('get /api/v1/obat @200');
@@ -228,6 +238,18 @@ it('types_every_meta_operation_as_paginated', function (): void {
     expect($paginated)->toContain('get /api/v1/konsultasi @200');
     expect($paginated)->toContain('get /api/v1/rekam-medis @200');
     expect($paginated)->toContain('get /api/v1/rekam-medis/{id}/akses @200');
+    // F14's five, named so a future change to one of them moves this assertion
+    // rather than silently shrinking the count.
+    expect($paginated)->toContain('get /api/v1/admin/dokter @200');
+    expect($paginated)->toContain('get /api/v1/admin/dokter/{id}/jadwal @200');
+    expect($paginated)->toContain('get /api/v1/admin/dokter/{id}/libur @200');
+    expect($paginated)->toContain('get /api/v1/admin/audit-log @200');
+    expect($paginated)->toContain('get /api/v1/admin/persetujuan-pdp @200');
+    // ...and the four admin operations that answer something that is NOT a page.
+    expect($paginated)->not->toContain('get /api/v1/admin/dokter/{id} @200');
+    expect($paginated)->not->toContain('get /api/v1/admin/laporan/booking @200');
+    expect($paginated)->not->toContain('get /api/v1/admin/laporan/pendapatan @200');
+    expect($paginated)->not->toContain('get /api/v1/admin/laporan/kehadiran @200');
     expect($paginated)->not->toContain('post /api/v1/konsultasi/{id}/chat/baca @201');
 });
 

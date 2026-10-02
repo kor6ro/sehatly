@@ -266,14 +266,43 @@ test('the six routes are registered with exactly the guards this todo claims', f
             ->toBe(['api', 'auth:sanctum', 'permission:notifikasi.lihat', 'throttle:notifikasi-baca']);
     }
 
-    // `pdp.kelola` is a catalogue code with NO consumer, and that is a decision
-    // rather than an oversight - the reason is asserted in the guard test below.
-    foreach ($routes as $uri => $middleware) {
+    // `pdp.kelola` is a catalogue code no route IN THIS FILE carries, and that is
+    // a decision rather than an oversight: recording a data subject's consent is
+    // the data subject's act, and a route that let an admin write one would be a
+    // compliance defect wearing a permission code. These six routes are the
+    // CALLER'S OWN consent, so they carry `auth:sanctum` and nothing else.
+    //
+    // The loop is over the six named routes rather than over `pd47Routes()` in
+    // full, because F14 added the code's one consumer - `GET /admin/persetujuan-pdp`
+    // - and a blanket "nothing anywhere carries this code" scan would have turned a
+    // deliberate addition into a false alarm. The narrower claim is also the one
+    // that matters: this file's six routes must stay ungated.
+    foreach ([
+        'GET api/v1/pdp/dokumen',
+        'GET api/v1/pdp/persetujuan',
+        'POST api/v1/pdp/persetujuan',
+        'GET api/v1/notifikasi',
+        'PUT api/v1/notifikasi/{id}/baca',
+        'PUT api/v1/notifikasi/baca-semua',
+    ] as $diumi) {
         // `not->toContain` with ONE needle: Pest's `toContain` is variadic, so a
         // second argument is a second needle and would quietly make the assertion
         // pass for the wrong reason.
-        expect($middleware)->not->toContain('permission:pdp.kelola');
+        expect(pd47Guards($routes, $diumi))->not->toContain('permission:pdp.kelola');
     }
+
+    // And the consumer itself, asserted here rather than only in the F14 suite:
+    // the code is granted to `admin`/`superadmin`, gates exactly ONE route, and
+    // that route is a GET. A second route carrying it would have to be a write,
+    // which is the thing this whole file exists to prevent.
+    $pemakai = array_keys(array_filter(
+        $routes,
+        static fn (array $middleware): bool => in_array('permission:pdp.kelola', $middleware, true),
+    ));
+
+    expect($pemakai)->toBe(['GET api/v1/admin/persetujuan-pdp'])
+        ->and(pd47Guards($routes, 'GET api/v1/admin/persetujuan-pdp'))
+        ->toBe(['api', 'auth:sanctum', 'tipe:admin,superadmin', 'permission:pdp.kelola']);
 
     // A non-numeric id never reaches the controller at all: `whereNumber`
     // compiles the segment to a regex, so the router 404s it. The CONSTRAINT is
@@ -1307,11 +1336,13 @@ test('a nurse and a courier are refused by permission:notifikasi.lihat, and the 
         pd47As($user)->getJson('/api/v1/notifikasi')->assertOk();
     }
 
-    // `pdp.kelola` is granted to `admin` and `superadmin` and is used by NO
-    // route. That is deliberate: recording a data subject's consent is the data
-    // subject's act, and a route that let an admin write it would be a
-    // compliance defect wearing a permission code. The catalogue keeps the code
-    // for the future admin READ surface; this todo declines to invent it.
+    // `pdp.kelola` is granted to `admin` and `superadmin`. Its consumer is
+    // F14's read-only admin ledger (`GET /admin/persetujuan-pdp`), NOT any route
+    // in this file: recording a data subject's consent is the data subject's
+    // act, and a route that let an admin write it would be a compliance defect
+    // wearing a permission code. The three consent routes here therefore carry
+    // no `permission:` at all, and the assertion below pins the code's grants
+    // while the admin-side test pins its consumer.
     expect(RbacCatalog::ROLE_PERMISSIONS['admin'])->toContain('pdp.kelola')
         ->and(RbacCatalog::ROLE_PERMISSIONS['superadmin'])->toContain('pdp.kelola')
         ->and(RbacCatalog::isPermission('pdp.kelola'))->toBeTrue();

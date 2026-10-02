@@ -9,10 +9,10 @@ use Tests\Contract\Support\ContractSpec;
  | Sanctum bearer auth really yields 401 on an absent or garbage token
  |--------------------------------------------------------------------------
  |
-  | The document declares 58 operations as bearer-protected and 25 as explicitly
-  | anonymous. This file drives EVERY one of the 58 against the running
-  | application, twice: once with no `Authorization` header at all, and once with
-  | a token that is structurally plausible and cryptographically meaningless.
+| The document declares 74 operations as bearer-protected and 25 as explicitly
+ | anonymous. This file drives EVERY one of the 74 against the running
+ | application, twice: once with no `Authorization` header at all, and once with
+ | a token that is structurally plausible and cryptographically meaningless.
  |
  | ## Why "garbage" is not the same as "absent"
  |
@@ -32,10 +32,10 @@ use Tests\Contract\Support\ContractSpec;
  * segment is an id that cannot exist in an empty table and the second is 40
  * characters of filler.
  *
-  * ## Why this is worth 116 real requests
-  |
+* ## Why this is worth 148 real requests
+  * |
   * | Because it is the cheapest proof in the suite that the guard is actually
-  * | mounted on all 58 routes rather than on the handful the module tests happen to
+  * | mounted on all 74 routes rather than on the handful the module tests happen to
   * | touch. A route that lost its `auth:sanctum` in a refactor would answer 500 or
   * | 302 here, and nothing else in the suite would notice.
   */
@@ -127,17 +127,18 @@ function contractSplit(string $key): array
     return [$method, $path];
 }
 
-it('splits the documented operations into 58 bearer, 25 anonymous and 24 unguarded', function (): void {
+it('splits the documented operations into 74 bearer, 25 anonymous and 24 unguarded', function (): void {
     // The counts are pinned so the datasets below cannot silently shrink. If a
     // route is added or removed, this fails first and names the real delta,
     // instead of a per-route test quietly disappearing from the run. F12 added
     // three bearer operations (`GET /booking/{id}/kebijakan`,
     // `PUT /booking/{id}/jadwal-ulang`, `GET /pasien/refund`) and no anonymous
-    // one, which is the 55 -> 58 movement.
-    expect(count(contractBearerOperations()))->toBe(58);
+    // one, which is the 55 -> 58 movement; F14's sixteen `/admin` routes are all
+    // bearer and none anonymous, which is the 58 -> 74 movement.
+    expect(count(contractBearerOperations()))->toBe(74);
     expect(count(contractAnonymousOperations()))->toBe(25);
     expect(count(contractUnguardedAnonymousOperations()))->toBe(24);
-    expect(count(contractBearerOperations()) + count(contractAnonymousOperations()))->toBe(83);
+    expect(count(contractBearerOperations()) + count(contractAnonymousOperations()))->toBe(99);
 });
 
 it('answers 401 with the error envelope when the Authorization header is absent', function (string $method, string $path): void {

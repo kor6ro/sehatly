@@ -1433,6 +1433,35 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         // `resep.lihat` gate would have made it a second, wider read.
         "'permission:resep.verifikasi'",
         "'tipe:apoteker'",
+        // F14's admin clinic block contributes TEN strings, which is the whole of
+        // the 43 -> 53 movement. It is the first `/admin` prefix in this file, and
+        // its shape is unlike every block above it: the party gate
+        // `tipe:admin,superadmin` is declared ONCE on the wrapping group rather
+        // than repeated per route, so sixteen routes contribute ONE `tipe:` hit.
+        //
+        // The nine `permission:` hits are all READ grants. `dokter.lihat` and
+        // `jadwal.lihat` each appear twice because each guards two reads; the
+        // three report reads share the single catalogue code F14 added,
+        // `laporan.lihat`; and `audit.lihat`/`pdp.kelola` each take the one
+        // endpoint that finally consumes the code they were reserved for.
+        //
+        // The eight F14 WRITES contribute NOTHING to this census, and that is a
+        // decision rather than an omission: no code naming a doctor or schedule
+        // MUTATION was approved (it is open question 1 in
+        // `web/ux/patterns/F14.md`), so the writes are guarded by the party gate
+        // alone rather than by a read code reused as a write grant. `pasien`,
+        // `dokter` and `apoteker` all hold `dokter.lihat`, so reusing it on a
+        // write would have widened the audience of a credential mutation.
+        "'tipe:admin,superadmin'",
+        "'permission:dokter.lihat'",
+        "'permission:dokter.lihat'",
+        "'permission:jadwal.lihat'",
+        "'permission:jadwal.lihat'",
+        "'permission:laporan.lihat'",
+        "'permission:laporan.lihat'",
+        "'permission:laporan.lihat'",
+        "'permission:audit.lihat'",
+        "'permission:pdp.kelola'",
     ]);
 });
 

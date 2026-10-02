@@ -533,7 +533,7 @@ class SlotAvailabilityService
             return false;
         }
 
-        return $this->detik((string) $jadwal->jam_selesai) > $this->detik((string) $jadwal->jam_mulai);
+        return self::detik((string) $jadwal->jam_selesai) > self::detik((string) $jadwal->jam_mulai);
     }
 
     /**
@@ -551,8 +551,8 @@ class SlotAvailabilityService
         bool $libur,
         ?CarbonInterface $sudahLewat,
     ): array {
-        $mulai = $this->detik((string) $jadwal->jam_mulai);
-        $selesai = $this->detik((string) $jadwal->jam_selesai);
+        $mulai = self::detik((string) $jadwal->jam_mulai);
+        $selesai = self::detik((string) $jadwal->jam_selesai);
         $durasi = (int) $jadwal->durasi_slot_menit * 60;
 
         $bertabrakan = $this->bookingBertumpuk((int) $jadwal->dokter_id, $tanggal, $mulai, $selesai);
@@ -611,8 +611,8 @@ class SlotAvailabilityService
 
         foreach ($baris as $satu) {
             $bertabrakan[] = [
-                'slot_mulai' => $this->detik((string) $satu->slot_mulai),
-                'slot_selesai' => $this->detik((string) $satu->slot_selesai),
+                'slot_mulai' => self::detik((string) $satu->slot_mulai),
+                'slot_selesai' => self::detik((string) $satu->slot_selesai),
             ];
         }
 
@@ -663,7 +663,7 @@ class SlotAvailabilityService
             return self::ALASAN_LIBUR;
         }
 
-        if ($sudahLewat !== null && $this->detik($jamSelesai) <= $this->detik($sudahLewat->format('H:i:s'))) {
+        if ($sudahLewat !== null && self::detik($jamSelesai) <= self::detik($sudahLewat->format('H:i:s'))) {
             return self::ALASAN_LEWAT_WAKTU;
         }
 
@@ -686,8 +686,17 @@ class SlotAvailabilityService
      * wrap turns into a silent wrong answer, so both sides are normalised here.
      * The hour component is read as a plain integer, which is what makes a
      * beyond-24:00 value work at all.
+     *
+     * **This is the ONE place the conversion exists, and it is `public static`
+     * because two surfaces now need it.** The F14 admin schedule service
+     * (`App\Services\Admin\AdminJadwalService`) compares `jam_mulai`/`jam_selesai`
+     * when it validates a new weekly window, and it used to carry a byte-for-byte
+     * private copy of this method. Two copies of a normalisation that every other
+     * layer's ordering depends on is a rule that can drift, and a drifted one would
+     * show up as a window the admin API accepts and the slot service then reads
+     * differently. A second caller is not a reason for a second implementation.
      */
-    private function detik(string $waktu): int
+    public static function detik(string $waktu): int
     {
         $bagian = explode(':', $waktu);
 

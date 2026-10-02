@@ -22,6 +22,936 @@
 // naming the `App\Http\Resources\*` class it was transcribed from. Generating a competing
 // set here would recreate the two-transcriptions problem this whole task exists to
 // remove.
+/// The request body `App\Http\Requests\Admin\IndexAuditLogRequest` validates.
+///
+/// Every field below was read from that class's `rules()`. A `required` rule is a
+/// constructor parameter, so omitting it is a compile error rather than a 422, and the
+/// Dart type is derived from the type rules, so a `boolean` field cannot be handed a
+/// `String`.
+///
+/// [toJson] emits the WIRE names, which for a dotted Laravel attribute path is the
+/// dotted path itself -- the same string `ValidationException::errors()` uses, so a 422
+/// message maps back to the field that caused it.
+class IndexAuditLogRequestBody {
+  /// The `FormRequest` class these rules were read from.
+  static const String formRequest = 'App\\Http\\Requests\\Admin\\IndexAuditLogRequest';
+
+  /// Creates the body.
+  ///
+  /// Required fields are `required this`, so omitting one is a compile error
+  /// rather than a 422. Optional fields are plain named parameters defaulting to
+  /// `null`, which is what keeps every `final` field initialised -- a body class with
+  /// NO required field (the reference endpoints read their rules off the route name, so
+  /// several are parameterless on some paths) would otherwise have uninitialised finals.
+  const IndexAuditLogRequestBody({
+    this.aksi,
+    this.aktorUserId,
+    this.dari,
+    this.page,
+    this.perPage,
+    this.recordId,
+    this.sampai,
+    this.tabelTarget,
+  });
+
+  /// `aksi`, a closed set on the server.
+  final Object? aksi;
+
+  /// `aktor_user_id`.
+  final int? aktorUserId;
+
+  /// `dari`.
+  final Object? dari;
+
+  /// `page`.
+  final int? page;
+
+  /// `per_page`.
+  final int? perPage;
+
+  /// `record_id`.
+  final Object? recordId;
+
+  /// `sampai`.
+  final Object? sampai;
+
+  /// `tabel_target`.
+  final Object? tabelTarget;
+
+  /// The values the server accepts for `aksi`, read from its `Rule::in`.
+  ///
+  /// A `Set<String>` rather than a Dart enum on purpose: the rule's values are
+  /// data rather than a compile-time vocabulary, so the server may gain a member
+  /// without this package being released, and a set keeps the check honest
+  /// instead of failing to compile against a list it has never seen.
+  static const Set<String> aksiAllowed = <String>{
+    'create',
+    'read',
+    'update',
+    'delete',
+    'login',
+    'logout',
+    'download',
+    'export',
+  };
+
+  /// The declared field names, required first, then optional.
+  static const List<String> fields = <String>[
+    'aksi',
+    'aktor_user_id',
+    'dari',
+    'page',
+    'per_page',
+    'record_id',
+    'sampai',
+    'tabel_target',
+  ];
+
+  /// The fields the server REJECTS when sent. A tenant key, in this project, is
+  /// written from the caller's own row, so sending one is a validation error.
+  static const List<String> prohibitedFields = <String>[];
+
+  /// The wire body, omitting every field left `null`.
+  ///
+  /// Omission rather than an explicit `null` is deliberate and matches the server:
+  /// Laravel treats `sometimes|nullable` and `required` differently, and sending an
+  /// explicit `null` for a `sometimes` field is not the same request as omitting it.
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      if (aksi != null) 'aksi': aksi,
+      if (aktorUserId != null) 'aktor_user_id': aktorUserId,
+      if (dari != null) 'dari': dari,
+      if (page != null) 'page': page,
+      if (perPage != null) 'per_page': perPage,
+      if (recordId != null) 'record_id': recordId,
+      if (sampai != null) 'sampai': sampai,
+      if (tabelTarget != null) 'tabel_target': tabelTarget,
+    };
+  }
+}
+
+/// The request body `App\Http\Requests\Admin\IndexAdminDokterRequest` validates.
+///
+/// Every field below was read from that class's `rules()`. A `required` rule is a
+/// constructor parameter, so omitting it is a compile error rather than a 422, and the
+/// Dart type is derived from the type rules, so a `boolean` field cannot be handed a
+/// `String`.
+///
+/// [toJson] emits the WIRE names, which for a dotted Laravel attribute path is the
+/// dotted path itself -- the same string `ValidationException::errors()` uses, so a 422
+/// message maps back to the field that caused it.
+class IndexAdminDokterRequestBody {
+  /// The `FormRequest` class these rules were read from.
+  static const String formRequest = 'App\\Http\\Requests\\Admin\\IndexAdminDokterRequest';
+
+  /// Creates the body.
+  ///
+  /// Required fields are `required this`, so omitting one is a compile error
+  /// rather than a 422. Optional fields are plain named parameters defaulting to
+  /// `null`, which is what keeps every `final` field initialised -- a body class with
+  /// NO required field (the reference endpoints read their rules off the route name, so
+  /// several are parameterless on some paths) would otherwise have uninitialised finals.
+  const IndexAdminDokterRequestBody({
+    this.page,
+    this.perPage,
+    this.q,
+    this.statusAktif,
+    this.statusVerifikasi,
+    this.tersediaTelemedisin,
+    this.urutan,
+  });
+
+  /// `page`.
+  final int? page;
+
+  /// `per_page`.
+  final int? perPage;
+
+  /// `q`.
+  final Object? q;
+
+  /// `status_aktif`.
+  final bool? statusAktif;
+
+  /// `status_verifikasi`, a closed set on the server.
+  final Object? statusVerifikasi;
+
+  /// `tersedia_telemedisin`.
+  final bool? tersediaTelemedisin;
+
+  /// `urutan`, a closed set on the server.
+  final Object? urutan;
+
+  /// The values the server accepts for `status_verifikasi`, read from its `Rule::in`.
+  ///
+  /// A `Set<String>` rather than a Dart enum on purpose: the rule's values are
+  /// data rather than a compile-time vocabulary, so the server may gain a member
+  /// without this package being released, and a set keeps the check honest
+  /// instead of failing to compile against a list it has never seen.
+  static const Set<String> statusVerifikasiAllowed = <String>{
+    'pending',
+    'terverifikasi',
+    'ditolak',
+  };
+
+  /// The values the server accepts for `urutan`, read from its `Rule::in`.
+  ///
+  /// A `Set<String>` rather than a Dart enum on purpose: the rule's values are
+  /// data rather than a compile-time vocabulary, so the server may gain a member
+  /// without this package being released, and a set keeps the check honest
+  /// instead of failing to compile against a list it has never seen.
+  static const Set<String> urutanAllowed = <String>{
+    'str_berlaku_sampai',
+    'nama',
+    'jumlah_konsultasi',
+  };
+
+  /// The declared field names, required first, then optional.
+  static const List<String> fields = <String>[
+    'page',
+    'per_page',
+    'q',
+    'status_aktif',
+    'status_verifikasi',
+    'tersedia_telemedisin',
+    'urutan',
+  ];
+
+  /// The fields the server REJECTS when sent. A tenant key, in this project, is
+  /// written from the caller's own row, so sending one is a validation error.
+  static const List<String> prohibitedFields = <String>[];
+
+  /// The wire body, omitting every field left `null`.
+  ///
+  /// Omission rather than an explicit `null` is deliberate and matches the server:
+  /// Laravel treats `sometimes|nullable` and `required` differently, and sending an
+  /// explicit `null` for a `sometimes` field is not the same request as omitting it.
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      if (page != null) 'page': page,
+      if (perPage != null) 'per_page': perPage,
+      if (q != null) 'q': q,
+      if (statusAktif != null) 'status_aktif': statusAktif,
+      if (statusVerifikasi != null) 'status_verifikasi': statusVerifikasi,
+      if (tersediaTelemedisin != null) 'tersedia_telemedisin': tersediaTelemedisin,
+      if (urutan != null) 'urutan': urutan,
+    };
+  }
+}
+
+/// The request body `App\Http\Requests\Admin\IndexAdminJadwalRequest` validates.
+///
+/// Every field below was read from that class's `rules()`. A `required` rule is a
+/// constructor parameter, so omitting it is a compile error rather than a 422, and the
+/// Dart type is derived from the type rules, so a `boolean` field cannot be handed a
+/// `String`.
+///
+/// [toJson] emits the WIRE names, which for a dotted Laravel attribute path is the
+/// dotted path itself -- the same string `ValidationException::errors()` uses, so a 422
+/// message maps back to the field that caused it.
+class IndexAdminJadwalRequestBody {
+  /// The `FormRequest` class these rules were read from.
+  static const String formRequest = 'App\\Http\\Requests\\Admin\\IndexAdminJadwalRequest';
+
+  /// Creates the body.
+  ///
+  /// Required fields are `required this`, so omitting one is a compile error
+  /// rather than a 422. Optional fields are plain named parameters defaulting to
+  /// `null`, which is what keeps every `final` field initialised -- a body class with
+  /// NO required field (the reference endpoints read their rules off the route name, so
+  /// several are parameterless on some paths) would otherwise have uninitialised finals.
+  const IndexAdminJadwalRequestBody({
+    this.statusAktif,
+  });
+
+  /// `status_aktif`.
+  final bool? statusAktif;
+
+  /// The declared field names, required first, then optional.
+  static const List<String> fields = <String>[
+    'status_aktif',
+  ];
+
+  /// The fields the server REJECTS when sent. A tenant key, in this project, is
+  /// written from the caller's own row, so sending one is a validation error.
+  static const List<String> prohibitedFields = <String>[];
+
+  /// The wire body, omitting every field left `null`.
+  ///
+  /// Omission rather than an explicit `null` is deliberate and matches the server:
+  /// Laravel treats `sometimes|nullable` and `required` differently, and sending an
+  /// explicit `null` for a `sometimes` field is not the same request as omitting it.
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      if (statusAktif != null) 'status_aktif': statusAktif,
+    };
+  }
+}
+
+/// The request body `App\Http\Requests\Admin\StoreJadwalRequest` validates.
+///
+/// Every field below was read from that class's `rules()`. A `required` rule is a
+/// constructor parameter, so omitting it is a compile error rather than a 422, and the
+/// Dart type is derived from the type rules, so a `boolean` field cannot be handed a
+/// `String`.
+///
+/// [toJson] emits the WIRE names, which for a dotted Laravel attribute path is the
+/// dotted path itself -- the same string `ValidationException::errors()` uses, so a 422
+/// message maps back to the field that caused it.
+class StoreJadwalRequestBody {
+  /// The `FormRequest` class these rules were read from.
+  static const String formRequest = 'App\\Http\\Requests\\Admin\\StoreJadwalRequest';
+
+  /// Creates the body.
+  ///
+  /// Required fields are `required this`, so omitting one is a compile error
+  /// rather than a 422. Optional fields are plain named parameters defaulting to
+  /// `null`, which is what keeps every `final` field initialised -- a body class with
+  /// NO required field (the reference endpoints read their rules off the route name, so
+  /// several are parameterless on some paths) would otherwise have uninitialised finals.
+  const StoreJadwalRequestBody({
+    required this.berlakuMulai,
+    required this.durasiSlotMenit,
+    required this.hari,
+    required this.hari2,
+    required this.jamMulai,
+    required this.jamSelesai,
+    required this.statusAktif,
+    required this.tipeLayanan,
+    this.berlakuSampai,
+    this.faskesId,
+    this.kuotaPerSesi,
+  });
+
+  /// `berlaku_mulai`.
+  final Object? berlakuMulai;
+
+  /// `durasi_slot_menit`.
+  final int? durasiSlotMenit;
+
+  /// `hari`.
+  final List<Object?>? hari;
+
+  /// `hari.*`.
+  final int? hari2;
+
+  /// `jam_mulai`.
+  final Object? jamMulai;
+
+  /// `jam_selesai`.
+  final Object? jamSelesai;
+
+  /// `status_aktif`.
+  final bool? statusAktif;
+
+  /// `tipe_layanan`, a closed set on the server.
+  final Object? tipeLayanan;
+
+  /// `berlaku_sampai`.
+  final Object? berlakuSampai;
+
+  /// `faskes_id`.
+  final int? faskesId;
+
+  /// `kuota_per_sesi`.
+  final int? kuotaPerSesi;
+
+  /// The values the server accepts for `tipe_layanan`, read from its `Rule::in`.
+  ///
+  /// A `Set<String>` rather than a Dart enum on purpose: the rule's values are
+  /// data rather than a compile-time vocabulary, so the server may gain a member
+  /// without this package being released, and a set keeps the check honest
+  /// instead of failing to compile against a list it has never seen.
+  static const Set<String> tipeLayananAllowed = <String>{
+    'online',
+    'klinik',
+    'home_visit',
+  };
+
+  /// The declared field names, required first, then optional.
+  static const List<String> fields = <String>[
+    'berlaku_mulai',
+    'durasi_slot_menit',
+    'hari',
+    'hari.*',
+    'jam_mulai',
+    'jam_selesai',
+    'status_aktif',
+    'tipe_layanan',
+    'berlaku_sampai',
+    'faskes_id',
+    'kuota_per_sesi',
+  ];
+
+  /// The fields the server REJECTS when sent. A tenant key, in this project, is
+  /// written from the caller's own row, so sending one is a validation error.
+  static const List<String> prohibitedFields = <String>[];
+
+  /// The wire body, omitting every field left `null`.
+  ///
+  /// Omission rather than an explicit `null` is deliberate and matches the server:
+  /// Laravel treats `sometimes|nullable` and `required` differently, and sending an
+  /// explicit `null` for a `sometimes` field is not the same request as omitting it.
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      if (berlakuMulai != null) 'berlaku_mulai': berlakuMulai,
+      if (durasiSlotMenit != null) 'durasi_slot_menit': durasiSlotMenit,
+      if (hari != null) 'hari': hari,
+      if (hari2 != null) 'hari.*': hari2,
+      if (jamMulai != null) 'jam_mulai': jamMulai,
+      if (jamSelesai != null) 'jam_selesai': jamSelesai,
+      if (statusAktif != null) 'status_aktif': statusAktif,
+      if (tipeLayanan != null) 'tipe_layanan': tipeLayanan,
+      if (berlakuSampai != null) 'berlaku_sampai': berlakuSampai,
+      if (faskesId != null) 'faskes_id': faskesId,
+      if (kuotaPerSesi != null) 'kuota_per_sesi': kuotaPerSesi,
+    };
+  }
+}
+
+/// The request body `App\Http\Requests\Admin\StoreLiburRequest` validates.
+///
+/// Every field below was read from that class's `rules()`. A `required` rule is a
+/// constructor parameter, so omitting it is a compile error rather than a 422, and the
+/// Dart type is derived from the type rules, so a `boolean` field cannot be handed a
+/// `String`.
+///
+/// [toJson] emits the WIRE names, which for a dotted Laravel attribute path is the
+/// dotted path itself -- the same string `ValidationException::errors()` uses, so a 422
+/// message maps back to the field that caused it.
+class StoreLiburRequestBody {
+  /// The `FormRequest` class these rules were read from.
+  static const String formRequest = 'App\\Http\\Requests\\Admin\\StoreLiburRequest';
+
+  /// Creates the body.
+  ///
+  /// Required fields are `required this`, so omitting one is a compile error
+  /// rather than a 422. Optional fields are plain named parameters defaulting to
+  /// `null`, which is what keeps every `final` field initialised -- a body class with
+  /// NO required field (the reference endpoints read their rules off the route name, so
+  /// several are parameterless on some paths) would otherwise have uninitialised finals.
+  const StoreLiburRequestBody({
+    required this.tanggal,
+    this.alasan,
+  });
+
+  /// `tanggal`.
+  final Object? tanggal;
+
+  /// `alasan`.
+  final Object? alasan;
+
+  /// The declared field names, required first, then optional.
+  static const List<String> fields = <String>[
+    'tanggal',
+    'alasan',
+  ];
+
+  /// The fields the server REJECTS when sent. A tenant key, in this project, is
+  /// written from the caller's own row, so sending one is a validation error.
+  static const List<String> prohibitedFields = <String>[];
+
+  /// The wire body, omitting every field left `null`.
+  ///
+  /// Omission rather than an explicit `null` is deliberate and matches the server:
+  /// Laravel treats `sometimes|nullable` and `required` differently, and sending an
+  /// explicit `null` for a `sometimes` field is not the same request as omitting it.
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      if (tanggal != null) 'tanggal': tanggal,
+      if (alasan != null) 'alasan': alasan,
+    };
+  }
+}
+
+/// The request body `App\Http\Requests\Admin\StatusDokterRequest` validates.
+///
+/// Every field below was read from that class's `rules()`. A `required` rule is a
+/// constructor parameter, so omitting it is a compile error rather than a 422, and the
+/// Dart type is derived from the type rules, so a `boolean` field cannot be handed a
+/// `String`.
+///
+/// [toJson] emits the WIRE names, which for a dotted Laravel attribute path is the
+/// dotted path itself -- the same string `ValidationException::errors()` uses, so a 422
+/// message maps back to the field that caused it.
+class StatusDokterRequestBody {
+  /// The `FormRequest` class these rules were read from.
+  static const String formRequest = 'App\\Http\\Requests\\Admin\\StatusDokterRequest';
+
+  /// Creates the body.
+  ///
+  /// Required fields are `required this`, so omitting one is a compile error
+  /// rather than a 422. Optional fields are plain named parameters defaulting to
+  /// `null`, which is what keeps every `final` field initialised -- a body class with
+  /// NO required field (the reference endpoints read their rules off the route name, so
+  /// several are parameterless on some paths) would otherwise have uninitialised finals.
+  const StatusDokterRequestBody({
+    required this.statusAktif,
+    this.tersediaTelemedisin,
+  });
+
+  /// `status_aktif`.
+  final bool? statusAktif;
+
+  /// `tersedia_telemedisin`.
+  final bool? tersediaTelemedisin;
+
+  /// The declared field names, required first, then optional.
+  static const List<String> fields = <String>[
+    'status_aktif',
+    'tersedia_telemedisin',
+  ];
+
+  /// The fields the server REJECTS when sent. A tenant key, in this project, is
+  /// written from the caller's own row, so sending one is a validation error.
+  static const List<String> prohibitedFields = <String>[];
+
+  /// The wire body, omitting every field left `null`.
+  ///
+  /// Omission rather than an explicit `null` is deliberate and matches the server:
+  /// Laravel treats `sometimes|nullable` and `required` differently, and sending an
+  /// explicit `null` for a `sometimes` field is not the same request as omitting it.
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      if (statusAktif != null) 'status_aktif': statusAktif,
+      if (tersediaTelemedisin != null) 'tersedia_telemedisin': tersediaTelemedisin,
+    };
+  }
+}
+
+/// The request body `App\Http\Requests\Admin\VerifikasiDokterRequest` validates.
+///
+/// Every field below was read from that class's `rules()`. A `required` rule is a
+/// constructor parameter, so omitting it is a compile error rather than a 422, and the
+/// Dart type is derived from the type rules, so a `boolean` field cannot be handed a
+/// `String`.
+///
+/// [toJson] emits the WIRE names, which for a dotted Laravel attribute path is the
+/// dotted path itself -- the same string `ValidationException::errors()` uses, so a 422
+/// message maps back to the field that caused it.
+class VerifikasiDokterRequestBody {
+  /// The `FormRequest` class these rules were read from.
+  static const String formRequest = 'App\\Http\\Requests\\Admin\\VerifikasiDokterRequest';
+
+  /// Creates the body.
+  ///
+  /// Required fields are `required this`, so omitting one is a compile error
+  /// rather than a 422. Optional fields are plain named parameters defaulting to
+  /// `null`, which is what keeps every `final` field initialised -- a body class with
+  /// NO required field (the reference endpoints read their rules off the route name, so
+  /// several are parameterless on some paths) would otherwise have uninitialised finals.
+  const VerifikasiDokterRequestBody({
+    required this.statusVerifikasi,
+  });
+
+  /// `status_verifikasi`, a closed set on the server.
+  final Object? statusVerifikasi;
+
+  /// The values the server accepts for `status_verifikasi`, read from its `Rule::in`.
+  ///
+  /// A `Set<String>` rather than a Dart enum on purpose: the rule's values are
+  /// data rather than a compile-time vocabulary, so the server may gain a member
+  /// without this package being released, and a set keeps the check honest
+  /// instead of failing to compile against a list it has never seen.
+  static const Set<String> statusVerifikasiAllowed = <String>{
+    'terverifikasi',
+    'ditolak',
+  };
+
+  /// The declared field names, required first, then optional.
+  static const List<String> fields = <String>[
+    'status_verifikasi',
+  ];
+
+  /// The fields the server REJECTS when sent. A tenant key, in this project, is
+  /// written from the caller's own row, so sending one is a validation error.
+  static const List<String> prohibitedFields = <String>[];
+
+  /// The wire body, omitting every field left `null`.
+  ///
+  /// Omission rather than an explicit `null` is deliberate and matches the server:
+  /// Laravel treats `sometimes|nullable` and `required` differently, and sending an
+  /// explicit `null` for a `sometimes` field is not the same request as omitting it.
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      if (statusVerifikasi != null) 'status_verifikasi': statusVerifikasi,
+    };
+  }
+}
+
+/// The request body `App\Http\Requests\Admin\UpdateJadwalRequest` validates.
+///
+/// Every field below was read from that class's `rules()`. A `required` rule is a
+/// constructor parameter, so omitting it is a compile error rather than a 422, and the
+/// Dart type is derived from the type rules, so a `boolean` field cannot be handed a
+/// `String`.
+///
+/// [toJson] emits the WIRE names, which for a dotted Laravel attribute path is the
+/// dotted path itself -- the same string `ValidationException::errors()` uses, so a 422
+/// message maps back to the field that caused it.
+class UpdateJadwalRequestBody {
+  /// The `FormRequest` class these rules were read from.
+  static const String formRequest = 'App\\Http\\Requests\\Admin\\UpdateJadwalRequest';
+
+  /// Creates the body.
+  ///
+  /// Required fields are `required this`, so omitting one is a compile error
+  /// rather than a 422. Optional fields are plain named parameters defaulting to
+  /// `null`, which is what keeps every `final` field initialised -- a body class with
+  /// NO required field (the reference endpoints read their rules off the route name, so
+  /// several are parameterless on some paths) would otherwise have uninitialised finals.
+  const UpdateJadwalRequestBody({
+    this.berlakuMulai,
+    this.berlakuSampai,
+    this.durasiSlotMenit,
+    this.faskesId,
+    this.hari,
+    this.jamMulai,
+    this.jamSelesai,
+    this.kuotaPerSesi,
+    this.statusAktif,
+    this.tipeLayanan,
+  });
+
+  /// `berlaku_mulai`.
+  final Object? berlakuMulai;
+
+  /// `berlaku_sampai`.
+  final Object? berlakuSampai;
+
+  /// `durasi_slot_menit`.
+  final int? durasiSlotMenit;
+
+  /// `faskes_id`.
+  final int? faskesId;
+
+  /// `hari`.
+  final int? hari;
+
+  /// `jam_mulai`.
+  final Object? jamMulai;
+
+  /// `jam_selesai`.
+  final Object? jamSelesai;
+
+  /// `kuota_per_sesi`.
+  final int? kuotaPerSesi;
+
+  /// `status_aktif`.
+  final bool? statusAktif;
+
+  /// `tipe_layanan`, a closed set on the server.
+  final Object? tipeLayanan;
+
+  /// The values the server accepts for `tipe_layanan`, read from its `Rule::in`.
+  ///
+  /// A `Set<String>` rather than a Dart enum on purpose: the rule's values are
+  /// data rather than a compile-time vocabulary, so the server may gain a member
+  /// without this package being released, and a set keeps the check honest
+  /// instead of failing to compile against a list it has never seen.
+  static const Set<String> tipeLayananAllowed = <String>{
+    'online',
+    'klinik',
+    'home_visit',
+  };
+
+  /// The declared field names, required first, then optional.
+  static const List<String> fields = <String>[
+    'berlaku_mulai',
+    'berlaku_sampai',
+    'durasi_slot_menit',
+    'faskes_id',
+    'hari',
+    'jam_mulai',
+    'jam_selesai',
+    'kuota_per_sesi',
+    'status_aktif',
+    'tipe_layanan',
+  ];
+
+  /// The fields the server REJECTS when sent. A tenant key, in this project, is
+  /// written from the caller's own row, so sending one is a validation error.
+  static const List<String> prohibitedFields = <String>[];
+
+  /// The wire body, omitting every field left `null`.
+  ///
+  /// Omission rather than an explicit `null` is deliberate and matches the server:
+  /// Laravel treats `sometimes|nullable` and `required` differently, and sending an
+  /// explicit `null` for a `sometimes` field is not the same request as omitting it.
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      if (berlakuMulai != null) 'berlaku_mulai': berlakuMulai,
+      if (berlakuSampai != null) 'berlaku_sampai': berlakuSampai,
+      if (durasiSlotMenit != null) 'durasi_slot_menit': durasiSlotMenit,
+      if (faskesId != null) 'faskes_id': faskesId,
+      if (hari != null) 'hari': hari,
+      if (jamMulai != null) 'jam_mulai': jamMulai,
+      if (jamSelesai != null) 'jam_selesai': jamSelesai,
+      if (kuotaPerSesi != null) 'kuota_per_sesi': kuotaPerSesi,
+      if (statusAktif != null) 'status_aktif': statusAktif,
+      if (tipeLayanan != null) 'tipe_layanan': tipeLayanan,
+    };
+  }
+}
+
+/// The request body `App\Http\Requests\Admin\LaporanBookingRequest` validates.
+///
+/// Every field below was read from that class's `rules()`. A `required` rule is a
+/// constructor parameter, so omitting it is a compile error rather than a 422, and the
+/// Dart type is derived from the type rules, so a `boolean` field cannot be handed a
+/// `String`.
+///
+/// [toJson] emits the WIRE names, which for a dotted Laravel attribute path is the
+/// dotted path itself -- the same string `ValidationException::errors()` uses, so a 422
+/// message maps back to the field that caused it.
+class LaporanBookingRequestBody {
+  /// The `FormRequest` class these rules were read from.
+  static const String formRequest = 'App\\Http\\Requests\\Admin\\LaporanBookingRequest';
+
+  /// Creates the body.
+  ///
+  /// Required fields are `required this`, so omitting one is a compile error
+  /// rather than a 422. Optional fields are plain named parameters defaulting to
+  /// `null`, which is what keeps every `final` field initialised -- a body class with
+  /// NO required field (the reference endpoints read their rules off the route name, so
+  /// several are parameterless on some paths) would otherwise have uninitialised finals.
+  const LaporanBookingRequestBody({
+    required this.dari,
+    required this.sampai,
+    this.dokterId,
+  });
+
+  /// `dari`.
+  final Object? dari;
+
+  /// `sampai`.
+  final Object? sampai;
+
+  /// `dokter_id`.
+  final int? dokterId;
+
+  /// The declared field names, required first, then optional.
+  static const List<String> fields = <String>[
+    'dari',
+    'sampai',
+    'dokter_id',
+  ];
+
+  /// The fields the server REJECTS when sent. A tenant key, in this project, is
+  /// written from the caller's own row, so sending one is a validation error.
+  static const List<String> prohibitedFields = <String>[];
+
+  /// The wire body, omitting every field left `null`.
+  ///
+  /// Omission rather than an explicit `null` is deliberate and matches the server:
+  /// Laravel treats `sometimes|nullable` and `required` differently, and sending an
+  /// explicit `null` for a `sometimes` field is not the same request as omitting it.
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      if (dari != null) 'dari': dari,
+      if (sampai != null) 'sampai': sampai,
+      if (dokterId != null) 'dokter_id': dokterId,
+    };
+  }
+}
+
+/// The request body `App\Http\Requests\Admin\LaporanKehadiranRequest` validates.
+///
+/// Every field below was read from that class's `rules()`. A `required` rule is a
+/// constructor parameter, so omitting it is a compile error rather than a 422, and the
+/// Dart type is derived from the type rules, so a `boolean` field cannot be handed a
+/// `String`.
+///
+/// [toJson] emits the WIRE names, which for a dotted Laravel attribute path is the
+/// dotted path itself -- the same string `ValidationException::errors()` uses, so a 422
+/// message maps back to the field that caused it.
+class LaporanKehadiranRequestBody {
+  /// The `FormRequest` class these rules were read from.
+  static const String formRequest = 'App\\Http\\Requests\\Admin\\LaporanKehadiranRequest';
+
+  /// Creates the body.
+  ///
+  /// Required fields are `required this`, so omitting one is a compile error
+  /// rather than a 422. Optional fields are plain named parameters defaulting to
+  /// `null`, which is what keeps every `final` field initialised -- a body class with
+  /// NO required field (the reference endpoints read their rules off the route name, so
+  /// several are parameterless on some paths) would otherwise have uninitialised finals.
+  const LaporanKehadiranRequestBody({
+    required this.dari,
+    required this.sampai,
+  });
+
+  /// `dari`.
+  final Object? dari;
+
+  /// `sampai`.
+  final Object? sampai;
+
+  /// The declared field names, required first, then optional.
+  static const List<String> fields = <String>[
+    'dari',
+    'sampai',
+  ];
+
+  /// The fields the server REJECTS when sent. A tenant key, in this project, is
+  /// written from the caller's own row, so sending one is a validation error.
+  static const List<String> prohibitedFields = <String>[];
+
+  /// The wire body, omitting every field left `null`.
+  ///
+  /// Omission rather than an explicit `null` is deliberate and matches the server:
+  /// Laravel treats `sometimes|nullable` and `required` differently, and sending an
+  /// explicit `null` for a `sometimes` field is not the same request as omitting it.
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      if (dari != null) 'dari': dari,
+      if (sampai != null) 'sampai': sampai,
+    };
+  }
+}
+
+/// The request body `App\Http\Requests\Admin\LaporanPendapatanRequest` validates.
+///
+/// Every field below was read from that class's `rules()`. A `required` rule is a
+/// constructor parameter, so omitting it is a compile error rather than a 422, and the
+/// Dart type is derived from the type rules, so a `boolean` field cannot be handed a
+/// `String`.
+///
+/// [toJson] emits the WIRE names, which for a dotted Laravel attribute path is the
+/// dotted path itself -- the same string `ValidationException::errors()` uses, so a 422
+/// message maps back to the field that caused it.
+class LaporanPendapatanRequestBody {
+  /// The `FormRequest` class these rules were read from.
+  static const String formRequest = 'App\\Http\\Requests\\Admin\\LaporanPendapatanRequest';
+
+  /// Creates the body.
+  ///
+  /// Required fields are `required this`, so omitting one is a compile error
+  /// rather than a 422. Optional fields are plain named parameters defaulting to
+  /// `null`, which is what keeps every `final` field initialised -- a body class with
+  /// NO required field (the reference endpoints read their rules off the route name, so
+  /// several are parameterless on some paths) would otherwise have uninitialised finals.
+  const LaporanPendapatanRequestBody({
+    required this.dari,
+    required this.sampai,
+  });
+
+  /// `dari`.
+  final Object? dari;
+
+  /// `sampai`.
+  final Object? sampai;
+
+  /// The declared field names, required first, then optional.
+  static const List<String> fields = <String>[
+    'dari',
+    'sampai',
+  ];
+
+  /// The fields the server REJECTS when sent. A tenant key, in this project, is
+  /// written from the caller's own row, so sending one is a validation error.
+  static const List<String> prohibitedFields = <String>[];
+
+  /// The wire body, omitting every field left `null`.
+  ///
+  /// Omission rather than an explicit `null` is deliberate and matches the server:
+  /// Laravel treats `sometimes|nullable` and `required` differently, and sending an
+  /// explicit `null` for a `sometimes` field is not the same request as omitting it.
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      if (dari != null) 'dari': dari,
+      if (sampai != null) 'sampai': sampai,
+    };
+  }
+}
+
+/// The request body `App\Http\Requests\Admin\IndexPersetujuanPdpRequest` validates.
+///
+/// Every field below was read from that class's `rules()`. A `required` rule is a
+/// constructor parameter, so omitting it is a compile error rather than a 422, and the
+/// Dart type is derived from the type rules, so a `boolean` field cannot be handed a
+/// `String`.
+///
+/// [toJson] emits the WIRE names, which for a dotted Laravel attribute path is the
+/// dotted path itself -- the same string `ValidationException::errors()` uses, so a 422
+/// message maps back to the field that caused it.
+class IndexPersetujuanPdpRequestBody {
+  /// The `FormRequest` class these rules were read from.
+  static const String formRequest = 'App\\Http\\Requests\\Admin\\IndexPersetujuanPdpRequest';
+
+  /// Creates the body.
+  ///
+  /// Required fields are `required this`, so omitting one is a compile error
+  /// rather than a 422. Optional fields are plain named parameters defaulting to
+  /// `null`, which is what keeps every `final` field initialised -- a body class with
+  /// NO required field (the reference endpoints read their rules off the route name, so
+  /// several are parameterless on some paths) would otherwise have uninitialised finals.
+  const IndexPersetujuanPdpRequestBody({
+    this.disetujui,
+    this.jenis,
+    this.page,
+    this.perPage,
+    this.userId,
+  });
+
+  /// `disetujui`.
+  final bool? disetujui;
+
+  /// `jenis`, a closed set on the server.
+  final Object? jenis;
+
+  /// `page`.
+  final int? page;
+
+  /// `per_page`.
+  final int? perPage;
+
+  /// `user_id`.
+  final int? userId;
+
+  /// The values the server accepts for `jenis`, read from its `Rule::in`.
+  ///
+  /// A `Set<String>` rather than a Dart enum on purpose: the rule's values are
+  /// data rather than a compile-time vocabulary, so the server may gain a member
+  /// without this package being released, and a set keeps the check honest
+  /// instead of failing to compile against a list it has never seen.
+  static const Set<String> jenisAllowed = <String>{
+    'syarat_ketentuan',
+    'kebijakan_privasi',
+    'berbagi_data_medis',
+    'pemasaran',
+    'komunikasi_tindak_lanjut',
+  };
+
+  /// The declared field names, required first, then optional.
+  static const List<String> fields = <String>[
+    'disetujui',
+    'jenis',
+    'page',
+    'per_page',
+    'user_id',
+  ];
+
+  /// The fields the server REJECTS when sent. A tenant key, in this project, is
+  /// written from the caller's own row, so sending one is a validation error.
+  static const List<String> prohibitedFields = <String>[];
+
+  /// The wire body, omitting every field left `null`.
+  ///
+  /// Omission rather than an explicit `null` is deliberate and matches the server:
+  /// Laravel treats `sometimes|nullable` and `required` differently, and sending an
+  /// explicit `null` for a `sometimes` field is not the same request as omitting it.
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      if (disetujui != null) 'disetujui': disetujui,
+      if (jenis != null) 'jenis': jenis,
+      if (page != null) 'page': page,
+      if (perPage != null) 'per_page': perPage,
+      if (userId != null) 'user_id': userId,
+    };
+  }
+}
+
 /// The request body `App\Http\Requests\Auth\StoreDeviceRequest` validates.
 ///
 /// Every field below was read from that class's `rules()`. A `required` rule is a

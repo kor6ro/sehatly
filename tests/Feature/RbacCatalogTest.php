@@ -32,7 +32,7 @@ use Illuminate\Support\Facades\DB;
 |
 | **`RbacCatalog::PERMISSIONS` cannot be derived, only constrained.** The DDL
 | documents *no* permission values: it fixes the column, its length, its
-| uniqueness and one example in a comment (`:159`), and nothing else. The 24 codes
+| uniqueness and one example in a comment (`:159`), and nothing else. The 25 codes
 | are the plan's list, so the strongest honest claim available is that each is
 | well-formed under the DDL's own `<resource>.<aksi>` example, that each fits
 | `VARCHAR(100)`, that each is granted to at least one role so no route guards a
@@ -166,10 +166,11 @@ test('every permission code follows the DDL own naming convention', function ():
 // -------------------------------------------------------- catalogue invariants
 
 test('the catalogue holds at least the plan twenty two permissions', function (): void {
-    // The plan's acceptance bar is ">= 22". 24 is what the catalogue carries; the
-    // second assertion is written at the actual number so a trim has to be a
-    // deliberate edit of this line.
-    expect(RbacCatalog::PERMISSIONS)->toHaveCount(24)
+    // The plan's acceptance bar is ">= 22". 25 is what the catalogue carries after
+    // F14's owner-approved `laporan.lihat`; the second assertion is written at the
+    // actual number so a trim or an addition has to be a deliberate edit of this
+    // line.
+    expect(RbacCatalog::PERMISSIONS)->toHaveCount(25)
         ->and(count(RbacCatalog::PERMISSIONS))->toBeGreaterThanOrEqual(22);
 });
 
@@ -287,8 +288,9 @@ test('the seeded role permission pairs are exactly the catalogue mapping', funct
     usort($expected, static fn (array $a, array $b): int => [$a['nama'], $a['kode']] <=> [$b['nama'], $b['kode']]);
 
     expect($actual)->toBe($expected)
-        // 13 + 16 + 6 + 10 + 24, stated so a trim of the mapping is a visible edit.
-        ->and($actual)->toHaveCount(69);
+        // 13 + 16 + 6 + 11 + 25, stated so a trim of the mapping is a visible edit.
+        // Admin's 11 includes F14's `laporan.lihat`; superadmin holds all 25.
+        ->and($actual)->toHaveCount(71);
 });
 
 test('the seeder writes no user roles rows', function (): void {

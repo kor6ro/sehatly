@@ -523,7 +523,7 @@ test('me returns the caller with a masked patient NIK and no password hash anywh
 });
 
 test('me publishes null for a relation the account does not own, and never refuses for it', function (): void {
-    // A `superadmin` holds all 24 permissions and owns neither a `pasien` nor a `dokter`
+    // A `superadmin` holds all 25 permissions and owns neither a `pasien` nor a `dokter`
     // row. "What does your account look like" is not an authorisation question, so `/me`
     // answers rather than 403s - the patient routes are where a missing row IS a 403.
     $admin = User::factory()->create(['tipe' => 'superadmin', 'status' => 'aktif']);
@@ -843,7 +843,7 @@ test('a profile update is a partial update, so an absent key leaves the stored v
 // =====================================================================
 
 test('a non-patient account is refused with 403 on every mutating route, whatever it holds', function (string $method, string $uri): void {
-    // A `superadmin` holds all 24 permission codes in `RbacCatalog::ROLE_PERMISSIONS` and
+    // A `superadmin` holds all 25 permission codes in `RbacCatalog::ROLE_PERMISSIONS` and
     // it still cannot act on a patient self-service record. That is the strongest available
     // statement that the gate is a data check and not a grant: no amount of permission
     // turns a non-patient into a patient.
@@ -1590,6 +1590,32 @@ test('the route table exposes the eight auth routes and the eleven patient route
         // registration order. A `pasien` path a `--path=api/v1/pasien` filter
         // DOES see, which is why the count below moves 13 -> 14.
         'GET api/v1/pasien/refund',
+        // F14's SIXTEEN admin routes, appended at the very end of `routes/api.php`
+        // as the first `/admin` prefix in the file. Listed here rather than dropped,
+        // for the reason the closed set above already states: a closed set that
+        // quietly forgives a new route is the exact drift it exists to catch.
+        //
+        // None of them is under `api/v1/pasien`, so the `$pasienRoutes` count below
+        // does not move - and that is the point worth keeping in view. This surface
+        // is party-gated to `admin`/`superadmin`, so a patient token cannot reach
+        // it even where a patient role holds the permission (`dokter.lihat`,
+        // `jadwal.lihat`), which is what the F14 feature tests assert directly.
+        'GET api/v1/admin/dokter',
+        'GET api/v1/admin/dokter/{id}',
+        'PUT api/v1/admin/dokter/{id}/verifikasi',
+        'PUT api/v1/admin/dokter/{id}/status',
+        'GET api/v1/admin/dokter/{id}/jadwal',
+        'POST api/v1/admin/dokter/{id}/jadwal',
+        'GET api/v1/admin/dokter/{id}/libur',
+        'POST api/v1/admin/dokter/{id}/libur',
+        'PUT api/v1/admin/jadwal/{id}',
+        'DELETE api/v1/admin/jadwal/{id}',
+        'DELETE api/v1/admin/libur/{id}',
+        'GET api/v1/admin/laporan/booking',
+        'GET api/v1/admin/laporan/pendapatan',
+        'GET api/v1/admin/laporan/kehadiran',
+        'GET api/v1/admin/audit-log',
+        'GET api/v1/admin/persetujuan-pdp',
     ]);
 
     // FOURTEEN under the `pasien` filter: the ten above (profil read + write,
@@ -1852,6 +1878,35 @@ test('the route table exposes the eight auth routes and the eleven patient route
             'GET api/v1/notifikasi' => ['permission:notifikasi.lihat'],
             'PUT api/v1/notifikasi/{id}/baca' => ['permission:notifikasi.lihat'],
             'PUT api/v1/notifikasi/baca-semua' => ['permission:notifikasi.lihat'],
+            // F14's SIXTEEN admin routes. Every one carries `tipe:admin,superadmin`,
+            // which is the party gate the whole surface rests on, and nine carry a
+            // READ grant on top of it.
+            //
+            // The eight WRITES carry the party gate ALONE. That is a decision
+            // recorded rather than an omission: the owner-approved F14 codes name
+            // reads (`dokter.lihat`, `jadwal.lihat`) and the report code F14 added
+            // names a read too, and reusing `dokter.lihat` on a credential mutation
+            // would widen a grant `pasien`, `dokter` and `apoteker` all hold - the
+            // catalogue's own `<resource>.<aksi>` naming makes a `.lihat` code a
+            // read. The F14 feature suite proves a patient who HOLDS `dokter.lihat`
+            // is still refused 403 on every one of these, which is the party gate
+            // doing the work no permission code is doing.
+            'GET api/v1/admin/dokter' => ['permission:dokter.lihat', 'tipe:admin,superadmin'],
+            'GET api/v1/admin/dokter/{id}' => ['permission:dokter.lihat', 'tipe:admin,superadmin'],
+            'PUT api/v1/admin/dokter/{id}/verifikasi' => ['tipe:admin,superadmin'],
+            'PUT api/v1/admin/dokter/{id}/status' => ['tipe:admin,superadmin'],
+            'GET api/v1/admin/dokter/{id}/jadwal' => ['permission:jadwal.lihat', 'tipe:admin,superadmin'],
+            'POST api/v1/admin/dokter/{id}/jadwal' => ['tipe:admin,superadmin'],
+            'GET api/v1/admin/dokter/{id}/libur' => ['permission:jadwal.lihat', 'tipe:admin,superadmin'],
+            'POST api/v1/admin/dokter/{id}/libur' => ['tipe:admin,superadmin'],
+            'PUT api/v1/admin/jadwal/{id}' => ['tipe:admin,superadmin'],
+            'DELETE api/v1/admin/jadwal/{id}' => ['tipe:admin,superadmin'],
+            'DELETE api/v1/admin/libur/{id}' => ['tipe:admin,superadmin'],
+            'GET api/v1/admin/laporan/booking' => ['permission:laporan.lihat', 'tipe:admin,superadmin'],
+            'GET api/v1/admin/laporan/pendapatan' => ['permission:laporan.lihat', 'tipe:admin,superadmin'],
+            'GET api/v1/admin/laporan/kehadiran' => ['permission:laporan.lihat', 'tipe:admin,superadmin'],
+            'GET api/v1/admin/audit-log' => ['permission:audit.lihat', 'tipe:admin,superadmin'],
+            'GET api/v1/admin/persetujuan-pdp' => ['permission:pdp.kelola', 'tipe:admin,superadmin'],
         ];
 
         expect($guards)->toEqualCanonicalizing(
@@ -2006,6 +2061,32 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         // `superadmin` that holds `resep.verifikasi`.
         "'permission:resep.verifikasi'",
         "'tipe:apoteker'",
+        // F14 contributes TEN strings, which is the whole of the 43 -> 53 movement.
+        // It is the first `/admin` prefix in `routes/api.php`, and its shape is
+        // unlike every block above: the party gate `tipe:admin,superadmin` is
+        // declared ONCE on the wrapping group rather than repeated per route, so
+        // sixteen routes contribute ONE `tipe:` hit. The nine `permission:` hits
+        // are all READ grants - `dokter.lihat` and `jadwal.lihat` twice each, the
+        // three reports on the single catalogue code F14 added
+        // (`laporan.lihat`), and `audit.lihat`/`pdp.kelola` each on the one
+        // endpoint that finally consumes the code reserved for it.
+        //
+        // F14's eight WRITES contribute NOTHING here, and that is the decision
+        // rather than the omission: no code naming a doctor or schedule MUTATION
+        // was approved, so those routes are guarded by the party gate alone.
+        // Duplicated deliberately from `AuthFlowTest` over the same regex: a
+        // closed set only one file watches is a closed set one later refactor can
+        // quietly reopen.
+        "'tipe:admin,superadmin'",
+        "'permission:dokter.lihat'",
+        "'permission:dokter.lihat'",
+        "'permission:jadwal.lihat'",
+        "'permission:jadwal.lihat'",
+        "'permission:laporan.lihat'",
+        "'permission:laporan.lihat'",
+        "'permission:laporan.lihat'",
+        "'permission:audit.lihat'",
+        "'permission:pdp.kelola'",
     ]);
 });
 

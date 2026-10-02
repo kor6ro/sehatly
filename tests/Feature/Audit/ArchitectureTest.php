@@ -58,15 +58,19 @@ test('no controller writes an audit row, in any spelling', function () {
             ->toBeFalse($relative.' inserts an audit row directly');
     }
 
-    // And the log is not an API resource: `tabel_target` is nullable so a
-    // caller can address an audit row, but a caller must not be able to create
-    // one through an endpoint.
-    $routes = collect(app('router')->getRoutes())->map(
-        fn ($route) => $route->uri().' '.implode('|', $route->methods())
-    );
+    // And the log is a READ, never a resource a caller can write through. F14
+    // added `GET /api/v1/admin/audit-log`, so this can no longer be the negative
+    // claim it was when the trail had no route at all: the positive claim is
+    // stronger, because it names the one route and pins its method. "There is a
+    // route and it is a GET" cannot become "somebody added a POST" without
+    // failing here, which "no route mentions audit" could not catch.
+    $jejakAudit = collect(app('router')->getRoutes())
+        ->filter(fn ($route): bool => str_contains($route->uri(), 'audit'))
+        ->map(fn ($route): string => $route->uri().' '.implode('|', $route->methods()))
+        ->values()
+        ->all();
 
-    expect($routes->filter(fn (string $route) => str_contains($route, 'audit'))->values()->all())
-        ->toBe([], 'the audit log is not an API resource');
+    expect($jejakAudit)->toBe(['api/v1/admin/audit-log GET|HEAD']);
 });
 
 test('the writer is the only file in app/ that names the table, apart from the model', function () {

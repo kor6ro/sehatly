@@ -209,7 +209,7 @@ test('the permission middleware answers 401 itself when the route forgets the gu
 });
 
 test('the permission check costs at most two queries whatever the caller holds', function (): void {
-    // The plan's own criterion, with the caller holding all five roles and 69 grants:
+    // The plan's own criterion, with the caller holding all five roles and 71 grants:
     // the cost must be flat in the number of roles, which is exactly what a
     // per-role loop or an eager load would not be.
     Sanctum::actingAs(rbacTestUser('superadmin', [

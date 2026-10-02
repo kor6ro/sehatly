@@ -4,7 +4,7 @@ Telemedicine platform: a Laravel 13 API for appointments, video/text consultatio
 prescriptions and clinic administration; a React SPA in `web/`; and a pure-Dart
 client package for the mobile team.
 
-The API surface is **83 routes** under `/api/v1`. Every one of them is published
+The API surface is **99 routes** under `/api/v1`. Every one of them is published
 as an OpenAPI 3.1 document that is *generated from the running application*, not
 maintained by hand, and a drift check fails the build if the two disagree.
 
@@ -139,7 +139,7 @@ server proxies `/api` to `http://localhost:8000`.
 ## The test suites
 
 ```console
-php artisan test                        # 1328 tests, 24452 assertions
+php artisan test                        # 1456 tests, 25692 assertions
 npm run types:check                     # tsc --noEmit over web/, including the generated types
 npm run build                           # the SPA production build
 npm --prefix web run test:unit          # 14 web unit tests
@@ -311,7 +311,7 @@ type check and no test catches.
 
 | Document | What it is |
 | --- | --- |
-| [`docs/openapi.yaml`](docs/openapi.yaml) | **Generated.** The OpenAPI 3.1 contract for all 83 `/api/v1` routes |
+| [`docs/openapi.yaml`](docs/openapi.yaml) | **Generated.** The OpenAPI 3.1 contract for all 99 `/api/v1` routes |
 | [`docs/enums.json`](docs/enums.json) | **Generated.** Every ENUM column and value, cross-checked against the DDL |
 | [`docs/schema-notes.md`](docs/schema-notes.md) | Deferred constraints, extra tables, known schema defects |
 | [`docs/migration-order.md`](docs/migration-order.md) | Why the migrations are in this order |

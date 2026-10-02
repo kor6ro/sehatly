@@ -1433,13 +1433,17 @@ use App\Http\Controllers\Api\V1\PersetujuanPdpController;
 | in the query string, so there is no cross-tenant question for a permission to
 | answer.
 |
-| `pdp.kelola` therefore has NO consumer after this todo, and that is deliberate
-| rather than forgotten - `PdpNotificationTest` asserts it, so the claim cannot rot
-| into a false one. The reason is a compliance one: a route letting an `admin`
-| RECORD a data subject's consent would be a defect wearing a permission code,
-| because UU PDP asks the person and not their employer. The code stays in the
-| catalogue for the future admin READ surface, which is a different route and one
-| this todo declines to invent.
+| `pdp.kelola` therefore had NO consumer after this todo, and that was
+| deliberate rather than forgotten - `PdpNotificationTest` asserts it, so the
+| claim could not rot into a false one. The reason is a compliance one: a route
+| letting an `admin` RECORD a data subject's consent would be a defect wearing a
+| permission code, because UU PDP asks the person and not their employer. The
+| code was kept in the catalogue **for the future admin READ surface**, which is
+| a different route and one this todo declined to invent. **F14 is that surface:**
+| `GET /admin/persetujuan-pdp` below consumes `pdp.kelola` as a strictly
+| read-only ledger, and the three consent routes here still carry no
+| `permission:`. `PdpNotificationTest`'s claim is updated in the same commit so
+| the two files cannot disagree about who holds the code.
 |
 | `perawat` and `kurir` are the flip side. They are real `users.tipe` values
 | (:139) that hold NO role, so any `permission:` would lock them out of these
@@ -1509,3 +1513,253 @@ Route::put('notifikasi/{id}/baca', [NotifikasiController::class, 'baca'])
 Route::put('notifikasi/baca-semua', [NotifikasiController::class, 'bacaSemua'])
     ->middleware(['auth:sanctum', 'permission:notifikasi.lihat', 'throttle:notifikasi-baca'])
     ->name('notifikasi.baca-semua');
+
+use App\Http\Controllers\Api\V1\AdminAuditLogController;
+use App\Http\Controllers\Api\V1\AdminDokterController;
+use App\Http\Controllers\Api\V1\AdminJadwalController;
+use App\Http\Controllers\Api\V1\AdminLaporanController;
+use App\Http\Controllers\Api\V1\AdminPersetujuanPdpController;
+
+/*
+|--------------------------------------------------------------------------
+| F14 -- the admin clinic surface. SIXTEEN routes, and the first `/admin`
+| prefix in this file.
+|--------------------------------------------------------------------------
+|
+| APPENDED by F14. Nothing above this line is touched. Before this block the
+| application had ZERO admin routes: `dokter.lihat`, `jadwal.lihat`,
+| `audit.lihat` and `pdp.kelola` were catalogue codes with no consumer, and
+| `docs/openapi.yaml` published no `/admin` path at all. F14 is the backend the
+| F14 pattern (`web/ux/patterns/F14.md`) is blocked on.
+|
+| ## The sixteen, grouped by resource and registered literals-first
+|
+| | route | `permission:` | writes |
+| | --- | --- | --- |
+| | `GET /admin/dokter` | `dokter.lihat` | nothing |
+| | `GET /admin/dokter/{id}` | `dokter.lihat` | nothing |
+| | `PUT /admin/dokter/{id}/verifikasi` | - | one verification decision |
+| | `PUT /admin/dokter/{id}/status` | - | `status_aktif` (`tersedia_telemedisin` optional) |
+| | `GET /admin/dokter/{id}/jadwal` | `jadwal.lihat` | nothing |
+| | `POST /admin/dokter/{id}/jadwal` | - | one row per `hari[]` |
+| | `GET /admin/dokter/{id}/libur` | `jadwal.lihat` | nothing |
+| | `POST /admin/dokter/{id}/libur` | - | one whole-day leave date |
+| | `PUT /admin/jadwal/{id}` | - | one window, wholly or partially |
+| | `DELETE /admin/jadwal/{id}` | - | one window, 422 while referenced |
+| | `DELETE /admin/libur/{id}` | - | one leave date |
+| | `GET /admin/laporan/booking` | `laporan.lihat` | nothing |
+| | `GET /admin/laporan/pendapatan` | `laporan.lihat` | nothing |
+| | `GET /admin/laporan/kehadiran` | `laporan.lihat` | nothing |
+| | `GET /admin/audit-log` | `audit.lihat` | nothing |
+| | `GET /admin/persetujuan-pdp` | `pdp.kelola` | nothing |
+|
+| Every route carries `auth:sanctum` and `tipe:admin,superadmin`. The list,
+| detail, schedule and leave reads are `GET`s, registered before the `{id}`
+| wildcards of their own groups so the file's "literals before wildcards"
+| convention holds by reading order as well as by segment count; `dokter/{id}`
+| cannot swallow `dokter/{id}/jadwal` (two segments versus three), and the
+| `laporan`, `audit-log` and `persetujuan-pdp` paths are all distinct literal
+| segments of `admin`.
+|
+| ## The permission decision: READ codes on the reads, the PARTY gate on the writes
+|
+| The owner-approved F14 scope names four permission codes - `dokter.lihat`,
+| `jadwal.lihat`, `audit.lihat`, `pdp.kelola` - and all four are READ grants
+| except `pdp.kelola`, which is a management grant whose surface is deliberately
+| read-only. **No code that names a doctor or schedule MUTATION was approved**:
+| the F14 pattern's proposal for `dokter.kelola`/`jadwal.kelola` is an open
+| question in `web/ux/patterns/F14.md` section 12 item 1, and the owner did not
+| take it. The write routes are therefore authorised by the account type the
+| owner named as the audience - `tipe:admin,superadmin` - and carry no
+| `permission:` at all.
+|
+| The alternative considered and rejected: reusing `dokter.lihat`/`jadwal.lihat`
+| on the writes. It would have made the routes "look" uniform, but it contradicts
+| the very naming logic the owner applied when deciding the report code - a
+| `<resource>.lihat` grant names a READ, and the report case is precedent: no
+| approved code named an aggregate over `booking`/`invoice`, so `laporan.lihat`
+| was added and granted to `admin`+`superadmin`. Reusing a read code to write
+| would silently widen a grant that `pasien`, `dokter` and `apoteker` also hold,
+| leaving only the party gate between a patient and a credential mutation if the
+| party gate were ever refactored away. The party gate is sufficient and honest:
+| suspending, verifying and rescheduling are admin operations, and `/admin` is
+| the admin namespace.
+|
+| ## `laporan.lihat` is the ONE new catalogue code, and it was approved
+|
+| The three report reads aggregate `booking`/`invoice` counts that no existing
+| code names (`dokter.lihat` names a doctor, `jadwal.lihat` a schedule,
+| `audit.lihat` the trail, `pdp.kelola` consent). The owner's scope authorises
+| adding `laporan.lihat` exactly when none fits, and none fits. It is added to
+| `RbacCatalog::PERMISSIONS` (derived name "Lihat Laporan") and granted to
+| `admin` and `superadmin` following `ROLE_PERMISSIONS`' one rule. The catalogue
+| test's counts and the seeder's docblocks moved with it.
+|
+| ## What is deliberately NOT here
+|
+| - **No export route.** The owner's decision, matching the F14 pattern's
+|   "tidak ada export di v1". The reports answer JSON only.
+| - **No bulk-action route.** The pattern proposes
+|   `POST /admin/dokter/aksi-massal` and `POST /admin/jadwal/aksi-massal`; the
+|   owner-approved endpoint list does not, so none is invented. A client that
+|   needs to suspend ten doctors calls `PUT /admin/dokter/{id}/status` ten
+|   times, and the per-row answer is exactly what the pattern's "hasil per-item"
+|   requirement needs. Recorded as an open item in the F14 report.
+| - **No writes on `audit_log` and no writes on `persetujuan_pdp`.** An
+|   append-only trail and a consent record are read here and written elsewhere
+|   (observers; the subject's own endpoint). No POST/PUT/PATCH/DELETE exists for
+|   either, and none should.
+| - **No `Route::resource`/`apiResource` anywhere in this block.** The
+|   operations have distinct verbs, bodies and status codes, and a resource
+|   route would publish `show`/`destroy` shapes these resources do not have -
+|   e.g. an audit-log `destroy`, which the table's schema makes impossible.
+|
+| ## `{id}` is numeric on both row-addressed groups
+|
+| `dokter.id`, `dokter_jadwal.id` and `dokter_libur.id` are
+| `BIGINT UNSIGNED AUTO_INCREMENT` primary keys, so `whereNumber('id')` makes a
+| non-numeric segment a router 404 and no request can arrive with `abc` in a
+| position the API treats as an identifier. The list/detail controller methods
+| take `int` for the same reason.
+|
+| ## Why the admin directory does NOT reuse the public `dokter` routes
+|
+| `GET /dokter` and `GET /dokter/{dokter}` are public and deliberately hide
+| unverified, inactive, telemedicine-opted-out, STR-expired and soft-deleted
+| doctors. The admin list is the exact complement of that rule, so it reads
+| `dokter` directly through `App\Services\Admin\AdminDokterService` and never
+| `v_dokter_katalog` or `DokterDirectoryService`. Sharing one query would make
+| one of the two surfaces lie; the service docblock carries the full argument.
+|
+| ## What the contract publishes, and what it does not
+|
+| The success envelope rule is the action's own source: `GET /admin/dokter`,
+| `GET /admin/dokter/{id}/jadwal`, `GET /admin/dokter/{id}/libur`,
+| `GET /admin/audit-log` and `GET /admin/persetujuan-pdp` answer `meta`
+| (`pageMeta` for the paginated two, `singlePageMeta` for the week-length two),
+| so they publish `PaginatedEnvelope`; the reports answer aggregates with no
+| `meta`, so they publish `SuccessEnvelope`. The writes answer the standard
+| three-key success envelope. Query parameters are not published for `GET`s
+| (the project-wide generator limitation recorded as finding 7), so the
+| `422`s these `FormRequest`s make reachable are documented only in the request
+| classes' docblocks.
+|
+| @see \App\Http\Controllers\Api\V1\AdminDokterController
+| @see \App\Http\Controllers\Api\V1\AdminJadwalController
+| @see \App\Http\Controllers\Api\V1\AdminLaporanController
+| @see \App\Http\Controllers\Api\V1\AdminAuditLogController
+| @see \App\Http\Controllers\Api\V1\AdminPersetujuanPdpController
+| @see \App\Services\Admin\AdminDokterService
+| @see \App\Services\Admin\AdminJadwalService
+| @see \App\Services\Admin\AdminLaporanService
+*/
+
+Route::middleware(['auth:sanctum', 'tipe:admin,superadmin'])
+    ->prefix('admin')
+    ->name('admin.')
+    ->group(function (): void {
+        /*
+        | The doctor directory. The two reads carry `dokter.lihat` - the code
+        | `DokterController`'s docblock reserved for exactly this endpoint - and
+        | the two decisions carry the party gate alone, for the reason the block
+        | above records. `dokter` is a one-segment literal registered BEFORE the
+        | `{id}` wildcard.
+        */
+        Route::get('dokter', [AdminDokterController::class, 'index'])
+            ->middleware('permission:dokter.lihat')
+            ->name('dokter.index');
+
+        Route::get('dokter/{id}', [AdminDokterController::class, 'show'])
+            ->whereNumber('id')
+            ->middleware('permission:dokter.lihat')
+            ->name('dokter.show');
+
+        Route::put('dokter/{id}/verifikasi', [AdminDokterController::class, 'verifikasi'])
+            ->whereNumber('id')
+            ->name('dokter.verifikasi');
+
+        Route::put('dokter/{id}/status', [AdminDokterController::class, 'status'])
+            ->whereNumber('id')
+            ->name('dokter.status');
+
+        /*
+        | The weekly windows. The two reads carry `jadwal.lihat`; the writes
+        | carry the party gate. `POST` takes `hari[]` and answers one row per
+        | day, atomically - a conflict on any day refuses the whole request.
+        */
+        Route::get('dokter/{id}/jadwal', [AdminJadwalController::class, 'index'])
+            ->whereNumber('id')
+            ->middleware('permission:jadwal.lihat')
+            ->name('dokter.jadwal.index');
+
+        Route::post('dokter/{id}/jadwal', [AdminJadwalController::class, 'store'])
+            ->whereNumber('id')
+            ->name('dokter.jadwal.store');
+
+        /*
+        | The whole-day leave dates. The schema has no hours, so neither does
+        | the request; `GET` carries `jadwal.lihat` because a leave date is
+        | schedule data, and the writes carry the party gate.
+        */
+        Route::get('dokter/{id}/libur', [AdminJadwalController::class, 'liburIndex'])
+            ->whereNumber('id')
+            ->middleware('permission:jadwal.lihat')
+            ->name('dokter.libur.index');
+
+        Route::post('dokter/{id}/libur', [AdminJadwalController::class, 'liburStore'])
+            ->whereNumber('id')
+            ->name('dokter.libur.store');
+
+        /*
+        | Row-addressed schedule writes. `PUT` is partial by design: the same
+        | route publishes and unpublishes a draft by sending `status_aktif`
+        | alone. `DELETE` refuses with a 422 while any booking references the
+        | row, because `booking.jadwal_id`'s FK is RESTRICT.
+        */
+        Route::put('jadwal/{id}', [AdminJadwalController::class, 'update'])
+            ->whereNumber('id')
+            ->name('jadwal.update');
+
+        Route::delete('jadwal/{id}', [AdminJadwalController::class, 'destroy'])
+            ->whereNumber('id')
+            ->name('jadwal.destroy');
+
+        Route::delete('libur/{id}', [AdminJadwalController::class, 'liburDestroy'])
+            ->whereNumber('id')
+            ->name('libur.destroy');
+
+        /*
+        | The three reports. All reads, all carrying `laporan.lihat` - the one
+        | catalogue code F14 added. No export route exists; see the block above.
+        */
+        Route::get('laporan/booking', [AdminLaporanController::class, 'booking'])
+            ->middleware('permission:laporan.lihat')
+            ->name('laporan.booking');
+
+        Route::get('laporan/pendapatan', [AdminLaporanController::class, 'pendapatan'])
+            ->middleware('permission:laporan.lihat')
+            ->name('laporan.pendapatan');
+
+        Route::get('laporan/kehadiran', [AdminLaporanController::class, 'kehadiran'])
+            ->middleware('permission:laporan.lihat')
+            ->name('laporan.kehadiran');
+
+        /*
+        | The audit trail: ONE read, no writes. `audit_log` has no `diubah_at`
+        | and is append-only by construction, so there is nothing to update or
+        | delete and no export (owner decision).
+        */
+        Route::get('audit-log', [AdminAuditLogController::class, 'index'])
+            ->middleware('permission:audit.lihat')
+            ->name('audit-log.index');
+
+        /*
+        | The PDP ledger: the read surface `pdp.kelola` was reserved for. A
+        | ledger row is evidence, so this is a read: the subject decides through
+        | their own endpoint and an admin may not write a consent on their
+        | behalf.
+        */
+        Route::get('persetujuan-pdp', [AdminPersetujuanPdpController::class, 'index'])
+            ->middleware('permission:pdp.kelola')
+            ->name('persetujuan-pdp.index');
+    });

@@ -16,6 +16,139 @@
 //
 // `lib/src/api/paths.dart` holds the request-level paths this package already calls;
 // this file is the COMPLETE table, including the endpoints no endpoint class wraps yet.
+/// `/api/v1/admin/audit-log`
+///
+/// Answers: GET (`admin.audit-log.index`).
+const String apiv1adminauditLog = '/api/v1/admin/audit-log';
+
+/// The HTTP methods `apiv1adminauditLog` answers.
+const List<String> apiv1adminauditLogMethods = <String>[
+  'GET',
+];
+
+/// `/api/v1/admin/dokter`
+///
+/// Answers: GET (`admin.dokter.index`).
+const String apiv1admindokter = '/api/v1/admin/dokter';
+
+/// The HTTP methods `apiv1admindokter` answers.
+const List<String> apiv1admindokterMethods = <String>[
+  'GET',
+];
+
+/// `/api/v1/admin/dokter/{id}`
+///
+/// Answers: GET (`admin.dokter.show`).
+const String apiv1admindokterid = '/api/v1/admin/dokter/{id}';
+
+/// The HTTP methods `apiv1admindokterid` answers.
+const List<String> apiv1admindokteridMethods = <String>[
+  'GET',
+];
+
+/// `/api/v1/admin/dokter/{id}/jadwal`
+///
+/// Answers: GET (`admin.dokter.jadwal.index`), POST (`admin.dokter.jadwal.store`).
+const String apiv1admindokteridjadwal = '/api/v1/admin/dokter/{id}/jadwal';
+
+/// The HTTP methods `apiv1admindokteridjadwal` answers.
+const List<String> apiv1admindokteridjadwalMethods = <String>[
+  'GET',
+  'POST',
+];
+
+/// `/api/v1/admin/dokter/{id}/libur`
+///
+/// Answers: GET (`admin.dokter.libur.index`), POST (`admin.dokter.libur.store`).
+const String apiv1admindokteridlibur = '/api/v1/admin/dokter/{id}/libur';
+
+/// The HTTP methods `apiv1admindokteridlibur` answers.
+const List<String> apiv1admindokteridliburMethods = <String>[
+  'GET',
+  'POST',
+];
+
+/// `/api/v1/admin/dokter/{id}/status`
+///
+/// Answers: PUT (`admin.dokter.status`).
+const String apiv1admindokteridstatus = '/api/v1/admin/dokter/{id}/status';
+
+/// The HTTP methods `apiv1admindokteridstatus` answers.
+const List<String> apiv1admindokteridstatusMethods = <String>[
+  'PUT',
+];
+
+/// `/api/v1/admin/dokter/{id}/verifikasi`
+///
+/// Answers: PUT (`admin.dokter.verifikasi`).
+const String apiv1admindokteridverifikasi = '/api/v1/admin/dokter/{id}/verifikasi';
+
+/// The HTTP methods `apiv1admindokteridverifikasi` answers.
+const List<String> apiv1admindokteridverifikasiMethods = <String>[
+  'PUT',
+];
+
+/// `/api/v1/admin/jadwal/{id}`
+///
+/// Answers: DELETE (`admin.jadwal.destroy`), PUT (`admin.jadwal.update`).
+const String apiv1adminjadwalid = '/api/v1/admin/jadwal/{id}';
+
+/// The HTTP methods `apiv1adminjadwalid` answers.
+const List<String> apiv1adminjadwalidMethods = <String>[
+  'DELETE',
+  'PUT',
+];
+
+/// `/api/v1/admin/laporan/booking`
+///
+/// Answers: GET (`admin.laporan.booking`).
+const String apiv1adminlaporanbooking = '/api/v1/admin/laporan/booking';
+
+/// The HTTP methods `apiv1adminlaporanbooking` answers.
+const List<String> apiv1adminlaporanbookingMethods = <String>[
+  'GET',
+];
+
+/// `/api/v1/admin/laporan/kehadiran`
+///
+/// Answers: GET (`admin.laporan.kehadiran`).
+const String apiv1adminlaporankehadiran = '/api/v1/admin/laporan/kehadiran';
+
+/// The HTTP methods `apiv1adminlaporankehadiran` answers.
+const List<String> apiv1adminlaporankehadiranMethods = <String>[
+  'GET',
+];
+
+/// `/api/v1/admin/laporan/pendapatan`
+///
+/// Answers: GET (`admin.laporan.pendapatan`).
+const String apiv1adminlaporanpendapatan = '/api/v1/admin/laporan/pendapatan';
+
+/// The HTTP methods `apiv1adminlaporanpendapatan` answers.
+const List<String> apiv1adminlaporanpendapatanMethods = <String>[
+  'GET',
+];
+
+/// `/api/v1/admin/libur/{id}`
+///
+/// Answers: DELETE (`admin.libur.destroy`).
+const String apiv1adminliburid = '/api/v1/admin/libur/{id}';
+
+/// The HTTP methods `apiv1adminliburid` answers.
+const List<String> apiv1adminliburidMethods = <String>[
+  'DELETE',
+];
+
+/// `/api/v1/admin/persetujuan-pdp`
+///
+/// Answers: GET (`admin.persetujuan-pdp.index`).
+const String apiv1adminpersetujuanPdp = '/api/v1/admin/persetujuan-pdp';
+
+/// The HTTP methods `apiv1adminpersetujuanPdp` answers.
+const List<String> apiv1adminpersetujuanPdpMethods = <String>[
+  'GET',
+];
+
 /// `/api/v1/auth/devices`
 ///
 /// Answers: GET (`auth.devices.index`), POST (`auth.devices.store`).

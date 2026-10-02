@@ -55,9 +55,9 @@ use LogicException;
  * `superadmin_web` would be a second, conflicting vocabulary. `RbacCatalogTest`
  * asserts the subset property so that adding an off-DDL role name fails the suite.
  *
- * ## Every permission code is a plan-named action; none was invented here
+ * ## Every permission code is a plan-named action, plus one owner-approved addition
  *
- * The 24 codes in {@see PERMISSIONS} are the 23 listed by the plan's own todo 4
+ * The first 24 codes in {@see PERMISSIONS} are the 23 listed by the plan's own todo 4
  * ("covering at minimum: `booking.buat`, ...") plus `resep.verifikasi`, which the
  * same todo names in its acceptance criteria and in the pharmacist flow. Two of
  * them - `rekam_medis.lihat` and `resep.buat` - are additionally quoted by the
@@ -65,6 +65,16 @@ use LogicException;
  * `telemedicine_test.sql:159`: `COMMENT 'cth: rekam_medis.lihat, resep.buat'`. The
  * dotted `<resource>.<aksi>` shape is therefore the DDL's own convention, with
  * Indonesian action verbs, and not a naming style invented by this todo.
+ *
+ * **`laporan.lihat` is the 25th and it is a deliberate, owner-approved addition.**
+ * F14's admin surface needed a report read, and `dokter.lihat`, `jadwal.lihat`,
+ * `audit.lihat` and `pdp.kelola` each name a different resource - none of them names
+ * an aggregate over `booking`/`invoice`. The owner approved adding this one code for
+ * exactly this gap (and only this one). It is granted to `admin` and `superadmin`,
+ * following the same rule every other row of {@see ROLE_PERMISSIONS} follows. The
+ * write side of F14 is deliberately NOT covered by a new code: no `dokter.kelola` or
+ * `jadwal.kelola` was approved, so those routes carry the `tipe:admin,superadmin`
+ * party gate instead - see the F14 block in `routes/api.php` for the argument.
  *
  * The two verbs a developer is most likely to reach for instead are deliberately
  * **absent**: `booking.create` and `booking.cancel` are not codes. `EnsurePermission`
@@ -109,7 +119,7 @@ use LogicException;
  * ## `superadmin` has no code-level bypass
  *
  * `EnsurePermission` contains no "if the user is a superadmin, allow everything"
- * branch. `superadmin` is instead granted all 24 permissions explicitly in
+ * branch. `superadmin` is instead granted all 25 permissions explicitly in
  * {@see ROLE_PERMISSIONS}, and `RbacCatalogTest` asserts that it holds exactly the
  * whole catalogue. A hidden bypass would make every permission revocable in name
  * only - `audit.lihat` would look granted in `role_permissions` and be
@@ -167,16 +177,19 @@ final class RbacCatalog
         'dokter' => 'Akun dokter: menjalankan konsultasi dan menulis rekam medis serta resep.',
         'apoteker' => 'Akun apoteker: memverifikasi resep dan memantau pesanan obat.',
         'admin' => 'Akun admin operasional: mengelola promo, PDP, dan audit.',
-        'superadmin' => 'Akun(super)administrator dengan seluruh 24 izin.',
+        'superadmin' => 'Akun(super)administrator dengan seluruh 25 izin.',
     ];
 
     /**
-     * The 24 permission codes and their derived display names.
+     * The 25 permission codes and their derived display names.
      *
      * Keys are `permissions.kode VARCHAR(100) NOT NULL UNIQUE` (`:159`); values are
      * `permissions.nama VARCHAR(100) NOT NULL` (`:160`). Every value must equal
      * {@see displayNameFor()} of its own key - see the class docblock and the
      * `RbacCatalogTest` assertion that enforces it.
+     *
+     * `laporan.lihat` is F14's owner-approved addition; every other row is
+     * plan-named. See the class docblock.
      *
      * @var array<string, string>
      */
@@ -205,6 +218,7 @@ final class RbacCatalog
         'pdp.kelola' => 'Kelola PDP',
         'dokter.lihat' => 'Lihat Dokter',
         'dokter.profil' => 'Profil Dokter',
+        'laporan.lihat' => 'Lihat Laporan',
     ];
 
     /**
@@ -270,6 +284,11 @@ final class RbacCatalog
             'notifikasi.lihat',
             'dokter.lihat',
             'dokter.profil',
+            // F14: the admin clinic report read, the surface `laporan.lihat`
+            // exists for. Granted here because the report aggregates operational
+            // rows and clinical content is excluded by construction (the role
+            // holds no `rekam_medis.*`/`resep.*`).
+            'laporan.lihat',
         ],
         'superadmin' => [
             'booking.buat',
@@ -296,6 +315,7 @@ final class RbacCatalog
             'pdp.kelola',
             'dokter.lihat',
             'dokter.profil',
+            'laporan.lihat',
         ],
     ];
 

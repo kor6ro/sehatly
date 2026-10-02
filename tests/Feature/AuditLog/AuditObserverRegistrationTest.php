@@ -199,25 +199,59 @@ test('exactly one file in app/ names the audit table, apart from the model that 
     ]);
 });
 
-test('no direct AuditLog model writes exist anywhere under app/', function (): void {
+test('no direct AuditLog model WRITES exist anywhere under app/, and only one file may read it', function (): void {
+    // F14 added the first READ surface for `audit_log`
+    // (`AdminAuditLogService`, consumed by `GET /admin/audit-log`), which this
+    // test's needle list has to acknowledge - carefully.
+    //
+    // The property that matters is NOT "only one file may read the table"; it is
+    // "the observer is the only PRODUCER". So the five WRITE forms are still
+    // refused EVERYWHERE, with no exemption at all, and the single relaxation is
+    // `AuditLog::query()` - which was on the needle list only because
+    // `AuditLog::query()->update()` is a write in disguise. The exemption is one
+    // named file, and that file is asserted to contain none of the write forms, so
+    // the rule keeps its teeth instead of being quietly widened.
+    $exempt = ['app/Services/Admin/AdminAuditLogService.php'];
+
+    $writes = [
+        'AuditLog::create',
+        'AuditLog::updateOrCreate',
+        'AuditLog::firstOrCreate',
+        'AuditLog::forceCreate',
+        'AuditLog::update',
+    ];
+
     $offenders = [];
+    $readers = [];
 
     foreach (array_merge(al43rPhpFiles('Http/Controllers'), al43rPhpFiles('Services'), al43rPhpFiles('Observers'), al43rPhpFiles('Models')) as $relative) {
         $code = al43rCode(base_path($relative));
 
-        if (
-            str_contains($code, 'AuditLog::create')
-            || str_contains($code, 'AuditLog::updateOrCreate')
-            || str_contains($code, 'AuditLog::firstOrCreate')
-            || str_contains($code, 'AuditLog::forceCreate')
-            || str_contains($code, 'AuditLog::update')
-            || str_contains($code, 'AuditLog::query')
-        ) {
-            $offenders[] = $relative;
+        foreach ($writes as $needle) {
+            if (str_contains($code, $needle)) {
+                $offenders[] = $relative.' writes via '.$needle;
+            }
+        }
+
+        if (str_contains($code, 'AuditLog::query')) {
+            $readers[] = $relative;
         }
     }
 
-    expect($offenders)->toBe([]);
+    // Exactly the one documented reader, so a second `AuditLog::query()` anywhere
+    // under app/ fails here rather than becoming a habit.
+    sort($readers);
+    expect($readers)->toBe($exempt)
+        ->and($offenders)->toBe([]);
+
+    // Belt and braces on the exemption itself: the reader is a reader. Asserted by
+    // re-reading the file the exemption names, so editing it to write would fail
+    // even if someone also widened the list above.
+    $kode = al43rCode(base_path($exempt[0]));
+
+    foreach (['->save(', '->delete(', '->insert(', '->update(', '->truncate(', '->forceDelete('] as $needle) {
+        expect($kode)->not->toContain($needle);
+    }
 });
 
 test('the writer emits only aksi values the DDL allows', function (): void {

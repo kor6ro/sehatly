@@ -233,8 +233,8 @@ test('the defect is real: a plain re-insert of a seeded role is MySQL 1062', fun
     // The control leaves every table as it found it, so the tests below are not
     // order-dependent on it.
     expect(DB::table('roles')->count())->toBe(5)
-        ->and(DB::table('permissions')->count())->toBe(24)
-        ->and(DB::table('role_permissions')->count())->toBe(69);
+        ->and(DB::table('permissions')->count())->toBe(25)
+        ->and(DB::table('role_permissions')->count())->toBe(71);
 });
 
 // ------------------------------------------------------------- the idempotency
@@ -263,8 +263,8 @@ test('seeding RbacSeeder repeatedly is stable, and never grows a table', functio
     // Absolute numbers, so a trim of the catalogue is a visible edit here rather
     // than a seeder still idempotent over quietly fewer rows.
     expect(DB::table('roles')->count())->toBe(5)
-        ->and(DB::table('permissions')->count())->toBe(24)
-        ->and(DB::table('role_permissions')->count())->toBe(69);
+        ->and(DB::table('permissions')->count())->toBe(25)
+        ->and(DB::table('role_permissions')->count())->toBe(71);
 });
 
 test('a second run leaves no duplicate role, permission or grant', function (): void {
@@ -281,7 +281,7 @@ test('a second run leaves no duplicate role, permission or grant', function (): 
     $actual = rbacGrantedPairs();
 
     expect($actual)->toBe(rbacCatalogPairs())
-        ->and($actual)->toHaveCount(69);
+        ->and($actual)->toHaveCount(71);
 });
 
 // ------------------------------------------------------ why upsert, not ignore
@@ -330,7 +330,9 @@ test('a drifted description is repaired without renumbering the row', function (
 
     $grants = DB::table('role_permissions')->where('role_id', $adminId)->count();
 
-    expect($grants)->toBe(10)
+    // 11 since F14 added `laporan.lihat` to the admin role; the number is stated
+    // so a catalogue change is a deliberate edit here too.
+    expect($grants)->toBe(11)
         ->and(DB::table('role_permissions')->where('role_id', $adminId)->distinct()->count('permission_id'))
         ->toBe($grants);
 });
@@ -377,9 +379,9 @@ test('every statement a re-run issues is a read or an insert', function (): void
     expect(rbacKernelSnapshot())->toBe($before);
 });
 
-test('a re-run writes all 69 grants in one statement, not one per row', function (): void {
+test('a re-run writes all 71 grants in one statement, not one per row', function (): void {
     // Structural rather than behavioural: a per-row loop would also be idempotent,
-    // but it would be 69 round-trips re-checking the same composite key 69 times.
+    // but it would be 71 round-trips re-checking the same composite key 71 times.
     // The batch form is what the pre-fix code did and what the fix keeps.
     $this->seed(RbacSeeder::class);
 

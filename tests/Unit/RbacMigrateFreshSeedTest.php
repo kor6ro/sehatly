@@ -138,7 +138,7 @@ class RbacMigrateFreshSeedTest extends TestCase
         sort($sorted);
 
         $this->assertSame($expected, $sorted);
-        $this->assertCount(69, $actual);
+        $this->assertCount(71, $actual);
     }
 
     public function test_no_role_is_granted_to_an_account_outside_the_demo_set(): void

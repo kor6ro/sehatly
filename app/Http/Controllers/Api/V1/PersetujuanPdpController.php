@@ -50,14 +50,17 @@ use Symfony\Component\HttpFoundation\Response;
  *   person agreed to. A caller who may read their own consent does not thereby
  *   earn a grant over anybody else's.
  *
- * **`pdp.kelola` is therefore a catalogue code with no consumer**, and that is a
- * deliberate outcome rather than an oversight - asserted by this todo's test so it
- * cannot rot into a false claim. The reason it has no consumer is the important
- * part: a route that let an `admin` record a data subject's consent would be a
- * compliance defect wearing a permission code. Consent is the data subject's act
- * (UU PDP asks the person, not their employer), and the future admin surface this
- * code is presumably for is a READ of the compliance view, not a WRITE of somebody
- * else's decision. Inventing that route is not this todo's to do.
+ * **`pdp.kelola` was therefore a catalogue code with no consumer after F02**, and
+ * that was a deliberate outcome rather than an oversight - asserted by F02's test
+ * so it could not rot into a false claim. The reason it had no consumer is the
+ * important part: a route that let an `admin` record a data subject's consent
+ * would be a compliance defect wearing a permission code. Consent is the data
+ * subject's act (UU PDP asks the person, not their employer), and the admin
+ * surface this code was reserved for is a READ of the compliance ledger, not a
+ * WRITE of somebody else's decision. **F14 built exactly that read:**
+ * `GET /admin/persetujuan-pdp` (see `routes/api.php`) now consumes `pdp.kelola`
+ * as a read-only, paginated ledger with no write route. The three routes in
+ * THIS class still carry no `permission:`, for the reason above.
  *
  * ## `perawat` and `kurir` are NOT locked out here
  *

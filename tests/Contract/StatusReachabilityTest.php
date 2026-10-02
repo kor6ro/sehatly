@@ -121,9 +121,9 @@ it('binds every published 401 and 403 to the same error envelope', function (): 
     }
 });
 
-it('publishes a 404 for all 83 operations, bound to the error envelope', function (): void {
+it('publishes a 404 for all 99 operations, bound to the error envelope', function (): void {
     // Structural, not reachability. The claim is that no operation advertises a
-    // 404 the error envelope cannot describe, and that the count is 83 -- so a
+    // 404 the error envelope cannot describe, and that the count is 99 -- so a
     // route appearing or disappearing moves this number rather than passing
     // quietly.
     $count = 0;
@@ -136,14 +136,14 @@ it('publishes a 404 for all 83 operations, bound to the error envelope', functio
         $count++;
     }
 
-    expect($count)->toBe(83);
+    expect($count)->toBe(99);
 });
 
 it('publishes 401 and 403 together, or neither, on every bearer operation', function (): void {
     // Both statuses come from `auth:sanctum` and the RBAC middleware, and both are
     // reachable on every bearer route. Publishing one without the other would tell
     // the mobile team to handle a status it can never see, or to miss one it can.
-    // The 401 half is proven live for all 58 in `SanctumAuthConformanceTest`; the
+    // The 401 half is proven live for all 74 in `SanctumAuthConformanceTest`; the
     // 403 half needs a role-bearing token and is documented as uncovered.
     $count = 0;
 
@@ -158,7 +158,7 @@ it('publishes 401 and 403 together, or neither, on every bearer operation', func
         $count++;
     }
 
-    expect($count)->toBe(58);
+    expect($count)->toBe(74);
 });
 
 it('publishes 429 only where a named rate limiter is registered', function (): void {
@@ -266,8 +266,8 @@ it('answers 404 with the error envelope when a public read is given an absent id
 
 /*
  |--------------------------------------------------------------------------
-  | Finding 7: 28 operations publish a 422 with nothing describing what fails it
-  |--------------------------------------------------------------------------
+| Finding 7: 35 operations publish a 422 with nothing describing what fails it
+   |--------------------------------------------------------------------------
   |
   | Every one of these is a GET. A GET carries its input in the query string, and
   | the document publishes no `parameters` and no `requestBody` for any of them --
@@ -292,11 +292,22 @@ it('answers 404 with the error envelope when a public read is given an absent id
   | `page`/`per_page` through `IndexAksesRekamMedisRequest`, and the document
   | publishes none of either. The defect is the same one, on two more endpoints.
   |
-  | F12's patient refund list moves it 27 -> 28: `GET /api/v1/pasien/refund`
-  | validates `page`/`per_page` through `IndexRefundRequest` exactly as every
-  | other paginated list does, and the document publishes neither. The defect is
-  | the same one, on one more endpoint.
-  |
+| F12's patient refund list moves it 27 -> 28: `GET /api/v1/pasien/refund`
+ | validates `page`/`per_page` through `IndexRefundRequest` exactly as every
+ | other paginated list does, and the document publishes neither. The defect is
+ | the same one, on one more endpoint.
+ |
+ | F14's admin surface moves it 28 -> 35, by SEVEN: `GET /admin/dokter`,
+ | `GET /admin/dokter/{id}/jadwal`, `GET /admin/audit-log`,
+ | `GET /admin/persetujuan-pdp` and the three `GET /admin/laporan/*` reports each
+ | validate a whole query surface through a FormRequest and answer a real 422,
+ | and the document publishes none of those parameters. The other two F14 GETs
+ | (`GET /admin/dokter/{id}` and `GET /admin/dokter/{id}/libur`) inject no
+ | FormRequest at all and therefore publish no 422, so they are not members. The
+ | defect is the same one, on seven more endpoints -- and it is now the single
+ | largest finding in the document, which is worth saying plainly rather than
+ | letting the count speak for itself.
+ |
   | WORSE, on the eight non-paginating, non-searchable reference endpoints the 422
   | is reachable only by sending a query parameter the endpoint explicitly
   | REFUSES. Proved live below: `?q=<anything>` answers 422 with
@@ -312,7 +323,7 @@ it('answers 404 with the error envelope when a public read is given an absent id
   * published, and for the non-paginating eight the rule set is unreachable in
   * every legitimate use.
   */
-it('finds_twenty_eight_gets_publishing_a_422_with_nothing_to_describe_what_fails_it', function (): void {
+it('finds_thirty_five_gets_publishing_a_422_with_nothing_to_describe_what_fails_it', function (): void {
     $with422NoBody = [];
 
     foreach (ContractSpec::specOperations() as $key => $operation) {
@@ -323,7 +334,7 @@ it('finds_twenty_eight_gets_publishing_a_422_with_nothing_to_describe_what_fails
         $with422NoBody[] = $key;
     }
 
-    expect($with422NoBody)->toHaveCount(28);
+    expect($with422NoBody)->toHaveCount(35);
 
     // And not one of them publishes the query parameter its 422 is about.
     foreach ($with422NoBody as $key) {
