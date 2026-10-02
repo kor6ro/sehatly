@@ -121,11 +121,11 @@ it('binds every published 401 and 403 to the same error envelope', function (): 
     }
 });
 
-it('publishes a 404 for all 102 operations, bound to the error envelope', function (): void {
+it('publishes a 404 for all 105 operations, bound to the error envelope', function (): void {
     // Structural, not reachability. The claim is that no operation advertises a
-    // 404 the error envelope cannot describe, and that the count is 102 -- so a
+    // 404 the error envelope cannot describe, and that the count is 105 -- so a
     // route appearing or disappearing moves this number rather than passing
-    // quietly.
+    // quietly. F04 added the three review routes, which is the 102 -> 105 move.
     $count = 0;
 
     foreach (ContractSpec::specOperations() as $key => $operation) {
@@ -136,15 +136,16 @@ it('publishes a 404 for all 102 operations, bound to the error envelope', functi
         $count++;
     }
 
-    expect($count)->toBe(102);
+    expect($count)->toBe(105);
 });
 
 it('publishes 401 and 403 together, or neither, on every bearer operation', function (): void {
     // Both statuses come from `auth:sanctum` and the RBAC middleware, and both are
     // reachable on every bearer route. Publishing one without the other would tell
     // the mobile team to handle a status it can never see, or to miss one it can.
-    // The 401 half is proven live for all 76 in `SanctumAuthConformanceTest`; the
-    // 403 half needs a role-bearing token and is documented as uncovered.
+    // The 401 half is proven live for all 78 in `SanctumAuthConformanceTest`; the
+    // 403 half needs a role-bearing token and is documented as uncovered. F04's
+    // two bearer writes are the 76 -> 78 move; its public review read is anonymous.
     $count = 0;
 
     foreach (ContractSpec::specOperations() as $key => $operation) {
@@ -158,7 +159,7 @@ it('publishes 401 and 403 together, or neither, on every bearer operation', func
         $count++;
     }
 
-    expect($count)->toBe(76);
+    expect($count)->toBe(78);
 });
 
 it('publishes 429 only where a named rate limiter is registered', function (): void {
@@ -266,8 +267,8 @@ it('answers 404 with the error envelope when a public read is given an absent id
 ]);
 
 /*
- |--------------------------------------------------------------------------
-| Finding 7: 35 operations publish a 422 with nothing describing what fails it
+  |--------------------------------------------------------------------------
+  | Finding 7: 36 operations publish a 422 with nothing describing what fails it
    |--------------------------------------------------------------------------
   |
   | Every one of these is a GET. A GET carries its input in the query string, and
@@ -324,7 +325,7 @@ it('answers 404 with the error envelope when a public read is given an absent id
   * published, and for the non-paginating eight the rule set is unreachable in
   * every legitimate use.
   */
-it('finds_thirty_five_gets_publishing_a_422_with_nothing_to_describe_what_fails_it', function (): void {
+it('finds_thirty_six_gets_publishing_a_422_with_nothing_to_describe_what_fails_it', function (): void {
     $with422NoBody = [];
 
     foreach (ContractSpec::specOperations() as $key => $operation) {
@@ -335,7 +336,11 @@ it('finds_thirty_five_gets_publishing_a_422_with_nothing_to_describe_what_fails_
         $with422NoBody[] = $key;
     }
 
-    expect($with422NoBody)->toHaveCount(35);
+    // F04's public review list is the newest member: `GET /api/v1/dokter/{dokter}/ulasan`
+    // validates `rating`/`sort`/`page`/`per_page` through `IndexUlasanDokterRequest`
+    // and really does answer 422 for a bad one, and the document publishes none of
+    // the four. The count moved 35 -> 36; the defect is the same one.
+    expect($with422NoBody)->toHaveCount(36);
 
     // And not one of them publishes the query parameter its 422 is about.
     foreach ($with422NoBody as $key) {

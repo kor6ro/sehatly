@@ -162,7 +162,7 @@ beforeEach(function (): void {
 // The route table
 // =====================================================================
 
-test('eleven routes are registered under api/v1 with the expected verbs and guards', function (): void {
+test('twelve routes are registered under api/v1 with the expected verbs and guards', function (): void {
     $routes = collect(Route::getRoutes()->getRoutes())
         ->filter(fn ($route): bool => str_starts_with($route->uri(), 'api/v1/konsultasi'))
         ->keyBy(fn ($route): string => $route->methods()[0].' '.$route->uri())
@@ -181,10 +181,12 @@ test('eleven routes are registered under api/v1 with the expected verbs and guar
     // `surat-keterangan`, both under this prefix, both noted below. It is TEN
     // with todo 39's `resep` create, noted below for the same reason. It is
     // ELEVEN with F13's one-segment `GET /api/v1/konsultasi` - the doctor's own
-    // list, registered FIRST in the group and before the `{id}` wildcard. The
-    // count in this test's NAME is the live one, so a name saying "eleven"
-    // over a list of ten is itself the drift the closed-set assertion exists
-    // to catch.
+    // list, registered FIRST in the group and before the `{id}` wildcard. It is
+    // TWELVE with F04's `POST /konsultasi/{id}/ulasan` - the patient's review
+    // write, appended in the F04 block at the end of the file but a konsultasi
+    // path, so this prefix filter sees it. The count in this test's NAME is the
+    // live one, so a name saying "twelve" over a list of eleven is itself the
+    // drift the closed-set assertion exists to catch.
     expect(array_keys($routes))->toEqualCanonicalizing([
         // F13's doctor list. A one-segment literal, so it cannot collide with
         // the two-segment `{id}` show route, and registered before it because
@@ -207,6 +209,10 @@ test('eleven routes are registered under api/v1 with the expected verbs and guar
         // Todo 39's create, under the same prefix for the same reason: the
         // prescription hangs off a consultation. See the guard map below.
         'POST api/v1/konsultasi/{id}/resep',
+        // F04's patient review write, appended in the F04 block at the end of
+        // `routes/api.php` and carrying NO guard (see the map below): ownership
+        // and status are the service's, and the catalogue holds no review code.
+        'POST api/v1/konsultasi/{id}/ulasan',
     ]);
 
     $middlewareFor = static function (string $key) use ($routes): array {
@@ -256,6 +262,15 @@ test('eleven routes are registered under api/v1 with the expected verbs and guar
         // because that fallback is a FORGIVING default: a route wired with
         // guards it never declared reads as "expected to have none".
         'POST api/v1/konsultasi/{id}/resep' => ['tipe:dokter', 'permission:resep.buat'],
+        // F04's review write. NO `permission:` and NO `tipe:`, and that is a
+        // decision: no catalogue code names writing a review (F04's owner scope
+        // approved exactly one, `ulasan.balas`, for the doctor's REPLY), and
+        // `tipe:pasien` answers "which account type" rather than "is this
+        // consultation yours" - the argument `POST /konsultasi/mulai` records.
+        // `UlasanDokterService::simpan()` resolves the caller's own `pasien` row
+        // (403 when absent), scopes by `pasien_id` (404 for another patient) and
+        // refuses a non-`selesai` status with a 422.
+        'POST api/v1/konsultasi/{id}/ulasan' => [],
     ];
 
     foreach (array_keys($routes) as $key) {

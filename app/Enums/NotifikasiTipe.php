@@ -57,8 +57,12 @@ enum NotifikasiTipe: string
      *
      * A SUB-SET of {@see nilai()}, and the reason it is a subset rather than the
      * whole list is in the class docblock. It exists so the service's own
-     * vocabulary is a checked thing rather than five string literals that a
+     * vocabulary is a checked thing rather than four string literals that a
      * reader has to verify against `:1041` by eye.
+     *
+     * `Sistem` joined the subset in F04: `NotificationService::ulasanDiminta()`
+     * is a real producer of a service notice (a review invitation after a
+     * consultation completes). `lab` and `promo` remain without one.
      *
      * @return list<string>
      */
@@ -69,6 +73,7 @@ enum NotifikasiTipe: string
             self::Pembayaran->value,
             self::Resep->value,
             self::Chat->value,
+            self::Sistem->value,
         ];
     }
 }

@@ -127,7 +127,7 @@ function contractSplit(string $key): array
     return [$method, $path];
 }
 
-it('splits the documented operations into 76 bearer, 26 anonymous and 25 unguarded', function (): void {
+it('splits the documented operations into 78 bearer, 27 anonymous and 26 unguarded', function (): void {
     // The counts are pinned so the datasets below cannot silently shrink. If a
     // route is added or removed, this fails first and names the real delta,
     // instead of a per-route test quietly disappearing from the run. F12 added
@@ -138,11 +138,13 @@ it('splits the documented operations into 76 bearer, 26 anonymous and 25 unguard
     // `POST /auth/logout-all` (bearer) and `POST /auth/otp/resend` (anonymous),
     // which is the 74 -> 75 and 25 -> 26 movement; F01's device-mapping follow-up
     // adds `PUT /admin/pasien/{id}/telepon` (bearer), which is the 75 -> 76
-    // movement.
-    expect(count(contractBearerOperations()))->toBe(76);
-    expect(count(contractAnonymousOperations()))->toBe(26);
-    expect(count(contractUnguardedAnonymousOperations()))->toBe(25);
-    expect(count(contractBearerOperations()) + count(contractAnonymousOperations()))->toBe(102);
+    // movement; F04 adds `GET /dokter/{dokter}/ulasan` (anonymous) and two bearer
+    // writes (`POST /konsultasi/{id}/ulasan`, `PUT /dokter/ulasan/{id}/balas`),
+    // which is the 76 -> 78 and 26 -> 27 movement.
+    expect(count(contractBearerOperations()))->toBe(78);
+    expect(count(contractAnonymousOperations()))->toBe(27);
+    expect(count(contractUnguardedAnonymousOperations()))->toBe(26);
+    expect(count(contractBearerOperations()) + count(contractAnonymousOperations()))->toBe(105);
 });
 
 it('answers 401 with the error envelope when the Authorization header is absent', function (string $method, string $path): void {
@@ -216,11 +218,12 @@ it('answers 401 with the error envelope for a well-formed but unknown bearer tok
 it('publishes no 401 for any operation the document declares anonymous', function (string $method, string $path): void {
     $operation = ContractSpec::specOperations()[$method.' '.$path];
 
-    // The 25 anonymous operations are the doctor directory, the reference
-    // tables, the QR verifier, the four unauthenticated auth endpoints and the
-    // payment webhook. None of them may document a 401: publishing one would tell
-    // the mobile team to handle an unreachable status, and would mean the
-    // "anonymous" claim was not actually true of the route.
+    // The 27 anonymous operations are the doctor directory (including F04's
+    // review list), the reference tables, the QR verifier, the four
+    // unauthenticated auth endpoints and the payment webhook. None of them may
+    // document a 401: publishing one would tell the mobile team to handle an
+    // unreachable status, and would mean the "anonymous" claim was not actually
+    // true of the route.
     expect(ContractSpec::documentedStatuses($operation))->not->toContain('401');
 })->with(function (): array {
     return array_map(
@@ -229,7 +232,7 @@ it('publishes no 401 for any operation the document declares anonymous', functio
     );
 });
 
-it('really does let an anonymous caller through the 25 anonymous operations', function (string $method, string $path): void {
+it('really does let an anonymous caller through the 26 anonymous operations', function (string $method, string $path): void {
     // The complement of the test above, and the reason the above is not enough.
     // "No 401 documented" is a claim about the DOCUMENT. This is the claim about
     // the APPLICATION: an anonymous caller is not stopped by the guard.

@@ -1707,6 +1707,17 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         // `permission:` hit and adds no second `tipe:`, because the party gate
         // is declared once on the wrapping group.
         "'permission:pasien.kelola'",
+        // F04 contributes TWO strings for THREE routes. The public review list
+        // (`GET /dokter/{dokter}/ulasan`) and the patient's review write
+        // (`POST /konsultasi/{id}/ulasan`) carry NEITHER half of the regex: no
+        // catalogue code names a review read or write, and ownership plus the
+        // `selesai` rule live in `UlasanDokterService`. The doctor's reply
+        // (`PUT /dokter/ulasan/{id}/balas`) carries both - the new
+        // `ulasan.balas` grant (appended last in `RbacCatalog::PERMISSIONS`,
+        // held by `dokter` and `superadmin`) and `tipe:dokter`, which refuses
+        // the oversight account that also holds the grant.
+        "'permission:ulasan.balas'",
+        "'tipe:dokter'",
     ]);
 });
 

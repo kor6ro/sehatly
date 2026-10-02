@@ -495,7 +495,22 @@ final class KonsultasiService
             $this->tulisSoap($konsultasi, $soap);
             $konsultasi->save();
 
-            return $this->tulisSistem($konsultasi, $dokter, self::SISTEM_SELESAI);
+            $pesan = $this->tulisSistem($konsultasi, $dokter, self::SISTEM_SELESAI);
+
+            // F04: exactly here, and nowhere else. `selesai` is a terminal state
+            // (a second completion is a 422 before this line), so a consultation
+            // can produce at most ONE invitation, and no other transition calls
+            // this. The body is generic and carries no clinical content - see
+            // `NotificationService::ulasanDiminta()` and the F11 push-body rule.
+            // The write is INSIDE the transaction, like every other F3 trigger:
+            // a rollback of the completion takes the invitation with it.
+            $penerima = $konsultasi->pasien?->user;
+
+            if ($penerima !== null) {
+                $this->notifikasi->ulasanDiminta($penerima, (int) $konsultasi->getKey());
+            }
+
+            return $pesan;
         });
     }
 

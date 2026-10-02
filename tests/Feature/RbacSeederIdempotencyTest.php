@@ -233,8 +233,8 @@ test('the defect is real: a plain re-insert of a seeded role is MySQL 1062', fun
     // The control leaves every table as it found it, so the tests below are not
     // order-dependent on it.
     expect(DB::table('roles')->count())->toBe(5)
-        ->and(DB::table('permissions')->count())->toBe(26)
-        ->and(DB::table('role_permissions')->count())->toBe(73);
+        ->and(DB::table('permissions')->count())->toBe(27)
+        ->and(DB::table('role_permissions')->count())->toBe(75);
 });
 
 // ------------------------------------------------------------- the idempotency
@@ -263,8 +263,8 @@ test('seeding RbacSeeder repeatedly is stable, and never grows a table', functio
     // Absolute numbers, so a trim of the catalogue is a visible edit here rather
     // than a seeder still idempotent over quietly fewer rows.
     expect(DB::table('roles')->count())->toBe(5)
-        ->and(DB::table('permissions')->count())->toBe(26)
-        ->and(DB::table('role_permissions')->count())->toBe(73);
+        ->and(DB::table('permissions')->count())->toBe(27)
+        ->and(DB::table('role_permissions')->count())->toBe(75);
 });
 
 test('a second run leaves no duplicate role, permission or grant', function (): void {
@@ -281,7 +281,7 @@ test('a second run leaves no duplicate role, permission or grant', function (): 
     $actual = rbacGrantedPairs();
 
     expect($actual)->toBe(rbacCatalogPairs())
-        ->and($actual)->toHaveCount(73);
+        ->and($actual)->toHaveCount(75);
 });
 
 // ------------------------------------------------------ why upsert, not ignore

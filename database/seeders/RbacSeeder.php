@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 /**
- * Seeds the RBAC kernel: 5 roles, 26 permissions and their 73 role/permission
+ * Seeds the RBAC kernel: 5 roles, 27 permissions and their 75 role/permission
  * grants.
  *
  * ## None of this data is in `telemedicine_test.sql`
@@ -36,8 +36,8 @@ use RuntimeException;
  * | Table | Contract | Consequence for this seeder |
  * | --- | --- | --- |
  * | `roles` | `:152-154`, `id SMALLINT UNSIGNED AUTO_INCREMENT`, `nama VARCHAR(50) NOT NULL UNIQUE`, `deskripsi VARCHAR(255) NULL` | 5 rows, no timestamps |
- * | `permissions` | `:158-160`, `id SMALLINT UNSIGNED AUTO_INCREMENT`, `kode VARCHAR(100) NOT NULL UNIQUE`, `nama VARCHAR(100) NOT NULL` | 26 rows, `kode` and `nama` both mandatory |
- * | `role_permissions` | `:164-168`, composite `PRIMARY KEY (role_id, permission_id)`, **no `id`**, both FKs `ON DELETE CASCADE` | 73 rows of exactly the pair |
+ * | `permissions` | `:158-160`, `id SMALLINT UNSIGNED AUTO_INCREMENT`, `kode VARCHAR(100) NOT NULL UNIQUE`, `nama VARCHAR(100) NOT NULL` | 27 rows, `kode` and `nama` both mandatory |
+ * | `role_permissions` | `:164-168`, composite `PRIMARY KEY (role_id, permission_id)`, **no `id`**, both FKs `ON DELETE CASCADE` | 75 rows of exactly the pair |
  *
  * **None of the three has `dibuat_at` or `diubah_at`.** Passing timestamps here would
  * be MySQL 1054 on all three, so this seeder inserts bare column sets and the models
@@ -47,7 +47,7 @@ use RuntimeException;
  *
  * `role_permissions` needs `role_id` and `permission_id`, and both are looked up from
  * `roles.nama` and `permissions.kode` after the inserts rather than assumed to be
- * 1..5 and 1..26. An `AUTO_INCREMENT` that does not start at 1 - a re-seed into a
+ * 1..5 and 1..27. An `AUTO_INCREMENT` that does not start at 1 - a re-seed into a
  * populated database, a restore from a dump - would otherwise write grants that point
  * at the wrong role, and nothing would fail. The lookups throw rather than inserting a
  * dangling id.
@@ -75,7 +75,7 @@ use RuntimeException;
  * | --- | --- | --- |
  * | `roles` | `upsert` keyed on `nama`, updating `deskripsi` only | a duplicate `nama` is **not** proof of a correct row - the `deskripsi` beside it can be stale, and a seeder that leaves stale admin-facing copy in place while reporting success is worse than one that repairs it |
  * | `permissions` | `upsert` keyed on `kode`, updating `nama` only | same, and `nama` is *derived* from `kode` by {@see RbacCatalog::displayNameFor()}, so a mismatch is drift by definition |
- * | `role_permissions` | `insertOrIgnore` | the row is nothing but its own composite primary key. A duplicate pair therefore means "already granted" and there is no third column that *could* be updated; writing the two key columns back to the values they already hold would be pure churn across 73 rows |
+ * | `role_permissions` | `insertOrIgnore` | the row is nothing but its own composite primary key. A duplicate pair therefore means "already granted" and there is no third column that *could* be updated; writing the two key columns back to the values they already hold would be pure churn across 75 rows |
  *
  * **Neither upsert touches `id`.** `role_permissions` and `user_roles` both
  * reference `roles.id`, and `user_roles` is the one table this seeder tree never
@@ -135,14 +135,17 @@ use RuntimeException;
  * write one. Ownership is enforced per resource in todos 20-47; a permission is the
  * coarse gate in front of it.
  *
- * **`dokter` (16 grants)** - the consultation lifecycle (`konsultasi.mulai`,
+ * **`dokter` (17 grants)** - the consultation lifecycle (`konsultasi.mulai`,
  * `konsultasi.selesai`) is doctor-only per todo 32; `rekam_medis.simpan` and
  * `rekam_medis.final` are the doctor's SOAP write from the same todo; `resep.buat`
  * and `obat.cari` are todo 39's e-prescription creation and its doctor-only medicine
  * search; `surat_keterangan.buat` is todo 34's medical letters; `booking.lihat` and
  * `booking.batal` are todo 27's doctor-side list and its cancellation (which the plan
  * says records `dibatalkan_oleh` from `users.tipe` precisely so a doctor cancelling
- * yields `'dokter'`).
+ * yields `'dokter'`). F04 adds `ulasan.balas`: answering a review of one's own
+ * practice is intrinsic to the doctor's own public profile, and no existing code
+ * named it (`dokter.profil` is held by every role and is a profile read, so reusing
+ * it on a write would silently widen that grant).
  *
  * **`apoteker` (6 grants)** - `resep.verifikasi` is todo 39's pharmacist-only
  * verification endpoint; `resep.lihat` and `pesanan.lihat` are what verification and
@@ -166,7 +169,7 @@ use RuntimeException;
  * not a clinician, and giving the role clinical write would put a write-capable
  * grant on the account type that can read the audit log.
  *
- * **`superadmin` (all 26)** - written out in full, not computed, so the seeded table
+ * **`superadmin` (all 27)** - written out in full, not computed, so the seeded table
  * *is* the policy and can be read without running code. There is no code-level
  * bypass anywhere in the middleware; see {@see RbacCatalog}.
  */
@@ -222,7 +225,7 @@ class RbacSeeder extends Seeder
     }
 
     /**
-     * The 26 `permissions` rows.
+     * The 27 `permissions` rows.
      *
      * Both columns are `NOT NULL` and `kode` is `UNIQUE`, so a duplicate or a null
      * label is a MySQL error rather than a silent bad row. Each `nama` is

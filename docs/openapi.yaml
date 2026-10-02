@@ -12,7 +12,7 @@ info:
     drift from the code: a route added, renamed or removed changes it on the next run, and
     `--check` fails until the regenerated file is committed.
 
-    This document describes 102 routes across 90 distinct paths, read from the live route table.
+    This document describes 105 routes across 93 distinct paths, read from the live route table.
 
     ## Envelopes
 
@@ -1422,6 +1422,53 @@ paths:
         500:
           description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+  '/api/v1/dokter/ulasan/{id}/balas':
+    parameters:
+      -
+        name: id
+        type: integer
+        required: true
+    put:
+      operationId: putApiV1DokterUlasanIdBalas
+      summary: 'Replace /api/v1/dokter/ulasan/{id}/balas.'
+      tags:
+        - dokter
+      security:
+        -
+          sanctum: []
+      x-route-name: dokter.ulasan.balas
+      x-laravel-action: App\Http\Controllers\Api\V1\DokterController@balasUlasan
+      x-middleware:
+        - 'auth:sanctum'
+        - 'tipe:dokter'
+        - 'permission:ulasan.balas'
+      x-auth:
+        scheme: sanctum
+        transport: bearer
+      requestBody:
+        required: true
+        description: 'Validated by `App\Http\Requests\Dokter\BalasUlasanRequest::rules()`, which is read at generation time -- these properties are the live rules, not a transcription.'
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/BalasUlasanRequestBody' } }
+      responses:
+        200:
+          description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
+        422:
+          description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ValidationErrorEnvelope' } } }
+        401:
+          description: 'Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        403:
+          description: 'Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        404:
+          description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        500:
+          description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
   '/api/v1/dokter/{dokter}':
     parameters:
       -
@@ -1486,6 +1533,34 @@ paths:
       security: []
       x-route-name: dokter.slot
       x-laravel-action: App\Http\Controllers\Api\V1\DokterController@slot
+      x-middleware: []
+      responses:
+        200:
+          description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/PaginatedEnvelope' } } }
+        422:
+          description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ValidationErrorEnvelope' } } }
+        404:
+          description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        500:
+          description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+  '/api/v1/dokter/{dokter}/ulasan':
+    parameters:
+      -
+        name: dokter
+        type: string
+        required: true
+    get:
+      operationId: getApiV1DokterDokterUlasan
+      summary: 'Read /api/v1/dokter/{dokter}/ulasan.'
+      tags:
+        - dokter
+      security: []
+      x-route-name: dokter.ulasan
+      x-laravel-action: App\Http\Controllers\Api\V1\DokterController@ulasanIndex
       x-middleware: []
       responses:
         200:
@@ -2047,6 +2122,51 @@ paths:
       responses:
         200:
           description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
+        422:
+          description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ValidationErrorEnvelope' } } }
+        401:
+          description: 'Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        403:
+          description: 'Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        404:
+          description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        500:
+          description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+  '/api/v1/konsultasi/{id}/ulasan':
+    parameters:
+      -
+        name: id
+        type: integer
+        required: true
+    post:
+      operationId: postApiV1KonsultasiIdUlasan
+      summary: 'Create /api/v1/konsultasi/{id}/ulasan.'
+      tags:
+        - konsultasi
+      security:
+        -
+          sanctum: []
+      x-route-name: konsultasi.ulasan.store
+      x-laravel-action: App\Http\Controllers\Api\V1\KonsultasiController@ulasanStore
+      x-middleware:
+        - 'auth:sanctum'
+      x-auth:
+        scheme: sanctum
+        transport: bearer
+      requestBody:
+        required: true
+        description: 'Validated by `App\Http\Requests\Konsultasi\SimpanUlasanRequest::rules()`, which is read at generation time -- these properties are the live rules, not a transcription.'
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/SimpanUlasanRequestBody' } }
+      responses:
+        201:
+          description: 'Created. `data` holds the created resource.'
           content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
         422:
           description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
@@ -3916,7 +4036,7 @@ components:
       additionalProperties: false
     PaginatedMeta:
       type: object
-      description: 'The project-wide pagination block, derived from the paginator so no controller can spell it differently. `per_page` is the page size ACTUALLY applied after the 100 cap, so it is correct where the caller asked for more. `from` and `to` are `null` on an empty page -- "no rows" has no first and last row. A deliberately unpaginated list carries the same keys with `current_page` and `last_page` both 1.'
+      description: 'The project-wide pagination block, derived from the paginator so no controller can spell it differently. `per_page` is the page size ACTUALLY applied after the 100 cap, so it is correct where the caller asked for more. `from` and `to` are `null` on an empty page -- "no rows" has no first and last row. A deliberately unpaginated list carries the same keys with `current_page` and `last_page` both 1. The four review keys below are OPTIONAL and appear only on the doctor review list; they are declared here rather than in a separate component because the generator selects the envelope from the controller''s `pageMeta()` call and that endpoint answers the same pagination block with the aggregate merged in.'
       properties:
         current_page:
           type: integer
@@ -3936,6 +4056,20 @@ components:
         to:
           type: [integer, 'null']
           minimum: 1
+        distribusi:
+          type: object
+          description: "Review counts per star value, read from the recomputed aggregate. Always all five keys, zero when a star has no review. Not narrowed by `?rating=`: the distribution is the doctor's whole review history."
+          properties: { 1: { type: integer, minimum: 0 }, 2: { type: integer, minimum: 0 }, 3: { type: integer, minimum: 0 }, 4: { type: integer, minimum: 0 }, 5: { type: integer, minimum: 0 } }
+          additionalProperties: false
+        rata_rata:
+          type: [number, 'null']
+          description: 'Recomputed `AVG(rating)`, or `null` when there are no reviews. Never `0.0` -- zero is a rating, and an unrated doctor must not read as rated zero. The UI hides the summary below five reviews; the API stays honest.'
+        rata_rata_komunikasi:
+          type: [number, 'null']
+          description: 'Recomputed `AVG(rating_komunikasi)` over the reviews that scored it, or `null` when none did. A `NULL` sub-rating (`telemedicine_test.sql:1056`) is "not scored", not a zero.'
+        rata_rata_akurasi:
+          type: [number, 'null']
+          description: 'Recomputed `AVG(rating_akurasi)` over the reviews that scored it, or `null` when none did.'
       required:
         - current_page
         - last_page
@@ -4123,6 +4257,46 @@ components:
           - resep_verifikasi.status
           - rujukan.status
           - users.status
+    BalasUlasanRequestBody:
+      type: object
+      title: BalasUlasanRequest
+      description: 'Request body for operations validated by `App\Http\Requests\Dokter\BalasUlasanRequest`. The properties below are read from that class''s `rules()` at generation time.'
+      x-form-request: App\Http\Requests\Dokter\BalasUlasanRequest
+      properties:
+        balasan_dokter:
+          type: string
+          x-laravel-rule: [string, 'max:1000']
+        dibalas_at:
+          x-laravel-prohibited: true
+          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+        dokter_id:
+          x-laravel-prohibited: true
+          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+        is_anonim:
+          x-laravel-prohibited: true
+          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+        isi:
+          x-laravel-prohibited: true
+          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+        konsultasi_id:
+          x-laravel-prohibited: true
+          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+        pasien_id:
+          x-laravel-prohibited: true
+          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+        rating:
+          x-laravel-prohibited: true
+          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+        rating_akurasi:
+          x-laravel-prohibited: true
+          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+        rating_komunikasi:
+          x-laravel-prohibited: true
+          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+      required:
+        - balasan_dokter
+      additionalProperties: false
+      x-enum-fields: []
     BayarInvoiceRequestBody:
       type: object
       title: BayarInvoiceRequest
@@ -4820,6 +4994,28 @@ components:
         - tanggal
       additionalProperties: false
       x-enum-fields: []
+    IndexUlasanDokterRequestBody:
+      type: object
+      title: IndexUlasanDokterRequest
+      description: 'Request body for operations validated by `App\Http\Requests\Dokter\IndexUlasanDokterRequest`. The properties below are read from that class''s `rules()` at generation time.'
+      x-form-request: App\Http\Requests\Dokter\IndexUlasanDokterRequest
+      properties:
+        page:
+          type: integer
+          x-laravel-rule: [integer, 'min:1']
+        per_page:
+          type: integer
+          x-laravel-rule: [integer, 'min:1', 'max:50']
+        rating:
+          type: integer
+          x-laravel-rule: [integer, 'between:1,5']
+        sort:
+          type: string
+          enum: [terbaru, tertinggi, terendah]
+          x-laravel-rule: [string, 'in:["terbaru","tertinggi","terendah"]']
+      required: []
+      additionalProperties: false
+      x-enum-fields: []
     KirimPesanRequestBody:
       type: object
       title: KirimPesanRequest
@@ -5373,6 +5569,46 @@ components:
           - rekam_medis.status_tindak_lanjut
         tipe_kunjungan:
           - rekam_medis.tipe_kunjungan
+    SimpanUlasanRequestBody:
+      type: object
+      title: SimpanUlasanRequest
+      description: 'Request body for operations validated by `App\Http\Requests\Konsultasi\SimpanUlasanRequest`. The properties below are read from that class''s `rules()` at generation time.'
+      x-form-request: App\Http\Requests\Konsultasi\SimpanUlasanRequest
+      properties:
+        balasan_dokter:
+          x-laravel-prohibited: true
+          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+        dibalas_at:
+          x-laravel-prohibited: true
+          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+        dokter_id:
+          x-laravel-prohibited: true
+          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+        is_anonim:
+          type: boolean
+          x-laravel-rule: [boolean]
+        isi:
+          type: string
+          x-laravel-rule: [string, 'max:1000']
+        konsultasi_id:
+          x-laravel-prohibited: true
+          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+        pasien_id:
+          x-laravel-prohibited: true
+          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+        rating:
+          type: integer
+          x-laravel-rule: [integer, 'between:1,5']
+        rating_akurasi:
+          type: integer
+          x-laravel-rule: [integer, 'between:1,5']
+        rating_komunikasi:
+          type: integer
+          x-laravel-rule: [integer, 'between:1,5']
+      required:
+        - rating
+      additionalProperties: false
+      x-enum-fields: []
     StatusDokterRequestBody:
       type: object
       title: StatusDokterRequest

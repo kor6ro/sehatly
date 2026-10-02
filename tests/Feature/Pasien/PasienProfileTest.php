@@ -1624,6 +1624,15 @@ test('the route table exposes the ten auth routes and the eleven patient routes 
         // F01's support path appends one more route to the same admin group, and
         // it is listed here in registration order for the same closed-set reason.
         'PUT api/v1/admin/pasien/{id}/telepon',
+        // F04's THREE routes, appended in the F04 block at the very end of
+        // `routes/api.php` and so listed LAST here in registration order: the
+        // public review list, the patient's review write, and the doctor's reply.
+        // They are named explicitly rather than folded in, for the reason this
+        // whole list exists: a closed set that forgives a concurrently-wired
+        // route is the drift the assertion catches.
+        'GET api/v1/dokter/{dokter}/ulasan',
+        'POST api/v1/konsultasi/{id}/ulasan',
+        'PUT api/v1/dokter/ulasan/{id}/balas',
     ]);
 
     // FOURTEEN under the `pasien` filter: the ten above (profil read + write,
@@ -1675,6 +1684,11 @@ test('the route table exposes the ten auth routes and the eleven patient routes 
         'GET api/v1/dokter/{dokter}',
         'GET api/v1/dokter/{dokter}/jadwal',
         'GET api/v1/dokter/{dokter}/slot',
+        // F04's review list, public for the same reason its three neighbours are:
+        // a patient reading a profile before they hold a token must be able to
+        // read its reviews, and eligibility is re-asked of
+        // `DokterDirectoryService::find()` inside the controller.
+        'GET api/v1/dokter/{dokter}/ulasan',
         'GET api/v1/master-spesialisasi',
         // Todo 34's verifier: public by design - a QR code is scanned by a
         // receptionist who has no account. See the routes/api.php block.
@@ -1926,6 +1940,20 @@ test('the route table exposes the ten auth routes and the eleven patient routes 
             'GET api/v1/admin/audit-log' => ['permission:audit.lihat', 'tipe:admin,superadmin'],
             'GET api/v1/admin/persetujuan-pdp' => ['permission:pdp.kelola', 'tipe:admin,superadmin'],
             'PUT api/v1/admin/pasien/{id}/telepon' => ['permission:pasien.kelola', 'tipe:admin,superadmin'],
+            // F04's THREE. The public review list takes NEITHER (it is public for
+            // the same reason the profile is), and the patient's review write
+            // takes NEITHER: no catalogue code names writing a review, and
+            // `tipe:pasien` cannot express "is this consultation yours" - the
+            // ownership and `selesai` rules live in `UlasanDokterService`.
+            //
+            // The REPLY takes both, and neither is redundant:
+            // `permission:ulasan.balas` is the grant F04 added to the catalogue
+            // (held by `dokter` and `superadmin`), and `tipe:dokter` is what
+            // refuses the `superadmin` that also holds it - the same
+            // permission/account-type split every doctor-only write above uses.
+            'GET api/v1/dokter/{dokter}/ulasan' => [],
+            'POST api/v1/konsultasi/{id}/ulasan' => [],
+            'PUT api/v1/dokter/ulasan/{id}/balas' => ['tipe:dokter', 'permission:ulasan.balas'],
         ];
 
         expect($guards)->toEqualCanonicalizing(
@@ -2110,6 +2138,15 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         // `permission:` hit (`pasien.kelola`) and no second `tipe:`, because the
         // party gate is declared once on the wrapping group.
         "'permission:pasien.kelola'",
+        // F04 contributes TWO strings for THREE routes. The public review list
+        // and the patient's review write carry NEITHER half of the regex - no
+        // catalogue code names a review read or write, and ownership is the
+        // service's. The doctor's reply carries both, so it fires the regex
+        // twice: `permission:ulasan.balas` (F04's owner-approved catalogue
+        // addition) and `tipe:dokter` (which refuses the `superadmin` that also
+        // holds the grant).
+        "'permission:ulasan.balas'",
+        "'tipe:dokter'",
     ]);
 });
 

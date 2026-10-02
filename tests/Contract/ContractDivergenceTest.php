@@ -225,9 +225,15 @@ it('types_every_meta_operation_as_paginated', function (): void {
     // the three `GET /admin/laporan/*` reports answer aggregates over a date
     // range and `GET /admin/dokter/{id}` answers one row, and inventing a `meta`
     // for a one-row object would publish a page size that means nothing.
-    expect($paginated)->toHaveCount(40);
+    //
+    // F04's public review list is the forty-first: it answers `pageMeta()` with
+    // the recomputed review aggregate merged into the same block, which is why
+    // `PaginatedMeta` gained the four optional review keys instead of a new
+    // envelope component.
+    expect($paginated)->toHaveCount(41);
 
     expect($paginated)->toContain('get /api/v1/dokter @200');
+    expect($paginated)->toContain('get /api/v1/dokter/{dokter}/ulasan @200');
     expect($paginated)->toContain('get /api/v1/obat @200');
     expect($paginated)->toContain('get /api/v1/notifikasi @200');
     expect($paginated)->toContain('get /api/v1/auth/devices @200');

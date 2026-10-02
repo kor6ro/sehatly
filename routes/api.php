@@ -1813,3 +1813,102 @@ Route::middleware(['auth:sanctum', 'tipe:admin,superadmin'])
             ->middleware('permission:pasien.kelola')
             ->name('pasien.telepon');
     });
+
+/*
+|--------------------------------------------------------------------------
+| F04 -- the doctor review surface: one public read, one write, one reply
+|--------------------------------------------------------------------------
+|
+| APPENDED by F04. Nothing above this line is touched. The block is last in the
+| file for the reason every appended block gives: `dokter/ulasan/{id}/balas` is a
+| four-segment path, `dokter/{dokter}/ulasan` a three-segment one and
+| `konsultasi/{id}/ulasan` a two-segment one, so no route above can swallow any
+| of them and none of them can swallow a path above.
+|
+| ## The three routes and their guards
+|
+| | route | `permission:` | `tipe:` | who is refused, and why |
+| | --- | --- | --- | --- |
+| | `GET /dokter/{dokter}/ulasan` | - | - | NOTHING: the review list is public for the same reason the profile is |
+| | `POST /konsultasi/{id}/ulasan` | - | - | any account with no `pasien` row, 403 from `ownPasien()`; another patient's consultation, 404; a non-`selesai` status, 422 |
+| | `PUT /dokter/ulasan/{id}/balas` | `ulasan.balas` | `dokter` | patient, apoteker, admin, perawat, kurir, superadmin; another doctor's review, 404 |
+|
+| The public read carries no gate for the argument the five public `dokter` routes
+| above already make: the F04 profile is a pre-authentication surface, and
+| `permission:dokter.lihat` would answer 401 for every anonymous visitor and 403
+| for `perawat` and `kurir`, which are real `users.tipe` values (`:139`) that hold
+| no role and therefore no grant. `DokterController::ulasanIndex()` reuses
+| `DokterDirectoryService::find()` for eligibility, so a doctor the profile 404s
+| cannot have a readable review list either.
+|
+| The patient write carries NO `permission:` and NO `tipe:`, deliberately. There is
+| no catalogue code that names writing a review, and the F04 owner scope approved
+| exactly one new code (`ulasan.balas`, for the doctor's reply). `tipe:pasien` would
+| answer "which account type is this" rather than "is this consultation yours" - the
+| argument `POST /konsultasi/mulai` and `PasienRecordAccess` both record - so the
+| ownership question is answered by `KonsultasiAccess::ownPasien()` (403) plus the
+| `pasien_id`-scoped lookup inside `UlasanDokterService::simpan()` (404). The
+| one-review-per-consultation rule is the `konsultasi_id UNIQUE` index, not a route
+| gate: a second attempt is a 422 translated from MySQL's 1062.
+|
+| The reply carries BOTH gates and neither is redundant. `permission:ulasan.balas`
+| is the grant (held by `dokter` and `superadmin`), and `tipe:dokter` is the account
+| type (which excludes `superadmin` from answering for a doctor) - the same
+| permission/account-type split `PUT /konsultasi/{id}/selesai` uses. The per-row
+| half is `UlasanDokterService::balas()`, which scopes by the caller's own
+| `dokter_id` and answers 404 for another doctor's review.
+|
+| `ulasan.balas` is F04's owner-approved addition to `RbacCatalog::PERMISSIONS`.
+| The closest existing code, `dokter.profil`, is held by ALL FIVE roles including
+| `pasien`, so reusing it on a write would leave only the party gate between a
+| patient and a public reply - the exact failure mode F14's block records for its
+| own writes. The catalogue docblock carries the full argument.
+|
+| ## Ordering, and the one literal that must precede a wildcard
+|
+| There is no wildcard under `dokter/ulasan`, so nothing inside this block can be
+| shadowed by `dokter/{dokter}` (two segments) or by the three-segment schedule
+| routes. Within the block the literal `dokter/ulasan/{id}/balas` is registered
+| after the public read only because that reads in path order; the two cannot
+| collide - `/ulasan` is three segments with a numeric second, the reply is four
+| with `ulasan` literal - and the router compares whole paths.
+|
+| ## `whereNumber` on every wildcard
+|
+| `dokter.id`, `konsultasi.id` and `ulasan_dokter.id` are `BIGINT UNSIGNED
+| AUTO_INCREMENT` primary keys (`:410`, `:537`, `:1051`), so a non-numeric segment
+| is a router 404 and no request can arrive with `abc` in a position the API treats
+| as an identifier.
+|
+| ## No `Route::resource` and no `Route::apiResource`
+|
+| Three operations, three distinct verbs and three distinct shapes - a paginated
+| public read, an insert, and a row-addressed update. There is deliberately no
+| `DELETE`: a published review is evidence (the migration's `RESTRICT` foreign keys
+| make that explicit), and no moderation column exists in this phase.
+|
+| @see \App\Services\Dokter\UlasanDokterService
+| @see \App\Http\Controllers\Api\V1\DokterController::ulasanIndex()
+| @see \App\Http\Controllers\Api\V1\KonsultasiController::ulasanStore()
+*/
+
+Route::get('dokter/{dokter}/ulasan', [DokterController::class, 'ulasanIndex'])
+    ->whereNumber('dokter')
+    ->name('dokter.ulasan');
+
+Route::middleware('auth:sanctum')->group(function (): void {
+    /*
+    | The patient's write. Registered OUTSIDE the earlier `konsultasi` group for
+    | the same reason `POST /konsultasi/{id}/resep` is: a later-appended block
+    | owns its own routes, and the prefix filter in `KonsultasiTest` still sees
+    | it because the path is a consultation path.
+    */
+    Route::post('konsultasi/{id}/ulasan', [KonsultasiController::class, 'ulasanStore'])
+        ->whereNumber('id')
+        ->name('konsultasi.ulasan.store');
+
+    Route::put('dokter/ulasan/{id}/balas', [DokterController::class, 'balasUlasan'])
+        ->whereNumber('id')
+        ->middleware(['tipe:dokter', 'permission:ulasan.balas'])
+        ->name('dokter.ulasan.balas');
+});

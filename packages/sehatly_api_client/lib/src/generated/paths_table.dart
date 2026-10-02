@@ -310,6 +310,16 @@ const List<String> apiv1dokterbookingMethods = <String>[
   'GET',
 ];
 
+/// `/api/v1/dokter/ulasan/{id}/balas`
+///
+/// Answers: PUT (`dokter.ulasan.balas`).
+const String apiv1dokterulasanidbalas = '/api/v1/dokter/ulasan/{id}/balas';
+
+/// The HTTP methods `apiv1dokterulasanidbalas` answers.
+const List<String> apiv1dokterulasanidbalasMethods = <String>[
+  'PUT',
+];
+
 /// `/api/v1/dokter/{dokter}`
 ///
 /// Answers: GET (`dokter.show`).
@@ -337,6 +347,16 @@ const String apiv1dokterdokterslot = '/api/v1/dokter/{dokter}/slot';
 
 /// The HTTP methods `apiv1dokterdokterslot` answers.
 const List<String> apiv1dokterdokterslotMethods = <String>[
+  'GET',
+];
+
+/// `/api/v1/dokter/{dokter}/ulasan`
+///
+/// Answers: GET (`dokter.ulasan`).
+const String apiv1dokterdokterulasan = '/api/v1/dokter/{dokter}/ulasan';
+
+/// The HTTP methods `apiv1dokterdokterulasan` answers.
+const List<String> apiv1dokterdokterulasanMethods = <String>[
   'GET',
 ];
 
@@ -459,6 +479,16 @@ const String apiv1konsultasiidterima = '/api/v1/konsultasi/{id}/terima';
 /// The HTTP methods `apiv1konsultasiidterima` answers.
 const List<String> apiv1konsultasiidterimaMethods = <String>[
   'PUT',
+];
+
+/// `/api/v1/konsultasi/{id}/ulasan`
+///
+/// Answers: POST (`konsultasi.ulasan.store`).
+const String apiv1konsultasiidulasan = '/api/v1/konsultasi/{id}/ulasan';
+
+/// The HTTP methods `apiv1konsultasiidulasan` answers.
+const List<String> apiv1konsultasiidulasanMethods = <String>[
+  'POST',
 ];
 
 /// `/api/v1/master-spesialisasi`

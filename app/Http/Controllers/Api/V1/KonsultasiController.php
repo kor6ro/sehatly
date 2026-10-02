@@ -12,14 +12,17 @@ use App\Http\Requests\Konsultasi\IndexKonsultasiRequest;
 use App\Http\Requests\Konsultasi\KirimPesanRequest;
 use App\Http\Requests\Konsultasi\MulaiKonsultasiRequest;
 use App\Http\Requests\Konsultasi\SelesaikanKonsultasiRequest;
+use App\Http\Requests\Konsultasi\SimpanUlasanRequest;
 use App\Http\Requests\Konsultasi\TandaiDibacaRequest;
 use App\Http\Requests\Konsultasi\TerimaKonsultasiRequest;
 use App\Http\Resources\KonsultasiChatResource;
 use App\Http\Resources\KonsultasiDaftarResource;
 use App\Http\Resources\KonsultasiResource;
+use App\Http\Resources\UlasanDokterResource;
 use App\Models\Konsultasi;
 use App\Models\KonsultasiChat;
 use App\Models\User;
+use App\Services\Dokter\UlasanDokterService;
 use App\Services\Konsultasi\KonsultasiAccess;
 use App\Services\Konsultasi\KonsultasiService;
 use App\Services\Pasien\PasienRecordAccess;
@@ -31,9 +34,9 @@ use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
 /**
- * Eight routes, one state machine, and one ownership rule.
+ * Nine routes, one state machine, and one ownership rule.
  *
- * ## Why eight routes and not the plan's six
+ * ## Why nine routes and not the plan's six
  *
  * `PUT /api/v1/konsultasi/{id}/terima` is not in the plan. It is here because the plan
  * cannot work without it: `PUT /selesai` is required to compute
@@ -56,6 +59,12 @@ use Throwable;
  * chat notification the patient's first message mints, so a consultation that
  * is created and never messaged is invisible. It is registered as a
  * one-segment literal before `{id}`, and it is described at its action below.
+ *
+ * The ninth is F04's `POST /api/v1/konsultasi/{id}/ulasan` - the patient's write
+ * path for a review of a `selesai` consultation. It is not in the
+ * consultation-lifecycle plan either; it is the missing writer `ulasan_dokter`
+ * never had, and the endpoint the F04 review invitation deep-links to. Its
+ * ownership and status rules live in {@see UlasanDokterService}.
  *
  * ## The broadcast is dispatched HERE, after the service returns
  *
@@ -142,6 +151,7 @@ class KonsultasiController extends Controller
         private readonly KonsultasiService $service,
         private readonly KonsultasiAccess $access,
         private readonly PasienRecordAccess $pasien,
+        private readonly UlasanDokterService $ulasan,
     ) {}
 
     /**
@@ -257,6 +267,37 @@ class KonsultasiController extends Controller
         return ApiResponse::success(
             ['konsultasi' => new KonsultasiResource($this->muatan($pesan))],
             'Konsultasi berhasil diselesaikan.',
+        );
+    }
+
+    /**
+     * `POST /api/v1/konsultasi/{id}/ulasan` - 201. The patient's review.
+     *
+     * Only the consultation's OWN patient, and only once its status is `selesai`.
+     * The account-type question is not a route gate here: there is no
+     * consultation permission code that names writing a review, and adding
+     * `tipe:pasien` would answer "which account type is this" rather than "is
+     * this consultation yours" - the same argument `POST /konsultasi/mulai`
+     * records. {@see UlasanDokterService::simpan()} resolves the caller's own
+     * `pasien` row (403 when there is none), scopes the lookup by `pasien_id`
+     * (404 for another patient's consultation, identical to an absent id), and
+     * refuses a non-`selesai` status with a 422 on `errors.status`.
+     *
+     * One review per consultation is a DATABASE guarantee - `konsultasi_id` is
+     * `NOT NULL UNIQUE` - so a second attempt is a 422 translated from MySQL's
+     * 1062, not a pre-check that a double-tap could race.
+     *
+     * The aggregate on `dokter` is deliberately not touched: the rating is
+     * recomputed from `ulasan_dokter` on every read.
+     */
+    public function ulasanStore(SimpanUlasanRequest $request, int $id): JsonResponse
+    {
+        $ulasan = $this->ulasan->simpan($this->user($request), $id, $request->validated());
+
+        return ApiResponse::success(
+            ['ulasan' => new UlasanDokterResource($ulasan)],
+            'Ulasan berhasil disimpan.',
+            Response::HTTP_CREATED,
         );
     }
 

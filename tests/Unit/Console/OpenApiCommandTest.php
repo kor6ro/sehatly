@@ -512,9 +512,17 @@ test('the envelope schemas model meta as a top-level sibling and 422 as many mes
     expect(array_keys($schemas['SuccessEnvelope']['properties']))->toEqual(['success', 'data', 'message']);
     expect($schemas['SuccessEnvelope']['additionalProperties'])->toBeFalse();
 
-    // The pagination block's own keys, read from `ApiResponse::pageMeta()`.
+    // The pagination block's own keys, read from `ApiResponse::pageMeta()`, plus
+    // the four OPTIONAL review aggregate keys F04 merges into the same block on
+    // `GET /api/v1/dokter/{dokter}/ulasan`. They are declared here rather than in
+    // a separate component because the generator selects the envelope from the
+    // controller's `pageMeta()` call; they are deliberately NOT in `required`,
+    // because every other list omits them.
     expect(array_keys($schemas['PaginatedMeta']['properties']))->toEqualCanonicalizing(
-        ['current_page', 'last_page', 'per_page', 'total', 'from', 'to'],
+        [
+            'current_page', 'last_page', 'per_page', 'total', 'from', 'to',
+            'distribusi', 'rata_rata', 'rata_rata_komunikasi', 'rata_rata_akurasi',
+        ],
     );
     expect($schemas['PaginatedMeta']['required'])->toEqualCanonicalizing(
         ['current_page', 'last_page', 'per_page', 'total', 'from', 'to'],

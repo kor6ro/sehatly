@@ -5,18 +5,24 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Dokter\BalasUlasanRequest;
 use App\Http\Requests\Dokter\IndexDokterRequest;
 use App\Http\Requests\Dokter\IndexSlotDokterRequest;
+use App\Http\Requests\Dokter\IndexUlasanDokterRequest;
 use App\Http\Resources\DokterDetailResource;
 use App\Http\Resources\DokterJadwalResource;
 use App\Http\Resources\DokterResource;
 use App\Http\Resources\DokterSlotResource;
 use App\Http\Resources\MasterSpesialisasiResource;
+use App\Http\Resources\UlasanDokterResource;
+use App\Models\User;
 use App\Services\Booking\SlotAvailabilityService;
 use App\Services\Dokter\DokterDirectoryService;
+use App\Services\Dokter\UlasanDokterService;
 use App\Support\ApiResponse;
 use App\Support\Rbac\RbacCatalog;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -107,6 +113,7 @@ class DokterController extends Controller
     public function __construct(
         private readonly DokterDirectoryService $directory,
         private readonly SlotAvailabilityService $slot,
+        private readonly UlasanDokterService $ulasan,
     ) {}
 
     /**
@@ -290,6 +297,97 @@ class DokterController extends Controller
             Response::HTTP_OK,
             ApiResponse::singlePageMeta(count($slot)),
         );
+    }
+
+    /**
+     * `GET /api/v1/dokter/{dokter}/ulasan` - the public review list.
+     *
+     * Query: `page`, `per_page` (max 50), `rating` (1-5, optional) and `sort`
+     * (`terbaru` default, `tertinggi`, `terendah`), all validated by
+     * {@see IndexUlasanDokterRequest}.
+     *
+     * ## The eligibility gate is the directory's, and the 404 is body-for-body
+     *
+     * {@see DokterDirectoryService::find()} is asked first, exactly as
+     * {@see show()}, {@see jadwal()} and {@see slot()} ask it, so a review list
+     * cannot serve a doctor the profile page 404s: absent, unverified, inactive,
+     * telemedicine-opted-out, STR-expired and soft-deleted-account are one answer
+     * with one body. Writing a local `where('status_verifikasi', ...)` here would
+     * be a second, separately-driftable copy of the visibility rule.
+     *
+     * ## `meta` is the pagination block PLUS the recomputed aggregate
+     *
+     * `distribusi` always carries all five keys, and `rata_rata` is `null` when
+     * there are no reviews - never `0.0`, which is a rating. The aggregate is
+     * computed over EVERY review of the doctor even when `?rating=` narrows the
+     * page, so clicking a distribution bar does not change the distribution that
+     * was clicked. Nothing here reads `dokter.rating_rata_rata` or
+     * `dokter.jumlah_ulasan`: those columns have no writer and would lie.
+     */
+    public function ulasanIndex(IndexUlasanDokterRequest $request, string $dokter): JsonResponse
+    {
+        $detail = $this->directory->find((int) $dokter);
+
+        if ($detail === null) {
+            return ApiResponse::error('Resource not found.', [], Response::HTTP_NOT_FOUND);
+        }
+
+        $filters = $request->validated();
+        $dokterId = (int) $detail->getKey();
+
+        $paginator = $this->ulasan->daftar($dokterId, $filters);
+        $agregat = $this->ulasan->agregat($dokterId);
+
+        return ApiResponse::success(
+            ['ulasan' => UlasanDokterResource::collection($paginator->getCollection())],
+            'Daftar ulasan berhasil dimuat.',
+            Response::HTTP_OK,
+            array_merge(ApiResponse::pageMeta($paginator), [
+                'distribusi' => $agregat['distribusi'],
+                'rata_rata' => $agregat['rata_rata'],
+                'rata_rata_komunikasi' => $agregat['rata_rata_komunikasi'],
+                'rata_rata_akurasi' => $agregat['rata_rata_akurasi'],
+            ]),
+        );
+    }
+
+    /**
+     * `PUT /api/v1/dokter/ulasan/{id}/balas` - the owning doctor's public reply.
+     *
+     * `tipe:dokter` answers the account-type question and
+     * `permission:ulasan.balas` the grant; the per-row question ("is this review
+     * yours") is {@see UlasanDokterService::balas()}, which scopes the lookup by
+     * the caller's own `dokter_id` and answers 404 for another doctor's review -
+     * identical to an id that does not exist, so the endpoint is not an
+     * existence oracle. A reply replaces any previous one; `dibalas_at` is
+     * stamped by the service, never by the body.
+     */
+    public function balasUlasan(BalasUlasanRequest $request, int $id): JsonResponse
+    {
+        $ulasan = $this->ulasan->balas(
+            $this->user($request),
+            $id,
+            (string) $request->validated()['balasan_dokter'],
+        );
+
+        return ApiResponse::success(
+            ['ulasan' => new UlasanDokterResource($ulasan)],
+            'Balasan berhasil disimpan.',
+        );
+    }
+
+    /**
+     * The authenticated `User`, narrowed for the static analyser.
+     *
+     * Only {@see balasUlasan()} reads it; every other action on this controller
+     * is public. The route carries `auth:sanctum`, so `user()` is never null.
+     */
+    private function user(Request $request): User
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        return $user;
     }
 
     /**

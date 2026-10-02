@@ -55,7 +55,7 @@ use LogicException;
  * `superadmin_web` would be a second, conflicting vocabulary. `RbacCatalogTest`
  * asserts the subset property so that adding an off-DDL role name fails the suite.
  *
- * ## Every permission code is a plan-named action, plus two owner-approved additions
+ * ## Every permission code is a plan-named action, plus three owner-approved additions
  *
  * The first 24 codes in {@see PERMISSIONS} are the 23 listed by the plan's own todo 4
  * ("covering at minimum: `booking.buat`, ...") plus `resep.verifikasi`, which the
@@ -87,6 +87,20 @@ use LogicException;
  * It is appended LAST so the seeded `permissions` ids stay in catalogue order, which
  * `RbacCatalogTest` compares.
  *
+ * **`ulasan.balas` is the 27th, added for F04's owner-approved doctor reply.**
+ * `PUT /dokter/ulasan/{id}/balas` lets a doctor answer a review of their own, and the
+ * owner's F04 decision authorises adding a code when none fits. None does: the only
+ * candidate close in name was `dokter.profil` ("Profil Dokter"), and it is held by
+ * ALL FIVE roles including `pasien`, so reusing it on a write would silently widen a
+ * grant that every account holds and leave only the `tipe:dokter` party gate between
+ * a patient and a public reply - the exact failure mode F14's block in
+ * `routes/api.php` rejected for its own writes. `ulasan.balas` ("Balas Ulasan") is
+ * granted to `dokter` and `superadmin`, following the same one-rule mapping every
+ * other row follows. The review WRITE (`POST /konsultasi/{id}/ulasan`) deliberately
+ * has no code at all: it is a patient action on the caller's own consultation, and
+ * it follows `POST /konsultasi/mulai` - ownership is `KonsultasiAccess::ownPasien()`
+ * plus the `pasien_id` scope, not a role grant.
+ *
  * The two verbs a developer is most likely to reach for instead are deliberately
  * **absent**: `booking.create` and `booking.cancel` are not codes. `EnsurePermission`
  * treats an unknown code as a programming error and fails with 500, so a route
@@ -96,7 +110,7 @@ use LogicException;
  * ## `permissions.nama` is derived, not authored
  *
  * `permissions.nama` is `VARCHAR(100) NOT NULL` (`:160`), so a label must exist, but
- * no label is authoritative anywhere. Rather than hand-writing 26 of them and
+ * no label is authoritative anywhere. Rather than hand-writing 27 of them and
  * risking a typo that ships to an admin screen, {@see displayNameFor()} derives each
  * one from its code with one rule - the action first, then the resource, both
  * title-cased and underscores turned into spaces - and `RbacCatalogTest` asserts
@@ -130,7 +144,7 @@ use LogicException;
  * ## `superadmin` has no code-level bypass
  *
  * `EnsurePermission` contains no "if the user is a superadmin, allow everything"
- * branch. `superadmin` is instead granted all 26 permissions explicitly in
+ * branch. `superadmin` is instead granted all 27 permissions explicitly in
  * {@see ROLE_PERMISSIONS}, and `RbacCatalogTest` asserts that it holds exactly the
  * whole catalogue. A hidden bypass would make every permission revocable in name
  * only - `audit.lihat` would look granted in `role_permissions` and be
@@ -188,19 +202,20 @@ final class RbacCatalog
         'dokter' => 'Akun dokter: menjalankan konsultasi dan menulis rekam medis serta resep.',
         'apoteker' => 'Akun apoteker: memverifikasi resep dan memantau pesanan obat.',
         'admin' => 'Akun admin operasional: mengelola promo, PDP, dan audit.',
-        'superadmin' => 'Akun(super)administrator dengan seluruh 26 izin.',
+        'superadmin' => 'Akun(super)administrator dengan seluruh 27 izin.',
     ];
 
     /**
-     * The 26 permission codes and their derived display names.
+     * The 27 permission codes and their derived display names.
      *
      * Keys are `permissions.kode VARCHAR(100) NOT NULL UNIQUE` (`:159`); values are
      * `permissions.nama VARCHAR(100) NOT NULL` (`:160`). Every value must equal
      * {@see displayNameFor()} of its own key - see the class docblock and the
      * `RbacCatalogTest` assertion that enforces it.
      *
-     * `laporan.lihat` is F14's owner-approved addition and `pasien.kelola` is F01's;
-     * every other row is plan-named. See the class docblock.
+     * `laporan.lihat` is F14's owner-approved addition, `pasien.kelola` is F01's,
+     * and `ulasan.balas` is F04's; every other row is plan-named. See the class
+     * docblock.
      *
      * @var array<string, string>
      */
@@ -231,6 +246,7 @@ final class RbacCatalog
         'dokter.profil' => 'Profil Dokter',
         'laporan.lihat' => 'Lihat Laporan',
         'pasien.kelola' => 'Kelola Pasien',
+        'ulasan.balas' => 'Balas Ulasan',
     ];
 
     /**
@@ -276,6 +292,11 @@ final class RbacCatalog
             'notifikasi.lihat',
             'dokter.lihat',
             'dokter.profil',
+            // F04: a doctor's reply to a review of their own. Granted here
+            // because `dokter` is the only account type that publishes one, and
+            // the route adds `tipe:dokter` on top so `superadmin` - which also
+            // holds the code - cannot answer for a doctor.
+            'ulasan.balas',
         ],
         'apoteker' => [
             'dokter.lihat',
@@ -334,6 +355,9 @@ final class RbacCatalog
             // F01's support path: correcting a patient's registered phone number
             // is patient-data administration, and no other code names it.
             'pasien.kelola',
+            // F04's reply grant. Appended LAST so this list order still equals
+            // `permissionCodes()` exactly, which `RbacCatalogTest` asserts.
+            'ulasan.balas',
         ],
     ];
 

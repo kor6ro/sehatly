@@ -69,10 +69,11 @@ use Symfony\Component\HttpFoundation\Response;
  *   `AuditLogWriter`. `AuditColumnPolicy` masks `no_telepon` (four digits, bullets,
  *   four digits) and never stores the full number in `audit_log`.
  * - **No notification row is written.** `NotificationService`'s producer vocabulary
- *   is the four transactional events F3 wired and `NotifikasiTipe::nilaiYangDipakai()`
- *   is asserted as exactly those, so inventing a fifth producer here would widen that
- *   contract. The confirmation the caller receives is the response below, and the
- *   patient's next login OTP goes to the new number.
+ *   is the five events the module services wire (F3's four plus F04's review
+ *   invitation) and `NotifikasiTipe::nilaiYangDipakai()` is asserted as exactly
+ *   those, so inventing another producer here would widen that contract. The
+ *   confirmation the caller receives is the response below, and the patient's next
+ *   login OTP goes to the new number.
  * - **No full number is returned.** The response publishes the new number MASKED, so
  *   even the operator who typed it gets the same redaction an audit reader gets, and
  *   no log, message or toast in this path ever carries the full value.

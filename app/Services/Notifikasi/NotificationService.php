@@ -47,7 +47,7 @@ use Illuminate\Support\Facades\Log;
  * in the test, which is the only arrangement in which a client never has to
  * substring-parse a path to get an id out.
  *
- * ## The six events, and why these six
+ * ## The seven events, and why these seven
  *
  * | method | `tipe` | `tautan` | producer that should call it |
  * | --- | --- | --- | --- |
@@ -57,11 +57,16 @@ use Illuminate\Support\Facades\Log;
  * | `pembayaranSelesai` | `pembayaran` | `/api/v1/invoice/{id}` | `PaymentService` (todo 45) |
  * | `resepSiap` | `resep` | `/api/v1/resep/{id}` | `ResepService` (todo 40) |
  * | `pesanBaru` | `chat` | `/api/v1/konsultasi/{id}/chat` | `KonsultasiController` (todo 26) |
+ * | `ulasanDiminta` | `sistem` | `/api/v1/konsultasi/{id}/ulasan` | `KonsultasiService::selesai()` (F04) |
  *
  * `notifikasi.tipe` is a SEVEN-value ENUM (`:1041`) and two of the seven - `lab`
  * and `promo` - have no producer in this application. They are left alone rather
  * than filled with an invented event, and {@see NotifikasiTipe::nilaiYangDipakai()}
- * is the checked spelling of the four this class writes.
+ * is the checked spelling of the five this class writes. `ulasanDiminta` is the
+ * first `sistem` producer: there is no `ulasan` member in the ENUM, the review
+ * invitation carries no clinical content, and `sistem` is the schema's own word
+ * for a service notice (the same value `konsultasi_chat.pengirim_tipe` uses for its
+ * lifecycle lines).
  *
  * ## The row is saved through the MODEL, deliberately
  *
@@ -165,6 +170,35 @@ final class NotificationService
             'konsultasi_id' => $konsultasiId,
             'pengirim_user_id' => $pengirimUserId,
         ]);
+    }
+
+    /**
+     * A consultation finished and the patient may now review it. `tipe = 'sistem'`.
+     *
+     * ## The body is GENERIC, and that is a hard rule (F11)
+     *
+     * A push `isi` renders on a lock screen and in a notification tray, so it must
+     * not carry clinical content: no diagnosis, no SOAP note, no prescription and
+     * no consultation summary. This method names none of them - the message is
+     * the same sentence for every consultation, and the only identifier it
+     * carries travels in `payload`, which is read after the recipient opens the
+     * app and is scoped to their own inbox row. The deep link points at the
+     * review write surface; it never carries the review body or a rating.
+     *
+     * This is the `sistem` producer. `notifikasi.tipe` has no `ulasan` member, and
+     * a service reminder about the caller's own completed session is exactly what
+     * `sistem` declares (the same value `konsultasi_chat.pengirim_tipe` uses).
+     */
+    public function ulasanDiminta(User $user, int $konsultasiId): Notifikasi
+    {
+        return $this->kirim(
+            $user,
+            NotifikasiTipe::Sistem,
+            'Konsultasi selesai.',
+            'Anda dapat menulis ulasan untuk dokter ini.',
+            '/api/v1/konsultasi/'.$konsultasiId.'/ulasan',
+            ['konsultasi_id' => $konsultasiId],
+        );
     }
 
     /**

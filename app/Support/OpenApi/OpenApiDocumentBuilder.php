@@ -610,7 +610,11 @@ final class OpenApiDocumentBuilder
                     .'controller can spell it differently. `per_page` is the page size ACTUALLY applied after '
                     .'the 100 cap, so it is correct where the caller asked for more. `from` and `to` are '
                     .'`null` on an empty page -- "no rows" has no first and last row. A deliberately '
-                    .'unpaginated list carries the same keys with `current_page` and `last_page` both 1.',
+                    .'unpaginated list carries the same keys with `current_page` and `last_page` both 1. '
+                    .'The four review keys below are OPTIONAL and appear only on the doctor review list; '
+                    .'they are declared here rather than in a separate component because the generator '
+                    .'selects the envelope from the controller\'s `pageMeta()` call and that endpoint '
+                    .'answers the same pagination block with the aggregate merged in.',
                 'properties' => [
                     'current_page' => ['type' => 'integer', 'minimum' => 1],
                     'last_page' => ['type' => 'integer', 'minimum' => 1],
@@ -629,6 +633,42 @@ final class OpenApiDocumentBuilder
                     'total' => ['type' => 'integer', 'minimum' => 0],
                     'from' => ['type' => ['integer', 'null'], 'minimum' => 1],
                     'to' => ['type' => ['integer', 'null'], 'minimum' => 1],
+                    // F04. Optional because every other list omits them; present
+                    // on `GET /api/v1/dokter/{dokter}/ulasan`, where the aggregate
+                    // is recomputed from `ulasan_dokter` on every read (the stored
+                    // `dokter.rating_rata_rata`/`jumlah_ulasan` columns have no
+                    // writer and are never read).
+                    'distribusi' => [
+                        'type' => 'object',
+                        'description' => 'Review counts per star value, read from the recomputed aggregate. '
+                            .'Always all five keys, zero when a star has no review. Not narrowed by '
+                            .'`?rating=`: the distribution is the doctor\'s whole review history.',
+                        'properties' => [
+                            '1' => ['type' => 'integer', 'minimum' => 0],
+                            '2' => ['type' => 'integer', 'minimum' => 0],
+                            '3' => ['type' => 'integer', 'minimum' => 0],
+                            '4' => ['type' => 'integer', 'minimum' => 0],
+                            '5' => ['type' => 'integer', 'minimum' => 0],
+                        ],
+                        'additionalProperties' => false,
+                    ],
+                    'rata_rata' => [
+                        'type' => ['number', 'null'],
+                        'description' => 'Recomputed `AVG(rating)`, or `null` when there are no reviews. '
+                            .'Never `0.0` -- zero is a rating, and an unrated doctor must not read as rated '
+                            .'zero. The UI hides the summary below five reviews; the API stays honest.',
+                    ],
+                    'rata_rata_komunikasi' => [
+                        'type' => ['number', 'null'],
+                        'description' => 'Recomputed `AVG(rating_komunikasi)` over the reviews that scored '
+                            .'it, or `null` when none did. A `NULL` sub-rating (`telemedicine_test.sql:1056`) '
+                            .'is "not scored", not a zero.',
+                    ],
+                    'rata_rata_akurasi' => [
+                        'type' => ['number', 'null'],
+                        'description' => 'Recomputed `AVG(rating_akurasi)` over the reviews that scored it, '
+                            .'or `null` when none did.',
+                    ],
                 ],
                 'required' => ['current_page', 'last_page', 'per_page', 'total', 'from', 'to'],
                 'additionalProperties' => false,
