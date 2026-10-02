@@ -525,7 +525,7 @@ test('me returns the caller with a masked patient NIK and no password hash anywh
 });
 
 test('me publishes null for a relation the account does not own, and never refuses for it', function (): void {
-    // A `superadmin` holds all 25 permissions and owns neither a `pasien` nor a `dokter`
+    // A `superadmin` holds all 26 permissions and owns neither a `pasien` nor a `dokter`
     // row. "What does your account look like" is not an authorisation question, so `/me`
     // answers rather than 403s - the patient routes are where a missing row IS a 403.
     $admin = User::factory()->create(['tipe' => 'superadmin', 'status' => 'aktif']);
@@ -845,7 +845,7 @@ test('a profile update is a partial update, so an absent key leaves the stored v
 // =====================================================================
 
 test('a non-patient account is refused with 403 on every mutating route, whatever it holds', function (string $method, string $uri): void {
-    // A `superadmin` holds all 25 permission codes in `RbacCatalog::ROLE_PERMISSIONS` and
+    // A `superadmin` holds all 26 permission codes in `RbacCatalog::ROLE_PERMISSIONS` and
     // it still cannot act on a patient self-service record. That is the strongest available
     // statement that the gate is a data check and not a grant: no amount of permission
     // turns a non-patient into a patient.
@@ -1621,6 +1621,9 @@ test('the route table exposes the ten auth routes and the eleven patient routes 
         'GET api/v1/admin/laporan/kehadiran',
         'GET api/v1/admin/audit-log',
         'GET api/v1/admin/persetujuan-pdp',
+        // F01's support path appends one more route to the same admin group, and
+        // it is listed here in registration order for the same closed-set reason.
+        'PUT api/v1/admin/pasien/{id}/telepon',
     ]);
 
     // FOURTEEN under the `pasien` filter: the ten above (profil read + write,
@@ -1900,6 +1903,12 @@ test('the route table exposes the ten auth routes and the eleven patient routes 
             // read. The F14 feature suite proves a patient who HOLDS `dokter.lihat`
             // is still refused 403 on every one of these, which is the party gate
             // doing the work no permission code is doing.
+            //
+            // F01 appends a SEVENTEENTH route to the same group - the support path
+            // that corrects a patient's phone - and it is the first one whose
+            // mutation IS covered by a code: `pasien.kelola`, F01's owner-approved
+            // addition, granted to `admin` and `superadmin`. `pdp.kelola` was
+            // rejected because its surface is the read-only consent ledger.
             'GET api/v1/admin/dokter' => ['permission:dokter.lihat', 'tipe:admin,superadmin'],
             'GET api/v1/admin/dokter/{id}' => ['permission:dokter.lihat', 'tipe:admin,superadmin'],
             'PUT api/v1/admin/dokter/{id}/verifikasi' => ['tipe:admin,superadmin'],
@@ -1916,6 +1925,7 @@ test('the route table exposes the ten auth routes and the eleven patient routes 
             'GET api/v1/admin/laporan/kehadiran' => ['permission:laporan.lihat', 'tipe:admin,superadmin'],
             'GET api/v1/admin/audit-log' => ['permission:audit.lihat', 'tipe:admin,superadmin'],
             'GET api/v1/admin/persetujuan-pdp' => ['permission:pdp.kelola', 'tipe:admin,superadmin'],
+            'PUT api/v1/admin/pasien/{id}/telepon' => ['permission:pasien.kelola', 'tipe:admin,superadmin'],
         ];
 
         expect($guards)->toEqualCanonicalizing(
@@ -2096,6 +2106,10 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         "'permission:laporan.lihat'",
         "'permission:audit.lihat'",
         "'permission:pdp.kelola'",
+        // F01's support path inside the same admin group: one more
+        // `permission:` hit (`pasien.kelola`) and no second `tipe:`, because the
+        // party gate is declared once on the wrapping group.
+        "'permission:pasien.kelola'",
     ]);
 });
 

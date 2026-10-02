@@ -55,7 +55,7 @@ use LogicException;
  * `superadmin_web` would be a second, conflicting vocabulary. `RbacCatalogTest`
  * asserts the subset property so that adding an off-DDL role name fails the suite.
  *
- * ## Every permission code is a plan-named action, plus one owner-approved addition
+ * ## Every permission code is a plan-named action, plus two owner-approved additions
  *
  * The first 24 codes in {@see PERMISSIONS} are the 23 listed by the plan's own todo 4
  * ("covering at minimum: `booking.buat`, ...") plus `resep.verifikasi`, which the
@@ -76,6 +76,17 @@ use LogicException;
  * `jadwal.kelola` was approved, so those routes carry the `tipe:admin,superadmin`
  * party gate instead - see the F14 block in `routes/api.php` for the argument.
  *
+ * **`pasien.kelola` is the 26th, added for F01's owner-approved support path.**
+ * `PUT /admin/pasien/{id}/telepon` corrects a patient's registered phone number and
+ * needs a permission code. The closest existing code was considered and rejected:
+ * `pdp.kelola` is the consent-ledger grant and its admin surface is deliberately
+ * read-only, so reusing it on a write would contradict what the code is documented to
+ * mean; and no code names a patient identity mutation. The owner's F01 scope
+ * authorises adding one when none fits, so `pasien.kelola` ("Kelola Pasien") is
+ * granted to `admin` and `superadmin`, the two account types that reach `/admin`.
+ * It is appended LAST so the seeded `permissions` ids stay in catalogue order, which
+ * `RbacCatalogTest` compares.
+ *
  * The two verbs a developer is most likely to reach for instead are deliberately
  * **absent**: `booking.create` and `booking.cancel` are not codes. `EnsurePermission`
  * treats an unknown code as a programming error and fails with 500, so a route
@@ -85,7 +96,7 @@ use LogicException;
  * ## `permissions.nama` is derived, not authored
  *
  * `permissions.nama` is `VARCHAR(100) NOT NULL` (`:160`), so a label must exist, but
- * no label is authoritative anywhere. Rather than hand-writing 24 of them and
+ * no label is authoritative anywhere. Rather than hand-writing 26 of them and
  * risking a typo that ships to an admin screen, {@see displayNameFor()} derives each
  * one from its code with one rule - the action first, then the resource, both
  * title-cased and underscores turned into spaces - and `RbacCatalogTest` asserts
@@ -94,7 +105,7 @@ use LogicException;
  *
  * The rule produces mildly awkward Indonesian in two places (`pembayaran.bayar` ->
  * "Bayar Pembayaran", `pdp.kelola` -> "Kelola PDP"). That is accepted deliberately:
- * a consistent mechanical label that is slightly stiff beats 24 hand-written labels
+ * a consistent mechanical label that is slightly stiff beats 26 hand-written labels
  * with no rule behind them, and these strings are admin-facing labels, not
  * user-facing copy.
  *
@@ -119,7 +130,7 @@ use LogicException;
  * ## `superadmin` has no code-level bypass
  *
  * `EnsurePermission` contains no "if the user is a superadmin, allow everything"
- * branch. `superadmin` is instead granted all 25 permissions explicitly in
+ * branch. `superadmin` is instead granted all 26 permissions explicitly in
  * {@see ROLE_PERMISSIONS}, and `RbacCatalogTest` asserts that it holds exactly the
  * whole catalogue. A hidden bypass would make every permission revocable in name
  * only - `audit.lihat` would look granted in `role_permissions` and be
@@ -177,19 +188,19 @@ final class RbacCatalog
         'dokter' => 'Akun dokter: menjalankan konsultasi dan menulis rekam medis serta resep.',
         'apoteker' => 'Akun apoteker: memverifikasi resep dan memantau pesanan obat.',
         'admin' => 'Akun admin operasional: mengelola promo, PDP, dan audit.',
-        'superadmin' => 'Akun(super)administrator dengan seluruh 25 izin.',
+        'superadmin' => 'Akun(super)administrator dengan seluruh 26 izin.',
     ];
 
     /**
-     * The 25 permission codes and their derived display names.
+     * The 26 permission codes and their derived display names.
      *
      * Keys are `permissions.kode VARCHAR(100) NOT NULL UNIQUE` (`:159`); values are
      * `permissions.nama VARCHAR(100) NOT NULL` (`:160`). Every value must equal
      * {@see displayNameFor()} of its own key - see the class docblock and the
      * `RbacCatalogTest` assertion that enforces it.
      *
-     * `laporan.lihat` is F14's owner-approved addition; every other row is
-     * plan-named. See the class docblock.
+     * `laporan.lihat` is F14's owner-approved addition and `pasien.kelola` is F01's;
+     * every other row is plan-named. See the class docblock.
      *
      * @var array<string, string>
      */
@@ -219,6 +230,7 @@ final class RbacCatalog
         'dokter.lihat' => 'Lihat Dokter',
         'dokter.profil' => 'Profil Dokter',
         'laporan.lihat' => 'Lihat Laporan',
+        'pasien.kelola' => 'Kelola Pasien',
     ];
 
     /**
@@ -289,6 +301,9 @@ final class RbacCatalog
             // rows and clinical content is excluded by construction (the role
             // holds no `rekam_medis.*`/`resep.*`).
             'laporan.lihat',
+            // F01's support path: correcting a patient's registered phone number
+            // is patient-data administration, and no other code names it.
+            'pasien.kelola',
         ],
         'superadmin' => [
             'booking.buat',
@@ -316,6 +331,9 @@ final class RbacCatalog
             'dokter.lihat',
             'dokter.profil',
             'laporan.lihat',
+            // F01's support path: correcting a patient's registered phone number
+            // is patient-data administration, and no other code names it.
+            'pasien.kelola',
         ],
     ];
 

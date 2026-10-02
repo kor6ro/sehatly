@@ -203,12 +203,12 @@ CREATE TABLE user_devices (
 
 CREATE TABLE user_refresh_tokens (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
-  user_id BIGINT UNSIGNED NOT NULL,
+  user_id BIGINT UNSIGNED NOT NULL, device_id VARCHAR(255) NULL,
   token_hash VARCHAR(255) NOT NULL,
   kedaluwarsa_at DATETIME NOT NULL,
   dicabut TINYINT(1) NOT NULL DEFAULT 0,
   dibuat_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, INDEX idx_refresh_device (device_id)
 ) ENGINE=InnoDB;
 
 -- ============================================================================

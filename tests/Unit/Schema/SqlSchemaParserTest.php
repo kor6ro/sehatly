@@ -21,7 +21,8 @@ function referenceSpec(): SchemaSpec
 test('the reference DDL parses into exactly 76 tables and 2 views', function () {
     $spec = referenceSpec();
 
-    // `indexes` is 142. The two removals F02 folded in are described below;
+    // `indexes` is 143 (142 before F01's `idx_refresh_device`). The two removals
+    // F02 folded in are described below;
     // F08 appended `konsultasi_baca`, whose primary key and named
     // `UNIQUE KEY uq_baca` add two indexes on top of F02's 140.
     //
@@ -36,11 +37,16 @@ test('the reference DDL parses into exactly 76 tables and 2 views', function () 
     // `columns` moved 672 -> 678 (six columns of `konsultasi_baca`) and
     // `foreign_keys` 105 -> 107 (its two cascading keys). F08's schema note is
     // in `docs/schema-notes.md`.
+    //
+    // F01 then added `user_refresh_tokens.device_id` and its named
+    // `idx_refresh_device`: `columns` 678 -> 679 and `indexes` 142 -> 143. The
+    // reference edit folded both declarations onto existing lines (`:206` and
+    // `:211`) so the file stayed 1,364 lines; see `docs/schema-notes.md`.
     expect($spec->summary())->toBe([
         'tables' => 76,
         'views' => 2,
-        'columns' => 678,
-        'indexes' => 142,
+        'columns' => 679,
+        'indexes' => 143,
         'foreign_keys' => 107,
         'checks' => 3,
     ]);
@@ -266,7 +272,7 @@ test('a deliberately malformed reference file errors loudly instead of reporting
 
 test('a missing trailing comma is an error, not a plausible-looking wrong model', function () {
     // Without this the `id` and `uuid` declarations merge, `users` silently loses a
-    // column, and the parser reports 76 tables with 677 columns instead of 678 - a
+    // column, and the parser reports 76 tables with 678 columns instead of 679 - a
     // green-looking, wrong answer. It has to fail loudly instead.
     $parser = new SqlSchemaParser;
 
@@ -349,7 +355,7 @@ test('a deliberately corrupted copy of the reference yields a different table co
 
         expect($dropped->tableNames())->toHaveCount(75);
         expect($dropped->hasTable('users'))->toBeFalse();
-        expect($dropped->columnCount())->toBe(678 - 16);
+        expect($dropped->columnCount())->toBe(679 - 16);
     } finally {
         @unlink($corrupt);
     }

@@ -139,6 +139,16 @@ const List<String> apiv1adminliburidMethods = <String>[
   'DELETE',
 ];
 
+/// `/api/v1/admin/pasien/{id}/telepon`
+///
+/// Answers: PUT (`admin.pasien.telepon`).
+const String apiv1adminpasienidtelepon = '/api/v1/admin/pasien/{id}/telepon';
+
+/// The HTTP methods `apiv1adminpasienidtelepon` answers.
+const List<String> apiv1adminpasienidteleponMethods = <String>[
+  'PUT',
+];
+
 /// `/api/v1/admin/persetujuan-pdp`
 ///
 /// Answers: GET (`admin.persetujuan-pdp.index`).

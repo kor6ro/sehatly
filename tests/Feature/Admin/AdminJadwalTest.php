@@ -1154,7 +1154,9 @@ test('no admin route offers an export, and none sends a Content-Disposition', fu
         ->values()
         ->all();
 
-    expect($rute)->toHaveCount(16);
+    // Seventeen since F01 appended `PUT /admin/pasien/{id}/telepon` (the patient
+    // phone support path); every one of them is checked for the forbidden words.
+    expect($rute)->toHaveCount(17);
 
     foreach ($rute as $satu) {
         expect($satu)->not->toContain('export')

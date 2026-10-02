@@ -106,7 +106,8 @@ function f14User(string $nama, string $tipe = 'admin'): User
  * An `admin` account: `users.tipe = 'admin'` plus the `admin` role.
  *
  * The role is not optional. `RbacCatalog::ROLE_PERMISSIONS['admin']` is what holds
- * `dokter.lihat`, `jadwal.lihat`, `audit.lihat`, `laporan.lihat` and `pdp.kelola`,
+ * `dokter.lihat`, `jadwal.lihat`, `audit.lihat`, `laporan.lihat`, `pdp.kelola` and F01's
+ * `pasien.kelola`,
  * and `EnsurePermission` resolves the code against the seeded `permissions` table -
  * an account with the type but not the grant answers 403 at the middleware, and
  * every "admin can read" test would then be measuring the wrong thing.

@@ -26,18 +26,21 @@ use Laravel\Sanctum\PersonalAccessToken;
  * guard has to recognise it. The refresh token is the contract's own because
  * `user_refresh_tokens` is in the DDL and Sanctum has no second-token concept.
  *
- * ## `user_refresh_tokens` has no `device_id`, and that shapes two methods
+ * ## `user_refresh_tokens.device_id` is the F01 token->device mapping
  *
- * `:204-212` is `(id, user_id, token_hash, kedaluwarsa_at, dicabut, dibuat_at)`. There
- * is **no `device_id` column and no index and no unique on `token_hash`**, so:
+ * The owner-approved F01 addition (migration `2026_10_01_000083`, reference DDL
+ * `:204-212` folded without moving a line) gives the table a nullable `device_id`
+ * identical in width to `user_devices.device_id`. It is written by
+ * {@see issue()} from the `device_id` the OTP-verify caller supplied, propagated
+ * across {@see rotate()} so a rotated pair stays bound to the same device, and
+ * read by {@see revokeDeviceForUser()} so `DELETE /auth/devices/{deviceId}` can
+ * end exactly that device's sessions. Rows minted before the mapping exist hold
+ * `NULL`; a `NULL` never matches a device revoke, and no legacy row is guessed
+ * into a device.
  *
- * - **Per-device revocation is impossible.** `revoke()` can only address a token by its
- *   own secret, and a caller who has lost that secret can revoke nothing. Recorded here
- *   rather than worked around, because a `device_id` column cannot be added: the SQL
- *   file is read-only law.
- * - **Every lookup is a full table scan.** With one row per issued session that is
- *   fine at this scale, but it is a known cost, and the column list is quoted above so
- *   the next reader does not assume an index exists.
+ * `token_hash` still carries no index and no unique, so rotation and revocation
+ * still look rows up by hash with an application-level equality check; the
+ * device lookup is the one path the new `idx_refresh_device` serves.
  *
  * ## Rotation, and why the lock comes before the read
  *
@@ -109,7 +112,7 @@ final class TokenService
         $accessExpiresAt = now()->addMinutes($this->accessTokenMinutes());
         $refreshExpiresAt = now()->addDays(self::REFRESH_TTL_HARI);
 
-        $refresh = $this->storeRefreshToken($user, $refreshExpiresAt);
+        $refresh = $this->storeRefreshToken($user, $refreshExpiresAt, $deviceId);
 
         $access = $user->createToken(
             $this->accessTokenName($deviceId),
@@ -182,9 +185,12 @@ final class TokenService
         }
 
         if ((bool) $row->dicabut) {
-            // Reuse of a spent token. Revoke every live token for this account, because
-            // the schema cannot tell which device the presented token belonged to, so
-            // there is no narrower correct action available.
+            // Reuse of a spent token. Revoke every live token for this account,
+            // deliberately NOT just the presented row's device: a replayed secret is
+            // evidence the session was stolen, and neither the other devices nor the
+            // account can be assumed clean. The narrower, deliberate scope is what
+            // `DELETE /auth/devices/{deviceId}` owns, and it is exercised only by the
+            // account holder.
             $this->revokeAllForUser((int) $row->user_id);
 
             return ['reason' => RefreshTokenRejected::SUDAH_DICABUT];
@@ -199,11 +205,12 @@ final class TokenService
 
         $user = User::query()->findOrFail($row->user_id);
 
-        // The new access token is named `api` rather than the previous device label:
-        // `user_refresh_tokens` has no `device_id` column, so there is nothing to read
-        // the old name back from. Same schema limitation as the revocation scope above,
-        // stated here so nobody reads the reset as an oversight.
-        return ['pair' => $this->issue($user)];
+        // The pair stays bound to the device the presented token was minted for:
+        // the mapping is what `DELETE /auth/devices/{deviceId}` revokes, and
+        // dropping it on the first rotation would make a device revocable only
+        // during its first access-token window. A legacy row's NULL propagates as
+        // NULL - never a guess - so it simply remains outside device revocation.
+        return ['pair' => $this->issue($user, $row->device_id)];
     }
 
     /**
@@ -229,6 +236,31 @@ final class TokenService
     {
         return DB::table('user_refresh_tokens')
             ->where('user_id', $userId)
+            ->where('dicabut', false)
+            ->update(['dicabut' => true]);
+    }
+
+    /**
+     * Revoke the live refresh tokens `$userId` minted for one device.
+     *
+     * This is the write behind `DELETE /api/v1/auth/devices/{deviceId}` and the
+     * only path that uses `idx_refresh_device`. It is scoped by `user_id` AND
+     * `device_id` in one query - the same shape and the same reason as
+     * {@see revokeAllForUser()} - so an identifier from another account's device
+     * list can never touch this account's rows.
+     *
+     * A `NULL` column never matches: legacy rows are outside every device revoke
+     * by construction, and no value is invented for them. Already-revoked rows are
+     * excluded from the count so the caller can report a real number rather than
+     * "how many rows happened to carry the id".
+     *
+     * @return int the number of rows revoked
+     */
+    public function revokeDeviceForUser(int $userId, string $deviceId): int
+    {
+        return DB::table('user_refresh_tokens')
+            ->where('user_id', $userId)
+            ->where('device_id', $deviceId)
             ->where('dicabut', false)
             ->update(['dicabut' => true]);
     }
@@ -271,15 +303,21 @@ final class TokenService
     /**
      * Mint a refresh secret and persist only its SHA-256 hash.
      *
+     * `$deviceId` is stored verbatim alongside the hash so the row can be revoked
+     * by device later. It is a client-supplied installation identifier, never
+     * derived server-side, and `NULL`/`''` are stored as `NULL` because an empty
+     * string is the absence of a device, not a device named "".
+     *
      * Returns the plaintext, which the caller must put in exactly one response and
      * nowhere else.
      */
-    private function storeRefreshToken(User $user, CarbonInterface $kedaluwarsaAt): string
+    private function storeRefreshToken(User $user, CarbonInterface $kedaluwarsaAt, ?string $deviceId = null): string
     {
         $plain = Str::random(self::REFRESH_TOKEN_PANJANG);
 
         $row = new UserRefreshToken;
         $row->user_id = (int) $user->getKey();
+        $row->device_id = $deviceId === null || $deviceId === '' ? null : $deviceId;
         $row->token_hash = $this->hash($plain);
         $row->kedaluwarsa_at = $kedaluwarsaAt;
         $row->dicabut = false;

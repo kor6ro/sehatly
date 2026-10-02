@@ -117,9 +117,15 @@ test('the two credential tables excluded from the scope really hold nothing but 
         // that carries real data (a name, an address, a clinical value) fails
         // here and forces the exclusion decision to be reopened instead of
         // riding along.
+        //
+        // F01 added `device_id` (see docs/schema-notes.md). It is an opaque,
+        // client-supplied installation identifier: it names no person, carries
+        // no clinical value, and is not a credential either, so the table still
+        // holds nothing but credential/lifecycle bookkeeping and the exclusion
+        // stands.
         expect(array_keys($columns))->toBe($table === 'user_otp'
             ? ['id', 'user_id', 'kode_hash', 'tujuan', 'kedaluwarsa_at', 'sudah_dipakai', 'dibuat_at']
-            : ['id', 'user_id', 'token_hash', 'kedaluwarsa_at', 'dicabut', 'dibuat_at'],
+            : ['id', 'user_id', 'device_id', 'token_hash', 'kedaluwarsa_at', 'dicabut', 'dibuat_at'],
             $table.' gained a column; re-justify the exclusion');
     }
 

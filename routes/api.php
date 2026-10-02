@@ -1536,12 +1536,14 @@ use App\Http\Controllers\Api\V1\AdminAuditLogController;
 use App\Http\Controllers\Api\V1\AdminDokterController;
 use App\Http\Controllers\Api\V1\AdminJadwalController;
 use App\Http\Controllers\Api\V1\AdminLaporanController;
+use App\Http\Controllers\Api\V1\AdminPasienController;
 use App\Http\Controllers\Api\V1\AdminPersetujuanPdpController;
 
 /*
 |--------------------------------------------------------------------------
 | F14 -- the admin clinic surface. SIXTEEN routes, and the first `/admin`
-| prefix in this file.
+| prefix in this file. F01 appends a SEVENTEENTH (the patient phone support
+| path) at the end of the same group.
 |--------------------------------------------------------------------------
 |
 | APPENDED by F14. Nothing above this line is touched. Before this block the
@@ -1570,6 +1572,7 @@ use App\Http\Controllers\Api\V1\AdminPersetujuanPdpController;
 | | `GET /admin/laporan/kehadiran` | `laporan.lihat` | nothing |
 | | `GET /admin/audit-log` | `audit.lihat` | nothing |
 | | `GET /admin/persetujuan-pdp` | `pdp.kelola` | nothing |
+| | `PUT /admin/pasien/{id}/telepon` | `pasien.kelola` | a patient's `users.no_telepon`, audited (F01 support path) |
 |
 | Every route carries `auth:sanctum` and `tipe:admin,superadmin`. The list,
 | detail, schedule and leave reads are `GET`s, registered before the `{id}`
@@ -1603,7 +1606,7 @@ use App\Http\Controllers\Api\V1\AdminPersetujuanPdpController;
 | suspending, verifying and rescheduling are admin operations, and `/admin` is
 | the admin namespace.
 |
-| ## `laporan.lihat` is the ONE new catalogue code, and it was approved
+| ## `laporan.lihat` is the FIRST new catalogue code, and it was approved
 |
 | The three report reads aggregate `booking`/`invoice` counts that no existing
 | code names (`dokter.lihat` names a doctor, `jadwal.lihat` a schedule,
@@ -1612,6 +1615,20 @@ use App\Http\Controllers\Api\V1\AdminPersetujuanPdpController;
 | `RbacCatalog::PERMISSIONS` (derived name "Lihat Laporan") and granted to
 | `admin` and `superadmin` following `ROLE_PERMISSIONS`' one rule. The catalogue
 | test's counts and the seeder's docblocks moved with it.
+|
+| ## `pasien.kelola` is the SECOND, added by F01's owner-approved support path
+|
+| `PUT /admin/pasien/{id}/telepon` corrects a patient's registered phone number
+| and needs a code. The closest existing grant, `pdp.kelola`, was considered and
+| rejected: it is the consent-ledger grant whose surface this block documents as
+| read-only, and covering an identity mutation with it would contradict what the
+| code says it means. No other code names a patient identity write, so F01's
+| owner scope authorised adding `pasien.kelola` (derived name "Kelola Pasien"),
+| granted to `admin` and `superadmin` - the two account types the party gate
+| admits. It is appended LAST in `RbacCatalog::PERMISSIONS` so the seeded
+| `permissions` ids stay in catalogue order. This route is also the first F01
+| addition to `/admin`; F01's other backend work (token-to-device mapping) lives
+| under `/auth`, not here.
 |
 | ## What is deliberately NOT here
 |
@@ -1632,9 +1649,9 @@ use App\Http\Controllers\Api\V1\AdminPersetujuanPdpController;
 |   route would publish `show`/`destroy` shapes these resources do not have -
 |   e.g. an audit-log `destroy`, which the table's schema makes impossible.
 |
-| ## `{id}` is numeric on both row-addressed groups
+| ## `{id}` is numeric on the row-addressed groups
 |
-| `dokter.id`, `dokter_jadwal.id` and `dokter_libur.id` are
+| `dokter.id`, `dokter_jadwal.id`, `dokter_libur.id` and `pasien.id` are
 | `BIGINT UNSIGNED AUTO_INCREMENT` primary keys, so `whereNumber('id')` makes a
 | non-numeric segment a router 404 and no request can arrive with `abc` in a
 | position the API treats as an identifier. The list/detail controller methods
@@ -1780,4 +1797,19 @@ Route::middleware(['auth:sanctum', 'tipe:admin,superadmin'])
         Route::get('persetujuan-pdp', [AdminPersetujuanPdpController::class, 'index'])
             ->middleware('permission:pdp.kelola')
             ->name('persetujuan-pdp.index');
+
+        /*
+        | F01's support path: correcting a patient's registered phone number.
+        | `{id}` is a `pasien.id` (what a support ticket shows), and the write
+        | lands on the owning `users.no_telepon`. `pasien.kelola` is the
+        | owner-approved F01 addition to `RbacCatalog` - granted to `admin` and
+        | `superadmin` - because `pdp.kelola` is the read-only consent-ledger grant
+        | and no existing code names a patient identity mutation. The route keeps
+        | the F14 party gate as well: the permission alone would also admit any
+        | future role the code were given to.
+        */
+        Route::put('pasien/{id}/telepon', [AdminPasienController::class, 'ubahTelepon'])
+            ->whereNumber('id')
+            ->middleware('permission:pasien.kelola')
+            ->name('pasien.telepon');
     });

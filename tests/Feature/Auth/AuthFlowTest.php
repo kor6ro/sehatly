@@ -137,19 +137,27 @@ function authSender(): FakeOtpSender
  * the point of these tests is the flow, not the fixture.
  *
  * @param  array<string, mixed>  $overrides
+ * @param  string|null  $deviceId  sent on the verify request, so the minted refresh
+ *                                 row records the token->device mapping
  * @return array{user: User, access: string, refresh: string}
  */
-function authRegisterVerified(array $overrides = []): array
+function authRegisterVerified(array $overrides = [], ?string $deviceId = null): array
 {
     $payload = authRegisterPayload($overrides);
 
     test()->postJson('/api/v1/auth/register', $payload)->assertCreated();
 
-    $response = test()->postJson('/api/v1/auth/otp/verify', [
+    $verify = [
         'no_telepon' => $payload['no_telepon'],
         'kode' => authSender()->lastKodeFor(OtpService::TUJUAN_VERIFIKASI_TELEPON),
         'tujuan' => OtpService::TUJUAN_VERIFIKASI_TELEPON,
-    ]);
+    ];
+
+    if ($deviceId !== null) {
+        $verify['device_id'] = $deviceId;
+    }
+
+    $response = test()->postJson('/api/v1/auth/otp/verify', $verify);
 
     $response->assertOk();
 
@@ -165,7 +173,7 @@ function authRegisterVerified(array $overrides = []): array
  *
  * @return array{access: string, refresh: string}
  */
-function authLoginVerified(User $user): array
+function authLoginVerified(User $user, ?string $deviceId = null): array
 {
     $identifier = (string) $user->no_telepon;
 
@@ -174,11 +182,17 @@ function authLoginVerified(User $user): array
         'password' => authTestPassword(),
     ])->assertOk();
 
-    $response = test()->postJson('/api/v1/auth/otp/verify', [
+    $verify = [
         'no_telepon' => $identifier,
         'kode' => authSender()->lastKodeFor(OtpService::TUJUAN_LOGIN),
         'tujuan' => OtpService::TUJUAN_LOGIN,
-    ]);
+    ];
+
+    if ($deviceId !== null) {
+        $verify['device_id'] = $deviceId;
+    }
+
+    $response = test()->postJson('/api/v1/auth/otp/verify', $verify);
 
     $response->assertOk();
 
@@ -777,6 +791,10 @@ test('a verified OTP flips the account to aktif, marks the code used and issues 
     expect($refresh)->toHaveLength(TokenService::REFRESH_TOKEN_PANJANG)
         ->and(UserRefreshToken::query()->count())->toBe(1)
         ->and((bool) UserRefreshToken::query()->value('dicabut'))->toBeFalse()
+        // F01's token->device mapping: the device_id the verify request carried is
+        // persisted on the refresh row, which is what makes this session revocable
+        // through `DELETE /auth/devices/{deviceId}`.
+        ->and(UserRefreshToken::query()->value('device_id'))->toBe('hp-andi-2026')
         ->and(UserRefreshToken::query()->value('token_hash'))->not->toBe($refresh)
         ->and(UserRefreshToken::query()->value('token_hash'))->toBe(hash('sha256', $refresh));
 
@@ -1002,10 +1020,48 @@ test('refresh rotates the pair and marks the presented row revoked', function ()
         ->assertOk();
 });
 
-test('replaying a spent refresh token is refused and revokes every live token for the account', function (): void {
-    // `user_refresh_tokens` has no `device_id` column, so the server cannot tell which
-    // device a spent token belonged to and has no narrower action available than this.
+test('refresh carries the device mapping onto the rotated row and the new access token', function (): void {
+    // Without propagation a device would be revocable only during the first
+    // access-token window: the first refresh would mint a NULL-device row, and
+    // `DELETE /auth/devices/{deviceId}` would then leave the session alive.
+    $verified = authRegisterVerified([], 'hp-andi-2026');
+
+    $rotated = $this->postJson('/api/v1/auth/refresh', ['refresh_token' => $verified['refresh']])
+        ->assertOk()
+        ->json('data.token.refresh_token');
+
+    $baru = UserRefreshToken::query()->where('token_hash', hash('sha256', (string) $rotated))->firstOrFail();
+
+    expect($baru->device_id)->toBe('hp-andi-2026')
+        // The access token keeps its device label too, because `issue()` now
+        // receives the propagated id rather than the default NULL.
+        ->and(DB::table('personal_access_tokens')->orderByDesc('id')->value('name'))->toBe('api:hp-andi-2026');
+});
+
+test('a refresh token minted without a device stores null and is outside device revocation', function (): void {
+    // Legacy behaviour, still valid: a caller that sends no device_id gets a NULL
+    // mapping. No value is invented, and a NULL never matches a device revoke.
     $verified = authRegisterVerified();
+
+    expect(UserRefreshToken::query()->value('device_id'))->toBeNull();
+
+    authRegisterDevice($verified['user'], 'hp-1');
+
+    authAsUser($verified['user'])->deleteJson('/api/v1/auth/devices/hp-1')->assertOk();
+
+    expect((bool) UserRefreshToken::query()
+        ->where('token_hash', hash('sha256', $verified['refresh']))
+        ->value('dicabut'))->toBeFalse();
+});
+
+test('replaying a spent refresh token is refused and revokes every live token for the account', function (): void {
+    // The presented row now names a device, but replay deliberately revokes every
+    // live token for the account: a replayed secret is evidence the session was
+    // stolen, and neither the other devices nor the account can be assumed clean.
+    // The narrower device-scoped action is `DELETE /auth/devices/{deviceId}`,
+    // owned by the account holder.
+    $verified = authRegisterVerified();
+
     $first = $verified['refresh'];
 
     $second = (string) $this->postJson('/api/v1/auth/refresh', ['refresh_token' => $first])
@@ -1063,9 +1119,11 @@ test('a refresh token of the wrong length is a validation error, not a session f
 
 test('logout revokes only the presented refresh token and leaves every device active', function (): void {
     // F01 decision #3: logout is PER-DEVICE. It revokes the presented refresh
-    // token and the access token it arrived on, and touches nothing else -
-    // `user_refresh_tokens` has no `device_id`, so "the current device row" is
-    // not expressible, and deactivating all rows is `logout-all`'s job.
+    // token and the access token it arrived on, and touches nothing else. The
+    // token now records a `device_id` (F01's mapping), so the server COULD map
+    // this session to its row - the owner decision keeps logout token-scoped:
+    // deactivating a device row is `DELETE /auth/devices/{deviceId}`'s job, and
+    // deactivating every row is `logout-all`'s.
     $verified = authRegisterVerified();
     $user = $verified['user'];
 
@@ -1085,7 +1143,7 @@ test('logout revokes only the presented refresh token and leaves every device ac
     $response->assertJsonPath('data.refresh_token.dicabut', true);
     $response->assertJsonPath('data.access_token.dihapus', true);
     // The key is kept for contract compatibility and reports a truthful zero:
-    // a per-device logout cannot identify the device row to deactivate.
+    // the owner decision keeps logout token-scoped, so no device row is touched.
     $response->assertJsonPath('data.perangkat.dimatikan', 0);
 
     expect((bool) UserRefreshToken::query()
@@ -1306,6 +1364,60 @@ test('revoking a device deactivates it and refuses to touch another account devi
     expect(UserDevice::query()->where('device_id', 'hp-1')->count())->toBe(1)
         ->and((bool) UserDevice::query()->where('device_id', 'hp-1')->value('aktif'))->toBeFalse()
         ->and((bool) UserDevice::query()->where('device_id', 'hp-orang-lain')->value('aktif'))->toBeTrue();
+});
+
+test('revoking a device revokes exactly that device refresh tokens, scoped to the caller', function (): void {
+    // The F01 gap this closes: before the mapping, this endpoint only set
+    // `aktif = false` while the device's refresh token stayed live, so the
+    // installation could rotate it and stay signed in.
+    $first = authRegisterVerified([], 'hp-1');
+    $user = $first['user'];
+
+    $second = authLoginVerified($user, 'web-1');
+
+    // A THIRD account holding the same `device_id` string, to prove the revoke is
+    // scoped by `user_id` as well as `device_id`.
+    $other = User::factory()->create(['tipe' => 'dokter', 'status' => 'aktif']);
+    authRegisterDevice($other, 'hp-1');
+
+    // Written directly: the endpoint path would need the other account's OTP, and
+    // the property under test is the scoping of the revoke query, not the flow that
+    // minted the row.
+    $otherPlain = str_repeat('q', TokenService::REFRESH_TOKEN_PANJANG);
+    DB::table('user_refresh_tokens')->insert([
+        'user_id' => $other->getKey(),
+        'device_id' => 'hp-1',
+        'token_hash' => hash('sha256', $otherPlain),
+        'kedaluwarsa_at' => now()->addDay(),
+        'dicabut' => false,
+        'dibuat_at' => now(),
+    ]);
+
+    authRegisterDevice($user, 'hp-1');
+    authRegisterDevice($user, 'web-1');
+
+    $response = authAsToken(authAccessTokenFor($user))->deleteJson('/api/v1/auth/devices/hp-1');
+
+    $response->assertOk();
+    $response->assertJsonPath('data.device.aktif', false);
+    // One live row ended: hp-1's. web-1's and the other account's are not touched.
+    $response->assertJsonPath('data.sesi.refresh_token_dicabut', 1);
+
+    expect((bool) UserRefreshToken::query()->where('token_hash', hash('sha256', $first['refresh']))->value('dicabut'))->toBeTrue()
+        ->and((bool) UserRefreshToken::query()->where('token_hash', hash('sha256', $second['refresh']))->value('dicabut'))->toBeFalse()
+        ->and((bool) UserRefreshToken::query()->where('token_hash', hash('sha256', $otherPlain))->value('dicabut'))->toBeFalse()
+        ->and((bool) UserDevice::query()->where('user_id', $user->getKey())->where('device_id', 'hp-1')->value('aktif'))->toBeFalse()
+        // The other account's row with the SAME device_id is untouched: the device
+        // identifier is only unique per user (`uq_device (user_id, device_id)`).
+        ->and((bool) UserDevice::query()->where('user_id', $other->getKey())->where('device_id', 'hp-1')->value('aktif'))->toBeTrue();
+
+    // The surviving session still works end to end...
+    $this->postJson('/api/v1/auth/refresh', ['refresh_token' => $second['refresh']])->assertOk();
+
+    // ...and the revoked one cannot be rotated back to life.
+    $this->postJson('/api/v1/auth/refresh', ['refresh_token' => $first['refresh']])
+        ->assertStatus(401)
+        ->assertJsonPath('message', 'Sesi tidak valid. Silakan masuk kembali.');
 });
 
 test('device registration refuses a platform outside the DDL enum and an oversized version', function (): void {
@@ -1588,6 +1700,13 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         "'permission:laporan.lihat'",
         "'permission:audit.lihat'",
         "'permission:pdp.kelola'",
+        // F01's support path appends a SEVENTEENTH route inside the same admin
+        // group: `PUT /admin/pasien/{id}/telepon` carries the new
+        // `pasien.kelola` grant (granted to `admin` and `superadmin`, appended
+        // last in `RbacCatalog::PERMISSIONS`). It is the group's tenth
+        // `permission:` hit and adds no second `tipe:`, because the party gate
+        // is declared once on the wrapping group.
+        "'permission:pasien.kelola'",
     ]);
 });
 

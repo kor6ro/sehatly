@@ -211,6 +211,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/pasien/{id}/telepon": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Replace /api/v1/admin/pasien/{id}/telepon. */
+        put: operations["putApiV1AdminPasienIdTelepon"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/persetujuan-pdp": {
         parameters: {
             query?: never;
@@ -2455,6 +2472,13 @@ export interface components {
             versi?: unknown;
         };
         /**
+         * UbahTeleponPasienRequest
+         * @description Request body for operations validated by `App\Http\Requests\Admin\UbahTeleponPasienRequest`. The properties below are read from that class's `rules()` at generation time.
+         */
+        UbahTeleponPasienRequestBody: {
+            no_telepon: string;
+        };
+        /**
          * UpdateAlergiRequest
          * @description Request body for operations validated by `App\Http\Requests\Pasien\UpdateAlergiRequest`. The properties below are read from that class's `rules()` at generation time.
          */
@@ -3941,6 +3965,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    putApiV1AdminPasienIdTelepon: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Validated by `App\Http\Requests\Admin\UbahTeleponPasienRequest::rules()`, which is read at generation time -- these properties are the live rules, not a transcription. */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UbahTeleponPasienRequestBody"];
+            };
+        };
+        responses: {
+            /** @description Success. `data` holds the requested resource, and `meta` is present when the response is a list. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"];
+                };
+            };
+            /** @description Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource not found. Also answers a `{placeholder}` outside the route's own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationErrorEnvelope"];
                 };
             };
             /** @description Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client. */

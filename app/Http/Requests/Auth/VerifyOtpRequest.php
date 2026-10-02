@@ -28,16 +28,19 @@ use Illuminate\Validation\Validator;
  * {@see OtpService::TUJUAN}; a later todo that implements email verification or a
  * password reset widens one constant.
  *
- * ## `device_id` is optional and only labels the token
+ * ## `device_id` labels the token AND binds the session to a device
  *
  * It is recorded as `personal_access_tokens.name` so an administrator reading a token
  * list can tell a phone session from a web one, which the plan's
- * `$user->createToken($deviceName, ...)` asks for. It is validated exactly as
- * {@see StoreDeviceRequest} validates it and is never used for anything else: it is not
- * written to `user_devices` (that is the device endpoint's job) and it cannot select
- * whose tokens to touch. Note that it does **not** survive a refresh, because
- * `user_refresh_tokens` has no `device_id` column for `TokenService::rotate()` to read
- * it back from; see that class for the same limitation stated in full.
+ * `$user->createToken($deviceName, ...)` asks for. It is also persisted on the refresh
+ * row (`user_refresh_tokens.device_id`, F01's owner-approved mapping, migration
+ * `2026_10_01_000083`) so `DELETE /auth/devices/{deviceId}` can end exactly this
+ * device's sessions, and `TokenService::rotate()` carries it forward on every
+ * rotation. It is validated exactly as {@see StoreDeviceRequest} validates it and is
+ * never used to select whose tokens to touch - the revoke path scopes by the caller's
+ * own `user_id` in addition. It is still not written to `user_devices`: registering
+ * the installation is the device endpoint's job, and a session may exist for a device
+ * the list has never seen.
  *
  * ## `kode` is a six-digit string, not an integer
  *

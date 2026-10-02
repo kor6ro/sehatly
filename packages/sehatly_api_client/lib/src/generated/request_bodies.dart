@@ -865,6 +865,55 @@ class LaporanPendapatanRequestBody {
   }
 }
 
+/// The request body `App\Http\Requests\Admin\UbahTeleponPasienRequest` validates.
+///
+/// Every field below was read from that class's `rules()`. A `required` rule is a
+/// constructor parameter, so omitting it is a compile error rather than a 422, and the
+/// Dart type is derived from the type rules, so a `boolean` field cannot be handed a
+/// `String`.
+///
+/// [toJson] emits the WIRE names, which for a dotted Laravel attribute path is the
+/// dotted path itself -- the same string `ValidationException::errors()` uses, so a 422
+/// message maps back to the field that caused it.
+class UbahTeleponPasienRequestBody {
+  /// The `FormRequest` class these rules were read from.
+  static const String formRequest = 'App\\Http\\Requests\\Admin\\UbahTeleponPasienRequest';
+
+  /// Creates the body.
+  ///
+  /// Required fields are `required this`, so omitting one is a compile error
+  /// rather than a 422. Optional fields are plain named parameters defaulting to
+  /// `null`, which is what keeps every `final` field initialised -- a body class with
+  /// NO required field (the reference endpoints read their rules off the route name, so
+  /// several are parameterless on some paths) would otherwise have uninitialised finals.
+  const UbahTeleponPasienRequestBody({
+    required this.noTelepon,
+  });
+
+  /// `no_telepon`.
+  final Object? noTelepon;
+
+  /// The declared field names, required first, then optional.
+  static const List<String> fields = <String>[
+    'no_telepon',
+  ];
+
+  /// The fields the server REJECTS when sent. A tenant key, in this project, is
+  /// written from the caller's own row, so sending one is a validation error.
+  static const List<String> prohibitedFields = <String>[];
+
+  /// The wire body, omitting every field left `null`.
+  ///
+  /// Omission rather than an explicit `null` is deliberate and matches the server:
+  /// Laravel treats `sometimes|nullable` and `required` differently, and sending an
+  /// explicit `null` for a `sometimes` field is not the same request as omitting it.
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      if (noTelepon != null) 'no_telepon': noTelepon,
+    };
+  }
+}
+
 /// The request body `App\Http\Requests\Admin\IndexPersetujuanPdpRequest` validates.
 ///
 /// Every field below was read from that class's `rules()`. A `required` rule is a

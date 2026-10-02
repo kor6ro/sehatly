@@ -316,10 +316,11 @@ fix as drift:
   the rotation flow must do an application-level
   `WHERE token_hash = ?` existence check inside the rotation transaction —
   this is the model todo 45's idempotency work builds on.
-- `user_refresh_tokens` has **no `device_id` column**: there is no column to
-  scope a `dicabut` update to one device, so per-device token revocation is
-  impossible — revocation is always per user (all tokens) or per token (one
-  row). Adding the column would be drift.
+- `user_refresh_tokens` **gained a `device_id` column by owner decision in F01**
+  (2026-10-02, migration `2026_10_01_000083`). It was absent at parity time and
+  this file originally recorded the absence as a limitation later readers must
+  not "fix" — see the dedicated section below for what changed, how the reference
+  DDL was edited without moving a line, and what the column now guarantees.
 - `user_otp` has **no attempt-counter column**: the schema records
   `sudah_dipakai` and `kedaluwarsa_at` but nothing counts guesses, so OTP
   brute-force protection is application-only and lives entirely in todo 20's
@@ -328,6 +329,44 @@ fix as drift:
   OTP-only representation**: an OTP-only signup (phone number, no password)
   must still generate a random unusable hash, because the column cannot hold
   "no password yet".
+
+### `user_refresh_tokens.device_id` — added by F01's owner decision, without moving a line
+
+The Batch-B bullet above used to say "no `device_id` column ... Adding the column
+would be drift." That was true of the frozen contract and is **no longer true**:
+the owner approved the token↔device mapping for F01's device-management step
+(2026-10-02), so the column exists, is nullable, is `VARCHAR(255)` to match
+`user_devices.device_id` (`:193`), and carries the named index
+`idx_refresh_device (device_id)`.
+
+- **The reference-SQL edit did not shift a line.** `TokenAuditPdpTest` pins the
+  file at 1,364 lines and dozens of docblocks cite it by number, so the two new
+  declarations were folded onto existing lines instead of adding one: `:206` is
+  now `user_id ... NOT NULL, device_id VARCHAR(255) NULL,` and `:211` ends with
+  `..., INDEX idx_refresh_device (device_id)`. `SqlSchemaParser` splits a table
+  body on top-level commas rather than newlines, so the parsed model is the same
+  and `sehatly:verify-schema` compares semantics, not layout. This is the same
+  discipline F02 used when it made `:1144` a comment instead of deleting the
+  line.
+- **Migration `2026_10_01_000083`** adds the column and the index; migration
+  `2026_10_01_000019` is deliberately untouched, so fresh and
+  previously-migrated databases both gain it from `000083`, which is therefore
+  unguarded (unlike `000081`, which had to branch on a state that could already
+  exist).
+- **The semantics the column buys:** `TokenService::issue()` persists the
+  caller's `device_id`; `TokenService::rotate()` propagates it, so a session
+  stays bound to its device across rotations; `DELETE /auth/devices/{deviceId}`
+  revokes `WHERE user_id = ? AND device_id = ?` and deactivates the
+  `user_devices` row in one transaction. Legacy rows are `NULL` and are outside
+  every device revoke — no value is invented for them.
+- **What did NOT change:** `token_hash` still has no index or unique, so rotation
+  is still an application-level equality check; replay of a spent token still
+  revokes every live token for the account (theft evidence), and per-device
+  `POST /auth/logout` still revokes only the presented token. Both are owner
+  decisions, not schema limits.
+
+Do **not** "restore parity" by dropping the column or the index: the reference
+file now declares both, and `verify-schema` reports their absence as drift.
 
 ## Batch-C deferred and deliberately unconstrained columns (todo 9)
 

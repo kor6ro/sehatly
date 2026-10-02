@@ -13,8 +13,14 @@ use Illuminate\Support\Carbon;
  *
  * Source: telemedicine_test.sql:204.
  *
+ * `device_id` is the F01 owner-approved addition (migration
+ * `2026_10_01_000083`): the client-supplied installation identifier that lets a
+ * `user_devices` row revoke exactly its own refresh tokens. It is NULL for rows
+ * minted before the mapping existed, and NULL never matches a device revoke.
+ *
  * @property int|null $id
  * @property int|null $user_id
+ * @property string|null $device_id
  * @property string|null $token_hash
  * @property Carbon|null $kedaluwarsa_at
  * @property bool|null $dicabut

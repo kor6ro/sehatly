@@ -79,8 +79,13 @@ use Symfony\Component\HttpFoundation\Response;
  *
  *   logout            PER-DEVICE: revokes only the presented refresh token and
  *                     deletes the Sanctum access token; every device row stays
- *                     active, because `user_refresh_tokens` has no `device_id`
- *                     and the server cannot tell which row the token belongs to
+ *                     active. The token now records a `device_id`, but the owner
+ *                     decision keeps this action token-scoped - ending a whole
+ *                     device's sessions is the explicit revoke below
+ *
+ *   DELETE devices/{id}  revokes every live refresh token minted for that device
+ *                     (by `user_id` + `device_id`) and deactivates its
+ *                     `user_devices` row
  *
  *   logout-all        revokes every live refresh token, deletes the access token
  *                     and deactivates every `user_devices` row
@@ -94,7 +99,7 @@ use Symfony\Component\HttpFoundation\Response;
  * ## No `permission:` and no `tipe:` on any route in this controller
  *
  * This is a deliberate decision with a catalogue behind it, not an omission.
- * `RbacCatalog::PERMISSIONS` holds 24 codes and **none of them names an auth, session,
+ * `RbacCatalog::PERMISSIONS` holds 26 codes and **none of them names an auth, session,
  * token, device or notification-registration action**; the closest names are
  * `notifikasi.lihat` (view notifications) and `dokter.lihat`. Writing
  * `permission:notifikasi.lihat` on `POST /auth/devices` would be wrong twice over: it
@@ -422,6 +427,11 @@ class AuthController extends Controller
             $user->save();
         });
 
+        // The device identifier travels with the pair: it names the access token and
+        // is persisted on the refresh row, which is what makes this session revocable
+        // later through `DELETE /auth/devices/{deviceId}`. It is optional - a caller
+        // that sends none gets a NULL mapping and simply sits outside device
+        // revocation, exactly like a row minted before the mapping existed.
         $pair = $this->tokens->issue($user, $input['device_id'] ?? null);
 
         // The session starts here for BOTH flows (registration verify and
@@ -464,23 +474,19 @@ class AuthController extends Controller
      *
      * Revokes **only the presented refresh token** and deletes the Sanctum access
      * token this request arrived on. It deliberately does NOT touch `user_devices`:
-     * a per-device logout must leave the other signed-in devices working, and
-     * `user_refresh_tokens` has **no `device_id` column** (`:204-212`), so the
-     * server cannot tell which device row this session belongs to. Deactivating
-     * "the current device" is therefore not expressible, and deactivating all of
-     * them is exactly what {@see logoutAll()} exists for.
+     * a per-device logout must leave the other signed-in devices working. The token
+     * now records a `device_id` (F01's owner-approved mapping, migration
+     * `2026_10_01_000083`), so the server COULD map this session to its row - but the
+     * owner decision keeps logout token-scoped: revoking a whole device's sessions is
+     * the explicit `DELETE /auth/devices/{deviceId}` action, and deactivating every
+     * row is exactly what {@see logoutAll()} exists for.
      *
-     * ## The schema is NOT changed to make this narrower
+     * The response still reports `perangkat.dimatikan: 0` - a truthful zero rather
+     * than a removed key, kept so existing clients that read the field do not break.
      *
-     * A `device_id` column on `user_refresh_tokens` would let the server map a
-     * session to a row, but the reference SQL is read-only law and the owner's
-     * decision explicitly defers the mapping. So revoking *another* device from
-     * the device list is not built, and the response reports
-     * `perangkat.dimatikan: 0` - a truthful zero rather than a removed key, kept
-     * so existing clients that read the field do not break.
-     *
-     * A device that was deactivated by a previous `logout-all` re-activates itself
-     * by calling `POST /api/v1/auth/devices`, which sets `aktif = 1`.
+     * A device that was deactivated by a previous `logout-all` or device revoke
+     * re-activates itself by calling `POST /api/v1/auth/devices`, which sets
+     * `aktif = 1`.
      */
     public function logout(LogoutRequest $request): JsonResponse
     {
@@ -644,10 +650,26 @@ class AuthController extends Controller
     /**
      * `DELETE /api/v1/auth/devices/{deviceId}`
      *
-     * Deactivates one device, scoped to the caller. A `device_id` belonging to another
-     * account is **404, not 403**: a 403 would confirm the device exists, and the
-     * `device_id` is a client-supplied installation identifier that a caller may
-     * legitimately be holding for a device it no longer owns.
+     * Revokes the device's live refresh tokens and deactivates its row, scoped to
+     * the caller. A `device_id` belonging to another account is **404, not 403**: a
+     * 403 would confirm the device exists, and the `device_id` is a client-supplied
+     * installation identifier that a caller may legitimately be holding for a device
+     * it no longer owns.
+     *
+     * ## Both halves are required, and they are one transaction
+     *
+     * Deactivating the row alone was the pre-F01 behaviour and it did not revoke
+     * anything: the installation could rotate its still-live refresh token and stay
+     * signed in, and the next `POST /auth/devices` reactivated the row. Revoking the
+     * tokens alone would leave the row `aktif = 1`, so the push registration would
+     * look current and the device list would still show it. The two writes therefore
+     * land together: if the deactivation fails, the revocation rolls back with it,
+     * and the caller is never told "revoked" about half an action.
+     *
+     * {@see TokenService::revokeDeviceForUser()} matches on `user_id` AND
+     * `device_id`, so a `NULL` mapping (a legacy row) is outside the update and the
+     * response reports the real number of rows ended. A device that was already
+     * revoked contributes zero; the call is idempotent.
      *
      * The row is deactivated, never deleted. `user_devices` is the only record of which
      * installations have a push registration, and a hard delete would lose the audit
@@ -665,11 +687,24 @@ class AuthController extends Controller
             return ApiResponse::error('Resource not found.', [], Response::HTTP_NOT_FOUND);
         }
 
-        $device->aktif = false;
-        $device->save();
+        $userId = (int) $request->user()->getAuthIdentifier();
+
+        $revoked = DB::transaction(function () use ($device, $userId, $deviceId): int {
+            $revoked = $this->tokens->revokeDeviceForUser($userId, $deviceId);
+
+            $device->aktif = false;
+            $device->save();
+
+            return $revoked;
+        });
 
         return ApiResponse::success(
-            ['device' => new UserDeviceResource($device)],
+            [
+                'device' => new UserDeviceResource($device),
+                // The count is the point of the F01 fix: a truthy number here is a
+                // session that would otherwise have survived the revoke.
+                'sesi' => ['refresh_token_dicabut' => $revoked],
+            ],
             'Perangkat berhasil dicabut.',
         );
     }
