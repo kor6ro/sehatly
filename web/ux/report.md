@@ -55,6 +55,12 @@ F09 Resep & detail obat.
 | **F12** | Batal: dialog konsekuensi (biaya/refund di muka, alasan terstruktur opsional, peringatan ireversibilitas, privasi); jadwal ulang: slot baru + pengaman "jadwal lama tetap berlaku sampai jadwal baru tersimpan" + handling selisih; refund: status enum `refund.status` + jumlah/tujuan/SLA per metode + state gateway lambat; integritas ledger P0 | **NHS App (3,40 @100%, ≥2 penerbit) pemenang rubrik**; best-of: Grab (3,83 @90% gagal independensi), Halodoc, Traveloka, Booking.com; Sehatly Fase 0 | 3,40 @100% (Grab skor tertinggi 3,83 tetapi 1 penerbit) | **Sedang** |
 | **F14** | Daftar dokter + kredensial (STR/SIP, verifikasi per-dokter, nonaktif ber-blast-radius); jadwal rutin multi-hari + salin + publish + libur seharian + blokir hapus berbooking; laporan periode agregat **tanpa export** (jujur, karena endpoint tidak ada) + peringatan ledger F12; audit trail read-only termasking; aksi massal Select All + action bar + type-to-confirm | **Jane (3,85 @100%, ≥2 penerbit) pemenang rubrik**; best-of: Shopify (4,29 @85% **gagal independensi**), Klinik Pintar (3,59), GitHub (3,47), Trustmedis (3,18), Practo Ray (3,00); regulasi Kemenkes STR/SIP + NN/g + NIST 800-92 | 3,85 @100% | **Sedang** (semua kontrak API = usulan; backend admin nol) |
 
+| **F01** | Registrasi phone-first + consent eksplisit; OTP 6 slot (autofill/paste, timer jujur → kirim ulang + pilih kanal, sisa percobaan); daftar/cabut perangkat; jalur cepat perangkat tepercaya (passkey menyusul) | Best-of: Gojek (3,93 @75%), Bank Jago (3,59 @85%), Mobile JKN (3,41 @85%), WhatsApp+Google+NN/g (autofill), Passkeys (3,80 @75%, satu-satunya lolos independensi tetapi hanya kaki login) | tanpa pemenang tunggal | **Sedang** |
+| **F03** | Cari + pintasan populer + tile spesialisasi; filter desktop sidebar / mobile drawer sticky + "Tampilkan N hasil"; chip filter aktif; sort relevan/rating/pengalaman/biaya; kartu berisi biaya+rating+jumlah ulasan+ketersediaan; jumlah hasil menonjol; pagination; zero-result 3 aksi pemulihan | Best-of: Practo (2,94 @85%, SERP teramati), Alodokter (3,18 @85%), Halodoc (3,14 @70%); tulang punggung NN/g + Baymard | tanpa pemenang tunggal | **Sedang** |
+| **F04** | Hero + jadwal terdekat + harga + CTA "Pesan jadwal"; kredensial "Terverifikasi" + apa yang diverifikasi + tautan KKI; rating bintang + distribusi (sembunyi bila <5 ulasan); ulasan closed-loop anonim + balasan dokter + kebijakan anti-ulasan berbayar; state parsial jujur | Best-of: Practo (3,65 @85%), Alodokter (3,53 @85%), Halodoc (3,50 @70%), Zocdoc (3,18 @85%); tulang punggung NN/g+Baymard+FTC+EU+CMA+OECD + KKI | tanpa pemenang tunggal | **Sedang** |
+
+> Baris **F01, F03, F04** ditambahkan **2026-10-02** dari sesi benchmark lanjutan yang sama; detail: `web/ux/patterns/F01.md`, `F03.md`, `F04.md`; skor `web/ux/scores/F01.md`, `F03.md`, `F04.md`; bukti `web/ux/evidence/F01|F03|F04/*.md`. Tidak ada pemenang tunggal — semua aplikasi kandidat hanya satu penerbit; sintesis **best-of per langkah**.
+
 > Baris **F11** ditambahkan **2026-10-02** dari sesi benchmark lanjutan (di luar cakupan awal F05/F06/F08/F09 di laporan ini); detail: `web/ux/patterns/F11.md`, skor `web/ux/scores/F11.md`, bukti `web/ux/evidence/F11/*.md`. Baris **F12** ditambahkan **2026-10-02** dari sesi benchmark lanjutan yang sama; detail: `web/ux/patterns/F12.md`, skor `web/ux/scores/F12.md`, bukti `web/ux/evidence/F12/*.md`. Baris **F14** ditambahkan **2026-10-02**; detail: `web/ux/patterns/F14.md`, skor `web/ux/scores/F14.md`, bukti `web/ux/evidence/F14/*.md`. Baris lain tidak diubah.
 
 Detail lengkap: `web/ux/patterns/F05.md`, `F06.md`, `F08.md`, `F09.md`; lintas flow:
@@ -82,6 +88,13 @@ daftar, dan **state kosong** — yang justru penting.
 | 8 | **F12: cacat ledger P0 + tidak ada jadwal ulang & refund.** `BookingService::batalkan()` selalu mengubah invoice → `dibatalkan` tanpa memeriksa `pembayaran.status` dan tanpa menulis baris `refund` — booking lunas bisa berakhir "dibatalkan" dengan uang tanpa jejak. Jadwal ulang greenfield; `refund` (tabel + enum) nol jalur tulis; webhook menolak `refund` 422; guard batal belum memuat `check_in`/`no_show`. | `BookingService.php:194-199`; `docs/schema-notes.md:1496-1502`; benchmark `web/ux/patterns/F12.md` §12; `web/ux/evidence/F12/sehatly-fase0.md` | **P0 (ledger) / P1 (fitur)** | **L** (backend baru) | Tinggi |
 | 9 | **F14 admin klinik absen total** (route/layar/aksi massal tak ada; kode RBAC `dokter.lihat`/`jadwal.lihat`/`audit.lihat`/`pdp.kelola` tak dikonsumsi). **Benchmark selesai 2026-10-02** — `patterns/F14.md` §4 memuat kontrak API usulan & 3 kode izin baru (`dokter.kelola`, `jadwal.kelola`, `laporan.lihat`) yang wajib disetujui lebih dulu; tanpa itu UI mustahil. | `web/ux/evidence/F14/sehatly-fase0.md`; `web/ux/patterns/F14.md` §4/§12; `flows.md` F14 | **P2** | **L** (backend baru) | Tinggi |
 | 10 | **F15 offline belum ditangani di mana pun** (tanpa `navigator.onLine`/banner/antrean tulis); plus preferensi/reminder notifikasi F11 belum ada. | grep `offline/navigator.onLine` = nihil; `flows.md` F11/F15 | **P2** | **M** (potongan lintas-flow) | Sedang |
+
+**Gap tambahan dari sesi F01/F03/F04 (2026-10-02):**
+
+- **F01 (P0 kebenaran):** nomor telepon tidak dinormalisasi — `0812…` dan `+62812…` menjadi dua akun (`AuthRequest.php:63-66`); tidak ada endpoint kirim ulang OTP; logout mematikan **semua** perangkat; consent UU PDP saat daftar belum punya jalur kontrak.
+- **F03 (P1):** tidak ada parameter `sort` (server mematok rating/konsultasi/id); `jumlah_ulasan`/`pengalaman_tahun` absen dari `DokterResource` list; pencarian hanya `users.nama_lengkap`; filter faskes/geo belum ada walau skema siap.
+- **F04 (P0 angka):** agregat `dokter.rating_rata_rata`/`jumlah_ulasan` tidak pernah dihitung dari `ulasan_dokter`; endpoint ulasan + jalur tulis (`konsultasi selesai → ulasan`) belum ada; jadwal + CTA booking belum tampil di profil.
+- **UI ada, fitur tak terlihat:** API `/auth/devices` lengkap tanpa layar (F01); endpoint `/dokter/{id}/jadwal` & `/slot` sudah 200 tetapi tidak dipakai di profil (F04).
 
 **Rekomendasi urutan:** (a) putuskan 5 hal di §5; (b) tutup gap backend P0 (#1, #2, #3) agar UI
 pattern bisa dibangun tanpa fallback; (c) implementasi **satu flow per sesi** mengikuti
@@ -117,6 +130,7 @@ pattern bisa dibangun tanpa fallback; (c) implementasi **satu flow per sesi** me
    daftar field wajib label, bukan sengketa hukum.
 9. **Seluruh daftar kandidat awal di `flows.md` adalah titik awal dari pengetahuan umum** dan
    sudah diverifikasi ulang; kandidat yang tidak bisa dibuktikan dibuang, bukan ditempel.
+10. **Sesi F01/F03/F04 (2026-10-02):** SATUSEHAT Mobile tidak diskor (FAQ dirender dinamis, isi tidak terbaca); Doctolib (SERP & profil) dan Zocdoc (SERP & profil) memblokir otomatis **HTTP 403**; Halodoc/Alodokter merender hasil dokter via JS sehingga filter/kartu sebagian **N/V**; aksesibilitas **N/V untuk semua kandidat** di ketiga flow; angka benchmark Baymard berasal dari e-commerce, bukan kesehatan; tidak ada pemenang tunggal di ketiga flow (semua aplikasi satu penerbit) — pola bersandar pada sumber riset/regulasi independen (NN/g, Baymard, FTC, EU, CMA, OECD, Google, Apple, Meta, KKI).
 
 ---
 
@@ -193,9 +207,9 @@ yang mereka setujui dan bagaimana menariknya.
 web/ux/
   flows.md                     # Fase 0: status + endpoint + realtime per flow (v0.2)
   rubric.md, pattern-template.md, BENCHMARK_PROMPT.md
-  evidence/{F05,F06,F08,F09,F11,F12,F13,F14}/*.md
-  scores/{F05,F06,F08,F09,F11,F12,F13,F14}.md
-  patterns/{F05,F06,F08,F09,F11,F12,F13,F14}.md, patterns/_global.md
+  evidence/{F01,F03,F04,F05,F06,F08,F09,F11,F12,F13,F14}/*.md   # + F02, F10
+  scores/{F01,F03,F04,F05,F06,F08,F09,F11,F12,F13,F14}.md
+  patterns/{F01,F03,F04,F05,F06,F08,F09,F11,F12,F13,F14}.md, patterns/_global.md
   refs/current/*.png           # Fase 6: 34 screenshot 390/1280 (tidak di-commit)
   report.md                    # dokumen ini
 ```
