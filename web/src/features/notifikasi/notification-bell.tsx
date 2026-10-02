@@ -2,15 +2,19 @@ import { Link } from 'react-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Bell, Loader2 } from 'lucide-react';
 import {
-    NOTIFIKASI_REFETCH_MS,
     labelTipeNotifikasi,
     notifikasiBadgeOptions,
     tandaiSemuaDibacaMutation,
     unreadDari,
 } from '@/lib/api/notifikasi';
-import { formatWaktu } from '@/lib/format';
+import { meOptions } from '@/lib/api/me';
+import { formatWaktuZona } from '@/lib/waktu';
+import { useOnlineStatus } from '@/hooks/use-online-status';
+import { ruteDariTautan } from '@/features/notifikasi/deep-link';
+import { useTandaiDibaca } from '@/features/notifikasi/use-tandai-dibaca';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { SkeletonRows } from '@/components/states/loading-state';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -30,25 +34,32 @@ import {
  * and `?page`. A badge derived from `meta.total` would show the page size, and one derived
  * from the rows on screen would show at most `per_page`.
  *
+ * ## Rows are deep links, and the whole row is the target
+ *
+ * The dropdown used to render plain text. Each row now resolves through the same
+ * {@link ruteDariTautan} whitelist the full page uses: a matched `tautan` becomes a
+ * `<Link>` whose accessible name is "Buka {judul}", and everything else stays a
+ * non-clickable block. A click on a link marks the row read fire-and-forget and then
+ * navigates; a failed `PUT` never blocks the route change. The bell itself is a 44 px
+ * target, per `web/AGENTS.md`.
+ *
  * ## `refetchInterval` is a badge cadence, and it stops in a hidden tab
  *
  * `notifikasiBadgeOptions()` polls every {@link NOTIFIKASI_REFETCH_MS}. The endpoint carries
  * no `throttle:` middleware, so nothing is being pushed against; `refetchIntervalInBackground`
  * is left off so a backgrounded tab stops asking rather than polling all night.
- *
- * ## PDP consent is not a gate, on purpose
- *
- * `PersetujuanPdp::require()` is called from exactly one place in the whole application,
- * `SuratKeteranganService:255`, and it gates referral letters. `NotificationService` has no
- * consent check. Hiding a patient's own booking and payment confirmations behind a consent
- * they never gave would be inventing a rule the API does not have.
  */
 export function NotificationBell() {
+    const online = useOnlineStatus();
     const badge = useQuery(notifikasiBadgeOptions());
+    const me = useQuery(meOptions());
     const tandaiSemua = useMutation(tandaiSemuaDibacaMutation());
+    const { tandaiSatu } = useTandaiDibaca();
 
     const unread = unreadDari(badge.data?.meta);
     const rows = badge.data?.data.notifikasi ?? [];
+    const tipePengguna = me.data?.data.user.tipe;
+    const tanpaData = badge.data === undefined;
 
     return (
         <DropdownMenu>
@@ -58,7 +69,7 @@ export function NotificationBell() {
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="relative"
+                    className="relative size-11"
                     aria-label={
                         unread === 0
                             ? 'Notifikasi'
@@ -93,10 +104,15 @@ export function NotificationBell() {
                 <DropdownMenuSeparator />
 
                 {badge.isPending ? (
-                    <p className="text-muted-foreground flex items-center gap-2 px-2 py-4 text-sm">
-                        <Loader2 className="animate-spin" aria-hidden />
-
-                        Memuat notifikasi...
+                    <div data-slot="notifikasi-dropdown-loading" className="px-2 py-2">
+                        <SkeletonRows rows={3} />
+                    </div>
+                ) : badge.isError && tanpaData ? (
+                    <p
+                        data-slot="notifikasi-dropdown-galat"
+                        className="text-muted-foreground px-2 py-4 text-sm"
+                    >
+                        Gagal memuat notifikasi.
                     </p>
                 ) : rows.length === 0 ? (
                     <p
@@ -106,44 +122,80 @@ export function NotificationBell() {
                         Belum ada notifikasi.
                     </p>
                 ) : (
-                    <ul data-slot="notifikasi-dropdown-list" className="max-h-80 flex-col overflow-y-auto">
-                        {rows.map((row) => (
-                            <li
-                                key={row.id}
-                                data-slot="notifikasi-dropdown-item"
-                                data-dibaca={row.dibaca_at === null ? 'false' : 'true'}
-                                className="flex flex-col gap-0.5 px-2 py-2"
-                            >
-                                <p className="text-sm">
-                                    <span className="text-muted-foreground mr-1 text-xs">
-                                        {labelTipeNotifikasi(row.tipe)}
-                                    </span>
+                    <ul
+                        data-slot="notifikasi-dropdown-list"
+                        className="flex max-h-80 flex-col overflow-y-auto"
+                    >
+                        {rows.map((row) => {
+                            const rute = ruteDariTautan(row.tautan, tipePengguna);
+                            const belumDibaca = row.dibaca_at === null;
 
-                                    {row.judul}
-                                </p>
+                            return (
+                                <li
+                                    key={row.id}
+                                    data-slot="notifikasi-dropdown-item"
+                                    data-dibaca={belumDibaca ? 'false' : 'true'}
+                                >
+                                    {rute === null ? (
+                                        <div className="flex flex-col gap-0.5 px-2 py-2">
+                                            <span className="text-muted-foreground mr-1 text-xs">
+                                                {labelTipeNotifikasi(row.tipe)}
+                                            </span>
 
-                                <p className="text-muted-foreground text-xs">
-                                    {row.isi}
-                                </p>
+                                            <span data-slot="notifikasi-dropdown-judul" className="text-sm">
+                                                {row.judul}
+                                            </span>
 
-                                <p className="text-muted-foreground text-xs">
-                                    {formatWaktu(row.dibuat_at)}
-                                </p>
-                            </li>
-                        ))}
+                                            <span className="text-muted-foreground text-xs">
+                                                {formatWaktuZona(row.dibuat_at)}
+                                            </span>
+                                        </div>
+                                    ) : (
+                                        <DropdownMenuItem asChild>
+                                            <Link
+                                                data-slot="notifikasi-dropdown-link"
+                                                to={rute}
+                                                aria-label={`Buka ${row.judul}`}
+                                                className="flex min-h-11 flex-col items-start gap-0.5"
+                                                onClick={() => {
+                                                    tandaiSatu(row.id, !belumDibaca);
+                                                }}
+                                            >
+                                                <span className="text-muted-foreground text-xs">
+                                                    {labelTipeNotifikasi(row.tipe)}
+                                                </span>
+
+                                                <span data-slot="notifikasi-dropdown-judul" className="text-sm">
+                                                    {row.judul}
+                                                </span>
+
+                                                <span className="text-muted-foreground text-xs">
+                                                    {formatWaktuZona(row.dibuat_at)}
+                                                </span>
+                                            </Link>
+                                        </DropdownMenuItem>
+                                    )}
+                                </li>
+                            );
+                        })}
                     </ul>
                 )}
 
                 <DropdownMenuSeparator />
 
-                <DropdownMenuItem asChild>
+                <DropdownMenuItem asChild className="min-h-11">
                     <Link to="/notifikasi">Lihat semua notifikasi</Link>
                 </DropdownMenuItem>
 
                 <DropdownMenuItem
                     data-slot="notifikasi-baca-semua"
-                    disabled={unread === 0 || tandaiSemua.isPending}
+                    className="min-h-11"
+                    disabled={unread === 0 || tandaiSemua.isPending || !online}
                     onSelect={() => {
+                        if (!online) {
+                            return;
+                        }
+
                         tandaiSemua.mutate();
                     }}
                 >

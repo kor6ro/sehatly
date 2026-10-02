@@ -74,8 +74,22 @@ export function unreadDari(meta: ApiMeta | undefined): number {
     return typeof unread === 'number' ? unread : 0;
 }
 
+/**
+ * One read, one request.
+ *
+ * ## Why the automatic retries are off for this endpoint
+ *
+ * The screen exposes an explicit "Coba lagi", and `_global.md` §3 makes `ErrorState` +
+ * "Coba lagi" the retry mechanism for a failed read. Leaving ky's one-retry and
+ * react-query's two retries in place would turn one "Coba lagi" tap into up to six
+ * requests for a 5xx, and would make "the button refetched once" unobservable. For a
+ * 403 the retries were already refused by `shouldRetryQuery`; this closes the 5xx half.
+ * Retrying a GET is safe by itself - it is the count and the error latency that are
+ * wrong here.
+ */
 export async function fetchNotifikasi(filters: NotifikasiFilters) {
     return request<{ notifikasi: Notifikasi[] }>('notifikasi', {
+        retry: 0,
         searchParams: {
             page: filters.page,
             per_page: filters.per_page,
@@ -115,6 +129,12 @@ export function notifikasiOptions(filters: NotifikasiFilters) {
     return queryOptions({
         queryKey: [...notifikasiQueryKey, filters],
         queryFn: () => fetchNotifikasi(filters),
+        /**
+         * No automatic retry: the screen owns a single explicit "Coba lagi", and a 403
+         * must not be replayed at all (`shouldRetryQuery` already refuses 4xx; this also
+         * pins the 5xx case so one tap is one request).
+         */
+        retry: false,
     });
 }
 
@@ -132,6 +152,8 @@ export function notifikasiBadgeOptions() {
         queryKey: notifikasiBadgeQueryKey,
         queryFn: () => fetchNotifikasi({ page: 1, per_page: 5 }),
         refetchInterval: NOTIFIKASI_REFETCH_MS,
+        /** The badge fails quietly and retries on its own 30 s cadence, not on a loop. */
+        retry: false,
     });
 }
 
@@ -144,10 +166,12 @@ export function notifikasiBadgeOptions() {
  * key, and a targeted invalidation of the page query would leave `meta.unread` stale, so
  * the badge would keep showing a count the server no longer reports. Hence the prefix.
  */
-export function tandaiDibacaMutation() {
+export function tandaiDibacaMutation(onSelesai?: () => void) {
     return mutationOptions({
         mutationFn: tandaiDibaca,
         onSettled: () => {
+            onSelesai?.();
+
             void queryClient.invalidateQueries({ queryKey: notifikasiQueryKey });
         },
     });
