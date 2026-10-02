@@ -229,13 +229,16 @@ it('types_every_meta_operation_as_paginated', function (): void {
     // F04's public review list is the forty-first: it answers `pageMeta()` with
     // the recomputed review aggregate merged into the same block, which is why
     // `PaginatedMeta` gained the four optional review keys instead of a new
-    // envelope component.
-    expect($paginated)->toHaveCount(41);
+    // envelope component. F11's `GET /api/v1/pengingat` is the forty-second: the
+    // reminder list answers `pageMeta()` like the inbox does, while its
+    // preference read is a single object and deliberately has no `meta`.
+    expect($paginated)->toHaveCount(42);
 
     expect($paginated)->toContain('get /api/v1/dokter @200');
     expect($paginated)->toContain('get /api/v1/dokter/{dokter}/ulasan @200');
     expect($paginated)->toContain('get /api/v1/obat @200');
     expect($paginated)->toContain('get /api/v1/notifikasi @200');
+    expect($paginated)->toContain('get /api/v1/pengingat @200');
     expect($paginated)->toContain('get /api/v1/auth/devices @200');
     expect($paginated)->toContain('get /api/v1/pdp/dokumen @200');
     expect($paginated)->toContain('get /api/v1/pasien/surat-keterangan @200');

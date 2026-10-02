@@ -61,6 +61,9 @@ use Laravel\Sanctum\HasApiTokens;
  * @property-read Collection<int, KonsultasiBaca> $konsultasiBaca
  * @property-read Collection<int, ResepVerifikasi> $resepVerifikasi
  * @property-read Collection<int, AksesRekamMedisLog> $aksesRekamMedisLog
+ * @property-read PreferensiNotifikasi|null $preferensiNotifikasi
+ * @property-read Collection<int, PreferensiNotifikasiTipe> $preferensiNotifikasiTipe
+ * @property-read Collection<int, Pengingat> $pengingat
  */
 #[Fillable([
     'nama_lengkap',
@@ -224,6 +227,39 @@ class User extends Authenticatable
     public function aksesRekamMedisLog(): HasMany
     {
         return $this->hasMany(AksesRekamMedisLog::class, 'pengakses_user_id');
+    }
+
+    /**
+     * F11 quiet hours. At most one row per user; the unique key on
+     * `preferensi_notifikasi.user_id` is what makes this a `hasOne` rather than
+     * a `hasMany`.
+     *
+     * @return HasOne<PreferensiNotifikasi, $this>
+     */
+    public function preferensiNotifikasi(): HasOne
+    {
+        return $this->hasOne(PreferensiNotifikasi::class, 'user_id');
+    }
+
+    /**
+     * F11 per-type push switches. Zero rows is normal - an absent row means
+     * "on" - so this is a `hasMany`, not four eager rows.
+     *
+     * @return HasMany<PreferensiNotifikasiTipe, $this>
+     */
+    public function preferensiNotifikasiTipe(): HasMany
+    {
+        return $this->hasMany(PreferensiNotifikasiTipe::class, 'user_id');
+    }
+
+    /**
+     * F11 scheduled reminders, both kinds.
+     *
+     * @return HasMany<Pengingat, $this>
+     */
+    public function pengingat(): HasMany
+    {
+        return $this->hasMany(Pengingat::class, 'user_id');
     }
 
     /**

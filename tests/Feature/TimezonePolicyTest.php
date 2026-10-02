@@ -71,21 +71,27 @@ const ZONA_WIB = 'Asia/Jakarta';
 */
 
 const INSTAN = [
-    // TIMESTAMP - all 55, machine-written audit columns.
+    // TIMESTAMP - all 64, machine-written audit columns. F08's
+    // `konsultasi_baca` pair and F11's seven columns were added here when their
+    // tables landed; the count below is what keeps this list honest.
     'akses_rekam_medis_log.dibuat_at', 'apotek_stok.diubah_at', 'artikel.dibuat_at',
     'artikel.diubah_at', 'audit_log.dibuat_at', 'booking.dibuat_at', 'booking.diubah_at',
     'dokter.dibuat_at', 'dokter.diubah_at', 'dokter_jadwal.dibuat_at',
     'dokter_jadwal.diubah_at', 'faskes.dibuat_at', 'faskes.diubah_at',
     'home_care_pesanan.dibuat_at', 'home_care_pesanan.diubah_at', 'invoice.dibuat_at',
     'invoice.diubah_at', 'klaim_bpjs.dibuat_at', 'klaim_bpjs.diubah_at',
-    'konsultasi.dibuat_at', 'konsultasi.diubah_at', 'konsultasi_chat.terkirim_at',
+    'konsultasi.dibuat_at', 'konsultasi.diubah_at', 'konsultasi_baca.dibuat_at',
+    'konsultasi_baca.diubah_at', 'konsultasi_chat.terkirim_at',
     'lab_permintaan.dibuat_at', 'lab_permintaan.diubah_at', 'master_obat.dibuat_at',
     'master_obat.diubah_at', 'notifikasi.dibuat_at', 'pasien.dibuat_at',
     'pasien.diubah_at', 'pasien.dihapus_at', 'pasien_alergi.dibuat_at',
     'pasien_anggota_keluarga.dibuat_at', 'pasien_imunisasi.dibuat_at',
     'pasien_penjamin.dibuat_at', 'pasien_riwayat_penyakit.dibuat_at',
-    'pasien_tanda_vital.dibuat_at', 'pembayaran.dibuat_at', 'pesanan_obat.dibuat_at',
-    'pesanan_obat.diubah_at', 'promo_redemption.dibuat_at', 'refund.dibuat_at',
+    'pasien_tanda_vital.dibuat_at', 'pembayaran.dibuat_at', 'pengingat.dibuat_at',
+    'pengingat.diubah_at', 'pengingat_terkirim.dibuat_at', 'pesanan_obat.dibuat_at',
+    'pesanan_obat.diubah_at', 'preferensi_notifikasi.dibuat_at',
+    'preferensi_notifikasi.diubah_at', 'preferensi_notifikasi_tipe.dibuat_at',
+    'preferensi_notifikasi_tipe.diubah_at', 'promo_redemption.dibuat_at', 'refund.dibuat_at',
     'rekam_medis.dibuat_at', 'rekam_medis.diubah_at', 'rekam_medis_lampiran.dibuat_at',
     'resep.dibuat_at', 'resep.diubah_at', 'rujukan.dibuat_at',
     'surat_keterangan.dibuat_at', 'ulasan_dokter.dibuat_at', 'user_devices.dibuat_at',
@@ -118,7 +124,8 @@ const INSTAN = [
 const WALL_CLOCK = [
     // TIME - never instants. The rule `docs/timezone-policy.md` leads with.
     'booking.slot_mulai', 'booking.slot_selesai', 'dokter_jadwal.jam_mulai',
-    'dokter_jadwal.jam_selesai',
+    'dokter_jadwal.jam_selesai', 'pengingat_terkirim.waktu',
+    'preferensi_notifikasi.jam_tenang_mulai', 'preferensi_notifikasi.jam_tenang_selesai',
 
     // DATE - calendar dates.
     'apotek_stok.kedaluwarsa', 'booking.tanggal_kunjungan', 'dokter.str_berlaku_sampai',
@@ -126,7 +133,8 @@ const WALL_CLOCK = [
     'dokter_jadwal.berlaku_sampai', 'dokter_libur.tanggal', 'klaim_bpjs.tanggal_sep',
     'klaim_bpjs.tanggal_pulang', 'pasien.tanggal_lahir', 'pasien.tanggal_meninggal',
     'pasien_anggota_keluarga.tanggal_lahir', 'pasien_imunisasi.tanggal',
-    'pasien_penjamin.masa_berlaku_akhir', 'rekam_medis.jadwal_kontrol',
+    'pasien_penjamin.masa_berlaku_akhir', 'pengingat.tanggal_mulai',
+    'pengingat_terkirim.tanggal', 'rekam_medis.jadwal_kontrol',
     'resep.berlaku_sampai', 'rujukan.berlaku_sampai', 'surat_keterangan.tanggal_mulai',
     'surat_keterangan.tanggal_selesai',
 
@@ -341,10 +349,10 @@ it('lists every rule-1 column in a form the DDL agrees with', function (): void 
 
     expect($hilang)->toBe([]);
 
-    // 55 `TIMESTAMP` + 22 `DATETIME` instants. A drift in the DDL that adds or drops
+    // 64 `TIMESTAMP` + 22 `DATETIME` instants. A drift in the DDL that adds or drops
     // a temporal column has to be a deliberate edit to this constant and to
     // `docs/timezone-policy.md`, not a silent change of coverage.
-    expect(count(INSTAN))->toBe(77);
+    expect(count(INSTAN))->toBe(86);
 });
 
 it('lists every rule-2 column in a form the DDL agrees with', function (): void {

@@ -322,6 +322,15 @@
         "kedaluwarsa",
         "refund"
     ],
+    "pengingat.jenis": [
+        "obat",
+        "janji_temu"
+    ],
+    "pengingat.status": [
+        "aktif",
+        "nonaktif",
+        "selesai"
+    ],
     "persetujuan_pdp.jenis": [
         "syarat_ketentuan",
         "kebijakan_privasi",
@@ -349,6 +358,17 @@
         "resep_dokter",
         "obat_bebas",
         "produk_kesehatan"
+    ],
+    "preferensi_notifikasi.jam_tenang_mode": [
+        "setiap_hari",
+        "hari_kerja",
+        "kustom"
+    ],
+    "preferensi_notifikasi_tipe.tipe": [
+        "booking",
+        "pembayaran",
+        "resep",
+        "chat"
     ],
     "refund.status": [
         "diajukan",

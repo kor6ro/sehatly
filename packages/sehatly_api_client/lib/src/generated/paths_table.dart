@@ -677,6 +677,28 @@ const List<String> apiv1pdppersetujuanMethods = <String>[
   'POST',
 ];
 
+/// `/api/v1/pengingat`
+///
+/// Answers: GET (`pengingat.index`), POST (`pengingat.store`).
+const String apiv1pengingat = '/api/v1/pengingat';
+
+/// The HTTP methods `apiv1pengingat` answers.
+const List<String> apiv1pengingatMethods = <String>[
+  'GET',
+  'POST',
+];
+
+/// `/api/v1/pengingat/{id}`
+///
+/// Answers: DELETE (`pengingat.destroy`), PUT (`pengingat.update`).
+const String apiv1pengingatid = '/api/v1/pengingat/{id}';
+
+/// The HTTP methods `apiv1pengingatid` answers.
+const List<String> apiv1pengingatidMethods = <String>[
+  'DELETE',
+  'PUT',
+];
+
 /// `/api/v1/pesanan-obat/{id}`
 ///
 /// Answers: GET (`pesanan-obat.show`).
@@ -685,6 +707,17 @@ const String apiv1pesananObatid = '/api/v1/pesanan-obat/{id}';
 /// The HTTP methods `apiv1pesananObatid` answers.
 const List<String> apiv1pesananObatidMethods = <String>[
   'GET',
+];
+
+/// `/api/v1/profil/notifikasi`
+///
+/// Answers: GET (`profil.notifikasi.show`), PUT (`profil.notifikasi.update`).
+const String apiv1profilnotifikasi = '/api/v1/profil/notifikasi';
+
+/// The HTTP methods `apiv1profilnotifikasi` answers.
+const List<String> apiv1profilnotifikasiMethods = <String>[
+  'GET',
+  'PUT',
 ];
 
 /// `/api/v1/promo/validasi`

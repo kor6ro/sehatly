@@ -301,7 +301,7 @@ test('the full run is clean, and every informational row is a registered extra',
     expect($kinds)->not->toContain('missing_index');
     expect($kinds)->not->toContain('missing_check');
 
-    expect($json['expected']['tables'])->toBe(76);
+    expect($json['expected']['tables'])->toBe(80);
     expect($json['expected']['views'])->toBe(2);
     expect($json['live_model']['views'])->toBe(2);
 });

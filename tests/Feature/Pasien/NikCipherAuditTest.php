@@ -182,7 +182,7 @@ test('every DDL citation in the authored files points at a line that EXISTS', fu
     }
 
     expect($diLuar)->toBe([])
-        ->and($total)->toBe(1364)
+        ->and($total)->toBe(1429)
         ->and($citasi)->toBeGreaterThan(15);
 });
 
@@ -201,7 +201,7 @@ test('the schema holds exactly two NIK columns, and only the patient one is encr
     // cannot be forgotten, rather than left in prose.
     $spec = (new SqlSchemaParser)->parseFile(base_path('telemedicine_test.sql'));
 
-    expect($spec->tableNames())->toHaveCount(76);
+    expect($spec->tableNames())->toHaveCount(80);
 
     $ditemukan = [];
     $enkripsi = [];
@@ -390,12 +390,14 @@ test('the DDL changed by exactly the ONE authorised line, and the migration made
     // The NIK change touched line 222 only. F02 then replaced line 1144's
     // `UNIQUE KEY uq_consent ...` with a comment recording the drop. F08 then
     // APPENDED section [17] (`konsultasi_baca`) after the final SELECT, so every
-    // F02-era line number still resolves - the file is 1364 lines now, which is
-    // asserted below. F01 folded `user_refresh_tokens.device_id` and the named
+    // F02-era line number still resolves - the file was 1364 lines then. F11
+    // APPENDED section [18] (four tables) the same way, so it is 1429 lines now
+    // and no pre-existing line moved; the digest below is the new one. F01
+    // folded `user_refresh_tokens.device_id` and the named
     // `idx_refresh_device` onto the existing `:206` and `:211` lines (see
     // docs/schema-notes.md), so the line count and every citation did not move.
     expect(hash_file('sha256', base_path('telemedicine_test.sql')))
-        ->toBe('1b9264fcdeb76767fcb855b29a3b2c430d54cbea01961b7084d050dad67d47cb');
+        ->toBe('8cf1e8542f935e4ca4415f03976c32edcb913f225a9e1863e008e9b7f87c893f');
 
     // No table named after the proposed columns exists. Still true, and still
     // worth saying: the payload is a COLUMN, not a table.
@@ -434,11 +436,12 @@ test('the DDL changed by exactly the ONE authorised line, and the migration made
 
     // The line count, which is what makes "one line" a measurement rather than a
     // promise: the change renamed a column and did not add or remove one. F08's
-    // append made the total 1364; line 222 is untouched.
+    // append made the total 1364 and F11's made it 1429; line 222 is untouched
+    // by both.
     $garis = file(base_path('telemedicine_test.sql'), FILE_IGNORE_NEW_LINES);
     $pasien = (new SqlSchemaParser)->parseFile(base_path('telemedicine_test.sql'))->table('pasien');
 
-    expect(count($garis))->toBe(1364)
+    expect(count($garis))->toBe(1429)
         ->and($pasien->columns[NikCipher::COL_PAYLOAD]->line)->toBe(222)
         ->and(count($pasien->columns))->toBe(31)
         ->and(substr_count((string) file_get_contents(base_path('telemedicine_test.sql')), 'nik_cipher'))->toBe(1);

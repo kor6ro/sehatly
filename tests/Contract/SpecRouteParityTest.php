@@ -80,7 +80,7 @@ it('publishes the same count the portable route:list invocation reports', functi
 
     expect($operations)->toBe(count(ContractSpec::liveOperations()));
     expect($operations)->toBe(count(ContractSpec::specOperations()));
-    expect($operations)->toBe(105);
+    expect($operations)->toBe(111);
 });
 
 it('agrees with the document on every route name and controller action', function (): void {
@@ -197,6 +197,6 @@ it('would fail if a route existed with no entry in the document', function (): v
 
     expect($undocumented)->toBe([$ghost]);
 
-    // The operation count assertion would fire too, since 106 is not 105.
-    expect(count(ContractSpec::liveOperations()))->not->toBe(105);
+    // The operation count assertion would fire too, since 112 is not 111.
+    expect(count(ContractSpec::liveOperations()))->not->toBe(111);
 });

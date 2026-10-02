@@ -146,12 +146,12 @@ test('the observed set is exactly the DDL closure minus the declared exclusions'
 
 test('the table-to-class map is total over every model on disk', function () {
     // The only hand-typed part of the design, and it is checked against the
-    // FILESYSTEM rather than against a list. 76 models, and classFor() must
+    // FILESYSTEM rather than against a list. 80 models, and classFor() must
     // name the class of every one. A new model, or a renamed table, fails here
     // rather than silently escaping the scope at runtime.
     $files = glob(base_path('app/Models/*.php'));
 
-    expect($files)->toHaveCount(76);
+    expect($files)->toHaveCount(80);
 
     foreach ($files as $file) {
         $class = 'App\\Models\\'.basename($file, '.php');

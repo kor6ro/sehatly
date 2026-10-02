@@ -1362,3 +1362,68 @@ CREATE TABLE konsultasi_baca (
   FOREIGN KEY (konsultasi_id) REFERENCES konsultasi(id) ON DELETE CASCADE,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
+
+-- ============================================================================
+-- [18] PREFERENSI NOTIFIKASI & PENGINGAT (F11) - owner-approved 2026-10-03
+-- ============================================================================
+
+CREATE TABLE preferensi_notifikasi (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT UNSIGNED NOT NULL,
+  jam_tenang_aktif TINYINT(1) NOT NULL DEFAULT 0,
+  jam_tenang_mode ENUM('setiap_hari','hari_kerja','kustom') NOT NULL DEFAULT 'setiap_hari',
+  jam_tenang_mulai TIME NOT NULL DEFAULT '21:00:00',
+  jam_tenang_selesai TIME NOT NULL DEFAULT '06:00:00',
+  zona_waktu VARCHAR(40) NOT NULL DEFAULT 'Asia/Jakarta',
+  dibuat_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  diubah_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_preferensi_notifikasi_user (user_id),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE preferensi_notifikasi_tipe (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT UNSIGNED NOT NULL,
+  tipe ENUM('booking','pembayaran','resep','chat') NOT NULL,
+  push_aktif TINYINT(1) NOT NULL DEFAULT 1,
+  dibuat_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  diubah_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_preferensi_notifikasi_tipe (user_id, tipe),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE pengingat (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT UNSIGNED NOT NULL,
+  jenis ENUM('obat','janji_temu') NOT NULL,
+  judul VARCHAR(200) NOT NULL,
+  keterangan VARCHAR(255) NULL,
+  obat_id BIGINT UNSIGNED NULL,
+  booking_id BIGINT UNSIGNED NULL,
+  dosis VARCHAR(50) NULL,
+  jumlah_per_hari TINYINT UNSIGNED NULL,
+  tanggal_mulai DATE NOT NULL,
+  lama_hari SMALLINT UNSIGNED NULL,
+  waktu JSON NOT NULL,
+  zona_waktu VARCHAR(40) NOT NULL DEFAULT 'Asia/Jakarta',
+  status ENUM('aktif','nonaktif','selesai') NOT NULL DEFAULT 'aktif',
+  dibuat_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  diubah_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (obat_id) REFERENCES master_obat(id) ON DELETE RESTRICT,
+  FOREIGN KEY (booking_id) REFERENCES booking(id) ON DELETE RESTRICT,
+  INDEX idx_pengingat_user_status (user_id, status),
+  INDEX idx_pengingat_user_tanggal (user_id, tanggal_mulai)
+) ENGINE=InnoDB;
+
+CREATE TABLE pengingat_terkirim (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  pengingat_id BIGINT UNSIGNED NOT NULL,
+  tanggal DATE NOT NULL,
+  waktu TIME NOT NULL,
+  notifikasi_id BIGINT UNSIGNED NULL,
+  dibuat_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_pengingat_terkirim (pengingat_id, tanggal, waktu),
+  FOREIGN KEY (pengingat_id) REFERENCES pengingat(id) ON DELETE CASCADE,
+  FOREIGN KEY (notifikasi_id) REFERENCES notifikasi(id) ON DELETE RESTRICT
+) ENGINE=InnoDB;

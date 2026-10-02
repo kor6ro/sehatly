@@ -208,15 +208,7 @@ final class NotificationService
      */
     private function kirim(User $user, NotifikasiTipe $tipe, string $judul, string $isi, string $tautan, array $payload): Notifikasi
     {
-        $baris = new Notifikasi;
-        $baris->user_id = (int) $user->getKey();
-        $baris->judul = $this->potong($judul, 200);
-        $baris->isi = $this->potong($isi, 500);
-        $baris->tipe = $tipe->value;
-        $baris->tautan = $this->potong($tautan, 500);
-        $baris->payload = $payload;
-        $baris->dibaca_at = null;
-        $baris->save();
+        $baris = $this->catat($user, $tipe, $judul, $isi, $tautan, $payload);
 
         $this->dorong($user, $baris);
 
@@ -224,13 +216,50 @@ final class NotificationService
     }
 
     /**
+     * Write the in-app `notifikasi` row and NOTHING else - no push.
+     *
+     * ## Why the write and the push are separable (F11)
+     *
+     * In-app delivery is unconditional: F11's rule is that push is not the
+     * source of truth, so the row is always written and only the push can be
+     * suppressed. A reminder dispatch is the one producer that has to decide
+     * between the two after the row exists - consent, the per-type switch and
+     * quiet hours are all checked against the user's own settings - so it calls
+     * this method, then {@see dorong()} only when every gate allows it. The
+     * event methods above keep the combined `kirim()` behaviour byte for byte.
+     *
+     * The row is saved through the MODEL, deliberately - see the class
+     * docblock: `Notifikasi` is in `AuditScope`'s person closure and the global
+     * observer audits it, so a query-builder insert here would be the one write
+     * in the table that leaves no `audit_log` row.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    public function catat(User $user, NotifikasiTipe $tipe, string $judul, string $isi, ?string $tautan, array $payload): Notifikasi
+    {
+        $baris = new Notifikasi;
+        $baris->user_id = (int) $user->getKey();
+        $baris->judul = $this->potong($judul, 200);
+        $baris->isi = $this->potong($isi, 500);
+        $baris->tipe = $tipe->value;
+        $baris->tautan = $this->potong((string) $tautan, 500);
+        $baris->payload = $payload;
+        $baris->dibaca_at = null;
+        $baris->save();
+
+        return $baris;
+    }
+
+    /**
      * One push attempt per active device, and a LOG line for every skip.
      *
-     * The device rows are read with the query builder rather than through a
-     * `UserDevice` relation, because this is a read of two columns and there is no
-     * relation on the model to hang a constraint off.
+     * Public since F11 so a caller that wrote the row through {@see catat()}
+     * can decide separately whether to push it. The device rows are read with
+     * the query builder rather than through a `UserDevice` relation, because
+     * this is a read of two columns and there is no relation on the model to
+     * hang a constraint off.
      */
-    private function dorong(User $user, Notifikasi $baris): void
+    public function dorong(User $user, Notifikasi $baris): void
     {
         $perangkat = DB::table('user_devices')
             ->where('user_id', (int) $user->getKey())

@@ -3139,6 +3139,120 @@ enum EnumPembayaranStatus {
   }
 }
 
+/// The MySQL `ENUM pengingat.jenis` as declared in `telemedicine_test.sql`.
+///
+/// Members are in DECLARATION ORDER, because MySQL's numeric index depends on
+/// it and a reordering here would be a silent type change.
+///
+/// The member NAME is lowerCamelCase for Dart, and [wireValue] is the DDL value
+/// verbatim. A rename of the name alone would compile; a rename of [wireValue] would
+/// stop parsing what the server sends, which is why the wire string is carried
+/// separately rather than assumed from the name.
+enum EnumPengingatJenis {
+  /// The `obat` value.
+  obat('obat'),
+  /// The `janji_temu` value.
+  janjiTemu('janji_temu');
+
+  const EnumPengingatJenis(this.wireValue);
+
+  /// The value exactly as it appears on the wire.
+  final String wireValue;
+
+  /// The DDL key this enum was generated from.
+  static const String column = 'pengingat.jenis';
+
+  /// Every value, in declaration order.
+
+  /// Not named `values`: Dart reserves that name inside an enum, and a member
+  /// called `values` is a compile error rather than a shadow.
+  static const List<EnumPengingatJenis> members = <EnumPengingatJenis>[
+    obat,
+    janjiTemu,
+  ];
+
+  /// The wire values as a set, for a `contains` check against a query parameter.
+  static const Set<String> wireValues = <String>{
+    'obat',
+    'janji_temu',
+  };
+
+  /// Parses a wire value, or returns `null` for one this enum does not declare.
+  ///
+  /// Returns `null` rather than throwing on purpose: a value outside the set is a
+  /// real possibility while the database has gained a member the app has not been
+  /// rebuilt for, and the caller usually wants to render the raw string rather than
+  /// crash on a screen.
+  static EnumPengingatJenis? tryParse(String? raw) {
+    for (final EnumPengingatJenis candidate in members) {
+      if (candidate.wireValue == raw) {
+        return candidate;
+      }
+    }
+
+    return null;
+  }
+}
+
+/// The MySQL `ENUM pengingat.status` as declared in `telemedicine_test.sql`.
+///
+/// Members are in DECLARATION ORDER, because MySQL's numeric index depends on
+/// it and a reordering here would be a silent type change.
+///
+/// The member NAME is lowerCamelCase for Dart, and [wireValue] is the DDL value
+/// verbatim. A rename of the name alone would compile; a rename of [wireValue] would
+/// stop parsing what the server sends, which is why the wire string is carried
+/// separately rather than assumed from the name.
+enum EnumPengingatStatus {
+  /// The `aktif` value.
+  aktif('aktif'),
+  /// The `nonaktif` value.
+  nonaktif('nonaktif'),
+  /// The `selesai` value.
+  selesai('selesai');
+
+  const EnumPengingatStatus(this.wireValue);
+
+  /// The value exactly as it appears on the wire.
+  final String wireValue;
+
+  /// The DDL key this enum was generated from.
+  static const String column = 'pengingat.status';
+
+  /// Every value, in declaration order.
+
+  /// Not named `values`: Dart reserves that name inside an enum, and a member
+  /// called `values` is a compile error rather than a shadow.
+  static const List<EnumPengingatStatus> members = <EnumPengingatStatus>[
+    aktif,
+    nonaktif,
+    selesai,
+  ];
+
+  /// The wire values as a set, for a `contains` check against a query parameter.
+  static const Set<String> wireValues = <String>{
+    'aktif',
+    'nonaktif',
+    'selesai',
+  };
+
+  /// Parses a wire value, or returns `null` for one this enum does not declare.
+  ///
+  /// Returns `null` rather than throwing on purpose: a value outside the set is a
+  /// real possibility while the database has gained a member the app has not been
+  /// rebuilt for, and the caller usually wants to render the raw string rather than
+  /// crash on a screen.
+  static EnumPengingatStatus? tryParse(String? raw) {
+    for (final EnumPengingatStatus candidate in members) {
+      if (candidate.wireValue == raw) {
+        return candidate;
+      }
+    }
+
+    return null;
+  }
+}
+
 /// The MySQL `ENUM persetujuan_pdp.jenis` as declared in `telemedicine_test.sql`.
 ///
 /// Members are in DECLARATION ORDER, because MySQL's numeric index depends on
@@ -3398,6 +3512,128 @@ enum EnumPesananObatTipe {
   /// crash on a screen.
   static EnumPesananObatTipe? tryParse(String? raw) {
     for (final EnumPesananObatTipe candidate in members) {
+      if (candidate.wireValue == raw) {
+        return candidate;
+      }
+    }
+
+    return null;
+  }
+}
+
+/// The MySQL `ENUM preferensi_notifikasi.jam_tenang_mode` as declared in `telemedicine_test.sql`.
+///
+/// Members are in DECLARATION ORDER, because MySQL's numeric index depends on
+/// it and a reordering here would be a silent type change.
+///
+/// The member NAME is lowerCamelCase for Dart, and [wireValue] is the DDL value
+/// verbatim. A rename of the name alone would compile; a rename of [wireValue] would
+/// stop parsing what the server sends, which is why the wire string is carried
+/// separately rather than assumed from the name.
+enum EnumPreferensiNotifikasiJamTenangMode {
+  /// The `setiap_hari` value.
+  setiapHari('setiap_hari'),
+  /// The `hari_kerja` value.
+  hariKerja('hari_kerja'),
+  /// The `kustom` value.
+  kustom('kustom');
+
+  const EnumPreferensiNotifikasiJamTenangMode(this.wireValue);
+
+  /// The value exactly as it appears on the wire.
+  final String wireValue;
+
+  /// The DDL key this enum was generated from.
+  static const String column = 'preferensi_notifikasi.jam_tenang_mode';
+
+  /// Every value, in declaration order.
+
+  /// Not named `values`: Dart reserves that name inside an enum, and a member
+  /// called `values` is a compile error rather than a shadow.
+  static const List<EnumPreferensiNotifikasiJamTenangMode> members = <EnumPreferensiNotifikasiJamTenangMode>[
+    setiapHari,
+    hariKerja,
+    kustom,
+  ];
+
+  /// The wire values as a set, for a `contains` check against a query parameter.
+  static const Set<String> wireValues = <String>{
+    'setiap_hari',
+    'hari_kerja',
+    'kustom',
+  };
+
+  /// Parses a wire value, or returns `null` for one this enum does not declare.
+  ///
+  /// Returns `null` rather than throwing on purpose: a value outside the set is a
+  /// real possibility while the database has gained a member the app has not been
+  /// rebuilt for, and the caller usually wants to render the raw string rather than
+  /// crash on a screen.
+  static EnumPreferensiNotifikasiJamTenangMode? tryParse(String? raw) {
+    for (final EnumPreferensiNotifikasiJamTenangMode candidate in members) {
+      if (candidate.wireValue == raw) {
+        return candidate;
+      }
+    }
+
+    return null;
+  }
+}
+
+/// The MySQL `ENUM preferensi_notifikasi_tipe.tipe` as declared in `telemedicine_test.sql`.
+///
+/// Members are in DECLARATION ORDER, because MySQL's numeric index depends on
+/// it and a reordering here would be a silent type change.
+///
+/// The member NAME is lowerCamelCase for Dart, and [wireValue] is the DDL value
+/// verbatim. A rename of the name alone would compile; a rename of [wireValue] would
+/// stop parsing what the server sends, which is why the wire string is carried
+/// separately rather than assumed from the name.
+enum EnumPreferensiNotifikasiTipeTipe {
+  /// The `booking` value.
+  booking('booking'),
+  /// The `pembayaran` value.
+  pembayaran('pembayaran'),
+  /// The `resep` value.
+  resep('resep'),
+  /// The `chat` value.
+  chat('chat');
+
+  const EnumPreferensiNotifikasiTipeTipe(this.wireValue);
+
+  /// The value exactly as it appears on the wire.
+  final String wireValue;
+
+  /// The DDL key this enum was generated from.
+  static const String column = 'preferensi_notifikasi_tipe.tipe';
+
+  /// Every value, in declaration order.
+
+  /// Not named `values`: Dart reserves that name inside an enum, and a member
+  /// called `values` is a compile error rather than a shadow.
+  static const List<EnumPreferensiNotifikasiTipeTipe> members = <EnumPreferensiNotifikasiTipeTipe>[
+    booking,
+    pembayaran,
+    resep,
+    chat,
+  ];
+
+  /// The wire values as a set, for a `contains` check against a query parameter.
+  static const Set<String> wireValues = <String>{
+    'booking',
+    'pembayaran',
+    'resep',
+    'chat',
+  };
+
+  /// Parses a wire value, or returns `null` for one this enum does not declare.
+  ///
+  /// Returns `null` rather than throwing on purpose: a value outside the set is a
+  /// real possibility while the database has gained a member the app has not been
+  /// rebuilt for, and the caller usually wants to render the raw string rather than
+  /// crash on a screen.
+  static EnumPreferensiNotifikasiTipeTipe? tryParse(String? raw) {
+    for (final EnumPreferensiNotifikasiTipeTipe candidate in members) {
       if (candidate.wireValue == raw) {
         return candidate;
       }

@@ -127,7 +127,7 @@ function contractSplit(string $key): array
     return [$method, $path];
 }
 
-it('splits the documented operations into 78 bearer, 27 anonymous and 26 unguarded', function (): void {
+it('splits the documented operations into 84 bearer, 27 anonymous and 26 unguarded', function (): void {
     // The counts are pinned so the datasets below cannot silently shrink. If a
     // route is added or removed, this fails first and names the real delta,
     // instead of a per-route test quietly disappearing from the run. F12 added
@@ -140,11 +140,13 @@ it('splits the documented operations into 78 bearer, 27 anonymous and 26 unguard
     // adds `PUT /admin/pasien/{id}/telepon` (bearer), which is the 75 -> 76
     // movement; F04 adds `GET /dokter/{dokter}/ulasan` (anonymous) and two bearer
     // writes (`POST /konsultasi/{id}/ulasan`, `PUT /dokter/ulasan/{id}/balas`),
-    // which is the 76 -> 78 and 26 -> 27 movement.
-    expect(count(contractBearerOperations()))->toBe(78);
+    // which is the 76 -> 78 and 26 -> 27 movement. F11 adds six bearer
+    // operations - two preference routes and four reminder routes - which is
+    // the 78 -> 84 and 105 -> 111 movement.
+    expect(count(contractBearerOperations()))->toBe(84);
     expect(count(contractAnonymousOperations()))->toBe(27);
     expect(count(contractUnguardedAnonymousOperations()))->toBe(26);
-    expect(count(contractBearerOperations()) + count(contractAnonymousOperations()))->toBe(105);
+    expect(count(contractBearerOperations()) + count(contractAnonymousOperations()))->toBe(111);
 });
 
 it('answers 401 with the error envelope when the Authorization header is absent', function (string $method, string $path): void {

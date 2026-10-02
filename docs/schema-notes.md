@@ -2253,3 +2253,72 @@ the timestamp shape split `16+19+1+39 → 17+19+1+39`, and the DATETIME/TIMESTAM
 cast counts `26 → 27` and `55 → 57`. The extra-table registry is unchanged at
 eight entries.
 
+## F11 contract-table addition: four tables (76 → 80)
+
+**F11 appended four tables to `telemedicine_test.sql` itself, at the owner's
+direction (approved 2026-10-03), and they are therefore CONTRACT tables, not
+registered extras.** They are NOT rows in the registry above: that registry is
+for tables the DDL does not declare, and these the DDL now declares.
+`ExtraTableRegistry::fromMarkdown()` reads only the rows under its own heading,
+so this section cannot be mistaken for one; `VerifySchemaCommandTest` re-derives
+the extras from the migration set minus the parsed contract and still finds
+exactly the eight framework rows.
+
+The DDL was APPENDED as section `[18]` (`:1366-1429`), after the final `SELECT`
+and after F08's section `[17]`, so **every pre-existing line number is
+untouched**. The F02 audit tests (`NikCipherAuditTest`, `NikCipherStorageTest`)
+pin the file's SHA-256, its line count and `pasien.nik_cipher`'s line; the count
+moved `1364 → 1429`, line `:222` did not move, and the digest deviation is
+recorded in the test itself. Migrations are
+`2026_10_01_000084` … `2026_10_01_000087`, one table each, in DDL order.
+
+What the four tables are, and why each shape was chosen:
+
+| Table | SQL | Facts a later reader must not "fix" |
+| --- | --- | --- |
+| `preferensi_notifikasi` | `:1370-1382` | ONE row per user (`uq_preferensi_notifikasi_user`). No in-app column: in-app delivery is unconditional and quiet hours gate PUSH only. `jam_tenang_mode` carries `kustom` with **no custom-day column anywhere** - see the open item below. |
+| `preferensi_notifikasi_tipe` | `:1384-1393` | Per `(user, tipe)`; **no row = `push_aktif = 1`**, the DDL's own default. `tipe` mirrors only the four PRODUCED notification types; `lab`/`promo`/`sistem` are not offered. |
+| `pengingat` | `:1395-1417` | `waktu JSON NOT NULL` is a list of `"HH:MM"` wall clocks, interpreted in `zona_waktu`; it is NOT validated by MySQL and is never parsed from free text. `obat_id`/`booking_id` are nullable and RESTRICT. Named indexes `idx_pengingat_user_status`, `idx_pengingat_user_tanggal`; the two nullable FKs get InnoDB implicit support indexes that `SchemaDiffer` treats as implied. |
+| `pengingat_terkirim` | `:1419-1429` | The idempotency ledger. `uq_pengingat_terkirim (pengingat_id, tanggal, waktu)` is the guarantee; `tanggal` and `waktu` are `NOT NULL` deliberately, because MySQL allows unlimited `NULL`s in a UNIQUE index and a nullable part of the key would not collide. `notifikasi_id` RESTRICTs, `pengingat_id` cascades. |
+
+Three facts recorded because they are decisions, not accidents:
+
+1. **No new `notifikasi.tipe` ENUM value was added.** A medicine reminder has no
+   produced type to map onto, so the scheduler writes the schema's own catch-all
+   `sistem`; an appointment reminder maps to `booking`. The seven-value ENUM at
+   `:1041` is unchanged.
+2. **The scheduler is idempotent in the safe direction.** It inserts the
+   `pengingat_terkirim` marker FIRST and writes the notification second, so a
+   crash between the two loses one dispatch rather than double-sending one. The
+   marker is the ledger's whole purpose; reordering it is a bug, not a
+   simplification.
+3. **`zona_waktu` accepts the three Indonesian zones** (`Asia/Jakarta`,
+   `Asia/Makassar`, `Asia/Jayapura`) in `App\Enums\ZonaWaktu`. This is the first
+   column in the schema that can hold a zone, which is exactly the condition
+   `docs/timezone-policy.md` §"Product decision: WIB only" named for revisiting
+   the policy. Jakarta remains every default and the only zone used for clinic
+   scheduling (`WaktuIndonesia` is untouched); a WITA/WIT value is only
+   reachable by a user authoring their own reminder. **The owner should ratify
+   that reading of F-010** - the policy document still says "WIB only" in
+   prose and was deliberately not edited by this change.
+
+**Parity numbers moved with the append, and every pin was updated in the same
+commit:** tables `76 → 80`, columns `679 → 716`, indexes `143 → 152`, foreign
+keys `107 → 114`, the timestamp shape split `17+19+1+39 → 20+20+1+39`, the
+TIMESTAMP column count `57 → 64`, the ENUM column count `69 → 73`, the
+TINYINT(1) flag count `30 → 32` and the TINYINT UNSIGNED counter count
+`25 → 26`. The reference file moved `1364 → 1429` lines and its SHA-256 is now
+`8cf1e8542f935e4ca4415f03976c32edcb913f225a9e1863e008e9b7f87c893f`. The
+extra-table registry is unchanged at eight entries, and `sehatly:verify-schema`
+reports `PASS — 80 tables, 2 views verified`.
+
+### Open item carried by the approved schema: `kustom` has no day list
+
+`preferensi_notifikasi.jam_tenang_mode` includes `kustom` (`:1374`), but the
+approved schema carries **no column for a custom set of days** - no JSON list,
+no bitmask, no join table. The scheduler therefore treats `setiap_hari` and
+`kustom` identically (every day) and `hari_kerja` as Monday-Friday, and the API
+stores `kustom` as a legal value it cannot yet act on differently. A per-day
+selector needs a schema addition, which is out of this change's approved scope;
+it is reported rather than silently half-implemented.
+

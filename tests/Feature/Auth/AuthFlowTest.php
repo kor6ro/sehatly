@@ -1660,6 +1660,17 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         "'permission:notifikasi.lihat'",
         "'permission:notifikasi.lihat'",
         "'permission:notifikasi.lihat'",
+        // F11's preference and reminder surface contributes SIX more of the
+        // SAME code - two preference routes and four reminder routes - and no
+        // `tipe:`, for the reason the three above already give: the permission
+        // narrows the audience on its own, and the per-row ownership half is
+        // the services' `user_id` scoping rather than a route gate.
+        "'permission:notifikasi.lihat'",
+        "'permission:notifikasi.lihat'",
+        "'permission:notifikasi.lihat'",
+        "'permission:notifikasi.lihat'",
+        "'permission:notifikasi.lihat'",
+        "'permission:notifikasi.lihat'",
         // F09's pharmacist queue contributes TWO more; F12's three strings
         // above bring the census to THIRTY-NINE in total.
         // `GET /api/v1/resep` carries the SAME pair as the verify write it

@@ -179,7 +179,7 @@ test('the JSON report is machine-readable, and its exit code matches its verdict
     expect($json)->toBeArray();
     expect($json['exit_code'])->toBe($exitCode);
     expect($json['read_only'])->toBeTrue();
-    expect($json['expected']['tables'])->toBe(76);
+    expect($json['expected']['tables'])->toBe(80);
     expect($json['expected']['views'])->toBe(2);
     expect($json['expected']['columns'])->toBeGreaterThan(600);
     // The CONFIGURED database name rather than a literal: a per-executor
@@ -235,7 +235,7 @@ test('the JSON report is machine-readable, and its exit code matches its verdict
 
     // Proof the parser is not vacuous, carried in the machine-readable channel too.
     expect($json['multi_line_column_declarations'])->toHaveCount(11);
-    expect($json['expected'])->toMatchArray(['foreign_keys' => 107, 'checks' => 3]);
+    expect($json['expected'])->toMatchArray(['foreign_keys' => 114, 'checks' => 3]);
 
     // Todo 18 flips the verdict, not the accounting: with nothing left to
     // migrate the report is ok, drift is zero, and the only rows that remain are

@@ -18,10 +18,10 @@ function referenceSpec(): SchemaSpec
     return (new SqlSchemaParser)->parseFile(base_path('telemedicine_test.sql'));
 }
 
-test('the reference DDL parses into exactly 76 tables and 2 views', function () {
+test('the reference DDL parses into exactly 80 tables and 2 views', function () {
     $spec = referenceSpec();
 
-    // `indexes` is 143 (142 before F01's `idx_refresh_device`). The two removals
+    // `indexes` is 152 (143 before F11's four appended tables). The two removals
     // F02 folded in are described below;
     // F08 appended `konsultasi_baca`, whose primary key and named
     // `UNIQUE KEY uq_baca` add two indexes on top of F02's 140.
@@ -42,12 +42,17 @@ test('the reference DDL parses into exactly 76 tables and 2 views', function () 
     // `idx_refresh_device`: `columns` 678 -> 679 and `indexes` 142 -> 143. The
     // reference edit folded both declarations onto existing lines (`:206` and
     // `:211`) so the file stayed 1,364 lines; see `docs/schema-notes.md`.
+    //
+    // F11 APPENDED section [18] at the very end (four tables: the two preference
+    // tables, `pengingat` and `pengingat_terkirim`): `tables` 76 -> 80,
+    // `columns` 679 -> 716, `indexes` 143 -> 152 and `foreign_keys` 107 -> 114,
+    // and the file moved 1,364 -> 1,429 lines. No pre-existing line moved.
     expect($spec->summary())->toBe([
-        'tables' => 76,
+        'tables' => 80,
         'views' => 2,
-        'columns' => 679,
-        'indexes' => 143,
-        'foreign_keys' => 107,
+        'columns' => 716,
+        'indexes' => 152,
+        'foreign_keys' => 114,
         'checks' => 3,
     ]);
 
@@ -334,7 +339,7 @@ test('a deliberately corrupted copy of the reference yields a different table co
 
         $corrupted = (new SqlSchemaParser)->parseFile($corrupt);
 
-        expect($corrupted->tableNames())->toHaveCount(76);
+        expect($corrupted->tableNames())->toHaveCount(80);
         expect($corrupted->hasTable('booking'))->toBeFalse();
         expect($corrupted->hasTable('booking_renamed'))->toBeTrue();
         // Same count, different content: the count alone is not proof of parsing.
@@ -353,9 +358,9 @@ test('a deliberately corrupted copy of the reference yields a different table co
 
         $dropped = (new SqlSchemaParser)->parse($truncated);
 
-        expect($dropped->tableNames())->toHaveCount(75);
+        expect($dropped->tableNames())->toHaveCount(79);
         expect($dropped->hasTable('users'))->toBeFalse();
-        expect($dropped->columnCount())->toBe(679 - 16);
+        expect($dropped->columnCount())->toBe(716 - 16);
     } finally {
         @unlink($corrupt);
     }

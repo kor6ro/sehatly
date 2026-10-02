@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
 /**
@@ -23,6 +25,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $dibaca_at
  * @property Carbon|null $dibuat_at
  * @property-read User $user
+ * @property-read Collection<int, PengingatTerkirim> $pengingatTerkirim
  */
 class Notifikasi extends Model
 {
@@ -52,6 +55,18 @@ class Notifikasi extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    /**
+     * The dispatch-ledger rows that point at this notification. An in-app row
+     * produced by a reminder carries exactly one, and a RESTRICT stands in the
+     * way of deleting a notification a `pengingat_terkirim` row still names.
+     *
+     * @return HasMany<PengingatTerkirim, $this>
+     */
+    public function pengingatTerkirim(): HasMany
+    {
+        return $this->hasMany(PengingatTerkirim::class, 'notifikasi_id');
     }
 
     /**

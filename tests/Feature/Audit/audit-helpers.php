@@ -42,7 +42,7 @@ if (! function_exists('audSpec')) {
     /**
      * The reference SQL, parsed once per process.
      *
-     * `telemedicine_test.sql` is 1364 lines and takes roughly 64 ms to parse,
+     * `telemedicine_test.sql` is 1429 lines and takes roughly 64 ms to parse,
      * so the dozens of tests in this directory share one parse instead of
      * paying for it each.
      */

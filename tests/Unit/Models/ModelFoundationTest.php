@@ -184,8 +184,8 @@ test('app/Models holds exactly one class per contract table', function () {
     $spec = modelFoundationSpec();
     $map = modelFoundationByTable();
 
-    expect($map)->toHaveCount(76);
-    expect($spec->tableNames())->toHaveCount(76);
+    expect($map)->toHaveCount(80);
+    expect($spec->tableNames())->toHaveCount(80);
 
     $missing = array_values(array_diff($spec->tableNames(), array_keys($map)));
     $extra = array_values(array_diff(array_keys($map), $spec->tableNames()));
@@ -203,7 +203,7 @@ test('every model declares its own table instead of inheriting one', function ()
     }
 });
 
-test('all 76 models instantiate and every declared relation resolves', function () {
+test('all 80 models instantiate and every declared relation resolves', function () {
     $map = modelFoundationByTable();
     $checked = 0;
 
@@ -229,6 +229,7 @@ test('all 76 models instantiate and every declared relation resolves', function 
         'jadwal',
         'konsultasi',
         'pasien',
+        'pengingat',
     ]);
 });
 
@@ -383,8 +384,10 @@ test('TINYINT(1) is boolean and TINYINT UNSIGNED is not', function () {
     // The parser folds MySQL's deprecated integer display width away, so `tinyint`
     // covers both spellings and the signedness flag is the only thing that tells
     // `is_utama` from `spo2`. Both counts are cross-checked against the raw DDL.
-    expect($flags)->toHaveCount(30);
-    expect($counters)->toHaveCount(25);
+    // F11's append adds the two TINYINT(1) flags (`jam_tenang_aktif`,
+    // `push_aktif`) and one TINYINT UNSIGNED counter (`jumlah_per_hari`).
+    expect($flags)->toHaveCount(32);
+    expect($counters)->toHaveCount(26);
 
     foreach ($flags as [$table, $column]) {
         $casts = modelFoundationDeclaredCasts($map[$table]);
@@ -444,7 +447,7 @@ test('decimal, date, datetime, timestamp and json casts come from the DDL type',
         // tanggal_kunjungan across timezones.
         expect($casts[$column->name] ?? null)->toBe('date', $table.'.'.$column->name);
     }
-    expect($dates)->toHaveCount(19);
+    expect($dates)->toHaveCount(21);
 
     $datetimes = modelFoundationColumnsOfType($spec, 'datetime');
     foreach ($datetimes as [$table, $column]) {
@@ -459,15 +462,15 @@ test('decimal, date, datetime, timestamp and json casts come from the DDL type',
         expect(modelFoundationDeclaredCasts($map[$table])[$column->name] ?? null)
             ->toBe('array', $table.'.'.$column->name);
     }
-    expect($json)->toHaveCount(6);
+    expect($json)->toHaveCount(7);
 });
 
-test('the 57 TIMESTAMP columns are all covered, none of them twice', function () {
+test('the 64 TIMESTAMP columns are all covered, none of them twice', function () {
     $spec = modelFoundationSpec();
     $map = modelFoundationByTable();
     $timestamps = modelFoundationColumnsOfType($spec, 'timestamp');
 
-    expect($timestamps)->toHaveCount(57);
+    expect($timestamps)->toHaveCount(64);
 
     foreach ($timestamps as [$table, $column]) {
         $class = $map[$table];
@@ -533,7 +536,7 @@ test('every ENUM column is a plain string cast', function () {
         }
     }
 
-    expect($count)->toBe(69);
+    expect($count)->toBe(73);
 });
 
 test('no cast uses the enum: string list, which laravel/framework 13 dropped', function () {
@@ -593,12 +596,14 @@ test('the audit columns are named exactly as each table declares them', function
         };
     }
 
-    // 17 + 19 + 1 + 39 = 76. telemedicine_test.sql is the only source for these. The
-    // 39 includes konsultasi_chat, whose only stamp is `terkirim_at`; F08's
-    // `konsultasi_baca` joined the `both` group.
+    // 20 + 20 + 1 + 39 = 80. telemedicine_test.sql is the only source for these.
+    // The 39 includes konsultasi_chat, whose only stamp is `terkirim_at`; F08's
+    // `konsultasi_baca` joined the `both` group, and F11's append added three
+    // `both` tables (`preferensi_notifikasi`, `preferensi_notifikasi_tipe`,
+    // `pengingat`) plus one `createdOnly` (`pengingat_terkirim`).
     expect($shapes)->toBe([
-        'both' => 17,
-        'createdOnly' => 19,
+        'both' => 20,
+        'createdOnly' => 20,
         'updatedOnly' => 1,
         'neither' => 39,
     ]);
@@ -640,7 +645,7 @@ test('the plan\'s "28 tables with neither" is 38 in the DDL', function () {
     }
 });
 
-test('the 19 tables with dibuat_at alone declare CREATED_AT and no UPDATED_AT', function () {
+test('the 20 tables with dibuat_at alone declare CREATED_AT and no UPDATED_AT', function () {
     $spec = modelFoundationSpec();
     $map = modelFoundationByTable();
     $checked = [];
@@ -659,7 +664,7 @@ test('the 19 tables with dibuat_at alone declare CREATED_AT and no UPDATED_AT', 
         $checked[] = $name;
     }
 
-    expect($checked)->toHaveCount(19);
+    expect($checked)->toHaveCount(20);
     // telemedicine_test.sql:1129 gives audit_log a dibuat_at and nothing else.
     expect(in_array('audit_log', $checked, true))->toBeTrue();
     expect(in_array('notifikasi', $checked, true))->toBeTrue();

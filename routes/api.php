@@ -1409,7 +1409,9 @@ Route::post('webhook/payment/{gateway}', [PembayaranController::class, 'webhook'
     ->name('webhook.pembayaran');
 
 use App\Http\Controllers\Api\V1\NotifikasiController;
+use App\Http\Controllers\Api\V1\PengingatController;
 use App\Http\Controllers\Api\V1\PersetujuanPdpController;
+use App\Http\Controllers\Api\V1\PreferensiNotifikasiController;
 
 /*
 |--------------------------------------------------------------------------
@@ -1531,6 +1533,60 @@ Route::put('notifikasi/{id}/baca', [NotifikasiController::class, 'baca'])
 Route::put('notifikasi/baca-semua', [NotifikasiController::class, 'bacaSemua'])
     ->middleware(['auth:sanctum', 'permission:notifikasi.lihat', 'throttle:notifikasi-baca'])
     ->name('notifikasi.baca-semua');
+
+/*
+|--------------------------------------------------------------------------
+| Module 5 (F11) -- notification preferences and reminders
+|--------------------------------------------------------------------------
+|
+| APPENDED by F11, beside the inbox routes above and under the same
+| `permission:notifikasi.lihat` guard, because a reminder and a preference are
+| the same audience as the inbox: every role except `perawat`/`kurir`, who hold
+| no role at all. Six routes:
+|
+| | route | verb | writes |
+| | --- | --- | --- |
+| | `profil/notifikasi` | GET | nothing - defaults when no row exists |
+| | `profil/notifikasi` | PUT | upsert of the caller's own preference rows |
+| | `pengingat` | GET | nothing |
+| | `pengingat` | POST | one `pengingat` row |
+| | `pengingat/{id}` | PUT | one row the caller owns, else 404 |
+| | `pengingat/{id}` | DELETE | one row the caller owns, else 404 |
+|
+| The two writes under `pengingat` inject a FormRequest (DoD), `whereNumber`
+| makes a non-numeric `{id}` a router 404 byte-identical to "not yours", and
+| the schedule that consumes these rows is `pengingat:kirim` (every minute) in
+| `routes/console.php`.
+|
+| @see \App\Services\Notifikasi\PreferensiNotifikasiService the lazy-upsert rule
+| @see \App\Services\Notifikasi\PengingatPengirim the scheduler rules
+*/
+
+Route::get('profil/notifikasi', [PreferensiNotifikasiController::class, 'show'])
+    ->middleware(['auth:sanctum', 'permission:notifikasi.lihat'])
+    ->name('profil.notifikasi.show');
+
+Route::put('profil/notifikasi', [PreferensiNotifikasiController::class, 'update'])
+    ->middleware(['auth:sanctum', 'permission:notifikasi.lihat'])
+    ->name('profil.notifikasi.update');
+
+Route::get('pengingat', [PengingatController::class, 'index'])
+    ->middleware(['auth:sanctum', 'permission:notifikasi.lihat'])
+    ->name('pengingat.index');
+
+Route::post('pengingat', [PengingatController::class, 'store'])
+    ->middleware(['auth:sanctum', 'permission:notifikasi.lihat'])
+    ->name('pengingat.store');
+
+Route::put('pengingat/{id}', [PengingatController::class, 'update'])
+    ->whereNumber('id')
+    ->middleware(['auth:sanctum', 'permission:notifikasi.lihat'])
+    ->name('pengingat.update');
+
+Route::delete('pengingat/{id}', [PengingatController::class, 'destroy'])
+    ->whereNumber('id')
+    ->middleware(['auth:sanctum', 'permission:notifikasi.lihat'])
+    ->name('pengingat.destroy');
 
 use App\Http\Controllers\Api\V1\AdminAuditLogController;
 use App\Http\Controllers\Api\V1\AdminDokterController;

@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 
@@ -43,6 +45,7 @@ use Illuminate\Support\Carbon;
  * @property-read Faskes $faskes
  * @property-read User $dibuatOlehUser
  * @property-read Konsultasi $konsultasi
+ * @property-read Collection<int, Pengingat> $pengingat
  */
 class Booking extends Model
 {
@@ -117,6 +120,18 @@ class Booking extends Model
     public function konsultasi(): HasOne
     {
         return $this->hasOne(Konsultasi::class, 'booking_id');
+    }
+
+    /**
+     * F11 appointment reminders that name this booking. The foreign key is
+     * `ON DELETE RESTRICT`, so a booking a reminder still references cannot be
+     * hard-deleted.
+     *
+     * @return HasMany<Pengingat, $this>
+     */
+    public function pengingat(): HasMany
+    {
+        return $this->hasMany(Pengingat::class, 'booking_id');
     }
 
     /**

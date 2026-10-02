@@ -1589,6 +1589,18 @@ test('the route table exposes the ten auth routes and the eleven patient routes 
         'GET api/v1/notifikasi',
         'PUT api/v1/notifikasi/{id}/baca',
         'PUT api/v1/notifikasi/baca-semua',
+        // F11's SIX, appended beside the notification-centre block above in
+        // registration order: the two preference routes first, then the four
+        // reminder routes. All six carry `permission:notifikasi.lihat` and no
+        // `tipe:`, for the reason the three inbox routes do; the per-row half
+        // is the services' `user_id` scoping, so another account's reminder is
+        // a 404 rather than a 403.
+        'GET api/v1/profil/notifikasi',
+        'PUT api/v1/profil/notifikasi',
+        'GET api/v1/pengingat',
+        'POST api/v1/pengingat',
+        'PUT api/v1/pengingat/{id}',
+        'DELETE api/v1/pengingat/{id}',
         // F12's patient refund list, registered in the payment block near the
         // end of `routes/api.php` (the controller is `PembayaranController`,
         // and the path prefix names the caller) - so it is listed LAST in
@@ -1904,6 +1916,17 @@ test('the route table exposes the ten auth routes and the eleven patient routes 
             'GET api/v1/notifikasi' => ['permission:notifikasi.lihat'],
             'PUT api/v1/notifikasi/{id}/baca' => ['permission:notifikasi.lihat'],
             'PUT api/v1/notifikasi/baca-semua' => ['permission:notifikasi.lihat'],
+            // F11's SIX take the same permission and no `tipe:`, for the reason
+            // immediately above: the permission already refuses every account
+            // type but `pasien` and `superadmin`, and the per-row half lives in
+            // `PreferensiNotifikasiService`/`PengingatService`, which scope every
+            // query on `user_id`.
+            'GET api/v1/profil/notifikasi' => ['permission:notifikasi.lihat'],
+            'PUT api/v1/profil/notifikasi' => ['permission:notifikasi.lihat'],
+            'GET api/v1/pengingat' => ['permission:notifikasi.lihat'],
+            'POST api/v1/pengingat' => ['permission:notifikasi.lihat'],
+            'PUT api/v1/pengingat/{id}' => ['permission:notifikasi.lihat'],
+            'DELETE api/v1/pengingat/{id}' => ['permission:notifikasi.lihat'],
             // F14's SIXTEEN admin routes. Every one carries `tipe:admin,superadmin`,
             // which is the party gate the whole surface rests on, and nine carry a
             // READ grant on top of it.
@@ -2098,6 +2121,15 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         // Duplicated deliberately from `AuthFlowTest` over the same regex: a
         // closed set only one file watches is a closed set one later refactor
         // can quietly reopen.
+        "'permission:notifikasi.lihat'",
+        "'permission:notifikasi.lihat'",
+        "'permission:notifikasi.lihat'",
+        // F11's SIX routes add six more strings of the SAME code: the two
+        // preference routes and the four reminder routes, none carrying a
+        // `tipe:` for the reason the three above state.
+        "'permission:notifikasi.lihat'",
+        "'permission:notifikasi.lihat'",
+        "'permission:notifikasi.lihat'",
         "'permission:notifikasi.lihat'",
         "'permission:notifikasi.lihat'",
         "'permission:notifikasi.lihat'",

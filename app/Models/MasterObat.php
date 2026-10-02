@@ -89,6 +89,18 @@ class MasterObat extends Model
     }
 
     /**
+     * F11 medicine reminders linked to this catalogue row. The foreign key is
+     * `ON DELETE RESTRICT`; a manual reminder with `obat_id = NULL` is not
+     * affected.
+     *
+     * @return HasMany<Pengingat, $this>
+     */
+    public function pengingat(): HasMany
+    {
+        return $this->hasMany(Pengingat::class, 'obat_id');
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
