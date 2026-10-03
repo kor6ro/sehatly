@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { Link, Navigate, Outlet, useLocation } from 'react-router';
 import { getAccessToken } from '@/lib/token';
 import { EmptyState } from '@/components/states/empty-state';
 import { PageHeader } from '@/components/layout/page-header';
 import { LandingHeader } from '@/components/layout/landing-header';
+import { LoginDialog } from '@/components/auth/login-dialog';
 import { Button } from '@/components/ui/button';
 
 /**
@@ -51,10 +53,16 @@ export function RequireAuth() {
  */
 export function RootPage() {
     const authenticated = getAccessToken() !== null;
+    const [loginOpen, setLoginOpen] = useState(false);
 
     return (
         <div className="bg-background flex min-h-screen flex-col">
-            <LandingHeader />
+            {/*
+                The page owns the dialog so that the header action and the card action
+                below reach ONE instance - two would race over the `sessionStorage`
+                challenge the OTP step is carried in.
+            */}
+            <LandingHeader onMasuk={() => setLoginOpen(true)} />
 
             <main className="mx-auto flex w-full max-w-[1280px] flex-1 flex-col gap-6 px-4 py-8 md:px-6">
                 <PageHeader title="Telemedicine untuk pasien Indonesia" />
@@ -68,17 +76,15 @@ export function RootPage() {
                     }
                     action={
                         <div className="flex flex-wrap items-center justify-center gap-2">
-                            <Button asChild>
-                                <Link
-                                    to={
-                                        authenticated ? '/dashboard' : '/login'
-                                    }
-                                >
-                                    {authenticated
-                                        ? 'Dashboard'
-                                        : 'Masuk'}
-                                </Link>
-                            </Button>
+                            {authenticated ? (
+                                <Button asChild>
+                                    <Link to="/dashboard">Dashboard</Link>
+                                </Button>
+                            ) : (
+                                <Button onClick={() => setLoginOpen(true)}>
+                                    Masuk
+                                </Button>
+                            )}
 
                             <Button asChild variant="outline">
                                 <Link to="/dokter">Direktori dokter</Link>
@@ -87,6 +93,8 @@ export function RootPage() {
                     }
                 />
             </main>
+
+            <LoginDialog open={loginOpen} onOpenChange={setLoginOpen} />
         </div>
     );
 }

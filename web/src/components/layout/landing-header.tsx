@@ -27,7 +27,6 @@ import {
     SheetTrigger,
 } from '@/components/ui/sheet';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
-import { LoginDialog } from '@/components/auth/login-dialog';
 import { getAccessToken } from '@/lib/token';
 import { cn } from '@/lib/utils';
 
@@ -266,9 +265,15 @@ function ActionButtons({
     );
 }
 
-export function LandingHeader() {
+/**
+ * `onMasuk` belongs to the page, not to the header.
+ *
+ * The landing body has its own "Masuk" action, and two `LoginDialog` instances would each
+ * hold their own challenge and race over the one `sessionStorage` key that carries it -
+ * so the page owns the dialog and hands the opener down. The header renders it nowhere.
+ */
+export function LandingHeader({ onMasuk }: { onMasuk: () => void }) {
     const [open, setOpen] = useState(false);
-    const [loginOpen, setLoginOpen] = useState(false);
 
     return (
         <header
@@ -303,7 +308,7 @@ export function LandingHeader() {
                 */}
                 <ThemeToggle className="ml-auto" />
 
-                <ActionButtons onMasuk={() => setLoginOpen(true)} />
+                <ActionButtons onMasuk={onMasuk} />
 
                 <Sheet open={open} onOpenChange={setOpen}>
                     <SheetTrigger asChild>
@@ -346,7 +351,7 @@ export function LandingHeader() {
                                 // The sheet closes first: two overlays stacked on one
                                 // Escape press is a fight the user always loses.
                                 setOpen(false);
-                                setLoginOpen(true);
+                                onMasuk();
                             }}
                         />
                         {/*
@@ -358,13 +363,6 @@ export function LandingHeader() {
                         */}
                     </SheetContent>
                 </Sheet>
-
-                {/*
-                    One dialog for the whole header. Both "Masuk" buttons reach it through
-                    `onMasuk`, so the top bar and the sheet cannot each be mid-challenge at
-                    the same time.
-                */}
-                <LoginDialog open={loginOpen} onOpenChange={setLoginOpen} />
             </div>
         </header>
     );
