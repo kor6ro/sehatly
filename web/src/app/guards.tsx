@@ -83,12 +83,6 @@ export function RootPage() {
                             <Button asChild variant="outline">
                                 <Link to="/dokter">Direktori dokter</Link>
                             </Button>
-
-                            {authenticated ? null : (
-                                <Button asChild variant="ghost">
-                                    <Link to="/register">Daftar</Link>
-                                </Button>
-                            )}
                         </div>
                     }
                 />

@@ -228,20 +228,13 @@ function NavList({
  * rather than cached, because this header mounts once per page load and the token is
  * written by the OTP screen in the same session.
  *
- * `registerClassName` exists because the two places this cluster renders have
- * different room: the top bar on a 390px phone cannot fit the theme icon, "Daftar",
- * "Masuk" and the menu button at once (about 372px of content into 358px of space,
- * which flex resolves by squashing the menu button). The sheet has no such limit, so
- * it keeps "Daftar" at every width - as does the landing body, where "Daftar" is the
- * third action in the empty state.
+ * There is deliberately no "Daftar" button here. The bar offers one door, which is how
+ * the front page this header is modelled on behaves: a visitor without an account
+ * presses "Masuk" and meets `Belum punya akun? Daftar` in the `auth-layout` footer, so
+ * registering is still one click from the same place - it is simply not a second button
+ * competing with the one action the bar exists for.
  */
-function ActionButtons({
-    className,
-    registerClassName,
-}: {
-    className?: string;
-    registerClassName?: string;
-}) {
+function ActionButtons({ className }: { className?: string }) {
     const authenticated = getAccessToken() !== null;
 
     if (authenticated) {
@@ -259,14 +252,6 @@ function ActionButtons({
 
     return (
         <div className={cn('flex items-center gap-2', className)}>
-            <Button
-                asChild
-                variant="outline"
-                className={cn('rounded-lg font-medium', registerClassName)}
-            >
-                <Link to="/register">Daftar</Link>
-            </Button>
-
             <Button asChild className="rounded-lg font-medium">
                 <Link to="/login">Masuk</Link>
             </Button>
@@ -296,7 +281,7 @@ export function LandingHeader() {
                     />
 
                     <span className="text-foreground text-xl font-bold tracking-tight md:text-[1.35rem]">
-                        sehatly
+                        Sehatly
                     </span>
                 </Link>
 
@@ -310,7 +295,7 @@ export function LandingHeader() {
                 */}
                 <ThemeToggle className="ml-auto" />
 
-                <ActionButtons registerClassName="hidden sm:inline-flex" />
+                <ActionButtons />
 
                 <Sheet open={open} onOpenChange={setOpen}>
                     <SheetTrigger asChild>
@@ -335,7 +320,7 @@ export function LandingHeader() {
                                 />
 
                                 <span className="text-lg font-bold tracking-tight">
-                                    sehatly
+                                    Sehatly
                                 </span>
                             </SheetTitle>
                         </SheetHeader>
