@@ -4,7 +4,7 @@ import { RouteErrorBoundary } from '@/app/error-boundary';
 import { NotFoundPage, RequireAuth, RootPage } from '@/app/guards';
 import { RootLayout } from '@/app/root-layout';
 import { LoginPage } from '@/pages/login-page';
-import { RegisterPage } from '@/pages/register-page';
+import { ProfilEditPage } from '@/pages/profil-edit-page';
 import { OtpPage } from '@/pages/otp-page';
 import { DashboardPage } from '@/pages/dashboard-page';
 import { ProfilePage } from '@/pages/profile-page';
@@ -107,11 +107,16 @@ export const router = createBrowserRouter([
                 element: <LoginPage />,
                 errorElement: <RouteErrorBoundary />,
             },
-            {
-                path: '/register',
-                element: <RegisterPage />,
-                errorElement: <RouteErrorBoundary />,
-            },
+            /**
+             * There is deliberately NO `/register`.
+             *
+             * Registration is the same door as sign-in: the dialog takes the number,
+             * `POST /auth/login` mints an account for one that has none, `otp/verify`
+             * proves it, and `/profil/edit/{id}?sign_up=true` finishes it. A second
+             * route would be a second door to the same room, and every link that
+             * pointed at it would be pointing at a page that half the visitors to it
+             * had already been through.
+             */
             {
                 path: '/otp',
                 element: <OtpPage />,
@@ -152,6 +157,23 @@ export const router = createBrowserRouter([
                 element: <RequireAuth />,
                 errorElement: <RouteErrorBoundary />,
                 children: [
+                    /**
+                     * The one-door flow's finishing screen, and the only authenticated
+                     * route that does NOT sit inside `AppShell`.
+                     *
+                     * The account reaching it was minted minutes ago and owns no
+                     * `pasien` row yet, so every sidebar item would resolve to a patient
+                     * screen with nothing to render - six dead ends beside the form that
+                     * would fix it. It is inside `RequireAuth` because the token is real
+                     * and required; it is outside `AppShell` because the workspace is not
+                     * open to this account yet. Completing the form navigates to
+                     * `/dashboard`, which is where the shell starts.
+                     */
+                    {
+                        path: '/profil/edit/:userId',
+                        element: <ProfilEditPage />,
+                        errorElement: <RouteErrorBoundary />,
+                    },
                     {
                         element: <AppShell />,
                         /**

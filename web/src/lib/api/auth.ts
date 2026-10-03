@@ -100,14 +100,14 @@ export function login(input: LoginInput) {
 }
 
 /**
- * `POST /api/v1/auth/register`
+ * `POST /api/v1/auth/sign-up`
  *
  * Answers 201 with the created `user` and an OTP challenge, and again no token. The
  * `pasien` row and the `pasien` role grant are created in the same transaction, so the
  * account is immediately usable once the phone is proved.
  */
 export function register(input: RegisterInput) {
-    return request<{ user: User; otp: OtpChallenge }>('auth/register', {
+    return request<{ user: User; otp: OtpChallenge }>('auth/sign-up', {
         method: 'POST',
         json: input,
         retry: 0,
@@ -126,7 +126,75 @@ export function register(input: RegisterInput) {
  * different recoveries and the message is what tells them apart.
  */
 export function verifyOtp(input: VerifyOtpInput) {
-    return request<{ user: User; token: IssuedToken }>('auth/otp/verify', {
+    return request<{
+        user: User;
+        token: IssuedToken;
+        /**
+         * Is the account behind this token finished, or is it still a shell?
+         *
+         * `false` means `login` minted the row for a number that had none: the name is
+         * `''`, there is no `pasien` row, no role grant and no ledger. The token is
+         * real and usable either way - what the flag decides is WHERE the client goes
+         * next. `/dashboard` for a finished account, `/profil/edit/{id}?sign_up=true`
+         * for a shell, which is the halodoc shape for "you proved your number, now
+         * finish the form".
+         *
+         * It cannot live on the `login` response instead: that body has to be
+         * identical for a new number and an existing one, or the endpoint goes
+         * straight back to being an account oracle. This one already requires a code
+         * that only the holder of the phone can answer, so it may say.
+         */
+        profil_lengkap: boolean;
+    }>('auth/otp/verify', {
+        method: 'POST',
+        json: input,
+        retry: 0,
+    });
+}
+
+export type LengkapiSignUpInput = {
+    nama_lengkap: string;
+    /**
+     * Present only when an address is actually being given.
+     *
+     * `LengkapiSignUpRequest` marks `email` `nullable`, and `prepareForValidation`'s
+     * `sometimes`-shaped siblings all run the string rules on a value that is PRESENT -
+     * so an empty box is omitted rather than sent as `''`, which would fail `max:255`
+     * on nothing and put `unique:users,email` in front of a value nobody meant.
+     */
+    email?: string;
+    jenis_kelamin: 'L' | 'P';
+    /** `Y-m-d`. The API validates `date_format:Y-m-d` and refuses future dates. */
+    tanggal_lahir: string;
+    tempat_lahir?: string;
+    alamat_lengkap: string;
+    /**
+     * The two mandatory UU PDP consents, taken HERE and not at `login`.
+     *
+     * A box nobody has ticked is not consent, so the shell's account arrives with an
+     * empty ledger and these two booleans are what fill it. `accepted` on the server
+     * refuses a `false`, which is why this screen's checkbox blocks its own submit.
+     */
+    persetujuan_syarat_ketentuan: boolean;
+    persetujuan_kebijakan_privasi: boolean;
+};
+
+/**
+ * `POST /api/v1/auth/sign-up/lengkapi`
+ *
+ * The tail of the one-door flow, and the only endpoint that may write the shell's
+ * identity. It is authenticated rather than anonymous because the caller already IS
+ * the account - the bearer token was minted at `otp/verify` a moment ago - and it
+ * carries no `no_telepon`, because a phone number this endpoint does not accept cannot
+ * be re-pointed by the person holding it.
+ *
+ * Answers 201 for a first call and for every repeat. The idempotence is load-bearing
+ * rather than a convenience: `pasien.user_id` is UNIQUE, so a second insert would be a
+ * 500, and the consent ledger is append-only, so a second pair of rows would record a
+ * decision its subject did not take twice.
+ */
+export function lengkapiSignUp(input: LengkapiSignUpInput) {
+    return request<{ profil_lengkap: boolean }>('auth/sign-up/lengkapi', {
         method: 'POST',
         json: input,
         retry: 0,

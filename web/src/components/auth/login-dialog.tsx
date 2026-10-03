@@ -127,13 +127,20 @@ function WhatsAppIcon({ className }: { className?: string }) {
  * Where the channel is `log` there is no channel to choose between, so no picker is
  * rendered at all.
  *
- * ## The 401 on the first step means one thing only
+ * ## An unknown number is NOT a refusal, and there is no alert saying it is
  *
- * `AuthController::login` answers 401 for an unknown identifier, and this screen never
- * sends a password - {@link LoginInput}'s field is optional and omitted here - so a 401
- * cannot mean "wrong password". It means the number has no account, and the alert says
- * so and offers the one action that fixes it. A 403 (a suspended account) keeps the
- * server's own wording.
+ * `AuthController::login` mints a shell for a passwordless call naming a number with no
+ * account, so an unknown number and an existing one produce the same 200 and the same
+ * OTP. This screen therefore has no "Nomor belum terdaftar" alert to show, and the
+ * absence is the point: the visitor who typed a number they have not registered yet is
+ * the visitor this dialog is for. What separates them from an existing patient is one
+ * screen downstream - `otp/verify` answers `profil_lengkap: false`, and the code walks
+ * to `/profil/edit/{id}?sign_up=true` instead of `/dashboard`.
+ *
+ * A 401 on this step is still possible (the server keeps refusing a password-bearing
+ * call so the endpoint never becomes an oracle), and it now means exactly one thing:
+ * the server declined, in its own words. A 403 (a suspended account) keeps the server's
+ * wording for the same reason.
  */
 export function LoginDialog({
     open,
@@ -368,11 +375,30 @@ export function LoginDialog({
 
             clearPendingOtp();
 
-            dispatchFlash({ level: 'success', message: 'Selamat datang kembali.' });
+            /**
+             * `profil_lengkap: false` means `login` minted a SHELL for this number: no
+             * name, no `pasien` row, no role grant, no consent ledger. The token is
+             * real either way, but the dashboard renders a workspace for a patient
+             * record that does not exist yet - so the next screen is the form that
+             * creates it, and only a finished account is sent on to `/dashboard`.
+             */
+            const selesai = result.data.profil_lengkap;
+
+            dispatchFlash({
+                level: 'success',
+                message: selesai
+                    ? 'Selamat datang kembali.'
+                    : 'Nomor terverifikasi. Yuk, lengkapi akun kamu.',
+            });
 
             onOpenChange(false);
 
-            await navigate('/dashboard', { replace: true });
+            await navigate(
+                selesai
+                    ? '/dashboard'
+                    : `/profil/edit/${result.data.user.id}?sign_up=true`,
+                { replace: true },
+            );
         } catch (error) {
             setServerError(error);
 
@@ -451,14 +477,9 @@ export function LoginDialog({
         onOpenChange(false);
     };
 
-    const belumTerdaftar =
-        serverError instanceof ApiError && serverError.isUnauthorized;
     const terlaluBanyak = serverError instanceof ApiError && serverError.status === 429;
     const gangguan =
-        serverError instanceof ApiError &&
-        !serverError.isValidation &&
-        !serverError.isUnauthorized &&
-        !terlaluBanyak;
+        serverError instanceof ApiError && !serverError.isValidation && !terlaluBanyak;
 
     const kodeErrors = (
         serverError instanceof ApiError ? serverError.fieldErrors('kode') : []
@@ -629,14 +650,15 @@ export function LoginDialog({
                             {/**
                              * The lead phrase is emphasised the way the reference dialog
                              * emphasises it, so the sentence says what to type before it
-                             * says what you get. It promises only what this build can
-                             * keep: a number with no account is told so below, rather
-                             * than being invited to "membuat akun baru" on the spot -
-                             * that step needs the profile form, which is not built yet.
+                             * says what you get. It promises both halves of what this
+                             * build now does: an existing account walks in, and a number
+                             * with none has one minted for it on the spot, to be finished
+                             * at `/profil/edit/{id}?sign_up=true` once the code proves
+                             * the number is really theirs.
                              */}
                             <DialogDescription>
-                                <strong>Masukkan nomor ponsel</strong> untuk masuk ke
-                                Sehatly.
+                                <strong>Masukkan nomor ponsel</strong> untuk masuk
+                                atau membuat akun baru di Sehatly.
                             </DialogDescription>
                         </DialogHeader>
 
@@ -646,23 +668,15 @@ export function LoginDialog({
                             noValidate
                         >
                             {/**
-                             * A 401 here cannot be a wrong password - this form sends none -
-                             * so it is reported as what it is rather than as the server's
-                             * deliberately vague wording.
+                             * A 401 here cannot be a wrong password - this form sends
+                             * none - and it can no longer mean "this number has no
+                             * account" either, because `POST /auth/login` mints one for
+                             * a number that has none. What is left is a decline the
+                             * server will state a reason for, so it is reported with
+                             * its own wording instead of a message about registering
+                             * that would now be false.
                              */}
-                            {belumTerdaftar ? (
-                                <Alert variant="destructive" role="alert">
-                                    <Smartphone />
-                                    <AlertTitle>Nomor belum terdaftar</AlertTitle>
-                                    <AlertDescription>
-                                        <p>
-                                            Nomor ini belum punya akun Sehatly. Daftar
-                                            dulu untuk membuat akun dengan nomor ini.
-                                        </p>
-                                    </AlertDescription>
-                                </Alert>
-                            ) : serverError instanceof ApiError &&
-                              !serverError.isValidation ? (
+                            {serverError instanceof ApiError && !serverError.isValidation ? (
                                 <Alert variant="destructive" role="alert">
                                     <Smartphone />
                                     <AlertTitle>Gagal mengirim kode</AlertTitle>

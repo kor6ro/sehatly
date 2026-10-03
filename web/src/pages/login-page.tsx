@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router';
+import { Navigate, useNavigate } from 'react-router';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -136,13 +136,19 @@ export function LoginPage() {
     return (
         <AuthLayout
             title="Masuk"
-            description="Masukkan nomor telepon atau email yang terdaftar."
+            description="Masukkan nomor telepon atau email kamu."
             footer={
+                /**
+                 * Not a cross-link, because there is nothing to cross to: `/register`
+                 * is gone and the phone path needs no separate form. What a visitor
+                 * without an account actually needs to know is that their number is
+                 * enough - the account is minted on the spot and finished once the code
+                 * proves it. Email is left out of the promise deliberately, since an
+                 * unknown address still has no delivery channel to send a code to.
+                 */
                 <>
-                    Belum punya akun?{' '}
-                    <Link to="/register" className="text-primary underline underline-offset-4 hover:underline">
-                        Daftar
-                    </Link>
+                    Belum punya akun? Dengan nomor ponsel, akun baru dibuat otomatis
+                    setelah kode verifikasi diterima.
                 </>
             }
         >

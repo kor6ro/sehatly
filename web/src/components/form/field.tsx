@@ -240,9 +240,10 @@ export function FieldSelect({
                  *
                  * `SelectValue` takes `placeholder` as a PROP precisely for this: it shows
                  * the selected item's own text, and falls back to the placeholder only while
-                 * nothing is selected. The three pre-existing call sites
-                 * (`doctor-directory-page.tsx` twice, `register-page.tsx` once) all pass a
-                 * placeholder, so all three were affected.
+                 * nothing is selected. The two pre-existing call sites
+                 * (`doctor-directory-page.tsx`, twice) both pass a placeholder, and the
+                 * third at the time was the register page since removed from the router -
+                 * so all three were affected.
                  *
                  * Caught by driving the real UI, not by the type checker: the bug is a
                  * rendering mistake, not a type error, and the state behind it was correct

@@ -90,7 +90,7 @@ export type User = {
     dibuat_at: Iso;
     /**
      * Present only when the relation was eager-loaded, which today means only on
-     * `GET /api/v1/me`. `UserResource` uses `whenLoaded()`, so `POST /auth/register` and
+     * `GET /api/v1/me`. `UserResource` uses `whenLoaded()`, so `POST /auth/sign-up` and
      * `POST /auth/otp/verify` omit the key entirely rather than sending `null` for a row
      * that exists. Optional, not nullable, for exactly that reason.
      */
@@ -339,7 +339,7 @@ export type UserDevice = {
 export type OtpTujuan = 'verifikasi_telepon' | 'login';
 
 /**
- * The `otp` block that `POST /auth/register` and `POST /auth/login` return inline.
+ * The `otp` block that `POST /auth/sign-up` and `POST /auth/login` return inline.
  *
  * ## `kode` is intentionally absent, and that is the point
  *

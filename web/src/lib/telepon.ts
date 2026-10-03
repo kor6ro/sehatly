@@ -1,5 +1,5 @@
 /**
- * The phone rule shared by `/login` and `/register`.
+ * The phone rule shared by `/login` and the sign-in dialog on `/`.
  *
  * `AuthRequest::prepareForValidation()` now folds `+62…` / `62…` into the canonical
  * local `08…` before any server rule runs (`App\Support\Telepon`), so the client no

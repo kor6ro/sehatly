@@ -4,8 +4,7 @@ import { cn } from '@/lib/utils';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 /**
- * The layout for the three screens that exist before a session does: `/login`,
- * `/register` and `/otp`.
+ * The layout for the two screens that exist before a session does: `/login` and `/otp`.
  *
  * ## Why these are not in `AppShell`
  *
@@ -13,6 +12,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
  * account to mean anything. Rendering a patient navigation to a visitor who has just
  * typed a wrong password is worse than rendering nothing, so the pre-session screens get
  * their own frame and the shell mounts only behind `RequireAuth`.
+ *
+ * `ProfilEditPage` is deliberately NOT one of them: it runs after `otp/verify`, so the
+ * token is real by the time it renders. It still carries its own thin bar rather than
+ * `AppShell`, because the account reaching it has no patient record for the shell to
+ * navigate to yet.
  *
  * ## The visual weight is on the form
  *
@@ -31,7 +35,7 @@ export function AuthLayout({
     title: string;
     description?: string;
     children: ReactNode;
-    /** The cross-link between `/login` and `/register`. */
+    /** The line under the card. There is no second door to cross-link to any more. */
     footer?: ReactNode;
     className?: string;
 }) {
