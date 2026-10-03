@@ -121,13 +121,14 @@ it('binds every published 401 and 403 to the same error envelope', function (): 
     }
 });
 
-it('publishes a 404 for all 112 operations, bound to the error envelope', function (): void {
+it('publishes a 404 for all 113 operations, bound to the error envelope', function (): void {
     // Structural, not reachability. The claim is that no operation advertises a
-    // 404 the error envelope cannot describe, and that the count is 112 -- so a
+    // 404 the error envelope cannot describe, and that the count is 113 -- so a
     // route appearing or disappearing moves this number rather than passing
     // quietly. F04 added the three review routes, which is the 102 -> 105 move;
     // F11 added the six preference/reminder routes, which is 105 -> 111; the
-    // sign-in dialog's `GET /auth/otp/kanal` is the 111 -> 112 move.
+    // sign-in dialog's `GET /auth/otp/kanal` is the 111 -> 112 move; the one-door
+    // flow's `POST /auth/sign-up/lengkapi` is the 112 -> 113 move.
     $count = 0;
 
     foreach (ContractSpec::specOperations() as $key => $operation) {
@@ -138,17 +139,18 @@ it('publishes a 404 for all 112 operations, bound to the error envelope', functi
         $count++;
     }
 
-    expect($count)->toBe(112);
+    expect($count)->toBe(113);
 });
 
 it('publishes 401 and 403 together, or neither, on every bearer operation', function (): void {
     // Both statuses come from `auth:sanctum` and the RBAC middleware, and both are
     // reachable on every bearer route. Publishing one without the other would tell
     // the mobile team to handle a status it can never see, or to miss one it can.
-    // The 401 half is proven live for all 84 in `SanctumAuthConformanceTest`; the
+    // The 401 half is proven live for all 85 in `SanctumAuthConformanceTest`; the
     // 403 half needs a role-bearing token and is documented as uncovered. F04's
     // two bearer writes are the 76 -> 78 move; its public review read is anonymous.
-    // F11's six preference/reminder operations are all bearer, the 78 -> 84 move.
+    // F11's six preference/reminder operations are all bearer, the 78 -> 84 move;
+    // `POST /auth/sign-up/lengkapi` is bearer, the 84 -> 85 move.
     $count = 0;
 
     foreach (ContractSpec::specOperations() as $key => $operation) {
@@ -162,7 +164,7 @@ it('publishes 401 and 403 together, or neither, on every bearer operation', func
         $count++;
     }
 
-    expect($count)->toBe(84);
+    expect($count)->toBe(85);
 });
 
 it('publishes 429 only where a named rate limiter is registered', function (): void {
@@ -219,7 +221,7 @@ it('answers 422 with the validation envelope on every anonymous write with a bod
 
     expect($violations)->toBe([], implode("\n", $violations));
 })->with([
-    ['post', '/api/v1/auth/register'],
+    ['post', '/api/v1/auth/sign-up'],
     ['post', '/api/v1/auth/login'],
     ['post', '/api/v1/auth/refresh'],
     ['post', '/api/v1/auth/otp/verify'],

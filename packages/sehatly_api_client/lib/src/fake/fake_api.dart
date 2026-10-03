@@ -88,7 +88,7 @@ class FakeAuthApi implements AuthApi {
     String? tempatLahir,
     Bahasa? bahasa,
   }) async {
-    return registerResult ?? onUnregistered('auth.register');
+    return registerResult ?? onUnregistered('auth.sign-up');
   }
 
   @override

@@ -7,7 +7,7 @@ namespace App\Http\Requests\Auth;
 use Illuminate\Validation\Rule;
 
 /**
- * Validates `POST /api/v1/auth/register`.
+ * Validates `POST /api/v1/auth/sign-up`.
  *
  * ## Consent is collected HERE, in the same request and the same transaction
  *

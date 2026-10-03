@@ -76,7 +76,7 @@ function ortSender(): FakeOtpSender
  */
 function ortRegisteredUser(): User
 {
-    test()->postJson('/api/v1/auth/register', ortRegisterPayload())->assertCreated();
+    test()->postJson('/api/v1/auth/sign-up', ortRegisterPayload())->assertCreated();
 
     return User::query()->where('no_telepon', ortPhone())->firstOrFail();
 }
@@ -351,7 +351,7 @@ test('login and account lookup never expose the attempt counter', function (): v
         ->and($wrong->getContent())->not->toContain('sisa_percobaan');
 
     // A duplicate registration: the 422 names the field and nothing else.
-    $duplicate = $this->postJson('/api/v1/auth/register', ortRegisterPayload([
+    $duplicate = $this->postJson('/api/v1/auth/sign-up', ortRegisterPayload([
         'email' => 'orang.lain@example.test',
     ]));
 

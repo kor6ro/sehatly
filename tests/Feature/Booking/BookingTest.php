@@ -126,7 +126,7 @@ function bkuPasienRow(int $userId, array $ubah = []): int
 
 /**
  * A patient account: a `users` row of `tipe = 'pasien'`, its `pasien` row, and
- * the `pasien` role that `POST /auth/register` grants through `RoleAssigner`.
+ * the `pasien` role that `POST /auth/sign-up` grants through `RoleAssigner`.
  *
  * The role is not optional: `POST /booking` carries `permission:booking.buat`,
  * and `RbacCatalog::ROLE_PERMISSIONS['pasien']` is what holds it. An account

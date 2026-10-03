@@ -31,10 +31,10 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * | endpoint | relations loaded | body |
  * | --- | --- | --- |
  * | `GET /api/v1/me` | both, eagerly | `pasien` and `dokter` keys present |
- * | `POST /api/v1/auth/register` | neither | neither key present |
+ * | `POST /api/v1/auth/sign-up` | neither | neither key present |
  * | `POST /api/v1/auth/otp/verify` | neither | neither key present |
  *
- * `whenLoaded()` rather than a hard `null` because `POST /auth/register` creates the
+ * `whenLoaded()` rather than a hard `null` because `POST /auth/sign-up` creates the
  * `pasien` row in the same transaction and would have to publish `"pasien": null` - a
  * lie about a row that exists - or eager-load it and pay for a query the response does
  * not use. Omission is the honest answer in both directions, and it keeps the allow-list

@@ -1045,7 +1045,7 @@ class _Audit {
   /// are what the resource comparison needs.
   static const List<_Spec> specs = <_Spec>[
     _Spec(
-      endpoint: 'POST /api/v1/auth/register',
+      endpoint: 'POST /api/v1/auth/sign-up',
       controller: 'AuthController',
       action: 'register',
       api: 'AuthApi',

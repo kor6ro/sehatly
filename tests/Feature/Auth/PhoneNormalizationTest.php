@@ -88,7 +88,7 @@ test('the normaliser folds both country-code spellings into the local form and i
 // =====================================================================
 
 test('register stores the canonical local form when the client sends +62', function (): void {
-    $response = $this->postJson('/api/v1/auth/register', pntPayload([
+    $response = $this->postJson('/api/v1/auth/sign-up', pntPayload([
         'no_telepon' => '+62'.substr(pntPhone(), 1),
     ]));
 
@@ -103,7 +103,7 @@ test('register stores the canonical local form when the client sends +62', funct
 
 test('login and verify accept either spelling of the same account', function (): void {
     // Registered with the local form...
-    $this->postJson('/api/v1/auth/register', pntPayload())->assertCreated();
+    $this->postJson('/api/v1/auth/sign-up', pntPayload())->assertCreated();
 
     // ...logged in with the international form...
     $this->postJson('/api/v1/auth/login', [
@@ -120,9 +120,9 @@ test('login and verify accept either spelling of the same account', function ():
 });
 
 test('a duplicate is refused across spellings, as a field error and not a 500', function (): void {
-    $this->postJson('/api/v1/auth/register', pntPayload())->assertCreated();
+    $this->postJson('/api/v1/auth/sign-up', pntPayload())->assertCreated();
 
-    $second = $this->postJson('/api/v1/auth/register', pntPayload([
+    $second = $this->postJson('/api/v1/auth/sign-up', pntPayload([
         'no_telepon' => '+62'.substr(pntPhone(), 1),
         'email' => 'orang.lain@example.test',
     ]));
@@ -135,7 +135,7 @@ test('a duplicate is refused across spellings, as a field error and not a 500', 
 
 test('the login limiter counts both spellings against one budget', function (): void {
     // Register and verify so the account exists and the password is known.
-    $this->postJson('/api/v1/auth/register', pntPayload())->assertCreated();
+    $this->postJson('/api/v1/auth/sign-up', pntPayload())->assertCreated();
 
     $this->postJson('/api/v1/auth/otp/verify', [
         'no_telepon' => pntPhone(),

@@ -50,7 +50,7 @@ class AppServiceProvider extends ServiceProvider
      */
     private const LOGIN_IP_PER_MENIT = 60;
 
-    /** `POST /auth/register` attempts allowed per identifier and address. */
+    /** `POST /auth/sign-up` attempts allowed per identifier and address. */
     private const OTP_SEND_PER_MENIT = 10;
 
     /** OTP codes allowed to one phone number in a minute. */
@@ -95,7 +95,7 @@ class AppServiceProvider extends ServiceProvider
      * Only `login` qualifies, and the reason is a denial of service rather than a
      * guess. A login code is re-mintable by signing in again, so burning one costs
      * the patient a code and nothing else. A registration code has no re-request
-     * path in this API -- `POST /auth/register` is closed to a number that already
+     * path in this API -- `POST /auth/sign-up` is closed to a number that already
      * exists -- so burning one would let six anonymous requests deny a real patient
      * access to their own account, permanently, for the cost of nothing. The limiter
      * still refuses the sixth attempt; only the irreversible write is withheld, and
@@ -365,7 +365,7 @@ class AppServiceProvider extends ServiceProvider
      *   legitimate patient out of login after ten attempts in an hour. Moving a
      *   documented ceiling is a decision, not wiring, so it is recorded here and
      *   asserted UNMOUNTED by `RouteThrottlingTest`.
-     * - `auth-register` (3/hour, client IP) would lower `/auth/register` from the
+     * - `auth-register` (3/hour, client IP) would lower `/auth/sign-up` from the
      *   documented 10/min (`auth-otp-send`) to 3/hour per address. The
      *   carrier-grade-NAT paragraph below is exactly why that number must not be
      *   adopted silently: one clinic's egress is not one abuser.
@@ -374,7 +374,7 @@ class AppServiceProvider extends ServiceProvider
      * | --- | --- | --- | --- | --- |
      * | `auth-login` | identifier | 5 | 60 s | `POST /auth/login` |
      * | `auth-login-ip` | client IP | 60 | 60 s | `POST /auth/login` |
-     * | `auth-otp-send` | identifier + IP | 10 | 60 s | `POST /auth/register` |
+     * | `auth-otp-send` | identifier + IP | 10 | 60 s | `POST /auth/sign-up` |
      * | `auth-otp-resend` | identifier + IP | 3 | 300 s | `POST /auth/otp/resend` |
      * | `otp-kirim` | identifier | 3 | 60 s | **not mounted - ceiling decision (F-002)** |
      * | `otp-kirim-jam` | identifier | 10 | 3600 s | **not mounted - ceiling decision (F-002)** |
@@ -508,7 +508,7 @@ class AppServiceProvider extends ServiceProvider
             1,
         ));
 
-        // `auth-otp-send` is on `POST /auth/register` only, and is the endpoint that
+        // `auth-otp-send` is on `POST /auth/sign-up` only, and is the endpoint that
         // mints an OTP with no prior credential. `POST /auth/login` also mints one,
         // but only after the password matched, so its OTP volume is already bounded
         // by `auth-login`; `otp-kirim` below is the limiter to mount there when

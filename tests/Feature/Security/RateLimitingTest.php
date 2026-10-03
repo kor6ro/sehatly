@@ -97,7 +97,7 @@ function rateTestPassword(): string
 }
 
 /**
- * A complete, valid `POST /auth/register` body with overrides merged in.
+ * A complete, valid `POST /auth/sign-up` body with overrides merged in.
  *
  * @param  array<string, mixed>  $overrides
  * @return array<string, mixed>
@@ -137,7 +137,7 @@ function rateSender(): FakeOtpSender
  */
 function rateRegisterVerified(): User
 {
-    test()->postJson('/api/v1/auth/register', rateRegisterPayload())->assertCreated();
+    test()->postJson('/api/v1/auth/sign-up', rateRegisterPayload())->assertCreated();
 
     test()->postJson('/api/v1/auth/otp/verify', [
         'no_telepon' => rateTestPhone(),
@@ -617,13 +617,13 @@ test('the sixth login attempt in a minute is refused with 429, the envelope and 
 });
 
 test('the eleventh registration attempt in a minute is refused with the envelope and a real Retry-After', function (): void {
-    $this->postJson('/api/v1/auth/register', rateRegisterPayload())->assertCreated();
+    $this->postJson('/api/v1/auth/sign-up', rateRegisterPayload())->assertCreated();
 
     for ($attempt = 1; $attempt <= 9; $attempt++) {
-        $this->postJson('/api/v1/auth/register', rateRegisterPayload())->assertStatus(422);
+        $this->postJson('/api/v1/auth/sign-up', rateRegisterPayload())->assertStatus(422);
     }
 
-    $refused = $this->postJson('/api/v1/auth/register', rateRegisterPayload());
+    $refused = $this->postJson('/api/v1/auth/sign-up', rateRegisterPayload());
 
     $refused->assertStatus(429)->assertJsonPath('success', false);
 
@@ -748,12 +748,12 @@ test('a patient is not locked out by a burn: a NEW code is a new budget', functi
 
 test('a code the caller CANNOT re-request is refused but never burned, so it cannot be used to lock a patient out', function (): void {
     // A registration OTP is the one code in this application with no re-request
-    // path: `POST /auth/register` is closed to a number that already exists by the
+    // path: `POST /auth/sign-up` is closed to a number that already exists by the
     // `unique:users,no_telepon` rule, and there is no resend endpoint. Burning
     // that code would therefore hand any six anonymous requests a permanent denial
     // of service against a real patient, and a denial of service is a worse
     // outcome than the extra guesses a 300-second limiter already bounds.
-    $this->postJson('/api/v1/auth/register', rateRegisterPayload())->assertCreated();
+    $this->postJson('/api/v1/auth/sign-up', rateRegisterPayload())->assertCreated();
 
     // Captured before the attempts below, for the same reason as in the burn test:
     // `rateLimitFor()` reads a `Limit` off a fresh bucket, and after six attempts

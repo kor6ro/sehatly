@@ -23,7 +23,7 @@ use Illuminate\Support\Str;
 | - `otp-kirim` (3/min) and `otp-kirim-jam` (10/hour), both keyed on the
 |   identifier, would drop `/auth/login`'s effective ceiling from the plan's 5/min
 |   to 3/min and lock a patient out after ten attempts in an hour;
-| - `auth-register` (3/hour, client IP) would drop `/auth/register` from 10/min to
+| - `auth-register` (3/hour, client IP) would drop `/auth/sign-up` from 10/min to
 |   3/hour per address, which behind carrier-grade NAT is one clinic's egress.
 |
 | Those three are asserted UNMOUNTED here rather than left to memory: the day

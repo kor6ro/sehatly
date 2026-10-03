@@ -87,7 +87,7 @@ function maskedNik(string $nik): string
 }
 
 /**
- * A complete, valid `POST /auth/register` payload, with overrides merged in.
+ * A complete, valid `POST /auth/sign-up` payload, with overrides merged in.
  *
  * All nine keys are supplied, not just the required ones, so a test that changes one field
  * knows the other eight still validate and the failure it observes is the one it meant to
@@ -128,7 +128,7 @@ function patientAccount(array $overrides = []): array
 {
     $payload = pasienTestRegisterPayload($overrides);
 
-    test()->postJson('/api/v1/auth/register', $payload)->assertCreated();
+    test()->postJson('/api/v1/auth/sign-up', $payload)->assertCreated();
 
     test()->postJson('/api/v1/auth/otp/verify', [
         'no_telepon' => $payload['no_telepon'],
@@ -1393,19 +1393,27 @@ test('the masker keeps four at each end, preserves the length, and refuses to fa
 // Contracts the endpoints depend on
 // =====================================================================
 
-test('the route table exposes the eleven auth routes and the eleven patient routes with the expected middleware', function (): void {
+test('the route table exposes the twelve auth routes and the eleven patient routes with the expected middleware', function (): void {
     $routes = collect(Route::getRoutes()->getRoutes())
         ->filter(fn ($route): bool => str_starts_with($route->uri(), 'api/v1'))
         ->keyBy(fn ($route): string => $route->methods()[0].' '.$route->uri())
         ->all();
 
-    // The eleven Module 1 auth routes: the original eight, plus F01's
-    // `POST /auth/otp/resend` and `POST /auth/logout-all`, and the anonymous
-    // `GET /auth/otp/kanal` channel probe. Asserted because this
+    // The twelve Module 1 auth routes: the original eight, plus F01's
+    // `POST /auth/otp/resend` and `POST /auth/logout-all`, the anonymous
+    // `GET /auth/otp/kanal` channel probe, and the one-door flow's
+    // `POST /auth/sign-up/lengkapi`. Asserted because this
     // todo appended to `routes/api.php` and todo 20's own test asserts the same
     // set, so either file changing alone is a failure rather than a silent drift.
     expect(array_keys($routes))->toEqualCanonicalizing([
-        'POST api/v1/auth/register',
+        'POST api/v1/auth/sign-up',
+        // Registered immediately after its sibling. A shell minted by `login` for a
+        // number with no account becomes a full patient here, once the owner has
+        // proved the number over OTP and supplied the two facts `pasien` will not
+        // accept a guess for. BEARER - it sits behind `auth:sanctum` - so it joins
+        // neither `$anonymous` nor `$expectedGuards`, which lists only the routes
+        // carrying a `permission:` or `tipe:` gate and expects none by default.
+        'POST api/v1/auth/sign-up/lengkapi',
         'POST api/v1/auth/login',
         'POST api/v1/auth/otp/verify',
         'POST api/v1/auth/otp/resend',
@@ -1692,7 +1700,7 @@ test('the route table exposes the eleven auth routes and the eleven patient rout
     // Their eligibility is decided by `DokterDirectoryService::find()` inside the
     // controller, never by a middleware, so "public" here costs no data.
     $anonymous = [
-        'POST api/v1/auth/register',
+        'POST api/v1/auth/sign-up',
         'POST api/v1/auth/login',
         'POST api/v1/auth/otp/verify',
         // F01's resend: anonymous by design. It mints a code with no prior

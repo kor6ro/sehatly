@@ -155,7 +155,7 @@ function scaffoldApiRouteNamesToAssert(): array
         // The SPA's own, from routes/api.php. Asserted as present, not absent: a
         // removal of the API surface has to fail here too, so this file does not
         // quietly become a statement only about deletions.
-        'auth.register',
+        'auth.sign-up',
         'auth.login',
         'auth.otp.verify',
         'auth.refresh',
@@ -217,7 +217,7 @@ function scaffoldDdl(): SchemaSpec
 }
 
 /**
- * A valid `POST /api/v1/auth/register` body with overrides merged in.
+ * A valid `POST /api/v1/auth/sign-up` body with overrides merged in.
  *
  * @param  array<string, mixed>  $overrides
  * @return array<string, mixed>
@@ -256,7 +256,7 @@ function scaffoldRegisterAndVerify(): string
     // row the `roles` table does not have.
     app()->instance(OtpSender::class, new FakeOtpSender);
 
-    test()->postJson('/api/v1/auth/register', scaffoldRegisterPayload())->assertCreated();
+    test()->postJson('/api/v1/auth/sign-up', scaffoldRegisterPayload())->assertCreated();
 
     $kode = app(OtpSender::class)->lastKodeFor(OtpService::TUJUAN_VERIFIKASI_TELEPON);
 

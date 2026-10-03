@@ -12,7 +12,7 @@ import 'transport.dart';
 /// model, so [User.pasien] and [User.dokter] are both populated here. The two
 /// Module 1 auth endpoints publish the same `users` row through the same
 /// `UserResource` with both keys **absent** -- the server uses `whenLoaded()`, so
-/// `POST /auth/register` and `POST /auth/otp/verify` do not pay for a query whose
+/// `POST /auth/sign-up` and `POST /auth/otp/verify` do not pay for a query whose
 /// result the response would not use, and do not publish a `null` for a row that
 /// exists.
 ///

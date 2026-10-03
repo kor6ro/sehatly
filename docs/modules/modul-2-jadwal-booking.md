@@ -85,7 +85,7 @@ Tidak ada, karena tidak ada endpoint Modul 2 untuk dipanggil.
 
 Yang bisa diuji hari ini hanya permukaan Modul 1, yang resep lengkapnya sudah
 ada di `modul-1-auth.md`, `modul-1-pasien.md`, dan `modul-1-dokter.md`. Urutan
-tokennya sama seperti yang akan dipakai Modul 2: `POST /auth/register`, lalu
+tokennya sama seperti yang akan dipakai Modul 2: `POST /auth/sign-up`, lalu
 `POST /auth/otp/verify` dengan `tujuan = verifikasi_telepon`, dan
 `data.token.access_token` dipakai sebagai header `Authorization: Bearer`.
 

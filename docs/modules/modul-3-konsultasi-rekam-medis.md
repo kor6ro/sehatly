@@ -62,7 +62,7 @@ bukan dari badan respons: plaintext `data.otp.kode` hanya ada saat
 ```bash
 BASE_URL="http://127.0.0.1:8123/api/v1"
 # 1. Daftar pasien baru.
-curl.exe -s -X POST "$BASE_URL/auth/register" -H "Content-Type: application/json" -d '{"nama_lengkap":"<NAMA>","no_telepon":"<NO_TELEPON>","password":"<PASSWORD>","jenis_kelamin":"L","tanggal_lahir":"1990-01-01","alamat_lengkap":"<ALAMAT>"}'
+curl.exe -s -X POST "$BASE_URL/auth/sign-up" -H "Content-Type: application/json" -d '{"nama_lengkap":"<NAMA>","no_telepon":"<NO_TELEPON>","password":"<PASSWORD>","jenis_kelamin":"L","tanggal_lahir":"1990-01-01","alamat_lengkap":"<ALAMAT>"}'
 # 2. Baca kode dari log (penerima disamarkan di log, cocokkan dari baris terbaru).
 #    [2026-09-29 09:39:33] local.NOTICE: sehatly.otp {"tujuan":"verifikasi_telepon","penerima":"081*******31","kode":"<KODE_OTP>"}
 # 3. Tukar OTP menjadi pasangan token.

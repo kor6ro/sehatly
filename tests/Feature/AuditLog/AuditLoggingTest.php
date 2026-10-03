@@ -636,7 +636,7 @@ test('verifying the registration OTP writes a login row, and logout writes a log
         'persetujuan_kebijakan_privasi' => true,
     ];
 
-    $this->postJson('/api/v1/auth/register', $payload)->assertCreated();
+    $this->postJson('/api/v1/auth/sign-up', $payload)->assertCreated();
 
     /** @var FakeOtpSender $sender */
     $sender = app(OtpSender::class);

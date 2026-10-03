@@ -250,13 +250,23 @@ const List<String> apiv1authrefreshMethods = <String>[
   'POST',
 ];
 
-/// `/api/v1/auth/register`
+/// `/api/v1/auth/sign-up`
 ///
-/// Answers: POST (`auth.register`).
-const String apiv1authregister = '/api/v1/auth/register';
+/// Answers: POST (`auth.sign-up`).
+const String apiv1authsignUp = '/api/v1/auth/sign-up';
 
-/// The HTTP methods `apiv1authregister` answers.
-const List<String> apiv1authregisterMethods = <String>[
+/// The HTTP methods `apiv1authsignUp` answers.
+const List<String> apiv1authsignUpMethods = <String>[
+  'POST',
+];
+
+/// `/api/v1/auth/sign-up/lengkapi`
+///
+/// Answers: POST (`auth.sign-up.lengkapi`).
+const String apiv1authsignUplengkapi = '/api/v1/auth/sign-up/lengkapi';
+
+/// The HTTP methods `apiv1authsignUplengkapi` answers.
+const List<String> apiv1authsignUplengkapiMethods = <String>[
   'POST',
 ];
 

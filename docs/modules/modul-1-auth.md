@@ -32,7 +32,7 @@ Nilai `<NO_TELEPON>`, `<KODE_OTP>`, `<ACCESS_TOKEN>`, `<REFRESH_TOKEN>`,
 BASE_URL="http://127.0.0.1:8123/api/v1"
 ```
 
-## 1. `POST /auth/register` - 201
+## 1. `POST /auth/sign-up` - 201
 
 Membuat `users` (`status=pending_verifikasi`, `tipe=pasien`) beserta baris
 `pasien`, mencatat dua baris consent wajib di `persetujuan_pdp`
@@ -41,7 +41,7 @@ IP permintaan) dalam transaksi yang sama, lalu mengirim OTP
 `verifikasi_telepon`. Kedua field consent wajib bernilai `accepted`.
 
 ```bash
-curl.exe -s -X POST "$BASE_URL/auth/register" \
+curl.exe -s -X POST "$BASE_URL/auth/sign-up" \
   -H "Content-Type: application/json" \
   -d '{"nama_lengkap":"<NAMA_LENGKAP>","no_telepon":"<NO_TELEPON>","email":"<EMAIL>","password":"<PASSWORD>","jenis_kelamin":"L","tanggal_lahir":"1990-01-01","tempat_lahir":"Jakarta","alamat_lengkap":"<ALAMAT>","bahasa":"id","persetujuan_syarat_ketentuan":true,"persetujuan_kebijakan_privasi":true}'
 ```

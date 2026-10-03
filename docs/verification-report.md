@@ -488,7 +488,7 @@ ObatSeeder.php / PenjaminSeeder.php / RbacSeeder.php / SpesialisasiSeeder.php
    -> user_roles-insert matches = 0   (all twelve)
 ```
 
-After a full `migrate --seed`, `user_roles` held **1** row — the one `POST /auth/register` created
+After a full `migrate --seed`, `user_roles` held **1** row — the one `POST /auth/sign-up` created
 for the patient I registered through the API. `RbacSeeder` documents the omission as deliberate
 ("It writes no `user_roles` rows"), and nothing else fills it. So **every account that
 `DevFixtureSeeder` creates — all three doctors — holds zero RBAC grants and is refused with 403 on
@@ -663,7 +663,7 @@ is real server output.
 
 ### Fixture preparation, stated plainly
 
-`POST /auth/register` creates a **patient only** — `RegisterRequest::rules()` has no role field,
+`POST /auth/sign-up` creates a **patient only** — `RegisterRequest::rules()` has no role field,
 and the seeded doctor/pharmacist accounts carry `password_hash(bin2hex(random_bytes(32)))`, i.e.
 deliberately unguessable. Combined with §6.6, steps 4–12 could not be reached without preparing
 rows. In `telemedisin_db_t54` **only**, I inserted:
@@ -686,7 +686,7 @@ the walkthrough for a clean-room run.** No repository file was changed by any of
 
 | # | Step | Observed |
 | --- | --- | --- |
-| 1 | register a patient | `POST /auth/register` → **201**. `data.otp.kode = "067383"`, `tujuan=verifikasi_telepon`, `ttl_detik=300`. **Response carries NO token** — asserted: `register response contains a token? NO`. `status=pending_verifikasi`. |
+| 1 | register a patient | `POST /auth/sign-up` → **201**. `data.otp.kode = "067383"`, `tujuan=verifikasi_telepon`, `ttl_detik=300`. **Response carries NO token** — asserted: `register response contains a token? NO`. `status=pending_verifikasi`. |
 | 2 | verify the OTP | `POST /auth/otp/verify` → **200**, `kode=067383`. `data.token.access_token` (len 50) + `refresh_token` (len 80), `expires_in=86399`, `token_type=Bearer`. `status` `pending_verifikasi` → `aktif`, `telepon_terverifikasi` → `true`. `GET /me` → 200. **The two-step design is real and confirmed.** |
 | 3 | browse doctors | `GET /dokter` (no token) → **200**, 2 doctors. `GET /dokter/2/jadwal` → 200, **all seven day-lists empty**. `GET /dokter/2/slot?tanggal=2026-09-30` → 200, `slots: []`. After the schedule fixture: **24 slots**, first `jam_mulai 09:00:00`. |
 | 4 | book a slot | First attempt → **422** `slot_mulai required` (no slots existed). After the schedule fixture: `POST /booking` → **201**, `id=1`, `nomor_booking=BK20260930AGQJKA`, `status=menunggu_pembayaran`. |

@@ -1572,6 +1572,108 @@ class RegisterRequestBody {
   }
 }
 
+/// The request body `App\Http\Requests\Auth\LengkapiSignUpRequest` validates.
+///
+/// Every field below was read from that class's `rules()`. A `required` rule is a
+/// constructor parameter, so omitting it is a compile error rather than a 422, and the
+/// Dart type is derived from the type rules, so a `boolean` field cannot be handed a
+/// `String`.
+///
+/// [toJson] emits the WIRE names, which for a dotted Laravel attribute path is the
+/// dotted path itself -- the same string `ValidationException::errors()` uses, so a 422
+/// message maps back to the field that caused it.
+class LengkapiSignUpRequestBody {
+  /// The `FormRequest` class these rules were read from.
+  static const String formRequest = 'App\\Http\\Requests\\Auth\\LengkapiSignUpRequest';
+
+  /// Creates the body.
+  ///
+  /// Required fields are `required this`, so omitting one is a compile error
+  /// rather than a 422. Optional fields are plain named parameters defaulting to
+  /// `null`, which is what keeps every `final` field initialised -- a body class with
+  /// NO required field (the reference endpoints read their rules off the route name, so
+  /// several are parameterless on some paths) would otherwise have uninitialised finals.
+  const LengkapiSignUpRequestBody({
+    required this.alamatLengkap,
+    required this.jenisKelamin,
+    required this.namaLengkap,
+    required this.persetujuanKebijakanPrivasi,
+    required this.persetujuanSyaratKetentuan,
+    required this.tanggalLahir,
+    this.email,
+    this.tempatLahir,
+  });
+
+  /// `alamat_lengkap`.
+  final Object? alamatLengkap;
+
+  /// `jenis_kelamin`, a closed set on the server.
+  final Object? jenisKelamin;
+
+  /// `nama_lengkap`.
+  final Object? namaLengkap;
+
+  /// `persetujuan_kebijakan_privasi`.
+  final Object? persetujuanKebijakanPrivasi;
+
+  /// `persetujuan_syarat_ketentuan`.
+  final Object? persetujuanSyaratKetentuan;
+
+  /// `tanggal_lahir`.
+  final Object? tanggalLahir;
+
+  /// `email`.
+  final Object? email;
+
+  /// `tempat_lahir`.
+  final Object? tempatLahir;
+
+  /// The values the server accepts for `jenis_kelamin`, read from its `Rule::in`.
+  ///
+  /// A `Set<String>` rather than a Dart enum on purpose: the rule's values are
+  /// data rather than a compile-time vocabulary, so the server may gain a member
+  /// without this package being released, and a set keeps the check honest
+  /// instead of failing to compile against a list it has never seen.
+  static const Set<String> jenisKelaminAllowed = <String>{
+    'L',
+    'P',
+  };
+
+  /// The declared field names, required first, then optional.
+  static const List<String> fields = <String>[
+    'alamat_lengkap',
+    'jenis_kelamin',
+    'nama_lengkap',
+    'persetujuan_kebijakan_privasi',
+    'persetujuan_syarat_ketentuan',
+    'tanggal_lahir',
+    'email',
+    'tempat_lahir',
+  ];
+
+  /// The fields the server REJECTS when sent. A tenant key, in this project, is
+  /// written from the caller's own row, so sending one is a validation error.
+  static const List<String> prohibitedFields = <String>[];
+
+  /// The wire body, omitting every field left `null`.
+  ///
+  /// Omission rather than an explicit `null` is deliberate and matches the server:
+  /// Laravel treats `sometimes|nullable` and `required` differently, and sending an
+  /// explicit `null` for a `sometimes` field is not the same request as omitting it.
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      if (alamatLengkap != null) 'alamat_lengkap': alamatLengkap,
+      if (jenisKelamin != null) 'jenis_kelamin': jenisKelamin,
+      if (namaLengkap != null) 'nama_lengkap': namaLengkap,
+      if (persetujuanKebijakanPrivasi != null) 'persetujuan_kebijakan_privasi': persetujuanKebijakanPrivasi,
+      if (persetujuanSyaratKetentuan != null) 'persetujuan_syarat_ketentuan': persetujuanSyaratKetentuan,
+      if (tanggalLahir != null) 'tanggal_lahir': tanggalLahir,
+      if (email != null) 'email': email,
+      if (tempatLahir != null) 'tempat_lahir': tempatLahir,
+    };
+  }
+}
+
 /// The request body `App\Http\Requests\Booking\StoreBookingRequest` validates.
 ///
 /// Every field below was read from that class's `rules()`. A `required` rule is a

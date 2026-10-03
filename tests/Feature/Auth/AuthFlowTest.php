@@ -67,7 +67,7 @@ use Tests\Support\FakeOtpSender;
 // ------------------------------------------------------------------ helpers
 
 /**
- * A complete, valid `POST /auth/register` payload, with overrides merged in.
+ * A complete, valid `POST /auth/sign-up` payload, with overrides merged in.
  *
  * All eleven keys are supplied, not just the required ones, so a test that changes
  * one field knows the other ten still validate and the failure it observes is
@@ -145,7 +145,7 @@ function authRegisterVerified(array $overrides = [], ?string $deviceId = null): 
 {
     $payload = authRegisterPayload($overrides);
 
-    test()->postJson('/api/v1/auth/register', $payload)->assertCreated();
+    test()->postJson('/api/v1/auth/sign-up', $payload)->assertCreated();
 
     $verify = [
         'no_telepon' => $payload['no_telepon'],
@@ -200,6 +200,58 @@ function authLoginVerified(User $user, ?string $deviceId = null): array
         'access' => (string) $response->json('data.token.access_token'),
         'refresh' => (string) $response->json('data.token.refresh_token'),
     ];
+}
+
+/**
+ * Walk the ONE-DOOR flow: an unknown number is minted a shell, then proves itself.
+ *
+ * The other path to "a usable authenticated account", and the one this dialog
+ * actually uses. It never asks for a password, a name, a sex or a birth date,
+ * because there is nowhere to ask until the number has been proved - so what comes
+ * back is a session whose account is a SHELL: `users.nama_lengkap` is `''`, there is
+ * no `pasien` row, no role grant and no consent ledger. `POST /auth/sign-up/lengkapi`
+ * is what turns it into a patient, and `data.profil_lengkap` on the verify response
+ * is what tells a client it has not arrived there yet.
+ *
+ * @return array{user: User, access: string, refresh: string}
+ */
+function authCangkangTerverifikasi(string $nomor = '089876543210'): array
+{
+    test()->postJson('/api/v1/auth/login', ['no_telepon' => $nomor])->assertOk();
+
+    $response = test()->postJson('/api/v1/auth/otp/verify', [
+        'no_telepon' => $nomor,
+        'kode' => authSender()->lastKodeFor(OtpService::TUJUAN_LOGIN),
+        'tujuan' => OtpService::TUJUAN_LOGIN,
+    ]);
+
+    $response->assertOk();
+
+    return [
+        'user' => User::query()->where('no_telepon', $nomor)->firstOrFail(),
+        'access' => (string) $response->json('data.token.access_token'),
+        'refresh' => (string) $response->json('data.token.refresh_token'),
+    ];
+}
+
+/**
+ * The profile payload the completion screen sends - a patient's own five facts and
+ * the two consents, and nothing the server owns.
+ *
+ * @return array<string, mixed>
+ */
+function authLengkapiPayload(array $overrides = []): array
+{
+    return array_merge([
+        'nama_lengkap' => 'Siti Rahayu',
+        'jenis_kelamin' => 'P',
+        'tanggal_lahir' => '1998-04-17',
+        'tempat_lahir' => 'Bandung',
+        'alamat_lengkap' => 'Jl. Merdeka No. 17, Bandung',
+        'email' => 'siti.rahayu@example.test',
+        'persetujuan_syarat_ketentuan' => '1',
+        'persetujuan_kebijakan_privasi' => '1',
+    ], $overrides);
 }
 
 /**
@@ -336,11 +388,11 @@ beforeEach(function (): void {
 });
 
 // =====================================================================
-// POST /api/v1/auth/register
+// POST /api/v1/auth/sign-up
 // =====================================================================
 
 test('register creates the users row, the pasien row and the role grant, and sends an OTP', function (): void {
-    $response = $this->postJson('/api/v1/auth/register', authRegisterPayload());
+    $response = $this->postJson('/api/v1/auth/sign-up', authRegisterPayload());
 
     $response->assertCreated();
     $response->assertJsonPath('success', true);
@@ -398,7 +450,7 @@ test('register writes the two mandatory consent rows in the same transaction as 
     // F01 decision #1, option (a): consent is taken in the registration request
     // and the ledger rows are written atomically with the account, so a `users`
     // row cannot exist without the consents that authorise it.
-    $this->postJson('/api/v1/auth/register', authRegisterPayload())->assertCreated();
+    $this->postJson('/api/v1/auth/sign-up', authRegisterPayload())->assertCreated();
 
     $user = User::query()->where('no_telepon', authTestPhone())->firstOrFail();
 
@@ -433,7 +485,7 @@ test('register refuses missing or declined consent and writes nothing at all', f
         $payload[$field] = $value;
     }
 
-    $response = $this->postJson('/api/v1/auth/register', $payload);
+    $response = $this->postJson('/api/v1/auth/sign-up', $payload);
 
     $response->assertStatus(422);
     $response->assertJsonPath('success', false);
@@ -457,7 +509,7 @@ test('register never returns the plaintext OTP outside the local environment', f
     // refusing branch, so a leak could not hide behind a local-only assertion.
     expect(app()->environment('local'))->toBeFalse();
 
-    $response = $this->postJson('/api/v1/auth/register', authRegisterPayload());
+    $response = $this->postJson('/api/v1/auth/sign-up', authRegisterPayload());
 
     $kode = authSender()->lastKodeFor(OtpService::TUJUAN_VERIFIKASI_TELEPON);
 
@@ -485,7 +537,7 @@ test('the plaintext OTP is returned only when the environment is local', functio
 });
 
 test('register stores only the SHA-256 hash of the code, never the plaintext', function (): void {
-    $this->postJson('/api/v1/auth/register', authRegisterPayload())->assertCreated();
+    $this->postJson('/api/v1/auth/sign-up', authRegisterPayload())->assertCreated();
 
     $kode = authSender()->lastKodeFor(OtpService::TUJUAN_VERIFIKASI_TELEPON);
     $hash = UserOtp::query()->value('kode_hash');
@@ -497,7 +549,7 @@ test('register stores only the SHA-256 hash of the code, never the plaintext', f
 });
 
 test('register issues no token, so nothing can be used before the OTP is verified', function (): void {
-    $response = $this->postJson('/api/v1/auth/register', authRegisterPayload());
+    $response = $this->postJson('/api/v1/auth/sign-up', authRegisterPayload());
 
     $response->assertCreated();
 
@@ -512,7 +564,7 @@ test('register ignores a client supplied tipe, status and verification flag', fu
     // None of these is in `RegisterRequest`'s rules, so `validated()` drops them before
     // the controller sees them. A public registration endpoint that accepted `tipe`
     // would hand out `superadmin` accounts.
-    $this->postJson('/api/v1/auth/register', authRegisterPayload([
+    $this->postJson('/api/v1/auth/sign-up', authRegisterPayload([
         'tipe' => 'superadmin',
         'status' => 'aktif',
         'telepon_terverifikasi' => true,
@@ -529,7 +581,7 @@ test('register ignores a client supplied tipe, status and verification flag', fu
 });
 
 test('the user resource never publishes the password hash', function (): void {
-    $response = $this->postJson('/api/v1/auth/register', authRegisterPayload());
+    $response = $this->postJson('/api/v1/auth/sign-up', authRegisterPayload());
 
     $body = (string) $response->getContent();
     $hash = (string) User::query()->where('no_telepon', authTestPhone())->value('kata_sandi_hash');
@@ -547,7 +599,7 @@ test('register refuses each of the three NOT NULL pasien columns it has to colle
     $payload = authRegisterPayload();
     unset($payload[$field]);
 
-    $response = $this->postJson('/api/v1/auth/register', $payload);
+    $response = $this->postJson('/api/v1/auth/sign-up', $payload);
 
     $response->assertStatus(422);
     $response->assertJsonPath('success', false);
@@ -558,7 +610,7 @@ test('register refuses each of the three NOT NULL pasien columns it has to colle
 })->with(['jenis_kelamin', 'tanggal_lahir', 'alamat_lengkap']);
 
 test('register refuses a jenis kelamin outside the DDL enum', function (): void {
-    $this->postJson('/api/v1/auth/register', authRegisterPayload(['jenis_kelamin' => 'X']))
+    $this->postJson('/api/v1/auth/sign-up', authRegisterPayload(['jenis_kelamin' => 'X']))
         ->assertStatus(422)
         ->assertJsonPath('errors.jenis_kelamin.0', 'The selected jenis kelamin is invalid.');
 
@@ -566,14 +618,14 @@ test('register refuses a jenis kelamin outside the DDL enum', function (): void 
 });
 
 test('register refuses a birth date in the future and a malformed one', function (): void {
-    $this->postJson('/api/v1/auth/register', authRegisterPayload([
+    $this->postJson('/api/v1/auth/sign-up', authRegisterPayload([
         'tanggal_lahir' => now()->addDay()->toDateString(),
     ]))->assertStatus(422)->assertJsonPath(
         'errors.tanggal_lahir.0',
         'The tanggal lahir field must be a date before or equal to today.'
     );
 
-    $this->postJson('/api/v1/auth/register', authRegisterPayload(['tanggal_lahir' => '17-05-1990']))
+    $this->postJson('/api/v1/auth/sign-up', authRegisterPayload(['tanggal_lahir' => '17-05-1990']))
         ->assertStatus(422)->assertJsonPath(
             'errors.tanggal_lahir.0',
             'The tanggal lahir field must match the format Y-m-d.'
@@ -583,9 +635,9 @@ test('register refuses a birth date in the future and a malformed one', function
 });
 
 test('register refuses a duplicate phone number as a field error, not a 500', function (): void {
-    $this->postJson('/api/v1/auth/register', authRegisterPayload())->assertCreated();
+    $this->postJson('/api/v1/auth/sign-up', authRegisterPayload())->assertCreated();
 
-    $second = $this->postJson('/api/v1/auth/register', authRegisterPayload([
+    $second = $this->postJson('/api/v1/auth/sign-up', authRegisterPayload([
         'email' => 'orang.lain@example.test',
     ]));
 
@@ -597,9 +649,9 @@ test('register refuses a duplicate phone number as a field error, not a 500', fu
 });
 
 test('register refuses a duplicate email address', function (): void {
-    $this->postJson('/api/v1/auth/register', authRegisterPayload())->assertCreated();
+    $this->postJson('/api/v1/auth/sign-up', authRegisterPayload())->assertCreated();
 
-    $this->postJson('/api/v1/auth/register', authRegisterPayload(['no_telepon' => '081299999999']))
+    $this->postJson('/api/v1/auth/sign-up', authRegisterPayload(['no_telepon' => '081299999999']))
         ->assertStatus(422)
         ->assertJsonPath('errors.email.0', 'The email has already been taken.');
 });
@@ -608,13 +660,13 @@ test('register is rate limited to ten a minute per identifier', function (): voi
     // `throttle:auth-otp-send` is 10/min. The route middleware runs before the
     // controller, which is why the first attempt succeeds and the next nine are refused
     // by validation rather than by the limiter.
-    $this->postJson('/api/v1/auth/register', authRegisterPayload())->assertCreated();
+    $this->postJson('/api/v1/auth/sign-up', authRegisterPayload())->assertCreated();
 
     for ($attempt = 1; $attempt <= 9; $attempt++) {
-        $this->postJson('/api/v1/auth/register', authRegisterPayload())->assertStatus(422);
+        $this->postJson('/api/v1/auth/sign-up', authRegisterPayload())->assertStatus(422);
     }
 
-    $throttled = $this->postJson('/api/v1/auth/register', authRegisterPayload());
+    $throttled = $this->postJson('/api/v1/auth/sign-up', authRegisterPayload());
 
     $throttled->assertStatus(429);
     $throttled->assertJsonPath('success', false);
@@ -622,7 +674,7 @@ test('register is rate limited to ten a minute per identifier', function (): voi
 
     // A different identifier has its own budget, so one client cannot lock every
     // account out of registering by spending a shared one.
-    $this->postJson('/api/v1/auth/register', authRegisterPayload([
+    $this->postJson('/api/v1/auth/sign-up', authRegisterPayload([
         'no_telepon' => '081200000000',
         'email' => 'orang.lain@example.test',
     ]))->assertCreated();
@@ -751,6 +803,216 @@ test('login needs no password, but still needs an identifier', function (): void
         ->and($neither->json('errors.no_telepon.0'))->toBe('Isi no_telepon atau email.');
 });
 
+test('a passwordless login for a number with no account mints it rather than refusing', function (): void {
+    $nomor = '081234567890';
+
+    expect(User::query()->where('no_telepon', $nomor)->count())->toBe(0);
+
+    $response = $this->postJson('/api/v1/auth/login', ['no_telepon' => $nomor]);
+
+    $response->assertOk()
+        ->assertJsonPath('success', true)
+        ->assertJsonPath('data.otp.tujuan', OtpService::TUJUAN_LOGIN);
+
+    $user = User::query()->where('no_telepon', $nomor)->firstOrFail();
+
+    // The account is a SHELL: no name, still unverified, and no patient row - so
+    // nothing about the person behind the number has been invented.
+    expect($user->nama_lengkap)->toBe('')
+        ->and($user->status)->toBe('pending_verifikasi')
+        ->and($user->telepon_terverifikasi)->toBeFalse()
+        ->and($user->kata_sandi_hash)->not->toBe('')
+        ->and(Pasien::query()->where('user_id', $user->getKey())->count())->toBe(0);
+
+    // The code really was minted against it, which is only possible because the row
+    // existed first: `user_otp.user_id` is a NOT NULL foreign key.
+    expect(UserOtp::query()->where('user_id', $user->getKey())->count())->toBe(1);
+});
+
+test('a login for a new number carries the same fields as a login for an existing one', function (): void {
+    authRegisterVerified();
+
+    $existing = $this->postJson('/api/v1/auth/login', ['no_telepon' => authTestPhone()]);
+    $fresh = $this->postJson('/api/v1/auth/login', ['no_telepon' => '081234567890']);
+
+    $existing->assertOk();
+    $fresh->assertOk();
+
+    // Same status, same message, same keys at both levels. The only value that can
+    // differ is the code itself, which differs for every request by construction - so
+    // what is compared is everything else the response is willing to say.
+    expect($fresh->json('message'))->toBe($existing->json('message'))
+        ->and(array_keys($fresh->json('data')))->toBe(array_keys($existing->json('data')))
+        ->and(array_keys($fresh->json('data.otp')))->toBe(array_keys($existing->json('data.otp')))
+        ->and($fresh->json('success'))->toBe($existing->json('success'));
+});
+
+test('a passwordless login by an unknown email still refuses, because there is no channel for its code', function (): void {
+    $this->postJson('/api/v1/auth/login', ['email' => 'belum.ada@example.test'])
+        ->assertStatus(401);
+
+    // Documented as the endpoint's one remaining gap: minting an email-identified
+    // account would produce a code `OtpService::issue()` has no address to send to.
+    expect(User::query()->where('email', 'belum.ada@example.test')->count())->toBe(0);
+});
+
+// =====================================================================
+// The one-door flow: shell -> proved number -> patient
+// =====================================================================
+
+test('verify reports the shell as incomplete, and sign-up/lengkapi finishes it', function (): void {
+    $nomor = '089876543210';
+
+    test()->postJson('/api/v1/auth/login', ['no_telepon' => $nomor])->assertOk();
+
+    $verifikasi = test()->postJson('/api/v1/auth/otp/verify', [
+        'no_telepon' => $nomor,
+        'kode' => authSender()->lastKodeFor(OtpService::TUJUAN_LOGIN),
+        'tujuan' => OtpService::TUJUAN_LOGIN,
+    ]);
+
+    // The ONLY place a client can be told there is work left, and deliberately not
+    // `login`: that body has to be identical for a new number and an existing one,
+    // or the endpoint goes straight back to enumerating.
+    $verifikasi->assertOk()->assertJsonPath('data.profil_lengkap', false);
+
+    $akses = (string) $verifikasi->json('data.token.access_token');
+    $user = User::query()->where('no_telepon', $nomor)->firstOrFail();
+
+    // Nothing was invented on the way in - no name, and no patient row at all, which
+    // is the whole reason the shell exists rather than a fabricated record.
+    expect($user->nama_lengkap)->toBe('')
+        ->and(Pasien::query()->where('user_id', $user->getKey())->count())->toBe(0);
+
+    $lengkap = authAsToken($akses)->postJson(
+        '/api/v1/auth/sign-up/lengkapi',
+        authLengkapiPayload(),
+    );
+
+    $lengkap->assertCreated()
+        ->assertJsonPath('success', true)
+        ->assertJsonPath('data.profil_lengkap', true);
+
+    $user->refresh();
+    $pasien = Pasien::query()->where('user_id', $user->getKey())->firstOrFail();
+
+    expect($user->nama_lengkap)->toBe('Siti Rahayu')
+        ->and($user->email)->toBe('siti.rahayu@example.test')
+        ->and($pasien->jenis_kelamin)->toBe('P')
+        ->and($pasien->tanggal_lahir->toDateString())->toBe('1998-04-17')
+        ->and($pasien->alamat_lengkap)->toBe('Jl. Merdeka No. 17, Bandung')
+        ->and($pasien->nomor_rm)->toMatch('/^RM-[0-9]{6}-[0-9]{6}$/');
+
+    // The role grant is written with the row. Without it every `permission:`-gated
+    // route would 403 this account on its first real action.
+    expect(app(RoleAssigner::class)->rolesFor((int) $user->getKey()))->toBe(['pasien']);
+
+    // Both consents, in the ledger, with the active version read from config rather
+    // than from the client - and taken HERE, at the checkbox, not at `login`.
+    $rows = DB::table('persetujuan_pdp')
+        ->where('user_id', $user->getKey())
+        ->orderBy('id')
+        ->get();
+
+    expect($rows)->toHaveCount(2);
+
+    $jenis = $rows->pluck('jenis')->all();
+    sort($jenis);
+
+    expect($jenis)->toBe(['kebijakan_privasi', 'syarat_ketentuan']);
+
+    foreach ($rows as $row) {
+        expect((bool) $row->disetujui)->toBeTrue()
+            ->and($row->versi_dokumen)->toBe(config('pdp.dokumen.'.$row->jenis.'.versi'));
+    }
+
+    // A second round trip agrees the account is finished, which is what routes a
+    // client off the sign-up screen rather than back onto it.
+    test()->postJson('/api/v1/auth/login', ['no_telepon' => $nomor])->assertOk();
+
+    test()->postJson('/api/v1/auth/otp/verify', [
+        'no_telepon' => $nomor,
+        'kode' => authSender()->lastKodeFor(OtpService::TUJUAN_LOGIN),
+        'tujuan' => OtpService::TUJUAN_LOGIN,
+    ])->assertOk()->assertJsonPath('data.profil_lengkap', true);
+});
+
+test('sign-up/lengkapi refuses a missing or declined consent and writes nothing', function (string $field, mixed $value): void {
+    $cangkang = authCangkangTerverifikasi();
+
+    authAsToken($cangkang['access'])
+        ->postJson('/api/v1/auth/sign-up/lengkapi', authLengkapiPayload([
+            $field => $value,
+        ]))
+        ->assertStatus(422)
+        ->assertJsonValidationErrors([$field]);
+
+    // Nothing landed. The refusal has to be ALL-or-nothing for the same reason
+    // `register`'s is: an account that got its name and its patient row but no
+    // ledger row is an account that may process personal data without consent.
+    expect($cangkang['user']->refresh()->nama_lengkap)->toBe('')
+        ->and(Pasien::query()->where('user_id', $cangkang['user']->getKey())->count())->toBe(0)
+        ->and(app(RoleAssigner::class)->rolesFor((int) $cangkang['user']->getKey()))->toBe([])
+        ->and(DB::table('persetujuan_pdp')->where('user_id', $cangkang['user']->getKey())->count())->toBe(0);
+})->with([
+    'syarat kosong' => ['persetujuan_syarat_ketentuan', null],
+    'syarat ditolak' => ['persetujuan_syarat_ketentuan', '0'],
+    'privasi kosong' => ['persetujuan_kebijakan_privasi', null],
+    'privasi ditolak' => ['persetujuan_kebijakan_privasi', '0'],
+]);
+
+test('sign-up/lengkapi refuses a birth date the schema would not accept', function (string $tanggal): void {
+    $cangkang = authCangkangTerverifikasi();
+
+    authAsToken($cangkang['access'])
+        ->postJson('/api/v1/auth/sign-up/lengkapi', authLengkapiPayload([
+            'tanggal_lahir' => $tanggal,
+        ]))
+        ->assertStatus(422)
+        ->assertJsonValidationErrors(['tanggal_lahir']);
+
+    expect(Pasien::query()->where('user_id', $cangkang['user']->getKey())->count())->toBe(0);
+})->with([
+    'masa depan' => '2099-01-01',
+    'bentuk bebas' => '17 April 1998',
+]);
+
+test('a second sign-up/lengkapi answers the same 201 without duplicating anything', function (): void {
+    $cangkang = authCangkangTerverifikasi();
+
+    $pertama = authAsToken($cangkang['access'])
+        ->postJson('/api/v1/auth/sign-up/lengkapi', authLengkapiPayload());
+    $kedua = authAsToken($cangkang['access'])
+        ->postJson('/api/v1/auth/sign-up/lengkapi', authLengkapiPayload());
+
+    // The second is a no-op, not a 500 and not a second write: `pasien.user_id` is
+    // UNIQUE, so re-inserting would blow up, and the ledger is append-only, so a
+    // second pair of rows would record a decision its subject did not take twice.
+    $pertama->assertCreated();
+    $kedua->assertCreated();
+
+    $user = $cangkang['user']->refresh();
+
+    expect(Pasien::query()->where('user_id', $user->getKey())->count())->toBe(1)
+        ->and(DB::table('persetujuan_pdp')->where('user_id', $user->getKey())->count())->toBe(2)
+        ->and(app(RoleAssigner::class)->rolesFor((int) $user->getKey()))->toBe(['pasien']);
+});
+
+test('an unknown number refuses outright while a password is presented', function (): void {
+    // The one-door flow mints; a caller that sends a password has opted into the
+    // old contract, where unknown and wrong-password are byte-identical. Keeping
+    // BOTH is what lets `RateLimitingTest`'s enumeration pair still pass while the
+    // dialog's passwordless path stops enumerating.
+    $response = $this->postJson('/api/v1/auth/login', [
+        'no_telepon' => '089876543210',
+        'password' => authTestPassword(),
+    ]);
+
+    $response->assertStatus(401);
+
+    expect(User::query()->where('no_telepon', '089876543210')->count())->toBe(0);
+});
+
 test('login is rate limited to five a minute per identifier', function (): void {
     authRegisterVerified();
 
@@ -772,7 +1034,7 @@ test('login is rate limited to five a minute per identifier', function (): void 
 // =====================================================================
 
 test('a verified OTP flips the account to aktif, marks the code used and issues a token pair', function (): void {
-    $this->postJson('/api/v1/auth/register', authRegisterPayload())->assertCreated();
+    $this->postJson('/api/v1/auth/sign-up', authRegisterPayload())->assertCreated();
 
     $response = $this->postJson('/api/v1/auth/otp/verify', [
         'no_telepon' => authTestPhone(),
@@ -819,7 +1081,7 @@ test('a verified OTP flips the account to aktif, marks the code used and issues 
 });
 
 test('a code with a leading zero verifies, because it is never parsed as an integer', function (): void {
-    $this->postJson('/api/v1/auth/register', authRegisterPayload())->assertCreated();
+    $this->postJson('/api/v1/auth/sign-up', authRegisterPayload())->assertCreated();
 
     $user = User::query()->where('no_telepon', authTestPhone())->firstOrFail();
 
@@ -839,7 +1101,7 @@ test('a code with a leading zero verifies, because it is never parsed as an inte
 });
 
 test('a wrong code is refused, is not marked used, and issues nothing', function (): void {
-    $this->postJson('/api/v1/auth/register', authRegisterPayload())->assertCreated();
+    $this->postJson('/api/v1/auth/sign-up', authRegisterPayload())->assertCreated();
 
     $response = $this->postJson('/api/v1/auth/otp/verify', [
         'no_telepon' => authTestPhone(),
@@ -859,7 +1121,7 @@ test('a wrong code is refused, is not marked used, and issues nothing', function
 });
 
 test('an expired code is refused with its own message', function (): void {
-    $this->postJson('/api/v1/auth/register', authRegisterPayload())->assertCreated();
+    $this->postJson('/api/v1/auth/sign-up', authRegisterPayload())->assertCreated();
 
     UserOtp::query()->update(['kedaluwarsa_at' => now()->subMinute()]);
 
@@ -875,7 +1137,7 @@ test('an expired code is refused with its own message', function (): void {
 });
 
 test('a code that was already used is refused as a replay, not as a wrong code', function (): void {
-    $this->postJson('/api/v1/auth/register', authRegisterPayload())->assertCreated();
+    $this->postJson('/api/v1/auth/sign-up', authRegisterPayload())->assertCreated();
 
     $kode = (string) authSender()->lastKodeFor(OtpService::TUJUAN_VERIFIKASI_TELEPON);
 
@@ -939,7 +1201,7 @@ test('a superseded code is refused as expired and cannot be used after a resend'
 });
 
 test('verify refuses a code that is not six digits and a purpose Module 1 does not issue', function (): void {
-    $this->postJson('/api/v1/auth/register', authRegisterPayload())->assertCreated();
+    $this->postJson('/api/v1/auth/sign-up', authRegisterPayload())->assertCreated();
 
     $this->postJson('/api/v1/auth/otp/verify', [
         'no_telepon' => authTestPhone(),
@@ -969,7 +1231,7 @@ test('verify does not report an unknown account differently from an unknown code
 });
 
 test('verify is rate limited to five a minute per identifier', function (): void {
-    $this->postJson('/api/v1/auth/register', authRegisterPayload())->assertCreated();
+    $this->postJson('/api/v1/auth/sign-up', authRegisterPayload())->assertCreated();
 
     for ($attempt = 1; $attempt <= 5; $attempt++) {
         $this->postJson('/api/v1/auth/otp/verify', [
@@ -987,7 +1249,7 @@ test('verify is rate limited to five a minute per identifier', function (): void
 });
 
 test('verify never moves a suspended account back to aktif', function (): void {
-    $this->postJson('/api/v1/auth/register', authRegisterPayload())->assertCreated();
+    $this->postJson('/api/v1/auth/sign-up', authRegisterPayload())->assertCreated();
 
     $user = User::query()->where('no_telepon', authTestPhone())->firstOrFail();
     $user->status = 'ditangguhkan';
@@ -1472,14 +1734,17 @@ test('every device endpoint refuses an unauthenticated caller with the 401 envel
 // Contracts the endpoints depend on
 // =====================================================================
 
-test('the route table exposes exactly the eleven module 1 auth routes with the expected middleware', function (): void {
+test('the route table exposes exactly the twelve module 1 auth routes with the expected middleware', function (): void {
     $routes = collect(Route::getRoutes()->getRoutes())
         ->filter(fn ($route): bool => str_starts_with($route->uri(), 'api/v1/auth'))
         ->keyBy(fn ($route): string => $route->methods()[0].' '.$route->uri())
         ->all();
 
     expect(array_keys($routes))->toEqualCanonicalizing([
-        'POST api/v1/auth/register',
+        'POST api/v1/auth/sign-up',
+        // The one-door flow's tail, registered immediately after `sign-up`: a shell
+        // minted by `login` for an unknown number becomes a full patient here.
+        'POST api/v1/auth/sign-up/lengkapi',
         'POST api/v1/auth/login',
         'POST api/v1/auth/otp/verify',
         'POST api/v1/auth/otp/resend',
@@ -1499,15 +1764,25 @@ test('the route table exposes exactly the eleven module 1 auth routes with the e
         ));
     };
 
-    expect($middlewareFor('POST api/v1/auth/register'))->toContain('throttle:auth-otp-send')
-        ->and($middlewareFor('POST api/v1/auth/login'))->toContain('throttle:auth-login')
-        ->and($middlewareFor('POST api/v1/auth/otp/verify'))->toContain('throttle:auth-otp-verify')
-        ->and($middlewareFor('POST api/v1/auth/otp/resend'))->toContain('throttle:auth-otp-resend')
-        ->and($middlewareFor('POST api/v1/auth/logout'))->toContain('auth:sanctum')
-        ->and($middlewareFor('POST api/v1/auth/logout-all'))->toContain('auth:sanctum')
-        ->and($middlewareFor('GET api/v1/auth/devices'))->toContain('auth:sanctum')
-        ->and($middlewareFor('POST api/v1/auth/devices'))->toContain('auth:sanctum')
-        ->and($middlewareFor('DELETE api/v1/auth/devices/{deviceId}'))->toContain('auth:sanctum');
+    // `toBeTrue` and an explicit `in_array`, not `toContain`: Pest treats every string
+    // argument to `toContain` as a needle, so a second argument meant as a failure
+    // message silently becomes a second thing the array must contain.
+    $harusMemiliki = static function (string $key, string $wanted) use ($middlewareFor): void {
+        expect(in_array($wanted, $middlewareFor($key), true))
+            ->toBeTrue("{$key} must carry {$wanted}");
+    };
+
+    $harusMemiliki('POST api/v1/auth/sign-up', 'throttle:auth-otp-send');
+    $harusMemiliki('POST api/v1/auth/login', 'throttle:auth-login');
+    $harusMemiliki('POST api/v1/auth/otp/verify', 'throttle:auth-otp-verify');
+    $harusMemiliki('POST api/v1/auth/otp/resend', 'throttle:auth-otp-resend');
+    $harusMemiliki('POST api/v1/auth/sign-up/lengkapi', 'auth:sanctum');
+    $harusMemiliki('POST api/v1/auth/sign-up/lengkapi', 'throttle:auth-otp-send');
+    $harusMemiliki('POST api/v1/auth/logout', 'auth:sanctum');
+    $harusMemiliki('POST api/v1/auth/logout-all', 'auth:sanctum');
+    $harusMemiliki('GET api/v1/auth/devices', 'auth:sanctum');
+    $harusMemiliki('POST api/v1/auth/devices', 'auth:sanctum');
+    $harusMemiliki('DELETE api/v1/auth/devices/{deviceId}', 'auth:sanctum');
 
     // The channel read must stay reachable BEFORE login - that is its entire job - and
     // unthrottled like every other public GET in this file: no identifier goes in, so

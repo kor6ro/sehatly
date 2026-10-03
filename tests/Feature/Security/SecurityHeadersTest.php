@@ -98,7 +98,7 @@ function headerSender(): FakeOtpSender
  */
 function headerBearerToken(): string
 {
-    test()->postJson('/api/v1/auth/register', headerRegisterPayload())->assertCreated();
+    test()->postJson('/api/v1/auth/sign-up', headerRegisterPayload())->assertCreated();
 
     $verified = test()->postJson('/api/v1/auth/otp/verify', [
         'no_telepon' => headerTestPhone(),
@@ -302,17 +302,17 @@ test('a 404, a 403 and a 429 all carry the headers, because those are the untrus
     // And a real 429, so the rate-limited body and the headers are asserted on the
     // same response a client sees when it is being throttled.
     for ($attempt = 1; $attempt <= 10; $attempt++) {
-        $this->postJson('/api/v1/auth/register', headerRegisterPayload());
+        $this->postJson('/api/v1/auth/sign-up', headerRegisterPayload());
     }
 
-    $throttled = $this->postJson('/api/v1/auth/register', headerRegisterPayload());
+    $throttled = $this->postJson('/api/v1/auth/sign-up', headerRegisterPayload());
 
     $throttled->assertStatus(429);
     assertSecurityHeaders($throttled);
 });
 
 test('the token-bearing response is marked uncacheable, and nothing rewrites its body', function (): void {
-    $this->postJson('/api/v1/auth/register', headerRegisterPayload())->assertCreated();
+    $this->postJson('/api/v1/auth/sign-up', headerRegisterPayload())->assertCreated();
 
     $verified = $this->postJson('/api/v1/auth/otp/verify', [
         'no_telepon' => headerTestPhone(),

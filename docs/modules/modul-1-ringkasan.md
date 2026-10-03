@@ -60,7 +60,7 @@ yang memakai `permission:`; scoping pasien dikerjakan
 
 | # | Metode | Path | Auth | Status terverifikasi |
 |---|--------|------|------|----------------------|
-| 1 | POST | `/auth/register` | - | 201 |
+| 1 | POST | `/auth/sign-up` | - | 201 |
 | 2 | POST | `/auth/otp/verify` | - | 200 |
 | 3 | POST | `/auth/login` | - | 200 |
 | 4 | POST | `/auth/refresh` | - | 200 |
@@ -88,7 +88,7 @@ yang memakai `permission:`; scoping pasien dikerjakan
 ```bash
 BASE_URL="http://127.0.0.1:8123/api/v1"
 # 1. Daftar; baca data.otp.kode dari respons (hanya di APP_ENV=local).
-curl.exe -s -X POST "$BASE_URL/auth/register" -H "Content-Type: application/json" -d '{"nama_lengkap":"<NAMA>","no_telepon":"<NO_TELEPON>","password":"<PASSWORD>","jenis_kelamin":"L","tanggal_lahir":"1990-01-01","alamat_lengkap":"<ALAMAT>"}'
+curl.exe -s -X POST "$BASE_URL/auth/sign-up" -H "Content-Type: application/json" -d '{"nama_lengkap":"<NAMA>","no_telepon":"<NO_TELEPON>","password":"<PASSWORD>","jenis_kelamin":"L","tanggal_lahir":"1990-01-01","alamat_lengkap":"<ALAMAT>"}'
 # 2. Verifikasi; data.token.access_token adalah Bearer, data.token.refresh_token untuk refresh/logout.
 curl.exe -s -X POST "$BASE_URL/auth/otp/verify" -H "Content-Type: application/json" -d '{"no_telepon":"<NO_TELEPON>","kode":"<KODE_OTP>","tujuan":"verifikasi_telepon"}'
 # 3. Pakai header Authorization: Bearer <ACCESS_TOKEN> untuk route bertanda A.

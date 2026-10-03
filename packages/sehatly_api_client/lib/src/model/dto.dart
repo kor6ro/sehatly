@@ -296,7 +296,7 @@ class User {
   /// The caller's own `pasien` row.
   ///
   /// Present **only** on `GET /api/v1/me`, which eager-loads it. `null` on
-  /// `POST /auth/register` and `POST /auth/otp/verify`, which publish the caller's
+  /// `POST /auth/sign-up` and `POST /auth/otp/verify`, which publish the caller's
   /// own `users` row without the relation -- the server omits the key rather
   /// than publishing a `null` for a row that exists.
   final PasienProfile? pasien;

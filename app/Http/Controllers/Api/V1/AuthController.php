@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Enums\PersetujuanPdpJenis;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Auth\LengkapiSignUpRequest;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\LogoutAllRequest;
 use App\Http\Requests\Auth\LogoutRequest;
@@ -152,7 +153,7 @@ class AuthController extends Controller
     ) {}
 
     /**
-     * `POST /api/v1/auth/register`
+     * `POST /api/v1/auth/sign-up`
      *
      * Creates the `users` row as an unverified patient, the `pasien` row it cannot do
      * without, and the `pasien` role grant, then mints the `verifikasi_telepon` OTP.
@@ -267,19 +268,28 @@ class AuthController extends Controller
      * that still presents a password has it verified exactly as before. The reasoning
      * is {@see LoginRequest}'s.
      *
-     * ## What this costs while `/auth/register` is still a separate door
+     * ## An unknown number is MINTED, not refused - and a password changes that
      *
-     * An unknown identifier answers 401 and a known one answers 200, so a caller that
-     * omits the password CAN tell the two apart - the decoy hash below only equalises
-     * the response *time*, and only for a caller that sends a password at all. That is
-     * a deliberate, temporary trade. Closing it needs an unknown number to be answered
-     * the way a known one is: mint the account on the spot rather than refuse it, which
-     * is the one-door flow this endpoint is moving towards. Until it does that, this
-     * endpoint enumerates.
+     * The one-door flow has no separate sign-up door, so answering an unknown number
+     * differently from a known one would enumerate every account in the system. It does
+     * not: a passwordless request for a number with no account mints the row through
+     * {@see ciptakanAkunDariNomor()} and then mints the code, exactly as for an account
+     * that already exists. Both answer 200 with the same body, so the response says
+     * nothing about which case applied.
      *
-     * An unknown identifier and a wrong password produce the same 401 body. The decoy
-     * hash in {@see passwordMatches()} makes the two also take the same time, so the
-     * endpoint is not a phone-number oracle to a caller that sends a password.
+     * A caller that DOES send a password keeps the old answer. Unknown and
+     * wrong-password produce the same 401 body, and the decoy hash in
+     * {@see passwordMatches()} makes them take the same time - which is what
+     * `RateLimitingTest` and `AuthFlowTest` pin byte for byte.
+     *
+     * ## The email identifier is the one gap this leaves open
+     *
+     * A passwordless login by an unknown EMAIL still answers 401 while a known one
+     * answers 200, so email addresses remain enumerable. Closing it needs a row to hang
+     * a code on *and* a channel to deliver that code to, and this flow sends codes to a
+     * phone: {@see OtpService::issue()} takes `no_telepon` as its destination. Minting
+     * an email-identified account would therefore produce a code nobody can receive, so
+     * the old refusal stands until there is an email channel to send it on.
      */
     public function login(LoginRequest $request): JsonResponse
     {
@@ -289,18 +299,37 @@ class AuthController extends Controller
         $user = $this->resolveUser($request);
 
         if ($user === null) {
-            // Spend the same bcrypt time as a real verification whenever a password was
-            // presented. Without the call, this branch returns in the time of one indexed
-            // lookup and the endpoint becomes a timing oracle.
+            // A password-bearing request keeps the byte-identical 401, and the decoy hash
+            // spends the same bcrypt time as a real verification, so this branch is not a
+            // timing oracle either.
             if (is_string($kataSandi) && $kataSandi !== '') {
                 $this->passwordMatches($kataSandi, null);
+
+                return ApiResponse::error(
+                    'Nomor telepon, email, atau kata sandi salah.',
+                    [],
+                    Response::HTTP_UNAUTHORIZED,
+                );
             }
 
-            return ApiResponse::error(
-                'Nomor telepon, email, atau kata sandi salah.',
-                [],
-                Response::HTTP_UNAUTHORIZED,
-            );
+            // Passwordless and phone-identified: the one-door shape. Mint the account
+            // rather than refuse it, so that the answer to an unknown number is the same
+            // as the answer to a known one and this endpoint stops enumerating.
+            $cangkang = $request->filled('no_telepon')
+                ? $this->ciptakanAkunDariNomor(
+                    Telepon::normalisasi((string) $request->input('no_telepon')),
+                )
+                : null;
+
+            if ($cangkang === null) {
+                return ApiResponse::error(
+                    'Nomor telepon, email, atau kata sandi salah.',
+                    [],
+                    Response::HTTP_UNAUTHORIZED,
+                );
+            }
+
+            $user = $cangkang;
         }
 
         if (
@@ -514,7 +543,133 @@ class AuthController extends Controller
         return ApiResponse::success([
             'user' => new UserResource($user->refresh()),
             'token' => new AuthTokenResource($pair),
+            // Where the client must go next. An account minted by `POST /auth/login` for
+            // a number that had none is a SHELL - no name, no patient row, no consents -
+            // and `/profil/edit/{id}?sign_up=true` is where they are collected. Reporting
+            // it HERE rather than at login is what keeps the login response identical for
+            // new and existing numbers: by this point the caller has proved they hold the
+            // phone, so there is nobody left left to enumerate.
+            'profil_lengkap' => $this->profilLengkap($user),
         ], 'Verifikasi berhasil.');
+    }
+
+    /**
+     * Whether the account holds everything `POST /auth/sign-up` writes in one go.
+     *
+     * Both halves are checked because they live on different rows: the name is on
+     * `users`, the rest of the profile is on `pasien`. A shell minted by `login` has
+     * neither - `nama_lengkap` is the empty string and the patient row does not exist -
+     * while an account created through `sign-up` has both.
+     *
+     * It answers "is there work left to do", not "which endpoint made this account": an
+     * owner who empties their own name is asking to be sent back to the form, which is
+     * the same thing.
+     */
+    private function profilLengkap(User $user): bool
+    {
+        return $user->nama_lengkap !== ''
+            && Pasien::query()->where('user_id', $user->getKey())->exists();
+    }
+
+    /**
+     * `POST /api/v1/auth/sign-up/lengkapi` - finish the account whose number is proved.
+     *
+     * ## The two doors, side by side
+     *
+     * `POST /auth/sign-up` writes a whole account at once for a client that already has
+     * every fact: name, sex, birth date, address, password and both consents. This is the
+     * same outcome reached in the opposite order, because the one-door flow proves the
+     * number first and only then asks who is behind it. The two are the only paths that
+     * write a `pasien` row for a brand-new patient, and they write the same things for
+     * the same reason: an account without that row authenticates and then 500s
+     * downstream, and one without its role grant is refused by every `permission:`-gated
+     * route.
+     *
+     * ## `pasien` is written here and never at `login`
+     *
+     * `jenis_kelamin` is `ENUM('L','P')` and `tanggal_lahir` is a `DATE`, both `NOT
+     * NULL` with no default. The only way `login` could have written them was to invent
+     * a sex and a birth date in a medical record, so it wrote neither, and the account
+     * sat as a shell until its owner arrived at this form.
+     *
+     * ## A repeat call is a no-op answering the same 201
+     *
+     * The account is already in the state this request asks for, so the honest answer is
+     * the success it would have produced - not a 500, which is what re-inserting costs
+     * with `pasien.user_id` UNIQUE, and not a second pair of rows in an append-only
+     * ledger for a decision that was not taken twice. A client that needs to CHANGE a
+     * completed profile is on `PUT /pasien/profil`.
+     */
+    public function lengkapiSignUp(LengkapiSignUpRequest $request): JsonResponse
+    {
+        $input = $request->validated();
+
+        /** @var User $user */
+        $user = $request->user();
+
+        if ($this->profilLengkap($user)) {
+            return $this->jawabanLengkap($user);
+        }
+
+        try {
+            DB::transaction(function () use ($user, $input, $request): void {
+                $user->nama_lengkap = $input['nama_lengkap'];
+                $user->email = $input['email'] ?? null;
+                $user->save();
+
+                $pasien = new Pasien;
+                $pasien->user_id = (int) $user->getKey();
+                $pasien->nomor_rm = $this->nomorRekamMedis($user);
+                $pasien->jenis_kelamin = $input['jenis_kelamin'];
+                $pasien->tanggal_lahir = $input['tanggal_lahir'];
+                $pasien->tempat_lahir = $input['tempat_lahir'] ?? null;
+                $pasien->alamat_lengkap = $input['alamat_lengkap'];
+                $pasien->save();
+
+                $this->roles->assign((int) $user->getKey(), 'pasien');
+
+                // The consents land with the rest, in the same transaction, so a failure
+                // here cannot leave an account that may process personal data with no
+                // ledger row saying that it may.
+                $this->konsen->catatVersiAktif(
+                    $user,
+                    PersetujuanPdpJenis::SyaratKetentuan->value,
+                    true,
+                    $request->ip(),
+                );
+                $this->konsen->catatVersiAktif(
+                    $user,
+                    PersetujuanPdpJenis::KebijakanPrivasi->value,
+                    true,
+                    $request->ip(),
+                );
+            });
+        } catch (QueryException $exception) {
+            // The race worth handling is a second tab finishing this same account:
+            // `pasien.user_id` is UNIQUE, the loser's transaction rolls back, and the
+            // winner's committed row is now the truth. Report it as the success it is.
+            // Anything else - an address another account took between rule and insert -
+            // still belongs to `duplicateIdentityResponse()`.
+            if ($this->profilLengkap($user->refresh())) {
+                return $this->jawabanLengkap($user);
+            }
+
+            return $this->duplicateIdentityResponse($exception);
+        }
+
+        return $this->jawabanLengkap($user->refresh());
+    }
+
+    /**
+     * The 201 both exits of {@see lengkapiSignUp()} produce, so the no-op and the write
+     * cannot drift into two different shapes.
+     */
+    private function jawabanLengkap(User $user): JsonResponse
+    {
+        return ApiResponse::success([
+            'user' => new UserResource($user),
+            'profil_lengkap' => true,
+        ], 'Profil berhasil dilengkapi.', Response::HTTP_CREATED);
     }
 
     /**
@@ -810,6 +965,70 @@ class AuthController extends Controller
         }
 
         return null;
+    }
+
+    /**
+     * Mint the minimum `users` row for a number that has no account yet.
+     *
+     * ## `nama_lengkap` is `''`, and nothing is invented in its place
+     *
+     * The column is `NOT NULL` with no length floor, so an empty string satisfies it
+     * without fabricating a name - which is why the completion screen renders a
+     * placeholder instead of a guess.
+     *
+     * ## The `pasien` row is deliberately NOT written here
+     *
+     * `pasien.jenis_kelamin` is `ENUM('L','P')` and `pasien.tanggal_lahir` is a `DATE`,
+     * both `NOT NULL` with no default. The only way to fill them before their owner has
+     * spoken is to fabricate a sex and a birth date in a medical record, and a
+     * prescription dosed against an age that was made up is far worse than a missing
+     * row. They are written when the owner completes the profile at
+     * `POST /auth/sign-up/lengkapi`, together with `alamat_lengkap`, the role grant and
+     * the consents.
+     *
+     * ## There are no consent rows yet, and that is the point
+     *
+     * The two mandatory UU PDP consents are taken by the checkbox on that same screen. A
+     * box nobody has ticked is not consent, and writing one here would put a decision in
+     * the append-only ledger that its subject never made. What this row holds is a number
+     * whose ownership the caller is about to prove, and no profile data is read from it
+     * until the consents land with the rest. `register()`'s "consent in the same
+     * transaction as the account" guarantee stays true for the accounts *it* creates;
+     * this path states its own rule rather than borrowing that one.
+     *
+     * ## `kata_sandi_hash` is a real hash of a value nobody knows
+     *
+     * The column is `NOT NULL` and there is no password to put in it - this door admits
+     * on the OTP alone. A genuine bcrypt of random bytes keeps {@see passwordMatches()}
+     * answering `false` for the row, rather than a sentinel a later refactor might one
+     * day let verify. It is computed here, outside any transaction, for the reason
+     * `register()` computes its own outside one: a production bcrypt costs a quarter of
+     * a second and must never be spent holding a row lock.
+     *
+     * A `QueryException` on the insert means another request won the race for this
+     * number. The unique index has already decided which row is the account, so it is
+     * looked up and handed back rather than turned into a failure.
+     */
+    private function ciptakanAkunDariNomor(string $noTelepon): ?User
+    {
+        $user = new User;
+        $user->nama_lengkap = '';
+        $user->no_telepon = $noTelepon;
+        $user->email = null;
+        $user->kata_sandi_hash = Hash::make(Str::random(64));
+        $user->tipe = 'pasien';
+        $user->status = 'pending_verifikasi';
+        $user->bahasa = 'id';
+        $user->telepon_terverifikasi = false;
+        $user->email_terverifikasi = false;
+
+        try {
+            $user->save();
+        } catch (QueryException) {
+            return User::query()->where('no_telepon', $noTelepon)->first();
+        }
+
+        return $user;
     }
 
     /**

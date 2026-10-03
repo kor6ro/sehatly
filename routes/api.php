@@ -61,7 +61,7 @@ use Illuminate\Support\Facades\Route;
 | three are deliberately NOT mounted: `otp-kirim` (3/min per identifier) and
 | `otp-kirim-jam` (10/hour) would lower `/auth/login`'s EFFECTIVE ceiling from the
 | plan's 5/min to 3/min, and `auth-register` (3/hour per IP) would lower
-| `/auth/register` from 10/min to 3/hour per address and punish every patient
+| `/auth/sign-up` from 10/min to 3/hour per address and punish every patient
 | behind one shared NAT. Mounting any of the three is a ceiling decision rather
 | than a wiring one, so it is recorded in `AppServiceProvider`'s inventory and
 | asserted UNMOUNTED by `tests/Feature/Security/RouteThrottlingTest.php` instead of
@@ -88,9 +88,36 @@ Route::prefix('auth')->name('auth.')->group(function (): void {
     | Anonymous. Nothing here returns a token except `otp/verify`, and
     | `otp/verify` requires a code that only these two endpoints mint.
     */
-    Route::post('register', [AuthController::class, 'register'])
+    // `sign-up`, not `register`: the path is the client-visible half of this endpoint's
+    // contract, and the one-door flow calls it from `/profil/edit/{userId}?sign_up=true`
+    // -- the same `sign_up` vocabulary halodoc uses for "this is an account being made,
+    // not a profile being edited". The handler keeps its name because a path and its
+    // method need not agree; `otp/verify` above already points at `verifyOtp`.
+    Route::post('sign-up', [AuthController::class, 'register'])
         ->middleware('throttle:auth-otp-send')
-        ->name('register');
+        ->name('sign-up');
+
+    /*
+    | The tail of the one-door flow. `sign-up` writes a complete account in one request
+    | for a client that already holds every fact; this writes the same account for a
+    | client that proved its phone first and was therefore minted only a shell by `login`.
+    |
+    | Authenticated, and deliberately carrying NO `permission:` gate: the bearer token was
+    | issued minutes ago to whoever held the phone, and a permission the fresh account
+    | does not have yet would refuse the very step that grants it - leaving a session that
+    | can log in and reach nothing. The four consent/profile routes on `/auth` carry no
+    | permission either; this is the fifth, and for the same reason.
+    |
+    | The throttle reuses `auth-otp-send` rather than registering a name of its own.
+    | `RouteThrottlingTest` pins the SET of mounted limiter names, so a new one is a
+    | ceiling decision and not a wiring change, and the sign-up this step completes is
+    | already on this budget. Its key is `identifier|ip`, and this request carries
+    | neither identifier field - so the bucket is per-IP, which is the right shape for a
+    | call whose identifier is really the session rather than a phone number.
+    */
+    Route::post('sign-up/lengkapi', [AuthController::class, 'lengkapiSignUp'])
+        ->middleware(['auth:sanctum', 'throttle:auth-otp-send'])
+        ->name('sign-up.lengkapi');
 
     Route::post('login', [AuthController::class, 'login'])
         // `otp-kirim` and `otp-kirim-jam` are deliberately NOT mounted here: both are

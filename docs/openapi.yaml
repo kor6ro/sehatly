@@ -12,7 +12,7 @@ info:
     drift from the code: a route added, renamed or removed changes it on the next run, and
     `--check` fails until the regenerated file is committed.
 
-    This document describes 112 routes across 97 distinct paths, read from the live route table.
+    This document describes 113 routes across 98 distinct paths, read from the live route table.
 
     ## Envelopes
 
@@ -1173,14 +1173,14 @@ paths:
         500:
           description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
-  /api/v1/auth/register:
+  /api/v1/auth/sign-up:
     post:
-      operationId: postApiV1AuthRegister
-      summary: 'Create /api/v1/auth/register.'
+      operationId: postApiV1AuthSignUp
+      summary: 'Create /api/v1/auth/sign-up.'
       tags:
         - auth
       security: []
-      x-route-name: auth.register
+      x-route-name: auth.sign-up
       x-laravel-action: App\Http\Controllers\Api\V1\AuthController@register
       x-middleware:
         - 'throttle:auth-otp-send'
@@ -1200,6 +1200,54 @@ paths:
         422:
           description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
           content: { application/json: { schema: { $ref: '#/components/schemas/ValidationErrorEnvelope' } } }
+        404:
+          description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        429:
+          description: 'Rate limited. This operation is limited to 10 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}` and `meta.retry_after` is the seconds until the bucket frees, mirroring the `Retry-After` header; the OTP-verify limiter additionally publishes `meta.sisa_percobaan` (0 by definition on this response).'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        500:
+          description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+  /api/v1/auth/sign-up/lengkapi:
+    post:
+      operationId: postApiV1AuthSignUpLengkapi
+      summary: 'Create /api/v1/auth/sign-up/lengkapi.'
+      tags:
+        - auth
+      security:
+        -
+          sanctum: []
+      x-route-name: auth.sign-up.lengkapi
+      x-laravel-action: App\Http\Controllers\Api\V1\AuthController@lengkapiSignUp
+      x-middleware:
+        - 'auth:sanctum'
+        - 'throttle:auth-otp-send'
+      x-auth:
+        scheme: sanctum
+        transport: bearer
+      x-ratelimit:
+        limiter: auth-otp-send
+        max: 10
+        decay_seconds: 60
+      requestBody:
+        required: true
+        description: 'Validated by `App\Http\Requests\Auth\LengkapiSignUpRequest::rules()`, which is read at generation time -- these properties are the live rules, not a transcription.'
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/LengkapiSignUpRequestBody' } }
+      responses:
+        201:
+          description: 'Created. `data` holds the created resource.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
+        422:
+          description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ValidationErrorEnvelope' } } }
+        401:
+          description: 'Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        403:
+          description: 'Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
         404:
           description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
@@ -5417,6 +5465,48 @@ components:
         - sampai
       additionalProperties: false
       x-enum-fields: []
+    LengkapiSignUpRequestBody:
+      type: object
+      title: LengkapiSignUpRequest
+      description: 'Request body for operations validated by `App\Http\Requests\Auth\LengkapiSignUpRequest`. The properties below are read from that class''s `rules()` at generation time.'
+      x-form-request: App\Http\Requests\Auth\LengkapiSignUpRequest
+      properties:
+        alamat_lengkap:
+          type: string
+          x-laravel-rule: [string, 'min:5']
+        email:
+          type: string
+          x-laravel-rule: [string, email, 'max:255', 'unique:users,email']
+        jenis_kelamin:
+          type: string
+          enum: [L, P]
+          x-laravel-rule: [string, 'in:["L","P"]']
+        nama_lengkap:
+          type: string
+          x-laravel-rule: [string, 'min:3', 'max:150']
+        persetujuan_kebijakan_privasi:
+          x-laravel-rule: [accepted]
+        persetujuan_syarat_ketentuan:
+          x-laravel-rule: [accepted]
+        tanggal_lahir:
+          type: string
+          format: date
+          x-laravel-rule: [string, 'date_format:Y-m-d', 'after_or_equal:1900-01-01', 'before_or_equal:today']
+        tempat_lahir:
+          type: string
+          x-laravel-rule: [string, 'max:100']
+      required:
+        - alamat_lengkap
+        - jenis_kelamin
+        - nama_lengkap
+        - persetujuan_kebijakan_privasi
+        - persetujuan_syarat_ketentuan
+        - tanggal_lahir
+      additionalProperties: false
+      x-enum-fields:
+        jenis_kelamin:
+          - pasien.jenis_kelamin
+          - pasien_anggota_keluarga.jenis_kelamin
     LoginRequestBody:
       type: object
       title: LoginRequest

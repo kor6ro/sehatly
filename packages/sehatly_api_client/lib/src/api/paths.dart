@@ -14,8 +14,8 @@
 /// declaration existing.
 library;
 
-/// `POST /api/v1/auth/register`
-const String pathAuthRegister = '/auth/register';
+/// `POST /api/v1/auth/sign-up`
+const String pathAuthSignUp = '/auth/sign-up';
 
 /// `POST /api/v1/auth/login`
 const String pathAuthLogin = '/auth/login';

@@ -6,12 +6,12 @@ import '../model/enums.dart';
 import 'paths.dart';
 import 'transport.dart';
 
-/// `POST /api/v1/auth/register` -- the two-step flow this class is built around.
+/// `POST /api/v1/auth/sign-up` -- the two-step flow this class is built around.
 ///
 /// ## Registration is TWO requests, and the first one returns no token
 ///
 /// ```text
-/// POST /auth/register     -> 201, {user, otp}          (NO token)
+/// POST /auth/sign-up     -> 201, {user, otp}          (NO token)
 ///     ... the user reads the SMS ...
 /// POST /auth/otp/verify   -> 200, {user, token}        (the only place a token is minted)
 /// ```
@@ -31,7 +31,7 @@ class AuthApi {
 
   final ApiTransport _transport;
 
-  /// `POST /api/v1/auth/register`
+  /// `POST /api/v1/auth/sign-up`
   ///
   /// Required: `nama_lengkap` (3-150), `no_telepon` (optional `+`, 8-20 digits,
   /// unique), `password` (8-255), `jenis_kelamin` (`L` or `P`), `tanggal_lahir`
@@ -57,7 +57,7 @@ class AuthApi {
     Bahasa? bahasa,
   }) async {
     final ApiEnvelope<Object?> envelope = await _transport.post<Object?>(
-      pathAuthRegister,
+      pathAuthSignUp,
       anonymous: true,
       allowUnsafeRetry: true,
       body: <String, Object?>{
@@ -339,7 +339,7 @@ class AuthApi {
   }
 }
 
-/// `data` of a `POST /auth/register` response: the account and its pending OTP.
+/// `data` of a `POST /auth/sign-up` response: the account and its pending OTP.
 ///
 /// [otp] is present and its [OtpChallenge.kode] is populated **only** when the
 /// server environment is local; in production the code arrives over SMS and

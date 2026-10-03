@@ -215,7 +215,7 @@ and stops. The only endpoint in the entire API that mints a token is
 `POST /api/v1/auth/otp/verify`.
 
 ```text
-POST /api/v1/auth/register   -> 201  { user, otp }      NO token
+POST /api/v1/auth/sign-up   -> 201  { user, otp }      NO token
     ... the user reads the SMS ...
 POST /api/v1/auth/otp/verify -> 200  { user, token }    the only token in the API
 
@@ -234,7 +234,7 @@ compile. Do not hand-roll a request to work around that.
 
 ### 2.2 The six-call sequence, with real request and response bodies
 
-**Call 1 -- register.** `POST /api/v1/auth/register`, unauthenticated, throttled
+**Call 1 -- register.** `POST /api/v1/auth/sign-up`, unauthenticated, throttled
 at 10 requests per minute.
 
 ```json

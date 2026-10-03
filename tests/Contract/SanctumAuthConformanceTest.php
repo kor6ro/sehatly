@@ -127,7 +127,7 @@ function contractSplit(string $key): array
     return [$method, $path];
 }
 
-it('splits the documented operations into 84 bearer, 28 anonymous and 27 unguarded', function (): void {
+it('splits the documented operations into 85 bearer, 28 anonymous and 27 unguarded', function (): void {
     // The counts are pinned so the datasets below cannot silently shrink. If a
     // route is added or removed, this fails first and names the real delta,
     // instead of a per-route test quietly disappearing from the run. F12 added
@@ -144,11 +144,14 @@ it('splits the documented operations into 84 bearer, 28 anonymous and 27 unguard
     // operations - two preference routes and four reminder routes - which is
     // the 78 -> 84 and 105 -> 111 movement. The sign-in dialog's
     // `GET /auth/otp/kanal` is anonymous and is no webhook, so it moves the last
-    // two as well: 27 -> 28, 26 -> 27 and 111 -> 112.
-    expect(count(contractBearerOperations()))->toBe(84);
+    // two as well: 27 -> 28, 26 -> 27 and 111 -> 112. The one-door flow's
+    // `POST /auth/sign-up/lengkapi` is BEARER - it runs behind `auth:sanctum` for
+    // a session that proved its phone at `otp/verify` - and anonymous, so it is
+    // the 84 -> 85 and 112 -> 113 movement.
+    expect(count(contractBearerOperations()))->toBe(85);
     expect(count(contractAnonymousOperations()))->toBe(28);
     expect(count(contractUnguardedAnonymousOperations()))->toBe(27);
-    expect(count(contractBearerOperations()) + count(contractAnonymousOperations()))->toBe(112);
+    expect(count(contractBearerOperations()) + count(contractAnonymousOperations()))->toBe(113);
 });
 
 it('answers 401 with the error envelope when the Authorization header is absent', function (string $method, string $path): void {

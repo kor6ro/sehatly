@@ -80,7 +80,7 @@ it('publishes the same count the portable route:list invocation reports', functi
 
     expect($operations)->toBe(count(ContractSpec::liveOperations()));
     expect($operations)->toBe(count(ContractSpec::specOperations()));
-    expect($operations)->toBe(112);
+    expect($operations)->toBe(113);
 });
 
 it('agrees with the document on every route name and controller action', function (): void {

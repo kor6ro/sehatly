@@ -270,7 +270,7 @@ the `2xx`.
 | `POST /api/v1/auth/logout` | bearer | `201,422,401,403,404,500` | SuccessEnvelope | 401 |
 | `POST /api/v1/auth/otp/verify` | anonymous | `201,422,404,429,500` | SuccessEnvelope | 422 |
 | `POST /api/v1/auth/refresh` | anonymous | `201,422,404,500` | SuccessEnvelope | 422 |
-| `POST /api/v1/auth/register` | anonymous | `201,422,404,429,500` | SuccessEnvelope | 422 |
+| `POST /api/v1/auth/sign-up` | anonymous | `201,422,404,429,500` | SuccessEnvelope | 422 |
 | `POST /api/v1/booking` | bearer | `201,422,401,403,404,500` | SuccessEnvelope | 401 |
 | `PUT /api/v1/booking/{id}/batalkan` | bearer | `200,422,401,403,404,500` | SuccessEnvelope | 401 |
 | `GET /api/v1/dokter` | anonymous | `200,422,404,500` | PaginatedEnvelope | 200 + 422 |

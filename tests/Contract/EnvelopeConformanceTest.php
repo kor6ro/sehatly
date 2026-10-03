@@ -167,14 +167,14 @@ it('answers the public QR verifier with the success envelope, no meta, and valid
 });
 
 it('answers a validation failure with the 422 envelope and an array of messages per field', function (): void {
-    $operation = ContractSpec::specOperations()['post /api/v1/auth/register'];
+    $operation = ContractSpec::specOperations()['post /api/v1/auth/sign-up'];
 
     // `nama_lengkap` is validated by ['required', 'string', 'min:3', 'max:150'].
     // Sending an ARRAY makes `string` fail AND makes `min:3` fail (an array of
     // two elements is shorter than three characters), so ONE field carries TWO
     // messages. This is the case the document's `ValidationErrorEnvelope` exists
     // to describe, and the case a `{field: string}` client silently breaks on.
-    $response = $this->postJson('/api/v1/auth/register', [
+    $response = $this->postJson('/api/v1/auth/sign-up', [
         'nama_lengkap' => ['a', 'b'],
         'no_telepon' => '081200000001',
     ]);
