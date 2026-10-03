@@ -26,6 +26,7 @@ import {
     SheetTitle,
     SheetTrigger,
 } from '@/components/ui/sheet';
+import { ThemeToggle } from '@/components/layout/theme-toggle';
 import { getAccessToken } from '@/lib/token';
 import { cn } from '@/lib/utils';
 
@@ -226,8 +227,21 @@ function NavList({
  * so the choice collapses to one route into the app. `getAccessToken()` is read on render
  * rather than cached, because this header mounts once per page load and the token is
  * written by the OTP screen in the same session.
+ *
+ * `registerClassName` exists because the two places this cluster renders have
+ * different room: the top bar on a 390px phone cannot fit the theme icon, "Daftar",
+ * "Masuk" and the menu button at once (about 372px of content into 358px of space,
+ * which flex resolves by squashing the menu button). The sheet has no such limit, so
+ * it keeps "Daftar" at every width - as does the landing body, where "Daftar" is the
+ * third action in the empty state.
  */
-function ActionButtons({ className }: { className?: string }) {
+function ActionButtons({
+    className,
+    registerClassName,
+}: {
+    className?: string;
+    registerClassName?: string;
+}) {
     const authenticated = getAccessToken() !== null;
 
     if (authenticated) {
@@ -248,7 +262,7 @@ function ActionButtons({ className }: { className?: string }) {
             <Button
                 asChild
                 variant="outline"
-                className="rounded-lg font-medium"
+                className={cn('rounded-lg font-medium', registerClassName)}
             >
                 <Link to="/register">Daftar</Link>
             </Button>
@@ -288,7 +302,15 @@ export function LandingHeader() {
 
                 <NavList className="hidden lg:flex" />
 
-                <ActionButtons className="ml-auto" />
+                {/*
+                    `ml-auto` lives on the toggle rather than on a wrapper around the
+                    whole right-hand cluster: it pushes the toggle, the action buttons
+                    and the menu button to the right without re-indenting the sheet
+                    below, and it keeps the nav glued to the logo when it appears.
+                */}
+                <ThemeToggle className="ml-auto" />
+
+                <ActionButtons registerClassName="hidden sm:inline-flex" />
 
                 <Sheet open={open} onOpenChange={setOpen}>
                     <SheetTrigger asChild>
