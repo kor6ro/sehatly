@@ -1393,14 +1393,15 @@ test('the masker keeps four at each end, preserves the length, and refuses to fa
 // Contracts the endpoints depend on
 // =====================================================================
 
-test('the route table exposes the ten auth routes and the eleven patient routes with the expected middleware', function (): void {
+test('the route table exposes the eleven auth routes and the eleven patient routes with the expected middleware', function (): void {
     $routes = collect(Route::getRoutes()->getRoutes())
         ->filter(fn ($route): bool => str_starts_with($route->uri(), 'api/v1'))
         ->keyBy(fn ($route): string => $route->methods()[0].' '.$route->uri())
         ->all();
 
-    // The ten Module 1 auth routes: the original eight, plus F01's
-    // `POST /auth/otp/resend` and `POST /auth/logout-all`. Asserted because this
+    // The eleven Module 1 auth routes: the original eight, plus F01's
+    // `POST /auth/otp/resend` and `POST /auth/logout-all`, and the anonymous
+    // `GET /auth/otp/kanal` channel probe. Asserted because this
     // todo appended to `routes/api.php` and todo 20's own test asserts the same
     // set, so either file changing alone is a failure rather than a silent drift.
     expect(array_keys($routes))->toEqualCanonicalizing([
@@ -1408,6 +1409,13 @@ test('the route table exposes the ten auth routes and the eleven patient routes 
         'POST api/v1/auth/login',
         'POST api/v1/auth/otp/verify',
         'POST api/v1/auth/otp/resend',
+        // The channel probe, registered immediately after resend in the same
+        // anonymous `auth` group: it reports which OTP driver is live so the
+        // sign-in dialog's send button can name the transport it will actually
+        // use. It answers from config rather than from an account, which is
+        // what makes it safe to ask before the caller has proved anything -
+        // and why it joins the `$anonymous` set below.
+        'GET api/v1/auth/otp/kanal',
         'POST api/v1/auth/refresh',
         'POST api/v1/auth/logout',
         'POST api/v1/auth/logout-all',
@@ -1691,6 +1699,12 @@ test('the route table exposes the ten auth routes and the eleven patient routes 
         // credential, answers generically so it cannot enumerate accounts, and
         // is bounded by its own `throttle:auth-otp-resend` limiter.
         'POST api/v1/auth/otp/resend',
+        // The channel probe: anonymous for the reason resend is, and with no
+        // throttle of its own because it returns a configured value rather than
+        // doing per-caller work - the same reasoning that leaves `GET /dokter`
+        // unthrottled. Asserted separately in `AuthFlowTest`, which pins that
+        // it carries neither `auth:sanctum` nor `throttle:*`.
+        'GET api/v1/auth/otp/kanal',
         'POST api/v1/auth/refresh',
         'GET api/v1/dokter',
         'GET api/v1/dokter/{dokter}',
