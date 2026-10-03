@@ -933,30 +933,44 @@ for (const vp of VIEWPORTS) {
 
         test('f02-register-notice', async ({ page }) => {
             await pasangMock(page);
+            await masukPalsu(page);
 
-            await page.goto('/register');
+            await page.goto('/profil/edit/1?sign_up=true');
 
             /**
-             * Owner option (a) for F01 §12 #1: the two mandatory consents are now a
-             * checkbox on the registration form, collected by `POST /auth/register`
-             * itself (commit `aacb7e8`). The F02 screen owns only the three optional
-             * consents afterwards.
+             * Owner option (a) for F01 §12 #1: the two mandatory consents are taken on
+             * the account-creation screen, and `POST /auth/sign-up/lengkapi` writes both
+             * ledger rows when it turns the phone-verified shell into a patient. The F02
+             * screen owns only the three optional consents afterwards.
+             *
+             * This is no longer `/register`: one door, and the form that finishes a new
+             * account is `/profil/edit/{id}?sign_up=true`. Two controls rather than one,
+             * because the ledger records two decisions and a single box ticking both
+             * would record both from one act.
              */
-            await expect(
-                page.getByText(
-                    /Saya menyetujui Syarat dan Ketentuan serta Kebijakan Privasi Sehatly\./,
-                ),
-            ).toBeVisible();
+            const kotakSyarat = page.getByRole('checkbox', {
+                name: /Syarat dan Ketentuan/,
+            });
+            const kotakPrivasi = page.getByRole('checkbox', {
+                name: /Kebijakan Privasi/,
+            });
+
+            await expect(kotakSyarat).toBeVisible();
+            await expect(kotakPrivasi).toBeVisible();
+
+            // Scoped to the form: the left column carries its OWN privacy notice, so a
+            // page-level locator for that link name resolves to two.
+            const formulir = page.locator('form');
 
             await expect(
-                page.getByRole('link', { name: 'Syarat dan Ketentuan' }),
+                formulir.getByRole('link', { name: 'Syarat dan Ketentuan' }),
             ).toHaveAttribute('href', '/syarat-ketentuan');
 
             await expect(
-                page.getByRole('link', { name: 'Kebijakan Privasi' }),
+                formulir.getByRole('link', { name: 'Kebijakan Privasi' }),
             ).toHaveAttribute('href', '/kebijakan-privasi');
 
-            await expect(page.getByRole('checkbox')).toHaveCount(1);
+            await expect(page.getByRole('checkbox')).toHaveCount(2);
 
             await expectNoA11yViolations(page);
         });

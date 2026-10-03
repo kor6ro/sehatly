@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
+import { daftarDanMasuk } from './akun';
 
 /**
  * Module 3's end-to-end proof, driven against a **live** Laravel API and a **live**
@@ -10,24 +11,27 @@ import { expect, test, type BrowserContext, type Page } from '@playwright/test';
  * Every assertion is made against a real HTTP response or a real WebSocket frame.
  * There is no `page.route` stub, no fixture array standing in for a server answer, no
  * hard-coded token, no hard-coded OTP and no hard-coded phone number in this file. The
- * patient registers through the actual `POST /api/v1/auth/register` and reads the OTP
- * out of **that response body**, which `AuthController` publishes only under
- * `APP_ENV=local`. The doctor signs in through the actual `POST /api/v1/auth/login`
- * and the actual `POST /api/v1/auth/otp/verify`; its phone number and password come
- * from the environment, because a doctor account cannot be self-registered
- * (`POST /auth/register` writes `users.tipe = 'pasien'`).
+ * patient's account comes from `./akun`, which posts the actual
+ * `POST /api/v1/auth/sign-up`, reads the OTP out of **that response body** - which
+ * `AuthController` publishes only under `APP_ENV=local` - and verifies it through the
+ * actual `POST /api/v1/auth/otp/verify`. `/register` is gone; the form was never the
+ * thing under test. The doctor signs in through the actual `POST /api/v1/auth/login`
+ * and the actual `POST /api/v1/auth/otp/verify`; its phone number comes from the
+ * environment, because a doctor account cannot be self-registered
+ * (`POST /auth/sign-up` writes `users.tipe = 'pasien'`). Nothing needs its password:
+ * the login step sends a number and mints a code.
  *
  * ```
  * php artisan reverb:start --port=8080
  * php artisan serve --port=8011
  * SEHATLY_API_TARGET=http://127.0.0.1:8011 npx vite --port 5190
  * SEHATLY_BASE_URL=http://127.0.0.1:5190 ^
- *   SEHATLY_DOKTER_NO_TELEPON=<provisioned> SEHATLY_DOKTER_PASSWORD=<provisioned> ^
+ *   SEHATLY_DOKTER_NO_TELEPON=<provisioned> ^
  *   SEHATLY_REVERB_PID=<pid of the reverb you started> ^
  *   npx playwright test
  * ```
  *
- * The doctor is **provisioned**, not registered: `POST /auth/register` creates a
+ * The doctor is **provisioned**, not registered: `POST /auth/sign-up` creates a
  * `pasien` and its profile row in one transaction, so there is no public way to obtain
  * a `dokter`. The provisioning is one throwaway PHP script that inserts the `users` and
  * `dokter` rows plus the `user_roles` grant through the project's own models, and its
@@ -49,24 +53,18 @@ import { expect, test, type BrowserContext, type Page } from '@playwright/test';
  * again after a settle, so a late duplicate still fails.
  */
 
-/** A unique `no_telepon` per test; `users.no_telepon` is `UNIQUE`. */
-function nomorTeleponBaru(): string {
-    return '0813' + String(Date.now()).slice(-8);
-}
-
-/** The doctor credential, from the environment and never from this file. */
-function kredensialDokter(): { telepon: string; sandi: string } {
+/** The doctor's phone number, from the environment and never from this file. */
+function kredensialDokter(): { telepon: string } {
     const telepon = process.env.SEHATLY_DOKTER_NO_TELEPON;
-    const sandi = process.env.SEHATLY_DOKTER_PASSWORD;
 
-    if (telepon === undefined || sandi === undefined) {
+    if (telepon === undefined) {
         throw new Error(
-            'SEHATLY_DOKTER_NO_TELEPON dan SEHATLY_DOKTER_PASSWORD wajib diisi. ' +
-                'Akun dokter tidak bisa didaftarkan lewat API publik.',
+            'SEHATLY_DOKTER_NO_TELEPON wajib diisi. Akun dokter tidak bisa ' +
+                'didaftarkan lewat API publik.',
         );
     }
 
-    return { telepon, sandi };
+    return { telepon };
 }
 
 /**
@@ -201,45 +199,6 @@ async function tungguReverbHidup(): Promise<void> {
     );
 }
 
-/** Register, verify, and land on the dashboard. Mirrors `booking.spec.ts`. */
-async function daftarDanMasuk(page: Page): Promise<void> {
-    const telepon = nomorTeleponBaru();
-
-    await page.goto('/register');
-
-    await expect(page.getByLabel('Nama lengkap')).toBeVisible({ timeout: 60_000 });
-
-    await page.getByLabel('Nama lengkap').fill('Pasien E2E Realtime');
-    await page.getByLabel('Nomor telepon').fill(telepon);
-    await page.getByLabel('Kata sandi').fill('RahasiaKuat123');
-    await page.getByLabel('Tanggal lahir').fill('1993-02-18');
-    await page.getByLabel('Alamat lengkap').fill('Jl. Uji Realtime No. 2, Bandung');
-    // Register requires the two UU PDP consents since commit `aacb7e8`.
-    await page.getByRole('checkbox', { name: /Saya menyetujui/ }).check();
-
-    const [respons] = await Promise.all([
-        page.waitForResponse((r) => r.url().includes('/api/v1/auth/register')),
-        page.getByRole('button', { name: /Daftar/ }).click(),
-    ]);
-
-    expect(respons.status()).toBe(201);
-
-    await expect(page).toHaveURL(/\/otp/, { timeout: 30_000 });
-
-    const body = (await respons.json()) as {
-        data: { otp: { kode: string | null } };
-    };
-
-    expect(body.data.otp.kode, 'OTP harus terbit pada APP_ENV=local').not.toBeNull();
-
-    await page
-        .locator('form input[inputmode="numeric"]')
-        .fill(body.data.otp.kode as string);
-    await page.getByRole('button', { name: 'Verifikasi' }).click();
-
-    await expect(page).toHaveURL(/\/dashboard/, { timeout: 30_000 });
-}
-
 /**
  * Sign the doctor in through the real login screen, OTP included.
  *
@@ -250,7 +209,7 @@ async function daftarDanMasuk(page: Page): Promise<void> {
  * not have.
  */
 async function masukSebagaiDokter(page: Page): Promise<void> {
-    const { telepon, sandi } = kredensialDokter();
+    const { telepon } = kredensialDokter();
 
     await page.goto('/login');
 
@@ -259,7 +218,6 @@ async function masukSebagaiDokter(page: Page): Promise<void> {
     });
 
     await page.getByLabel('Nomor telepon').fill(telepon);
-    await page.getByLabel('Kata sandi').fill(sandi);
 
     const [respons] = await Promise.all([
         page.waitForResponse((r) => r.url().includes('/api/v1/auth/login')),
@@ -473,7 +431,11 @@ test.describe('Module 3 realtime consultation', () => {
         const jejakPasien = jejakNetwork(pasien);
         const jejakDokter = jejakNetwork(dokter);
 
-        await daftarDanMasuk(pasien);
+        await daftarDanMasuk(pasien, {
+            nama: 'Pasien E2E Realtime',
+            tanggalLahir: '1993-02-18',
+            alamat: 'Jl. Uji Realtime No. 2, Bandung',
+        });
         await masukSebagaiDokter(dokter);
 
         const dokterId = await dokterIdDokter(dokter);
@@ -621,7 +583,11 @@ test.describe('Module 3 realtime consultation', () => {
         const pasien = await pasienCtx.newPage();
         const dokter = await dokterCtx.newPage();
 
-        await daftarDanMasuk(pasien);
+        await daftarDanMasuk(pasien, {
+            nama: 'Pasien E2E Realtime',
+            tanggalLahir: '1993-02-18',
+            alamat: 'Jl. Uji Realtime No. 2, Bandung',
+        });
         await masukSebagaiDokter(dokter);
 
         const dokterId = await dokterIdDokter(dokter);
@@ -741,7 +707,11 @@ test.describe('Module 3 realtime consultation', () => {
         const patientPage = await pasienCtx.newPage();
         const dokterPage = await dokterCtx.newPage();
 
-        await daftarDanMasuk(patientPage);
+        await daftarDanMasuk(patientPage, {
+            nama: 'Pasien E2E Realtime',
+            tanggalLahir: '1993-02-18',
+            alamat: 'Jl. Uji Realtime No. 2, Bandung',
+        });
         await masukSebagaiDokter(dokterPage);
 
         const dokterId = await dokterIdDokter(dokterPage);
@@ -844,7 +814,11 @@ test.describe('Module 3 realtime consultation', () => {
         const patientPage = await pasienCtx.newPage();
         const dokterPage = await dokterCtx.newPage();
 
-        await daftarDanMasuk(patientPage);
+        await daftarDanMasuk(patientPage, {
+            nama: 'Pasien E2E Realtime',
+            tanggalLahir: '1993-02-18',
+            alamat: 'Jl. Uji Realtime No. 2, Bandung',
+        });
         await masukSebagaiDokter(dokterPage);
 
         const dokterId = await dokterIdDokter(dokterPage);

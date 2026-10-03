@@ -4,14 +4,19 @@ import { expect, test, type Locator, type Page, type Route } from '@playwright/t
 import { expectNoA11yViolations } from './a11y';
 
 /**
- * F01 `/login`, `/register`, `/otp` and `/profil/perangkat`, mocked end to end.
+ * F01 `/login`, `/profil/edit/{id}?sign_up=true`, `/otp` and `/profil/perangkat`, mocked
+ * end to end.
  *
- * Every `/api/v1/auth/**` request is intercepted, so the file pins the CLIENT's branches -
- * both accepted phone spellings, the consent gate, the optional-field grouping, the OTP
- * slot behaviour, the inline 422 with `meta.sisa_percobaan`, the 429 wait from
+ * Every `/api/v1/**` request is intercepted, so the file pins the CLIENT's branches -
+ * both accepted phone spellings, the two consent gates, the optional-field grouping, the
+ * OTP slot behaviour, the inline 422 with `meta.sisa_percobaan`, the 429 wait from
  * `meta.retry_after`, resend with a 60-second cooldown and exactly one request, the
  * device revoke, and both logout actions - without a live Laravel API and without
  * touching real data. Fixtures are synthetic.
+ *
+ * `/register` is gone from this list because it is gone from the router: there is one
+ * door, it takes a phone number, and the screen that finishes the account is
+ * `/profil/edit/{id}?sign_up=true`.
  *
  * Two viewports for every scenario: 390x844 and 1280x900, pinned to `Asia/Jakarta`.
  */
@@ -40,6 +45,7 @@ type DeviceUji = {
 type MockState = {
     login: Array<Record<string, unknown>>;
     register: Array<Record<string, unknown>>;
+    lengkapi: Array<Record<string, unknown>>;
     verify: Array<Record<string, unknown>>;
     resend: Array<Record<string, unknown>>;
     logout: Array<Record<string, unknown>>;
@@ -52,6 +58,7 @@ type MockState = {
 type OpsiMock = {
     onLogin?: (body: Record<string, unknown>, state: MockState) => HasilPost;
     onRegister?: (body: Record<string, unknown>, state: MockState) => HasilPost;
+    onLengkapi?: (body: Record<string, unknown>, state: MockState) => HasilPost;
     onVerify?: (body: Record<string, unknown>, state: MockState) => HasilPost;
     onResend?: (body: Record<string, unknown>, state: MockState) => HasilPost;
     onDelete?: (deviceId: string, state: MockState) => HasilPost;
@@ -94,8 +101,31 @@ const DEVICE_LAIN: DeviceUji = {
     dibuat_at: '2026-09-01T00:00:00.000000Z',
 };
 
-const PESAN_CONSENT_WAJIB =
-    'Anda harus menyetujui Syarat dan Ketentuan serta Kebijakan Privasi untuk mendaftar.';
+/**
+ * The same account BEFORE it is an account: a `users` row minted for a number, an empty
+ * name, and no `pasien` relation at all.
+ *
+ * This is what `POST /auth/login` writes for a passwordless call naming a number it has
+ * never seen, and it is the only shape `ProfilEditPage` renders - it redirects to
+ * `/dashboard` the moment `nama_lengkap !== ''` and a `pasien` row exists. A fixture that
+ * kept the finished profile would therefore not test the completion form at all; it would
+ * test the redirect that avoids it.
+ */
+const CANGKANG_F01 = {
+    ...USER_F01,
+    nama_lengkap: '',
+    telepon_terverifikasi: false,
+};
+
+/**
+ * The refusal each consent box shows on its own.
+ *
+ * Two strings rather than one, because the screen asks two questions with two controls.
+ * A combined message would be a single line of text standing between two independent
+ * checkboxes, and the user could not tell which box the sentence is about.
+ */
+const PESAN_SYARAT_WAJIB = 'Anda harus menyetujui Syarat dan Ketentuan.';
+const PESAN_PRIVASI_WAJIB = 'Anda harus menyetujui Kebijakan Privasi.';
 
 function otpChallenge(tujuan: 'login' | 'verifikasi_telepon'): Record<string, unknown> {
     return {
@@ -122,6 +152,7 @@ async function pasangMock(page: Page, opsi: OpsiMock = {}): Promise<MockState> {
     const state: MockState = {
         login: [],
         register: [],
+        lengkapi: [],
         verify: [],
         resend: [],
         logout: [],
@@ -130,6 +161,25 @@ async function pasangMock(page: Page, opsi: OpsiMock = {}): Promise<MockState> {
         deletes: [],
         getDevices: 0,
     };
+
+    /**
+     * Registered FIRST, therefore lowest priority: Playwright gives the most recently
+     * added route the first refusal, so the three specific handlers below still win and
+     * this one only catches what none of them name.
+     *
+     * It is what makes the file's "mocked end to end" true. Without it a screen the
+     * mocks do not cover - `/dashboard` after a completed sign-up, say - reaches the real
+     * server with `token-uji-f01`, is answered 401, and the transport tears the session
+     * down and redirects to `/login`. A test asserting "we navigated to `/dashboard`"
+     * would then fail on a round trip it never intended to make, and the failure would
+     * point at the assertion rather than at the missing mock.
+     */
+    await page.route('**/api/v1/**', async (route) => {
+        await balas(route, {
+            status: 500,
+            body: { success: false, message: 'Rute mock tidak dikenal.', errors: {} },
+        });
+    });
 
     await page.route('**/api/v1/auth/**', async (route) => {
         const request = route.request();
@@ -150,7 +200,7 @@ async function pasangMock(page: Page, opsi: OpsiMock = {}): Promise<MockState> {
             return balas(route, hasil);
         }
 
-        if (jalur === '/api/v1/auth/register' && metode === 'POST') {
+        if (jalur === '/api/v1/auth/sign-up' && metode === 'POST') {
             const body = JSON.parse(request.postData() ?? '{}') as Record<string, unknown>;
 
             state.register.push(body);
@@ -161,6 +211,26 @@ async function pasangMock(page: Page, opsi: OpsiMock = {}): Promise<MockState> {
                     { user: USER_F01, otp: otpChallenge('verifikasi_telepon') },
                     'Akun berhasil dibuat.',
                 ),
+            };
+
+            return balas(route, hasil);
+        }
+
+        /**
+         * The tail of the one-door flow: the shell, having proved its number, turns
+         * itself into a patient. Authenticated, so the mock answers it like any other
+         * signed-in route - the request carries a bearer the page was given at
+         * `pasangSesi`, and the assertion this test makes is on the BODY that bearer
+         * dragged here.
+         */
+        if (jalur === '/api/v1/auth/sign-up/lengkapi' && metode === 'POST') {
+            const body = JSON.parse(request.postData() ?? '{}') as Record<string, unknown>;
+
+            state.lengkapi.push(body);
+
+            const hasil = opsi.onLengkapi?.(body, state) ?? {
+                status: 201,
+                body: envelope({ profil_lengkap: true }, 'Akun kamu sudah jadi.'),
             };
 
             return balas(route, hasil);
@@ -340,6 +410,39 @@ async function pasangSesi(page: Page, deviceId?: string): Promise<void> {
 }
 
 /**
+ * A session whose account is still a SHELL, plus the `/me` that says so.
+ *
+ * Registered AFTER `pasangMock`, because Playwright gives the most recently registered
+ * route the first refusal - so this one wins for `/me` and `pasangMock` keeps winning
+ * for everything else. That matters here: `ProfilEditPage` reads `/me`, and if it saw a
+ * finished account it would redirect to `/dashboard` instead of rendering the form this
+ * file is about.
+ */
+async function pasangSesiCangkang(page: Page): Promise<void> {
+    await pasangSesi(page);
+
+    await page.route('**/api/v1/me', async (route) => {
+        await balas(route, {
+            status: 200,
+            body: envelope({ user: CANGKANG_F01 }, 'Akun berhasil dimuat.'),
+        });
+    });
+}
+
+/**
+ * The completion screen's own form, one field per line.
+ *
+ * There is no phone field and no password: the number was proved over OTP a minute ago
+ * and the endpoint refuses to take it back, and this door admits on the code alone.
+ * `isiRegistrasi` is gone with `/register`.
+ */
+async function isiLengkapi(page: Page): Promise<void> {
+    await page.getByLabel('Nama Lengkap').fill('Siti Rahma');
+    await page.getByLabel('Tanggal Lahir').fill('1990-05-17');
+    await page.getByLabel('Alamat Lengkap').fill('Jl. Merdeka No. 10, Bandung');
+}
+
+/**
  * Record every `sehatly:flash` the SPA dispatches.
  *
  * The sonner toast itself auto-dismisses after a few seconds, so asserting on the
@@ -398,28 +501,36 @@ async function ukuranTarget(locator: Locator): Promise<void> {
     expect(Math.round((kotak as { height: number }).height)).toBeGreaterThanOrEqual(44);
 }
 
-async function isiLogin(
-    page: Page,
-    nilai: { identitas: string; sandi: string },
-): Promise<void> {
-    await page.getByLabel('Nomor telepon').fill(nilai.identitas);
-    await page.getByLabel('Kata sandi').fill(nilai.sandi);
+/**
+ * The login screen sends a number and nothing else.
+ *
+ * There is no password field on it, so this helper cannot fill one - a helper typing into
+ * a control the screen does not have would fail before the first assertion rather than at
+ * it. What the request carries is asserted directly on `state.login`, below.
+ */
+async function isiLogin(page: Page, identitas: string): Promise<void> {
+    await page.getByLabel('Nomor telepon').fill(identitas);
 }
 
 async function isiOtp(page: Page, kode: string): Promise<void> {
     await page.locator('[data-input-otp]').pressSequentially(kode);
 }
 
-async function isiRegistrasi(page: Page): Promise<void> {
-    await page.getByLabel('Nama lengkap').fill('Siti Rahma');
-    await page.getByLabel('Nomor telepon').fill('081234567890');
-    await page.getByLabel('Kata sandi').fill('rahasia123');
-    await page.getByLabel('Tanggal lahir').fill('1990-05-17');
-    await page.getByLabel('Alamat lengkap').fill('Jl. Merdeka No. 10, Bandung');
+/**
+ * One consent box each, never the pair.
+ *
+ * `/Saya menyetujui/` matches two controls now, and Playwright resolves a role locator to
+ * exactly one element - so the shared regex would throw a strict-mode violation instead
+ * of ticking anything. Two functions rather than an index, because the two boxes are two
+ * different decisions and a test that names the one it means cannot tick the other by
+ * accident.
+ */
+function kotakSyarat(page: Page): Locator {
+    return page.getByRole('checkbox', { name: /Syarat dan Ketentuan/ });
 }
 
-function lokatorPersetujuan(page: Page): Locator {
-    return page.getByRole('checkbox', { name: /Saya menyetujui/ });
+function kotakPrivasi(page: Page): Locator {
+    return page.getByRole('checkbox', { name: /Kebijakan Privasi/ });
 }
 
 for (const vp of VIEWPORTS) {
@@ -449,86 +560,155 @@ for (const vp of VIEWPORTS) {
 
             // The international spelling is accepted now that the server normalises it,
             // and it is sent as typed: the client does not canonicalise.
-            await isiLogin(page, { identitas: '+6281234567890', sandi: 'rahasia123' });
+            await isiLogin(page, '+6281234567890');
             await page.getByRole('button', { name: 'Lanjutkan' }).click();
 
+            /**
+             * Exactly one key, on purpose.
+             *
+             * `toEqual` fails on an EXTRA property, so this is what proves the door is
+             * the only one: a `password` reappearing in the request would fail here even
+             * though the field it came from is gone from the screen.
+             */
             await expect.poll(() => state.login.length).toBe(1);
-            expect(state.login[0]).toEqual({
-                no_telepon: '+6281234567890',
-                password: 'rahasia123',
-            });
+            expect(state.login[0]).toEqual({ no_telepon: '+6281234567890' });
             await expect(page).toHaveURL(/\/otp$/);
 
             // The local spelling still works and is sent unchanged too.
             await page.goto('/login');
-            await isiLogin(page, { identitas: '081234567890', sandi: 'rahasia123' });
+            await isiLogin(page, '081234567890');
             await page.getByRole('button', { name: 'Lanjutkan' }).click();
 
             await expect.poll(() => state.login.length).toBe(2);
-            expect(state.login[1]).toEqual({
-                no_telepon: '081234567890',
-                password: 'rahasia123',
-            });
+            expect(state.login[1]).toEqual({ no_telepon: '081234567890' });
         });
 
         test('f01-ac2-opsional', async ({ page }) => {
             const state = await pasangMock(page);
 
-            await page.goto('/register');
+            await pasangSesiCangkang(page);
+            await page.goto('/profil/edit/1?sign_up=true');
 
-            await expect(page.getByRole('group', { name: 'Data akun' })).toBeVisible();
-            await expect(page.getByRole('group', { name: 'Data diri' })).toBeVisible();
+            await expect(page.getByLabel('Nama Lengkap')).toBeVisible();
+            await expect(page.getByLabel('Alamat Lengkap')).toBeVisible();
 
-            await expect(page.getByLabel('Email (opsional)')).toBeVisible();
-            await expect(page.getByLabel('Tempat lahir (opsional)')).toBeVisible();
+            await expect(page.getByLabel('Email (Opsional)')).toBeVisible();
+            await expect(page.getByLabel('Tempat Lahir (Opsional)')).toBeVisible();
 
-            // The six required server fields are the only ones marked with `*`.
+            /**
+             * Four marked fields, not six.
+             *
+             * The two that used to be required here - the phone number and the password -
+             * are no longer asked by anyone: the number was proved over OTP before this
+             * page loaded and the endpoint refuses to take it back, and the door admits on
+             * the code alone. What remains required is the four columns `pasien` cannot be
+             * written without, and only those four carry a `*`.
+             */
             await expect(
-                page.locator('label span[aria-hidden="true"]', { hasText: '*' }),
-            ).toHaveCount(6);
+                page.locator('[aria-hidden="true"]', { hasText: '*' }),
+            ).toHaveCount(4);
 
-            await isiRegistrasi(page);
-            await lokatorPersetujuan(page).check();
+            await isiLengkapi(page);
+            /**
+             * Clicked on the CARD, not on the radio.
+             *
+             * The input is `sr-only`: it has a one-pixel box the label sits on top of, so
+             * `.check()` aims at the middle of the input and finds the `<label>` intercepting
+             * the pointer - forever, because that is by design. The card is what a user
+             * touches, and clicking it is what activates the control underneath; asserting
+             * `toBeChecked` afterwards is what proves the click was not swallowed.
+             */
+            await page.getByText('Perempuan', { exact: true }).click();
+            await expect(
+                page.getByRole('radio', { name: 'Perempuan' }),
+            ).toBeChecked();
 
-            await page.getByRole('button', { name: 'Daftar' }).click();
+            await kotakSyarat(page).check();
+            await kotakPrivasi(page).check();
 
-            await expect.poll(() => state.register.length).toBe(1);
-            await expect(page).toHaveURL(/\/otp$/);
+            await page.getByRole('button', { name: 'Buat Akun' }).click();
 
-            const body = state.register[0] as Record<string, unknown>;
+            await expect.poll(() => state.lengkapi.length).toBe(1);
+            await expect(page).toHaveURL(/\/dashboard/);
+
+            const body = state.lengkapi[0] as Record<string, unknown>;
 
             expect('email' in body).toBe(false);
             expect('tempat_lahir' in body).toBe(false);
+
+            /**
+             * And neither of the two facts this door already proved travels with it.
+             * `no_telepon` is resolved from the bearer server-side and the endpoint has no
+             * rule for it; `password` no longer exists in this flow at all. Both are
+             * asserted by their ABSENCE, so a regression that re-added either key would
+             * fail here rather than on the server's 422.
+             */
+            expect(body).not.toHaveProperty('no_telepon');
+            expect(body).not.toHaveProperty('password');
+
+            expect(body.nama_lengkap).toBe('Siti Rahma');
+            expect(body.jenis_kelamin).toBe('P');
+            expect(body.tanggal_lahir).toBe('1990-05-17');
+            expect(body.alamat_lengkap).toBe('Jl. Merdeka No. 10, Bandung');
         });
 
         test('f01-ac2b-persetujuan-wajib', async ({ page }) => {
             const state = await pasangMock(page);
 
-            await page.goto('/register');
+            await pasangSesiCangkang(page);
+            await page.goto('/profil/edit/1?sign_up=true');
+
+            // Two boxes, two sentences, two links. A visitor has to be able to reach the
+            // document each one is about without ticking either.
+            await expect(kotakSyarat(page)).toBeVisible();
+            await expect(kotakPrivasi(page)).toBeVisible();
+
+            // Scoped to the form: the left column carries its OWN privacy notice, and a
+            // page-level locator for that link name resolves to two and throws a
+            // strict-mode violation instead of asserting anything.
+            const formulir = page.locator('form');
 
             await expect(
-                page.getByText(
-                    /Saya menyetujui Syarat dan Ketentuan serta Kebijakan Privasi Sehatly\./,
-                ),
-            ).toBeVisible();
+                formulir.getByRole('link', { name: 'Syarat dan Ketentuan' }),
+            ).toHaveAttribute('href', '/syarat-ketentuan');
 
-            await isiRegistrasi(page);
+            await expect(
+                formulir.getByRole('link', { name: 'Kebijakan Privasi' }),
+            ).toHaveAttribute('href', '/kebijakan-privasi');
 
-            // Unchecked: the submit is blocked client-side, the server is never asked,
-            // and the inline error says why.
-            await page.getByRole('button', { name: 'Daftar' }).click();
+            await isiLengkapi(page);
 
-            await expect(page.getByText(PESAN_CONSENT_WAJIB)).toBeVisible();
-            expect(state.register.length).toBe(0);
+            /**
+             * Unchecked: the submit is blocked client-side, the server is never asked, and
+             * each refusal names its OWN box.
+             *
+             * Two messages rather than one is the assertion, not a detail of it: a single
+             * combined sentence under two independent checkboxes cannot tell the visitor
+             * which of the two decisions they have not made.
+             */
+            await page.getByRole('button', { name: 'Buat Akun' }).click();
 
-            // Checked: one request, and both mandatory booleans are `true`.
-            await lokatorPersetujuan(page).check();
-            await page.getByRole('button', { name: 'Daftar' }).click();
+            await expect(page.getByText(PESAN_SYARAT_WAJIB)).toBeVisible();
+            await expect(page.getByText(PESAN_PRIVASI_WAJIB)).toBeVisible();
+            expect(state.lengkapi.length).toBe(0);
 
-            await expect.poll(() => state.register.length).toBe(1);
-            await expect(page).toHaveURL(/\/otp$/);
+            // One ticked: the other still refuses, because the ledger records two
+            // decisions and neither one can be taken on the other's behalf.
+            await kotakSyarat(page).check();
+            await page.getByRole('button', { name: 'Buat Akun' }).click();
 
-            const body = state.register[0] as Record<string, unknown>;
+            await expect(page.getByText(PESAN_SYARAT_WAJIB)).toHaveCount(0);
+            await expect(page.getByText(PESAN_PRIVASI_WAJIB)).toBeVisible();
+            expect(state.lengkapi.length).toBe(0);
+
+            // Both: one request, and both mandatory booleans are `true`.
+            await kotakPrivasi(page).check();
+            await page.getByRole('button', { name: 'Buat Akun' }).click();
+
+            await expect.poll(() => state.lengkapi.length).toBe(1);
+            await expect(page).toHaveURL(/\/dashboard/);
+
+            const body = state.lengkapi[0] as Record<string, unknown>;
 
             expect(body.persetujuan_syarat_ketentuan).toBe(true);
             expect(body.persetujuan_kebijakan_privasi).toBe(true);
@@ -835,7 +1015,7 @@ for (const vp of VIEWPORTS) {
             });
 
             await page.goto('/login');
-            await isiLogin(page, { identitas: '081299998888', sandi: 'rahasia123' });
+            await isiLogin(page, '081299998888');
             await page.getByRole('button', { name: 'Lanjutkan' }).click();
 
             await expect(page.getByLabel('Nomor telepon')).toHaveValue('081299998888');
@@ -998,7 +1178,7 @@ for (const vp of VIEWPORTS) {
 
             await expect(page).toHaveTitle('Masuk | Sehatly');
 
-            await isiLogin(page, { identitas: '081299998888', sandi: 'rahasia123' });
+            await isiLogin(page, '081299998888');
             await page.getByRole('button', { name: 'Lanjutkan' }).click();
 
             await expect(page).toHaveURL(/\/otp$/);
@@ -1031,11 +1211,25 @@ for (const vp of VIEWPORTS) {
             await ukuranTarget(page.getByRole('button', { name: 'Lanjutkan' }));
             await ukuranTarget(page.getByRole('button', { name: 'Telepon' }));
 
-            await page.goto('/register');
-            await expectNoA11yViolations(page);
-            await ukuranTarget(page.getByRole('button', { name: 'Daftar' }));
+            /**
+             * The session is installed only NOW, not before the `/login` pass above.
+             *
+             * A signed-in visitor has no business on the sign-in screen, so the route
+             * sends them elsewhere and the "Lanjutkan" button never renders - `addInitScript`
+             * would have made the first half of this test assert against a page the app
+             * deliberately no longer shows them. `page.route` for `/me` is likewise
+             * registered after `pasangMock` so this shell, not the finished fixture, is
+             * what the completion screen reads.
+             */
+            await pasangSesiCangkang(page);
 
-            const kotakPersetujuan = await lokatorPersetujuan(page).boundingBox();
+            // The account-creation screen, which is now this path and no longer
+            // `/register`: one door, and this is where the door finishes its work.
+            await page.goto('/profil/edit/1?sign_up=true');
+            await expectNoA11yViolations(page);
+            await ukuranTarget(page.getByRole('button', { name: 'Buat Akun' }));
+
+            const kotakPersetujuan = await kotakSyarat(page).boundingBox();
 
             expect(kotakPersetujuan, 'checkbox consent harus punya bounding box').not.toBeNull();
             expect(
@@ -1104,15 +1298,21 @@ for (const lebar of [390, 1280] as const) {
         await simpanBukti(page, 'login', lebar);
     });
 
-    test(`f01-bukti-register-${lebar}`, async ({ page }) => {
+    /**
+     * Evidence for the account-creation screen, which is `/profil/edit/{id}?sign_up=true`
+     * and no longer `/register`. Renamed with the screen: a screenshot whose filename
+     * points at a route the router no longer has would be evidence of nothing.
+     */
+    test(`f01-bukti-daftar-${lebar}`, async ({ page }) => {
         test.skip(!rekam, 'capture only on demand');
 
         await pasangMock(page);
+        await pasangSesiCangkang(page);
         await page.setViewportSize({ width: lebar, height: tinggi });
-        await page.goto('/register');
+        await page.goto('/profil/edit/1?sign_up=true');
         await page.waitForLoadState('networkidle');
 
-        await simpanBukti(page, 'register', lebar);
+        await simpanBukti(page, 'daftar', lebar);
     });
 
     test(`f01-bukti-otp-${lebar}`, async ({ page }) => {

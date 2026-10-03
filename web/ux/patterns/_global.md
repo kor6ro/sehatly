@@ -16,7 +16,7 @@ Semua keputusan di sini dapat diuji; AC/Playwright-nya mengikuti AC flow masing-
 ## 1. Pola navigasi
 
 ### 1.1 Kerangka layar
-- **Pra-sesi** (`/`, `/login`, `/register`, `/otp`): `AuthLayout` — kartu terpusat, tanpa nav akun.
+- **Pra-sesi** (`/`, `/login`, `/otp`): `AuthLayout` — kartu terpusat, tanpa nav akun. **Tidak ada `/register`**: satu pintu meminta nomor ponsel, lalu akun diselesaikan di `/profil/edit/:userId?sign_up=true` — di bawah `RequireAuth` tetapi **di luar** `AppShell`, karena akun segar belum punya baris `pasien` dan halaman membawa bilah mereknya sendiri.
 - **Sesi pasien/dokter/apoteker** (semua `/dashboard`, `/booking`, `/konsultasi`, `/pasien/resep`, dst.):
   `RequireAuth` → `AppShell` (sidebar di desktop, header + drawer di mobile). 26 leaf route,
   **setiap leaf wajib punya `errorElement`** (alasan panjang ada di `router.tsx`: error di level

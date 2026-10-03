@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { daftarDanMasuk } from './akun';
 
 /**
  * The Module 2 end-to-end proof, driven against a **live** Laravel API.
@@ -7,11 +8,15 @@ import { expect, test } from '@playwright/test';
  *
  * Every assertion below is made against a real HTTP response. There is no route
  * interception, no `page.route` stub, no fixture array standing in for a server answer, and
- * no hard-coded token: the spec registers an account through the actual
- * `POST /api/v1/auth/register`, reads the OTP out of **that response body** - the server
+ * no hard-coded token: the spec creates an account through the actual
+ * `POST /api/v1/auth/sign-up`, reads the OTP out of **that response body** - the server
  * publishes it only under `APP_ENV=local`, which is the dev deployment this runs against -
  * and verifies it through `POST /api/v1/auth/otp/verify`. The pair then lives in
  * `sessionStorage` exactly as it does for a human.
+ *
+ * The whole round trip lives in `./akun` because `/register` no longer exists: one door,
+ * and this spec is not the spec that asserts it. What is shared is the mechanism, what is
+ * asserted here is booking.
  *
  * `php artisan serve` must be reachable through the Vite proxy. Point it at a port that is
  * free:
@@ -32,11 +37,6 @@ import { expect, test } from '@playwright/test';
  * booking for the same doctor, date and time is refused with 422 on `slot`, and the second
  * test asserts that refusal is rendered inline and that **no row was added**.
  */
-
-/** A unique `no_telepon` per test; `users.no_telepon` is `UNIQUE`. */
-function nomorTeleponBaru(): string {
-    return '0812' + String(Date.now()).slice(-8);
-}
 
 /**
  * `Y-m-d`, a random 30 to 60 days out.
@@ -69,64 +69,6 @@ function jamUnik(): string {
     const menit = String(Math.floor(Math.random() * 60)).padStart(2, '0');
 
     return `${jam}:${menit}:00`;
-}
-
-/** Register and verify, returning the OTP page's success signal. */
-async function daftarDanMasuk(page: import('@playwright/test').Page): Promise<void> {
-    const telepon = nomorTeleponBaru();
-
-    await page.goto('/register');
-
-    /**
-     * The page must be interactive before the first keystroke: a cold dev-server
-     * transform can leave the form unmounted for seconds, and a click before hydration
-     * fires into nothing.
-     */
-    await expect(page.getByLabel('Nama lengkap')).toBeVisible({ timeout: 60_000 });
-
-    await page.getByLabel('Nama lengkap').fill('Pasien E2E Booking');
-    await page.getByLabel('Nomor telepon').fill(telepon);
-    await page.getByLabel('Kata sandi').fill('RahasiaKuat123');
-    await page.getByLabel('Tanggal lahir').fill('1995-04-11');
-    await page.getByLabel('Alamat lengkap').fill('Jl. Uji Coba No. 1, Bandung');
-    // Register requires the two UU PDP consents since commit `aacb7e8`.
-    await page.getByRole('checkbox', { name: /Saya menyetujui/ }).check();
-
-    /**
-     * The OTP is read out of the server's own response rather than typed from a constant.
-     * `AuthController` publishes it only when `app()->environment('local')`, so a
-     * production deployment answers `kode: null` and this read yields nothing - which is
-     * the correct outcome, not a silent fallback.
-     *
-     * The URL wait is load-bearing: `waitForResponse` resolves when headers arrive, while
-     * `navigate('/otp')` happens later in the mutation's `onSuccess`. Reading just the
-     * response would race the navigation and fill the register form's own inputs, which is
-     * what Playwright's strict-mode violation proved on the first run.
-     */
-    const [respons] = await Promise.all([
-        page.waitForResponse((r) =>
-            r.url().includes('/api/v1/auth/register'),
-        ),
-        page.getByRole('button', { name: /Daftar/ }).click(),
-    ]);
-
-    expect(respons.status()).toBe(201);
-
-    await expect(page).toHaveURL(/\/otp/, { timeout: 30_000 });
-
-    const body = (await respons.json()) as {
-        data: { otp: { kode: string | null } };
-    };
-    const kode = body.data.otp.kode;
-
-    expect(kode, 'OTP harus terbit pada APP_ENV=local').not.toBeNull();
-
-    await page
-        .locator('form input[inputmode="numeric"]')
-        .fill(kode as string);
-    await page.getByRole('button', { name: 'Verifikasi' }).click();
-
-    await expect(page).toHaveURL(/\/dashboard/, { timeout: 30_000 });
 }
 
 /**
@@ -185,7 +127,7 @@ test.describe('Module 2 booking', () => {
     test('books a slot, shows the server row, and the list refetch is the only source', async ({
         page,
     }) => {
-        await daftarDanMasuk(page);
+        await daftarDanMasuk(page, { nama: 'Pasien E2E Booking' });
         await catatConsentWajib(page);
 
         const tanggal = tanggalO();
@@ -297,8 +239,14 @@ test.describe('Module 2 booking', () => {
          * F12's dialog replaced the single free-text field with a quick-reason
          * `toggle-group`: the textarea only exists once "Lainnya" is chosen, so the live
          * contract test drives that branch before typing.
+         *
+         * `radio`, not `button`. A Radix `ToggleGroup type="single"` is a `radiogroup` of
+         * `radio` items - it was a button only while this was a row of buttons, and the
+         * role moved the day F12 replaced them. An assertion that names the old role
+         * does not fail on a wrong reason, it fails by never resolving, which is how this
+         * line kept looking like a dialog bug.
          */
-        await page.getByRole('button', { name: 'Lainnya' }).click();
+        await page.getByRole('radio', { name: 'Lainnya' }).click();
         await page
             .getByLabel('Catatan alasan')
             .fill('Batal otomatis oleh uji e2e.');
@@ -353,7 +301,7 @@ test.describe('Module 2 booking', () => {
     });
 
     test('a taken slot is refused inline and adds no row', async ({ page }) => {
-        await daftarDanMasuk(page);
+        await daftarDanMasuk(page, { nama: 'Pasien E2E Booking' });
         await catatConsentWajib(page);
 
         const tanggal = tanggalO();
@@ -424,7 +372,7 @@ test.describe('Module 2 booking', () => {
     test('the doctor-side list is a 403 capability refusal, not a retryable error', async ({
         page,
     }) => {
-        await daftarDanMasuk(page);
+        await daftarDanMasuk(page, { nama: 'Pasien E2E Booking' });
         await catatConsentWajib(page);
 
         const [respons] = await Promise.all([
@@ -458,7 +406,7 @@ test.describe('Module 2 booking', () => {
     test('an account with no bookings sees the empty state, not a blank list', async ({
         page,
     }) => {
-        await daftarDanMasuk(page);
+        await daftarDanMasuk(page, { nama: 'Pasien E2E Booking' });
         await catatConsentWajib(page);
 
         const [respons] = await Promise.all([

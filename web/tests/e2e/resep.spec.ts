@@ -1,4 +1,5 @@
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
+import { daftarDanMasuk } from './akun';
 
 /**
  * Module 4's end-to-end proof, driven against a **live** Laravel API.
@@ -7,21 +8,23 @@ import { expect, test, type BrowserContext, type Page } from '@playwright/test';
  *
  * Every assertion is made against a real HTTP response. There is no `page.route` stub, no
  * fixture array standing in for a server answer, no hard-coded token, no hard-coded OTP and
- * no hard-coded phone number for the patient. The patient registers through the actual
- * `POST /api/v1/auth/register` and reads the OTP out of **that response body**, which
- * `AuthController` publishes only under `APP_ENV=local`.
+ * no hard-coded phone number for the patient. The patient's account is created by
+ * `./akun`, which posts the actual `POST /api/v1/auth/sign-up`, reads the OTP out of **that
+ * response body** - which `AuthController` publishes only under `APP_ENV=local` - and
+ * verifies it through the actual `POST /api/v1/auth/otp/verify`. `/register` no longer
+ * exists; this spec never needed the form, only the row it used to produce.
  *
- * The doctor and the pharmacist are **provisioned**, not registered: `POST /auth/register`
- * writes `users.tipe = 'pasien'`, and `DevFixtureSeeder` hashes `bin2hex(random_bytes(32))`
- * as each seeded doctor's password, so no seeded account can be signed into. Their two
- * credentials come from the environment.
+ * The doctor and the pharmacist are **provisioned**, not registered: `POST /auth/sign-up`
+ * writes `users.tipe = 'pasien'`, and `DevFixtureSeeder` hashes
+ * `bin2hex(random_bytes(32))` as each seeded doctor's password, so no seeded account can
+ * be signed into with one. Their phone numbers come from the environment; nothing else
+ * does, because the sign-in step sends no password - it mints an OTP and proves it.
  *
  * ```
  * php artisan serve --port=8013
  * SEHATLY_API_TARGET=http://127.0.0.1:8013 npx vite --port 5193
  * SEHATLY_BASE_URL=http://127.0.0.1:5193 ^
- *   SEHATLY_DOKTER_NO_TELEPON=... SEHATLY_DOKTER_PASSWORD=... ^
- *   SEHATLY_APOTEKER_NO_TELEPON=... SEHATLY_APOTEKER_PASSWORD=... ^
+ *   SEHATLY_DOKTER_NO_TELEPON=... SEHATLY_APOTEKER_NO_TELEPON=... ^
  *   npx playwright test
  * ```
  *
@@ -48,28 +51,20 @@ import { expect, test, type BrowserContext, type Page } from '@playwright/test';
  * byte-equal to the note typed.
  */
 
-function nomorTeleponBaru(): string {
-    return '0813' + String(Date.now()).slice(-8);
-}
-
-function kredensial(nama: string): { telepon: string; sandi: string } {
+function kredensial(nama: string): { telepon: string } {
     const telepon =
         nama === 'dokter'
             ? process.env.SEHATLY_DOKTER_NO_TELEPON
             : process.env.SEHATLY_APOTEKER_NO_TELEPON;
-    const sandi =
-        nama === 'dokter'
-            ? process.env.SEHATLY_DOKTER_PASSWORD
-            : process.env.SEHATLY_APOTEKER_PASSWORD;
 
-    if (telepon === undefined || sandi === undefined) {
+    if (telepon === undefined) {
         throw new Error(
-            `Kredensial ${nama} wajib diisi lewat environment. Akun ${nama} tidak bisa ` +
+            `Nomor ${nama} wajib diisi lewat environment. Akun ${nama} tidak bisa ` +
                 'didaftarkan lewat API publik.',
         );
     }
 
-    return { telepon, sandi };
+    return { telepon };
 }
 
 /**
@@ -119,52 +114,20 @@ async function statusPanggil(
     );
 }
 
-async function daftarDanMasuk(page: Page): Promise<void> {
-    const telepon = nomorTeleponBaru();
-
-    await page.goto('/register');
-
-    await expect(page.getByLabel('Nama lengkap')).toBeVisible({ timeout: 60_000 });
-
-    await page.getByLabel('Nama lengkap').fill('Pasien E2E Resep');
-    await page.getByLabel('Nomor telepon').fill(telepon);
-    await page.getByLabel('Kata sandi').fill('RahasiaKuat123');
-    await page.getByLabel('Tanggal lahir').fill('1991-04-02');
-    await page.getByLabel('Alamat lengkap').fill('Jl. Uji Resep No. 9, Jakarta');
-    // Register requires the two UU PDP consents since commit `aacb7e8`.
-    await page.getByRole('checkbox', { name: /Saya menyetujui/ }).check();
-
-    const [respons] = await Promise.all([
-        page.waitForResponse((r) => r.url().includes('/api/v1/auth/register')),
-        page.getByRole('button', { name: /Daftar/ }).click(),
-    ]);
-
-    expect(respons.status()).toBe(201);
-
-    await expect(page).toHaveURL(/\/otp/, { timeout: 30_000 });
-
-    const body = (await respons.json()) as {
-        data: { otp: { kode: string | null } };
-    };
-
-    expect(body.data.otp.kode, 'OTP harus terbit pada APP_ENV=local').not.toBeNull();
-
-    await page
-        .locator('form input[inputmode="numeric"]')
-        .fill(body.data.otp.kode as string);
-    await page.getByRole('button', { name: 'Verifikasi' }).click();
-
-    await expect(page).toHaveURL(/\/dashboard/, { timeout: 30_000 });
-}
-
 /**
  * Sign in through the real login screen, OTP included.
  *
  * `AuthController::login` answers `{otp}` and **no token**; `POST /auth/otp/verify` is the
  * only endpoint in that controller that mints one.
+ *
+ * There is no password to type any more. The screen sends the number and nothing else,
+ * and the seeded account's own password is never involved - which is why this spec no
+ * longer asks the environment for one. What is proven by driving it is the same thing it
+ * always proved: two real requests, a real code read out of the first response, and a
+ * real pair landing in `sessionStorage`.
  */
 async function masuk(page: Page, siapa: 'dokter' | 'apoteker'): Promise<void> {
-    const { telepon, sandi } = kredensial(siapa);
+    const { telepon } = kredensial(siapa);
 
     await page.goto('/login');
 
@@ -173,7 +136,6 @@ async function masuk(page: Page, siapa: 'dokter' | 'apoteker'): Promise<void> {
     });
 
     await page.getByLabel('Nomor telepon').fill(telepon);
-    await page.getByLabel('Kata sandi').fill(sandi);
 
     const [respons] = await Promise.all([
         page.waitForResponse((r) => r.url().includes('/api/v1/auth/login')),
@@ -368,7 +330,11 @@ test.describe('Module 4 prescription warn-then-override', () => {
         const jejakDokter = jejakNetwork(dokter);
         const jejak = (): string[] => [...jejakPasien, ...jejakDokter];
 
-        await daftarDanMasuk(pasien);
+        await daftarDanMasuk(pasien, {
+            nama: 'Pasien E2E Resep',
+            tanggalLahir: '1991-04-02',
+            alamat: 'Jl. Uji Resep No. 9, Jakarta',
+        });
         await masuk(dokter, 'dokter');
 
         // --- the patient records a REAL anaphylaxis allergy, through the real endpoint --
@@ -698,14 +664,30 @@ test.describe('Module 4 prescription warn-then-override', () => {
         await masuk(apoteker, 'apoteker');
         await apoteker.goto('/apotek/resep');
 
+        /**
+         * Opened from the queue, not from a typed id.
+         *
+         * This step used to fill `[data-slot="apotek-id-resep"]` with the record's id and
+         * press "Buka" - a control that does not exist anywhere in `web/src`, so the
+         * locator waited 30 seconds for a field the page has no reason to render. The
+         * queue replaced it: `antrean-verifikasi-list.tsx` draws one card per resep with
+         * its `nomor_resep` and a "Buka verifikasi" button, and that button is what hands
+         * `resep.id` to the verifier.
+         *
+         * Matching the row by the number the doctor was handed seconds ago still proves
+         * what the id field proved - that THIS record is the one being opened - and does
+         * it without trusting that the queue is short enough for a positional click.
+         */
+        const baris = apoteker.locator('[data-slot="antrean-resep-item"]', {
+            hasText: dibuatBody.data.resep.nomor_resep,
+        });
+
         await expect(
-            apoteker.locator('[data-slot="apotek-id-resep"]'),
+            baris,
+            'resep yang baru dibuat harus muncul di antrean apoteker',
         ).toBeVisible({ timeout: 30_000 });
 
-        await apoteker
-            .locator('[data-slot="apotek-id-resep"]')
-            .fill(String(dibuatBody.data.resep.id));
-        await apoteker.getByRole('button', { name: 'Buka' }).click();
+        await baris.getByRole('button', { name: 'Buka verifikasi' }).click();
 
         await expect(
             apoteker.locator('[data-slot="verifikasi-form"]'),

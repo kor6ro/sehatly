@@ -5,6 +5,7 @@ import {
     type BrowserContext,
     type Page,
 } from '@playwright/test';
+import { daftarDanMasuk } from './akun';
 
 /**
  * The shell's robustness guards: a failing ROUTE may not take the app down, and the whole
@@ -12,9 +13,10 @@ import {
  *
  * ## Both defects are asserted in a real browser, on a real session
  *
- * Nothing here is stubbed. The account registers through the actual
- * `POST /api/v1/auth/register`, reads the OTP out of THAT response body - which
- * `AuthController` publishes only under `APP_ENV=local` - and verifies it. The route that
+ * Nothing here is stubbed. The account is created by `./akun`, which posts the actual
+ * `POST /api/v1/auth/sign-up`, reads the OTP out of THAT response body - which
+ * `AuthController` publishes only under `APP_ENV=local` - and verifies it through the
+ * actual `POST /api/v1/auth/otp/verify`. The route that
  * throws is the consultation screen under the **README's own boot path**: `web/.env` does
  * not exist, the README's "Running it" never mentions `VITE_REVERB_APP_KEY`, and
  * `lib/echo.ts`'s `requireEnv()` raises when the variable is absent. So this spec reproduces
@@ -34,7 +36,7 @@ import {
  * | --- | --- | --- |
  * | a route that throws is contained and the sidebar survives | F3-01 BLOCKER | the shell is gone, so `[data-sidebar="sidebar"]` never becomes visible and the navigation click cannot happen |
  * | no stack trace reaches the user | F3-01 BLOCKER | the body carries React's own error page |
- * | all fifteen destinations are reachable at 390 px | F3-04 MAJOR | there is no `[data-sidebar="trigger"]` to click |
+ * | all seventeen destinations are reachable at 390 px | F3-04 MAJOR | there is no `[data-sidebar="trigger"]` to click |
  * | no destination carries a hardcoded id | F3-06 MAJOR | a link is `/konsultasi/1` and 404s for this account |
  * | every destination renders inside the shell | F3-06 MAJOR | the shell is destroyed, or a raw English error card is shown |
  */
@@ -46,11 +48,13 @@ const DESKTOP = { width: 1280, height: 900 };
 const PONSEL = { width: 390, height: 844 };
 
 /**
- * The fifteen nav destinations a patient account is offered, as paths.
+ * The seventeen nav destinations a patient account is offered, as paths.
  *
  * Written out rather than counted, because "the drawer has links" would pass with the three
  * F3-04 measured. A destination added later fails here until this list is updated, which is
- * the whole value of writing it down.
+ * the whole value of writing it down - and which is how `/profil/notifikasi` and
+ * `/pengingat` were caught: the "Notifikasi & pengingat" group landed in the shell and this
+ * array did not, so the spec failed until the list was brought up to date.
  */
 const TUJUAN_PASIEN: ReadonlyArray<string> = [
     '/dashboard',
@@ -68,6 +72,8 @@ const TUJUAN_PASIEN: ReadonlyArray<string> = [
     '/checkout',
     '/pesanan',
     '/pembayaran',
+    '/profil/notifikasi',
+    '/pengingat',
 ];
 
 /**
@@ -86,14 +92,7 @@ const DULU_ID_SATU: ReadonlyArray<string> = [
     '/pembayaran/1',
 ];
 
-const SANDI = 'RahasiaKuat123';
-
 let telepon: string;
-
-/** A unique `no_telepon`; `users.no_telepon` is `UNIQUE` and `/auth/register` is rate limited. */
-function nomorTeleponBaru(): string {
-    return '0815' + String(Date.now()).slice(-8);
-}
 
 /** The sidebar, whichever of the kit's two surfaces is currently rendering it. */
 function sidebar(page: Page) {
@@ -132,49 +131,26 @@ async function tungguShellSiap(page: Page): Promise<void> {
 }
 
 /**
- * Register and verify once, so the three tests share one account instead of spending three
- * of the ten `POST /auth/register` calls the rate limiter allows per hour. Only the phone
- * number is kept; the tokens are per-context and are re-earned by signing in.
+ * Create the account ONCE, so the three tests share one row instead of spending three of
+ * the ten `POST /auth/sign-up` calls the limiter allows per minute. Only the phone number
+ * is kept; the tokens are per-context and are re-earned by signing in.
+ *
+ * The throwaway context exists only to hold a page for `page.request`. The pair this mints
+ * is discarded with it on purpose: a helper that pasted that pair into each test's own
+ * context would be testing a session the sign-in screen never produced, and the point of
+ * `masuk` below is exactly that it does not.
  */
 async function daftar(browser: Browser): Promise<void> {
-    telepon = nomorTeleponBaru();
-
     const ctx: BrowserContext = await browser.newContext();
     const page = await ctx.newPage();
 
-    await page.goto('/register');
+    const hasil = await daftarDanMasuk(page, {
+        nama: 'Pasien E2E Robustness',
+        tanggalLahir: '1994-07-19',
+        alamat: 'Jl. Uji Robustness No. 7, Bandung',
+    });
 
-    await expect(page.getByLabel('Nama lengkap')).toBeVisible({ timeout: 60_000 });
-
-    await page.getByLabel('Nama lengkap').fill('Pasien E2E Robustness');
-    await page.getByLabel('Nomor telepon').fill(telepon);
-    await page.getByLabel('Kata sandi').fill(SANDI);
-    await page.getByLabel('Tanggal lahir').fill('1994-07-19');
-    await page.getByLabel('Alamat lengkap').fill('Jl. Uji Robustness No. 7, Bandung');
-    // Register requires the two UU PDP consents since commit `aacb7e8`.
-    await page.getByRole('checkbox', { name: /Saya menyetujui/ }).check();
-
-    const [respons] = await Promise.all([
-        page.waitForResponse((r) => r.url().includes('/api/v1/auth/register')),
-        page.getByRole('button', { name: /Daftar/ }).click(),
-    ]);
-
-    expect(respons.status()).toBe(201);
-
-    await expect(page).toHaveURL(/\/otp/, { timeout: 30_000 });
-
-    const body = (await respons.json()) as {
-        data: { otp: { kode: string | null } };
-    };
-
-    expect(body.data.otp.kode, 'OTP harus terbit pada APP_ENV=local').not.toBeNull();
-
-    await page
-        .locator('form input[inputmode="numeric"]')
-        .fill(body.data.otp.kode as string);
-    await page.getByRole('button', { name: 'Verifikasi' }).click();
-
-    await expect(page).toHaveURL(/\/dashboard/, { timeout: 30_000 });
+    telepon = hasil.telepon;
 
     await ctx.close();
 }
@@ -184,6 +160,9 @@ async function daftar(browser: Browser): Promise<void> {
  * token**, and `POST /auth/otp/verify` is the only endpoint in the controller that mints
  * one. A helper that pasted a token into `sessionStorage` would be testing a session no
  * user can obtain.
+ *
+ * No password is typed because the screen collects none: it sends a number and mints a
+ * code. The seeded account's own password is never involved in getting in.
  */
 async function masuk(page: Page): Promise<void> {
     await page.goto('/login');
@@ -193,7 +172,6 @@ async function masuk(page: Page): Promise<void> {
     });
 
     await page.getByLabel('Nomor telepon').fill(telepon);
-    await page.getByLabel('Kata sandi').fill(SANDI);
 
     const [respons] = await Promise.all([
         page.waitForResponse((r) => r.url().includes('/api/v1/auth/login')),
@@ -338,7 +316,7 @@ test.describe('App shell robustness (F3-01, F3-04, F3-06)', () => {
         );
     });
 
-    test('all fifteen destinations are reachable at 390 px', async ({ page }) => {
+    test('all seventeen destinations are reachable at 390 px', async ({ page }) => {
         test.setTimeout(180_000);
 
         await page.setViewportSize(DESKTOP);
@@ -350,10 +328,18 @@ test.describe('App shell robustness (F3-01, F3-04, F3-06)', () => {
          * The desktop set is read from the DOM rather than from {@link TUJUAN_PASIEN}, so
          * the comparison is "the phone shows what the desktop shows" and not "the phone
          * shows what this file claims".
+         *
+         * The COUNT is {@link TUJUAN_PASIEN}.length rather than a literal: this assertion
+         * used to say `15` twice, and when the shell grew a "Notifikasi & pengingat" group
+         * both had to be found by hand. The drift is still caught - by the equality check
+         * above and by the per-destination loop below - it just stops needing the same
+         * number edited in three places.
          */
         const desktop = await tujuanSidebar(page);
 
-        expect(desktop, 'desktop harus menawarkan 15 tujuan').toHaveLength(15);
+        expect(desktop, `desktop harus menawarkan ${TUJUAN_PASIEN.length} tujuan`).toHaveLength(
+            TUJUAN_PASIEN.length,
+        );
         await page.setViewportSize(PONSEL);
 
         await expect(page.locator('[data-slot="mobile-nav"]')).toBeVisible();
@@ -390,7 +376,10 @@ test.describe('App shell robustness (F3-01, F3-04, F3-06)', () => {
             'drawer ponsel harus menawarkan tujuan yang sama persis dengan sidebar desktop',
         ).toEqual(desktop);
 
-        expect(ponsel, 'daftar tujuan yang dikumpulkan harus lengkap').toHaveLength(15);
+        expect(
+            ponsel,
+            'daftar tujuan yang dikumpulkan harus lengkap',
+        ).toHaveLength(TUJUAN_PASIEN.length);
 
         for (const tujuan of TUJUAN_PASIEN) {
             await expect(

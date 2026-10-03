@@ -17,7 +17,7 @@ import { expect, test, type Page } from '@playwright/test';
  * php artisan serve --port=8013
  * SEHATLY_API_TARGET=http://127.0.0.1:8013 npx vite --port 5193
  * SEHATLY_BASE_URL=http://localhost:5193 ^
- *   SEHATLY_PASIEN_NO_TELEPON=... SEHATLY_PASIEN_PASSWORD=... ^
+ *   SEHATLY_PASIEN_NO_TELEPON=... ^
  *   SEHATLY_PASIEN_RESEP_ID=... npx playwright test
  * ```
  *
@@ -62,7 +62,7 @@ function wajib(nama: string): string {
     if (nilai === undefined || nilai === '') {
         throw new Error(
             `${nama} wajib diisi. Akun apoteker/dokter tidak bisa didaftarkan lewat API ` +
-                'publik karena POST /auth/register meng-hard-code tipe = pasien, dan ' +
+                'publik karena POST /auth/sign-up meng-hard-code tipe = pasien, dan ' +
                 'DevFixtureSeeder memakai hash sandi acak yang tidak bisa dipakai.',
         );
     }
@@ -94,10 +94,13 @@ async function isi(locator: import('@playwright/test').Locator, nilai: string): 
     await expect(locator, `kontrol tidak menerima nilai "${nilai}"`).toHaveValue(nilai);
 }
 
-/** Sign in through the real login screen, OTP included. */
+/**
+ * Sign in through the real login screen, OTP included.
+ *
+ * No password: the screen collects none, so the seeded account's own is never involved.
+ */
 async function masuk(page: Page): Promise<void> {
     const telepon = wajib('SEHATLY_PASIEN_NO_TELEPON');
-    const sandi = wajib('SEHATLY_PASIEN_PASSWORD');
 
     await page.goto('/login');
 
@@ -109,7 +112,6 @@ async function masuk(page: Page): Promise<void> {
     await page.getByRole('button', { name: 'Telepon', exact: true }).click();
 
     await isi(page.getByLabel('Nomor telepon'), telepon);
-    await isi(page.getByLabel('Kata sandi'), sandi);
 
     const [respons] = await Promise.all([
         page.waitForResponse((r) => r.url().includes('/api/v1/auth/login'), {

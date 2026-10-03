@@ -8,7 +8,7 @@ Grup `Route::prefix('auth')` di `routes/api.php:83`; semua path di bawah `/api/v
 
 | Method + path | Nama | Middleware | File:baris |
 |---|---|---|---|
-| `POST /api/v1/auth/register` | `auth.register` | `throttle:auth-otp-send` (10/60 dtk) | `routes/api.php:88-90` |
+| `POST /api/v1/auth/sign-up` | `auth.register` | `throttle:auth-otp-send` (10/60 dtk) | `routes/api.php:88-90` |
 | `POST /api/v1/auth/login` | `auth.login` | `throttle:auth-login` (5/60, per identifier) + `throttle:auth-login-ip` (60/60) | `routes/api.php:92-99` |
 | `POST /api/v1/auth/otp/verify` | `auth.otp.verify` | `throttle:auth-otp-verify` (5/300 dtk, per `user_otp.id`) | `routes/api.php:101-103` |
 | `POST /api/v1/auth/refresh` | `auth.refresh` | `throttle:auth-refresh` (30/60) | `routes/api.php:105-107` |
@@ -75,7 +75,7 @@ Dipetakan di `AuthController.php:574-581`; isi `app/Services/Auth/OtpRejected.ph
 
 ## 6. UI frontend (`web/src`)
 
-Route: `/login` (`router.tsx:101-105`), `/register` (:106-110), `/otp` (:111-115); halaman publik `/kebijakan-privasi`, `/syarat-ketentuan` (:135-144).
+Route: `/login` (`router.tsx:106`), `/otp` (:121); halaman publik `/kebijakan-privasi`, `/syarat-ketentuan` (:145, :150). **`/register` tidak ada lagi** — pintu hanya meminta nomor ponsel, dan akun diselesaikan di `/profil/edit/:userId?sign_up=true` (:173), di bawah `RequireAuth` tetapi **di luar** `AppShell` karena akun segar belum punya baris `pasien` dan bilah sampingnya akan buntu.
 
 **Input OTP:**
 - `input-otp` (`web/package.json:33`), komponen `web/src/components/ui/input-otp.tsx`.
