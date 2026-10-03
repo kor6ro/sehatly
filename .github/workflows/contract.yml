@@ -113,7 +113,8 @@ jobs:
         run: dart analyze packages/sehatly_api_client
 
       - name: Test the Dart package
-        run: dart test packages/sehatly_api_client
+        working-directory: packages/sehatly_api_client
+        run: dart test
 
       - name: No Flutter app exists in this repository
         # The plan's guardrail, as a real check rather than prose. The Dart
@@ -155,7 +156,9 @@ jobs:
           coverage: none
 
       - name: Install dependencies
-        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+        # No `.env` exists yet here, so package:discover would boot with
+        # APP_ENV=production and trip the webhook-secret guard. See above job.
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader --no-scripts
 
       - name: Copy environment file
         run: cp .env.example .env
