@@ -902,11 +902,21 @@ test('the config file reads the NIK key from the environment and never from APP_
 
         // The previous-key list is a LIST, split on commas, blanks dropped, so
         // the deployment story in the docblock is executable rather than prose.
+        // `$_SERVER` is written too: `env()` reads it before `$_ENV`, and an
+        // empty declaration in `.env` would otherwise shadow this value.
+        $sebelumServer = $_SERVER['NIK_CIPHER_PREVIOUS_KEYS'] ?? null;
         $_ENV['NIK_CIPHER_PREVIOUS_KEYS'] = ' aaa , ,bbb ';
+        $_SERVER['NIK_CIPHER_PREVIOUS_KEYS'] = ' aaa , ,bbb ';
         $rebuild = require base_path('config/nik.php');
 
         expect($rebuild['previous_keys'])->toBe(['aaa', 'bbb']);
     } finally {
+        if ($sebelumServer === null) {
+            unset($_SERVER['NIK_CIPHER_PREVIOUS_KEYS']);
+        } else {
+            $_SERVER['NIK_CIPHER_PREVIOUS_KEYS'] = $sebelumServer;
+        }
+        unset($_ENV['NIK_CIPHER_PREVIOUS_KEYS']);
         foreach ($sebelum as $name => $value) {
             if ($value === null) {
                 unset($_ENV[$name]);

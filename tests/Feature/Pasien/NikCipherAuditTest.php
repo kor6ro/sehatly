@@ -386,6 +386,7 @@ test('the DDL changed by exactly the ONE authorised line, and the migration made
     //   F02     b06edfb50b59bc8d5ba330740fe9d8d493d529fecbbf252d83ea723d49e2457c
     //   F08     0f943eb81f1a1d8b133ee28b3d8724c62c8c19420a55bc9f9854f4c8a0e7e0a1
     //   F01     1b9264fcdeb76767fcb855b29a3b2c430d54cbea01961b7084d050dad67d47cb
+    //   F11     4e883afceeed582c3e76d39acece80dd55519dd0fb97011d6e18319ed5ac3e7c
     //
     // The NIK change touched line 222 only. F02 then replaced line 1144's
     // `UNIQUE KEY uq_consent ...` with a comment recording the drop. F08 then
@@ -397,7 +398,7 @@ test('the DDL changed by exactly the ONE authorised line, and the migration made
     // `idx_refresh_device` onto the existing `:206` and `:211` lines (see
     // docs/schema-notes.md), so the line count and every citation did not move.
     expect(hash_file('sha256', base_path('telemedicine_test.sql')))
-        ->toBe('8cf1e8542f935e4ca4415f03976c32edcb913f225a9e1863e008e9b7f87c893f');
+        ->toBe('4e883afceeed582c3e76d39acece80dd55519dd0fb97011d6e18319ed5ac3e7c');
 
     // No table named after the proposed columns exists. Still true, and still
     // worth saying: the payload is a COLUMN, not a table.

@@ -629,8 +629,9 @@ test('the asset route streams the built file and declares a type the browser wil
         }
     } finally {
         // Only what this test brought into existence is taken away; a real build's
-        // output is left alone.
-        foreach ($created as $path) {
+        // output is left alone. Reversed, because the directory is recorded
+        // first but can only be removed once the fixtures are gone.
+        foreach (array_reverse($created) as $path) {
             is_file($path) ? unlink($path) : rmdir($path);
         }
     }
