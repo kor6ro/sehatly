@@ -266,7 +266,7 @@ function SlotButton({
                 className={[
                     'flex items-center gap-1 text-xs',
                     selected
-                        ? 'text-primary-foreground/80'
+                        ? 'text-primary-foreground'
                         : 'text-muted-foreground',
                 ].join(' ')}
             >

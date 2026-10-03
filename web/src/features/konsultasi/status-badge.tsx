@@ -41,22 +41,18 @@ type Treatment = { icon: LucideIcon; className: string };
 const KONSULTASI: Record<StatusKonsultasi, Treatment> = {
     menunggu_dokter: {
         icon: Hourglass,
-        className: 'text-warning-foreground bg-warning border-transparent',
+        className:
+            'text-warning-subtle-foreground bg-warning-subtle border-transparent',
     },
     berlangsung: {
         icon: CircleCheck,
-        /**
-         * `text-foreground` rather than `text-success-foreground` in light mode:
-         * white on `--success` measures 3.62:1, below the 4.5:1 floor for the
-         * badge's 12px label. The dark ink keeps the same green fill at 5.23:1,
-         * and dark mode keeps the light-on-green pairing the token defines.
-         */
         className:
-            'text-foreground bg-success border-transparent dark:text-success-foreground',
+            'text-success-subtle-foreground bg-success-subtle border-transparent',
     },
     menunggu_resep: {
         icon: Clock,
-        className: 'text-warning-foreground bg-warning border-transparent',
+        className:
+            'text-warning-subtle-foreground bg-warning-subtle border-transparent',
     },
     selesai: {
         icon: FileSignature,
@@ -74,25 +70,21 @@ const KONSULTASI: Record<StatusKonsultasi, Treatment> = {
     },
     gagal: {
         icon: XCircle,
-        className: 'bg-destructive text-white border-transparent',
+        className:
+            'bg-destructive-subtle text-destructive-subtle-foreground border-transparent',
     },
 };
 
 const STATUS_DOKUMEN: Record<StatusDokumen, Treatment> = {
     draft: {
         icon: FileSignature,
-        className: 'text-warning-foreground bg-warning border-transparent',
+        className:
+            'text-warning-subtle-foreground bg-warning-subtle border-transparent',
     },
     final: {
         icon: CircleCheck,
-        /**
-         * `text-foreground` in light mode for the same measured reason as
-         * `berlangsung` above: white on `--success` is 3.62:1 at badge size, below the
-         * 4.5:1 floor. The dark ink keeps the same fill at 5.23:1, and dark mode keeps
-         * the light-on-green pairing the token defines.
-         */
         className:
-            'text-foreground bg-success border-transparent dark:text-success-foreground',
+            'text-success-subtle-foreground bg-success-subtle border-transparent',
     },
     diamendemen: {
         icon: CircleSlash,

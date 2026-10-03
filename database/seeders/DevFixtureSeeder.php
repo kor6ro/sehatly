@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Pasien;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -211,7 +212,12 @@ class DevFixtureSeeder extends Seeder
             throw new RuntimeException('DevFixtureSeeder: master_provinsi has no kode 31 (DKI Jakarta). Run MasterWilayahSeeder first.');
         }
 
-        DB::table('faskes')->insert([
+        // `upsert` on `kode_faskes`, which is UNIQUE, so a second `db:seed` run
+        // updates the fixture instead of raising a duplicate-key error. The third
+        // argument is the explicit column list to refresh on a conflict; naming
+        // it stops `uuid`-style generated values from being regenerated on a
+        // re-seed and turning an update into a second identity.
+        DB::table('faskes')->upsert([
             [
                 'kode_faskes' => 'FASKES-DEV-001',
                 'nama' => 'Klinik Telemedicine Contoh (dev)',
@@ -240,6 +246,9 @@ class DevFixtureSeeder extends Seeder
                 'akreditasi' => 'dasar',
                 'status_aktif' => 1,
             ],
+        ], ['kode_faskes'], [
+            'nama', 'tipe', 'kelas_rs', 'alamat', 'provinsi_id', 'latitude',
+            'longitude', 'telepon', 'email', 'akreditasi', 'status_aktif',
         ]);
     }
 
@@ -330,9 +339,17 @@ class DevFixtureSeeder extends Seeder
             ],
         ];
 
-        foreach ($users as $user) {
-            DB::table('users')->insert($user);
-        }
+        // `upsert` on `email`, which is UNIQUE, so a second `db:seed` run updates
+        // rather than colliding. `uuid` and `kata_sandi_hash` are deliberately
+        // NOT in the update list: both are freshly generated on every call, and
+        // refreshing them on a re-seed would hand an existing account a new
+        // identity and a new unusable password hash for no reason. The lookup
+        // below then re-reads the ids, which is what keeps the rest of the
+        // seeder working against the rows that were already there.
+        DB::table('users')->upsert($users, ['email'], [
+            'nama_lengkap', 'no_telepon', 'tipe', 'status', 'bahasa',
+            'telepon_terverifikasi', 'email_terverifikasi',
+        ]);
 
         $dokterUserIds = DB::table('users')->whereIn('email', [
             'doker1.dev@example.test',
@@ -349,7 +366,9 @@ class DevFixtureSeeder extends Seeder
             [
                 'user_id' => $pasienUserIds['pasien1.dev@example.test'],
                 'nomor_rm' => 'RM-202601-000001',
-                'nik' => '3171010101900001',
+                // Synthetic: `90` is not an assigned province prefix and the
+                // `1900` birth block plus `0001` serial make it read as built.
+                'nik' => '9019000100000001',
                 'jenis_kelamin' => 'L',
                 'tanggal_lahir' => '1990-01-01',
                 'tempat_lahir' => 'Jakarta',
@@ -366,7 +385,8 @@ class DevFixtureSeeder extends Seeder
             [
                 'user_id' => $pasienUserIds['pasien2.dev@example.test'],
                 'nomor_rm' => 'RM-202601-000002',
-                'nik' => '3174010202950002',
+                // Synthetic, same construction as the row above.
+                'nik' => '9019000100000002',
                 'jenis_kelamin' => 'P',
                 'tanggal_lahir' => '1995-02-02',
                 'tempat_lahir' => 'Jakarta',
@@ -382,8 +402,42 @@ class DevFixtureSeeder extends Seeder
             ],
         ];
 
+        // Through the MODEL, not the query builder. `pasien.nik_cipher` (the
+        // renamed, widened column) holds a `NikCipher` payload rather than the 16
+        // characters the `nik` key above names, and `Pasien`'s `nik` mutator is
+        // what encrypts one. A query-builder insert of that same array raised
+        // `Unknown column 'nik' in 'field list'` and took `migrate:fresh --seed`
+        // - the README's setup command and the first CI job - down with it.
+        //
+        // `firstOrNew()` on `nomor_rm` rather than `new`, because `nomor_rm` is
+        // UNIQUE and `db:seed` is run twice by every developer who re-seeds.
+        // Matching on the natural key is what makes a second run an UPDATE
+        // instead of a duplicate-key error - and an update re-runs the `nik`
+        // mutator, so the second run re-encrypts rather than leaving a payload
+        // written under a key that has since been rotated away.
         foreach ($pasienRows as $row) {
-            DB::table('pasien')->insert($row);
+            $pasien = Pasien::query()->firstOrNew(['nomor_rm' => $row['nomor_rm']]);
+
+            // Assigned one attribute at a time rather than `fill()`, because
+            // `nik` is a MUTATED attribute: `fill()` would still run it (it goes
+            // through `setAttribute`), but doing it here keeps the one value that
+            // needs the cipher visible in the source instead of buried in an
+            // array.
+            $pasien->user_id = $row['user_id'];
+            $pasien->nik = $row['nik'];
+            $pasien->jenis_kelamin = $row['jenis_kelamin'];
+            $pasien->tanggal_lahir = $row['tanggal_lahir'];
+            $pasien->tempat_lahir = $row['tempat_lahir'];
+            $pasien->golongan_darah_id = $row['golongan_darah_id'];
+            $pasien->rhesus = $row['rhesus'];
+            $pasien->agama_id = $row['agama_id'];
+            $pasien->pendidikan_id = $row['pendidikan_id'];
+            $pasien->pekerjaan = $row['pekerjaan'];
+            $pasien->status_pernikahan_id = $row['status_pernikahan_id'];
+            $pasien->alamat_lengkap = $row['alamat_lengkap'];
+            $pasien->tinggi_badan_cm = $row['tinggi_badan_cm'];
+            $pasien->berat_badan_kg = $row['berat_badan_kg'];
+            $pasien->save();
         }
 
         // Stash the doctor user ids for seedDoctors(), which needs the same three.
@@ -478,9 +532,16 @@ class DevFixtureSeeder extends Seeder
             ],
         ];
 
-        foreach ($rows as $row) {
-            DB::table('dokter')->insert($row);
-        }
+        // `upsert` on `nomor_str`, which is UNIQUE, so a second `db:seed` run
+        // updates the fixture instead of colliding. `user_id` is UNIQUE too and is
+        // resolved from the `users` rows, so it is safe to refresh: a re-seed
+        // re-reads the same ids, so the value written is the same one.
+        DB::table('dokter')->upsert($rows, ['nomor_str'], [
+            'user_id', 'tipe', 'str_berlaku_sampai', 'nomor_sip', 'sip_berlaku_sampai',
+            'pengalaman_tahun', 'biaya_konsultasi_online', 'durasi_default_menit',
+            'rating_rata_rata', 'jumlah_ulasan', 'jumlah_konsultasi',
+            'tersedia_telemedisin', 'status_verifikasi', 'status_aktif',
+        ]);
 
         // Two specialisation mappings for doctor 1, one for doctor 2, and NONE for
         // doctor 3 - so the view's `LEFT JOIN` and its `GROUP_CONCAT` over a
@@ -509,7 +570,12 @@ class DevFixtureSeeder extends Seeder
             ];
         }
 
-        DB::table('dokter_spesialisasi')->insert($insert);
+        // `insertOrIgnore` rather than `insert`: `dokter_spesialisasi` has
+        // `UNIQUE KEY uq_dokter_spes (dokter_id, spesialisasi_id)`, and the same four
+        // pairs are built on every run. Ignoring the duplicate is the idempotent
+        // behaviour - there is nothing to update, because the row is already the
+        // row this seeder would have written.
+        DB::table('dokter_spesialisasi')->insertOrIgnore($insert);
     }
 
     /**
@@ -549,7 +615,12 @@ class DevFixtureSeeder extends Seeder
             }
         }
 
-        DB::table('lab_paket_item')->insert($insert);
+        // `insertOrIgnore` rather than `insert`: the composite primary key
+        // `(paket_id, tindakan_id)` is exactly the pair, so the six pairs built on
+        // every run are the six rows already present. The class docblock notes
+        // `truncate()` as the only sane reset; that was about a full rebuild, and
+        // `db:seed` twice is an update, not a rebuild.
+        DB::table('lab_paket_item')->insertOrIgnore($insert);
     }
 
     /**
@@ -598,7 +669,11 @@ class DevFixtureSeeder extends Seeder
             ];
         }
 
-        DB::table('obat_interaksi')->insert($insert);
+        // `insertOrIgnore` rather than `insert`: `uq_interaksi (obat_a_id,
+        // obat_b_id)` is UNIQUE on the ORDERED pair, and the two pairs below are
+        // rebuilt identically on every run. The ordered-pair convention means an
+        // ignored duplicate is the same interaction, not its mirror.
+        DB::table('obat_interaksi')->insertOrIgnore($insert);
     }
 
     /**

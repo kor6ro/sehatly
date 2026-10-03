@@ -147,6 +147,12 @@ function MobileNavBar() {
         >
             <SidebarTrigger className="size-9 shrink-0" />
 
+            <img
+                src="/logo.svg"
+                alt="Sehatly"
+                className="size-7 shrink-0"
+            />
+
             <span className="text-sm font-semibold">Sehatly</span>
         </div>
     );
@@ -355,7 +361,15 @@ function AppSidebar() {
     return (
         <Sidebar collapsible="icon">
             <SidebarHeader>
-                <p className="px-2 text-sm font-semibold">Sehatly</p>
+                <p className="flex items-center gap-2 px-2 text-sm font-semibold">
+                    <img
+                        src="/logo.svg"
+                        alt="Sehatly"
+                        className="size-7 shrink-0"
+                    />
+
+                    Sehatly
+                </p>
 
                 <p className="text-muted-foreground truncate px-2 text-xs">
                     {user?.nama_lengkap ?? 'Memuat akun...'}

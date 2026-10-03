@@ -39,18 +39,18 @@ export function AdminVerifikasiBadge({
     const tampilan = {
         pending: {
             icon: Clock,
-            kelas: 'border-warning/40 bg-warning/10 text-foreground',
-            ikon: 'text-warning',
+            kelas: 'bg-warning-subtle text-warning-subtle-foreground border-transparent',
+            ikon: 'text-warning-subtle-foreground',
         },
         terverifikasi: {
             icon: CircleCheck,
-            kelas: 'border-success/40 bg-success/10 text-foreground',
-            ikon: 'text-success',
+            kelas: 'bg-success-subtle text-success-subtle-foreground border-transparent',
+            ikon: 'text-success-subtle-foreground',
         },
         ditolak: {
             icon: CircleX,
-            kelas: 'border-destructive/40 bg-destructive/10 text-foreground',
-            ikon: 'text-destructive',
+            kelas: 'bg-destructive-subtle text-destructive-subtle-foreground border-transparent',
+            ikon: 'text-destructive-subtle-foreground',
         },
     }[status];
 
@@ -82,13 +82,13 @@ export function AdminAktifBadge({ aktif }: { aktif: boolean }) {
             className={cn(
                 'gap-1 font-normal',
                 aktif
-                    ? 'border-success/40 bg-success/10 text-foreground'
-                    : 'border-destructive/40 bg-destructive/10 text-foreground',
+                    ? 'bg-success-subtle text-success-subtle-foreground border-transparent'
+                    : 'bg-destructive-subtle text-destructive-subtle-foreground border-transparent',
             )}
         >
             <Ikon
                 aria-hidden
-                className={cn('size-3.5', aktif ? 'text-success' : 'text-destructive')}
+                className={cn('size-3.5', aktif ? 'text-success-subtle-foreground' : 'text-destructive-subtle-foreground')}
             />
 
             {aktif ? 'Aktif' : 'Nonaktif'}
@@ -144,9 +144,9 @@ export function StrMasaBerlaku({ dokter }: { dokter: MasaBerlaku }) {
                     variant="outline"
                     data-slot="admin-str-badge"
                     data-status="kedaluwarsa"
-                    className="text-foreground gap-1 border-destructive/40 bg-destructive/10 font-normal"
+                    className="text-destructive-subtle-foreground gap-1 bg-destructive-subtle border-transparent font-normal"
                 >
-                    <TriangleAlert aria-hidden className="text-destructive size-3.5" />
+                    <TriangleAlert aria-hidden className="text-destructive-subtle-foreground size-3.5" />
 
                     <span className="tabular-nums">
                         Kedaluwarsa {Math.abs(sisa)} hari
@@ -159,9 +159,9 @@ export function StrMasaBerlaku({ dokter }: { dokter: MasaBerlaku }) {
                     variant="outline"
                     data-slot="admin-str-badge"
                     data-status="segera"
-                    className="text-foreground gap-1 border-warning/40 bg-warning/10 font-normal"
+                    className="text-warning-subtle-foreground gap-1 bg-warning-subtle border-transparent font-normal"
                 >
-                    <TriangleAlert aria-hidden className="text-warning size-3.5" />
+                    <TriangleAlert aria-hidden className="text-warning-subtle-foreground size-3.5" />
 
                     <span className="tabular-nums">{sisa} hari lagi</span>
                 </Badge>

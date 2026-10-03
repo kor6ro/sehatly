@@ -7,16 +7,20 @@ use App\Enums\KonsultasiTipe;
 use App\Http\Requests\Konsultasi\KonsultasiRequest;
 use App\Models\Konsultasi;
 use App\Models\KonsultasiChat;
+use App\Models\Pasien;
 use App\Models\User;
 use App\Services\Dokter\DokterDirectoryService;
 use App\Services\Konsultasi\KonsultasiService;
+use App\Support\Schema\SchemaSpec;
 use App\Support\Schema\SqlSchemaParser;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Assert;
+use Tests\Support\PasienFixture;
 
 /*
 |--------------------------------------------------------------------------
@@ -120,12 +124,16 @@ function knsSesi(int $pasienId, int $dokterId, string $status = 'menunggu_dokter
  */
 function knsPasien(int $userId, array $ubah = []): int
 {
-    return (int) DB::table('pasien')->insertGetId(array_merge([
+    // `PasienFixture` is what makes an `$ubah` that names `nik` legal again: the
+    // column is `nik_cipher` and holds a payload, so the key is renamed AND
+    // encrypted with the same `NikCipher::encrypt()` the model mutator calls.
+    // A row whose `$ubah` has no `nik` passes through untouched.
+    return (int) DB::table('pasien')->insertGetId(PasienFixture::withNik(array_merge([
         'user_id' => $userId,
         'jenis_kelamin' => 'P',
         'tanggal_lahir' => '1990-05-17',
         'alamat_lengkap' => 'Jl. Uji Sesi No. 9, Jakarta',
-    ], $ubah));
+    ], $ubah)));
 }
 
 /**
@@ -197,7 +205,7 @@ function knsPesan(int $sesiId, int $pengirimUserId, string $pengirimTipe, string
 /**
  * The parsed DDL, once, for the vocabulary and citation assertions.
  */
-function knsSpec(): App\Support\Schema\SchemaSpec
+function knsSpec(): SchemaSpec
 {
     return (new SqlSchemaParser)->parseFile(base_path('telemedicine_test.sql'));
 }
@@ -238,7 +246,7 @@ function knsRelasi(): string
             continue;
         }
 
-        if ($type->getName() !== Illuminate\Database\Eloquent\Relations\BelongsTo::class) {
+        if ($type->getName() !== BelongsTo::class) {
             continue;
         }
 
@@ -313,14 +321,14 @@ function knsKolomBerakhiran(string $table, string $suffix): string
     return $cocok[0];
 }
 
-    /**
-     * The one column of `$table` whose name STARTS with `$prefix`.
-     *
-     * The prefix twin of {@see knsKolomBerakhiran()}. It exists because
-     * `konsultasi.biaya_konsultasi` is found by its prefix and `dokter`'s is found by
-     * its `_online` suffix - `dokter` has two `biaya_` columns and `konsultasi` has one,
-     * so no single direction resolves both.
-     */
+/**
+ * The one column of `$table` whose name STARTS with `$prefix`.
+ *
+ * The prefix twin of {@see knsKolomBerakhiran()}. It exists because
+ * `konsultasi.biaya_konsultasi` is found by its prefix and `dokter`'s is found by
+ * its `_online` suffix - `dokter` has two `biaya_` columns and `konsultasi` has one,
+ * so no single direction resolves both.
+ */
 function knsKolomDenganPrefix(string $table, string $prefix): string
 {
     $cocok = array_values(array_filter(
@@ -708,7 +716,7 @@ test('the fee is read from the doctors own column and only for the instant flow'
     $pasienId = knsPasien(knsUser('Pasien Biaya'));
     $dokterId = knsDokter(knsUser('Dokter Biaya', 'dokter'), [$biayaDokter => KNS_BIAYA]);
     $service = app(KonsultasiService::class);
-    $pasien = App\Models\Pasien::query()->findOrFail($pasienId);
+    $pasien = Pasien::query()->findOrFail($pasienId);
     $user = User::query()->findOrFail((int) DB::table('pasien')->where('id', $pasienId)->value('user_id'));
 
     $pesan = $service->mulai($pasien, $user, ['dokter_id' => $dokterId, 'tipe' => 'chat']);
@@ -735,7 +743,7 @@ test('an ineligible doctor is refused for the instant flow with one exception ty
     $service = app(KonsultasiService::class);
 
     $pasienId = knsPasien(knsUser('Pasien Eligible'));
-    $pasien = App\Models\Pasien::query()->findOrFail($pasienId);
+    $pasien = Pasien::query()->findOrFail($pasienId);
     $user = User::query()->findOrFail((int) DB::table('pasien')->where('id', $pasienId)->value('user_id'));
 
     $eligible = knsDokter(knsUser('Dokter Eligible', 'dokter'));

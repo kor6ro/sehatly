@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Route;
+use Symfony\Component\HttpFoundation\Response;
 
 /*
 |--------------------------------------------------------------------------
@@ -76,7 +76,49 @@ use Illuminate\Support\Facades\Route;
 
 $spaBuild = base_path('web/dist');
 
-Route::get('assets/{path}', function (string $path) use ($spaBuild): Response {
+/**
+ * Stated by extension, not guessed from content.
+ *
+ * `BinaryFileResponse` derives its type from the file's bytes via `finfo`, and
+ * libmagic on a stock Windows host carries no pattern for CSS: a `.css` file is
+ * reported as `text/plain`. Laravel sends `X-Content-Type-Options: nosniff` on
+ * every response, and a browser that has been told not to sniff refuses a
+ * stylesheet whose declared type is not `text/css` -- so a guessed type makes the
+ * stylesheet load, get rejected, and leave the shell completely unstyled. Guessing
+ * is also not reproducible across hosts, and the rest of this file is written to
+ * be byte-deterministic, so the answer comes from the extension, which is what a
+ * Vite build names its output from in the first place.
+ *
+ * @var array<string, string>
+ */
+$spaAssetMime = [
+    // Scripts. `text/javascript` is the WHATWG name; `application/javascript` is
+    // the older alias and both are accepted for a classic `<script src>`.
+    'js' => 'text/javascript',
+    'mjs' => 'text/javascript',
+    // Stylesheets. The one that actually matters -- see above.
+    'css' => 'text/css',
+    // Source maps and any JSON chunk a plugin emits.
+    'map' => 'application/json',
+    'json' => 'application/json',
+    // Images, for an imported asset rather than a CSS `url()`.
+    'svg' => 'image/svg+xml',
+    'png' => 'image/png',
+    'jpg' => 'image/jpeg',
+    'jpeg' => 'image/jpeg',
+    'gif' => 'image/gif',
+    'webp' => 'image/webp',
+    'avif' => 'image/avif',
+    'ico' => 'image/x-icon',
+    // Webfonts.
+    'woff' => 'font/woff',
+    'woff2' => 'font/woff2',
+    'ttf' => 'font/ttf',
+    'otf' => 'font/otf',
+    'eot' => 'application/vnd.ms-fontobject',
+];
+
+Route::get('assets/{path}', function (string $path) use ($spaBuild, $spaAssetMime): Response {
     if ($path === '' || str_contains($path, '..') || str_contains($path, '/') || str_contains($path, '\\')) {
         abort(Response::HTTP_NOT_FOUND);
     }
@@ -87,7 +129,18 @@ Route::get('assets/{path}', function (string $path) use ($spaBuild): Response {
         abort(Response::HTTP_NOT_FOUND);
     }
 
-    return response()->file($file);
+    $response = response()->file($file);
+
+    // An extension the map does not name gets `application/octet-stream` rather
+    // than a guess: an unknown type the browser is told not to sniff is a refused
+    // download, which is the correct outcome for a file this route was never
+    // meant to serve, and `text/plain` would be a lie that some browsers honour.
+    $response->headers->set(
+        'Content-Type',
+        $spaAssetMime[strtolower(pathinfo($file, PATHINFO_EXTENSION))] ?? 'application/octet-stream',
+    );
+
+    return $response;
 })->where('path', '[^/]+')->name('spa.asset');
 
 Route::any('/{any?}', function () use ($spaBuild) {

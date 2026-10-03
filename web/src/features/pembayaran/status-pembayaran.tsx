@@ -40,7 +40,7 @@ type Tampilan = {
 const TAMPILAN_PESANAN: Record<StatusPesananObat, Tampilan> = {
     menunggu_pembayaran: {
         icon: Clock,
-        className: 'bg-warning text-warning-foreground border-transparent',
+        className: 'bg-warning-subtle text-warning-subtle-foreground border-transparent',
     },
     diproses: {
         icon: Package,
@@ -56,7 +56,7 @@ const TAMPILAN_PESANAN: Record<StatusPesananObat, Tampilan> = {
     },
     selesai: {
         icon: CheckCircle2,
-        className: 'bg-success text-success-foreground border-transparent',
+        className: 'bg-success-subtle text-success-subtle-foreground border-transparent',
     },
     dibatalkan: {
         icon: XCircle,
@@ -71,11 +71,11 @@ const TAMPILAN_INVOICE: Record<StatusInvoice, Tampilan> = {
     },
     menunggu_pembayaran: {
         icon: Clock,
-        className: 'bg-warning text-warning-foreground border-transparent',
+        className: 'bg-warning-subtle text-warning-subtle-foreground border-transparent',
     },
     lunas: {
         icon: CheckCircle2,
-        className: 'bg-success text-success-foreground border-transparent',
+        className: 'bg-success-subtle text-success-subtle-foreground border-transparent',
     },
     kadaluarsa: {
         icon: TimerOff,
@@ -98,11 +98,11 @@ const TAMPILAN_INVOICE: Record<StatusInvoice, Tampilan> = {
 const TAMPILAN_PEMBAYARAN: Record<StatusPembayaran, Tampilan> = {
     pending: {
         icon: Clock,
-        className: 'bg-warning text-warning-foreground border-transparent',
+        className: 'bg-warning-subtle text-warning-subtle-foreground border-transparent',
     },
     berhasil: {
         icon: CheckCircle2,
-        className: 'bg-success text-success-foreground border-transparent',
+        className: 'bg-success-subtle text-success-subtle-foreground border-transparent',
     },
     gagal: {
         icon: XCircle,

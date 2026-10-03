@@ -54,7 +54,7 @@ const TREATMENT: Record<StatusBooking, Treatment> = {
     menunggu_pembayaran: {
         icon: CreditCard,
         className:
-            'text-warning-foreground bg-warning border-transparent',
+            'text-warning-subtle-foreground bg-warning-subtle border-transparent',
     },
     terjadwal: {
         icon: CalendarCheck,
@@ -63,12 +63,12 @@ const TREATMENT: Record<StatusBooking, Treatment> = {
     check_in: {
         icon: LogIn,
         className:
-            'text-success-foreground bg-success border-transparent',
+            'text-success-subtle-foreground bg-success-subtle border-transparent',
     },
     berlangsung: {
         icon: CircleDot,
         className:
-            'text-success-foreground bg-success border-transparent',
+            'text-success-subtle-foreground bg-success-subtle border-transparent',
     },
     selesai: {
         icon: CircleCheck,
@@ -82,7 +82,8 @@ const TREATMENT: Record<StatusBooking, Treatment> = {
     },
     no_show: {
         icon: UserX,
-        className: 'bg-destructive text-white border-transparent',
+        className:
+            'bg-destructive-subtle text-destructive-subtle-foreground border-transparent',
     },
     kadaluarsa: {
         icon: TimerOff,

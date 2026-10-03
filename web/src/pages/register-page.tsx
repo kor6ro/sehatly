@@ -168,7 +168,7 @@ export function RegisterPage() {
             footer={
                 <>
                     Sudah punya akun?{' '}
-                    <Link to="/login" className="text-primary underline-offset-4 hover:underline">
+                    <Link to="/login" className="text-primary underline underline-offset-4 hover:underline">
                         Masuk
                     </Link>
                 </>
@@ -354,14 +354,14 @@ export function RegisterPage() {
                             Saya menyetujui{' '}
                             <Link
                                 to="/syarat-ketentuan"
-                                className="text-primary underline-offset-4 hover:underline"
+                                className="text-primary underline underline-offset-4 hover:underline"
                             >
                                 Syarat dan Ketentuan
                             </Link>{' '}
                             serta{' '}
                             <Link
                                 to="/kebijakan-privasi"
-                                className="text-primary underline-offset-4 hover:underline"
+                                className="text-primary underline underline-offset-4 hover:underline"
                             >
                                 Kebijakan Privasi
                             </Link>{' '}

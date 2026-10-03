@@ -65,7 +65,11 @@ function demo3cSnapshot(): array
 {
     $tabel = [
         'users' => ['uuid', 'nama_lengkap', 'email', 'no_telepon', 'kata_sandi_hash', 'tipe', 'status', 'bahasa', 'telepon_terverifikasi', 'email_terverifikasi'],
-        'pasien' => ['user_id', 'nomor_rm', 'nik', 'jenis_kelamin', 'tanggal_lahir', 'tempat_lahir', 'rhesus', 'pekerjaan', 'alamat_lengkap', 'kode_pos', 'tinggi_badan_cm', 'berat_badan_kg'],
+        // `nik_cipher` replaced `nik` in migration 2026_10_01_000079. The demo
+        // seeder writes no NIK, so the column is NULL on every row and this
+        // comparison stays stable - which matters, because a `NikCipher` payload
+        // embeds a random IV and would NOT be byte-identical across two runs.
+        'pasien' => ['user_id', 'nomor_rm', 'nik_cipher', 'jenis_kelamin', 'tanggal_lahir', 'tempat_lahir', 'rhesus', 'pekerjaan', 'alamat_lengkap', 'kode_pos', 'tinggi_badan_cm', 'berat_badan_kg'],
         'dokter' => ['user_id', 'tipe', 'nomor_str', 'str_berlaku_sampai', 'nomor_sip', 'sip_berlaku_sampai', 'pengalaman_tahun', 'bio', 'durasi_default_menit', 'rating_rata_rata', 'jumlah_ulasan', 'jumlah_konsultasi', 'tersedia_telemedisin', 'status_verifikasi', 'status_aktif'],
         'dokter_spesialisasi' => ['dokter_id', 'spesialisasi_id', 'is_utama'],
         'dokter_jadwal' => ['dokter_id', 'faskes_id', 'tipe_layanan', 'hari', 'jam_mulai', 'jam_selesai', 'durasi_slot_menit', 'kuota_per_sesi', 'berlaku_mulai', 'berlaku_sampai', 'status_aktif'],

@@ -337,7 +337,7 @@ function PesanBaris({
                         pesan.pengirim_tipe === 'sistem'
                             ? 'text-foreground/60'
                             : milikSaya
-                              ? 'text-primary-foreground/80'
+                              ? 'text-primary-foreground'
                               : 'text-secondary-foreground/70',
                     )}
                 >
@@ -356,7 +356,7 @@ function PesanBaris({
                             data-slot="chat-status-pesan"
                             data-status="dibaca"
                             aria-label="Pesan sudah dibaca"
-                            className="text-success inline-flex items-center gap-1 text-xs"
+                            className="text-primary-foreground inline-flex items-center gap-1 text-xs"
                         >
                             <CheckCheck aria-hidden className="size-3" />
 
@@ -367,7 +367,7 @@ function PesanBaris({
                             data-slot="chat-status-pesan"
                             data-status="terkirim"
                             aria-label="Pesan terkirim"
-                            className="text-primary-foreground/80 inline-flex items-center gap-1 text-xs"
+                            className="text-primary-foreground inline-flex items-center gap-1 text-xs"
                         >
                             <Check aria-hidden className="size-3" />
 

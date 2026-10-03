@@ -28,20 +28,23 @@ const TAMPILAN: Record<'null' | 'true' | 'false', Tampilan> = {
     null: {
         icon: Clock,
         label: 'Belum dijawab',
-        className: 'border-warning/40 bg-warning/10',
-        iconClassName: 'text-warning',
+        className:
+            'bg-warning-subtle text-warning-subtle-foreground border-transparent',
+        iconClassName: 'text-warning-subtle-foreground',
     },
     true: {
         icon: CheckCircle2,
         label: 'Disetujui',
-        className: 'border-success/40 bg-success/10',
-        iconClassName: 'text-success',
+        className:
+            'bg-success-subtle text-success-subtle-foreground border-transparent',
+        iconClassName: 'text-success-subtle-foreground',
     },
     false: {
         icon: XCircle,
         label: 'Tidak disetujui',
-        className: 'border-destructive/40 bg-destructive/10',
-        iconClassName: 'text-destructive',
+        className:
+            'bg-destructive-subtle text-destructive-subtle-foreground border-transparent',
+        iconClassName: 'text-destructive-subtle-foreground',
     },
 };
 

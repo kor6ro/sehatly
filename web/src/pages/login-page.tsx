@@ -151,7 +151,7 @@ export function LoginPage() {
             footer={
                 <>
                     Belum punya akun?{' '}
-                    <Link to="/register" className="text-primary underline-offset-4 hover:underline">
+                    <Link to="/register" className="text-primary underline underline-offset-4 hover:underline">
                         Daftar
                     </Link>
                 </>

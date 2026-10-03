@@ -44,6 +44,12 @@ export function AuthLayout({
             )}
         >
             <div className="flex flex-col items-center gap-1 text-center">
+                <img
+                    src="/logo.svg"
+                    alt="Sehatly"
+                    className="size-12"
+                />
+
                 <Link
                     to="/"
                     className="text-foreground text-xl font-semibold tracking-tight"

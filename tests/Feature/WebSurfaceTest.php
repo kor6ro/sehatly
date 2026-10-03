@@ -234,6 +234,8 @@ function scaffoldRegisterPayload(array $overrides = []): array
         'tempat_lahir' => 'Surabaya',
         'alamat_lengkap' => 'Jl. Pahlawan No. 9, Surabaya, Jawa Timur 60171',
         'bahasa' => 'id',
+        'persetujuan_syarat_ketentuan' => true,
+        'persetujuan_kebijakan_privasi' => true,
     ], $overrides);
 }
 
@@ -558,6 +560,91 @@ test('a deep link is answered with the built SPA shell, or a 503 naming the buil
     } else {
         $response->assertStatus(503);
         $response->assertSee('npm run build', false);
+    }
+});
+
+test('the asset route streams the built file and declares a type the browser will accept', function (): void {
+    // ## Why this test exists at all
+    //
+    // The asset route shipped with two faults and neither was caught, because
+    // nothing ever requested it: the shell test above exercises the catch-all,
+    // and every other assertion here reads the route *table*. Both faults are
+    // invisible until a browser loads the shell, and both are silent in
+    // production terms -- the page is served, the status is a clean 200 or a
+    // 500 in a log nobody reads, and the only symptom is a white rectangle.
+    //
+    // 1. The closure declared `: Illuminate\Http\Response` while
+    //    `response()->file()` returns a `BinaryFileResponse`, so every asset
+    //    request was a `TypeError` and a 500. The shell therefore loaded and
+    //    `#root` stayed empty.
+    // 2. `BinaryFileResponse` guesses the type from the file's bytes via
+    //    `finfo`, and libmagic on a stock Windows host reports a stylesheet as
+    //    `text/plain`. Laravel sends `X-Content-Type-Options: nosniff`, and a
+    //    browser told not to sniff refuses a stylesheet that is not `text/css`,
+    //    so the CSS was fetched and then thrown away.
+    //
+    // The fixtures are created when they are missing rather than skipped when
+    // they are, because a guard that only runs on a machine that happens to have
+    // run `npm run build` is not a guard -- it is the same silent pass that let
+    // both faults through.
+
+    $assets = base_path('web/dist/assets');
+    $fixtures = [
+        'guard.css' => 'body{color:red}',
+        'guard.js' => 'console.log(1)',
+    ];
+
+    $created = [];
+
+    if (! is_dir($assets)) {
+        mkdir($assets, 0777, true);
+        $created[] = $assets;
+    }
+
+    foreach ($fixtures as $name => $body) {
+        if (! is_file($assets.'/'.$name)) {
+            file_put_contents($assets.'/'.$name, $body);
+            $created[] = $assets.'/'.$name;
+        }
+    }
+
+    try {
+        foreach (['guard.css' => 'text/css', 'guard.js' => 'text/javascript'] as $name => $type) {
+            $response = $this->get('/assets/'.$name);
+
+            $response->assertOk();
+
+            // `BinaryFileResponse` streams the file rather than buffering it into
+            // the response body, so the bytes that will reach the client are read
+            // off the file the response names, and the type is asserted from the
+            // header because under `nosniff` that header *is* the decision. The
+            // match is on the media type alone: Symfony appends `; charset=utf-8`
+            // to every `text/*` response on the way out, and pinning the suffix
+            // would make this a test of that behaviour rather than of the route.
+            expect($response->baseResponse)->toBeInstanceOf(BinaryFileResponse::class)
+                ->and($response->headers->get('Content-Type'))->toStartWith($type)
+                ->and($response->headers->get('X-Content-Type-Options'))->toBe('nosniff')
+                ->and((string) file_get_contents($response->baseResponse->getFile()->getPathname()))
+                ->toBe($fixtures[$name]);
+        }
+    } finally {
+        // Only what this test brought into existence is taken away; a real build's
+        // output is left alone.
+        foreach ($created as $path) {
+            is_file($path) ? unlink($path) : rmdir($path);
+        }
+    }
+});
+
+test('the asset route still refuses a traversal and an extension it does not name', function (): void {
+    // The narrowness the route's own docblock claims, asserted rather than assumed:
+    // one segment, no `..`, no separator, and a file that has to actually exist.
+    foreach ([
+        '/assets/../index.html',
+        '/assets/nested/child.css',
+        '/assets/guard-does-not-exist.css',
+    ] as $path) {
+        $this->get($path)->assertNotFound();
     }
 });
 

@@ -153,13 +153,14 @@ test('the demo seeder writes NO NIK, so it adds no new 16-digit identifier', fun
         ->where('user_id', demo3cUser(DemoDataSeeder::AKUN_PASIEN)->getKey())
         ->value('id');
 
-    // F3-03 is an OPEN scope violation owned by the orchestrator: pasien.nik is
-    // a plaintext CHAR(16) with no blind index, and NIK_CIPHER_KEY is unset.
-    // This fix does not touch that, does not design around it and adds no
-    // migration. What it CAN do - and does - is decline to put another 16-digit
-    // value into the repository, so the demo data cannot make the masking
-    // question look answered when nothing in this build can answer it.
-    expect(DB::table('pasien')->where('id', $pasienId)->value('nik'))->toBeNull();
+    // F3-03 was OPEN when this was written: `pasien.nik` was a plaintext
+    // `CHAR(16)` with no blind index and `NIK_CIPHER_KEY` was unset. Migration
+    // `2026_10_01_000079` closed the storage half of it - the column is now
+    // `nik_cipher`, holding a `NikCipher` payload. What this test still asserts,
+    // and what is unaffected by that migration, is that the demo seeder adds no
+    // identifier of its own: it writes no NIK at all, so demo data cannot make
+    // the masking question look answered when nothing in it exercises one.
+    expect(DB::table('pasien')->where('id', $pasienId)->value('nik_cipher'))->toBeNull();
 
     // The demo seeder creates exactly one `pasien` row, and that row is the one
     // above - so "this seeder wrote no NIK" is a statement about a row that

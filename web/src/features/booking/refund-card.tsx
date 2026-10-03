@@ -34,18 +34,21 @@ const TREATMENT: Record<StatusRefund, Treatment> = {
     },
     diproses: {
         icon: RefreshCw,
-        className: 'text-foreground bg-warning/25 border-transparent',
-        iconClassName: 'text-warning-foreground',
+        className:
+            'text-warning-subtle-foreground bg-warning-subtle border-transparent',
+        iconClassName: 'text-warning-subtle-foreground',
     },
     berhasil: {
         icon: CircleCheck,
-        className: 'text-foreground bg-success/25 border-transparent',
-        iconClassName: 'text-success',
+        className:
+            'text-success-subtle-foreground bg-success-subtle border-transparent',
+        iconClassName: 'text-success-subtle-foreground',
     },
     ditolak: {
         icon: Ban,
-        className: 'text-foreground bg-destructive/15 border-transparent',
-        iconClassName: 'text-destructive',
+        className:
+            'text-destructive-subtle-foreground bg-destructive-subtle border-transparent',
+        iconClassName: 'text-destructive-subtle-foreground',
     },
 };
 
