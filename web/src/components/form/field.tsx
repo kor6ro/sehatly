@@ -58,6 +58,7 @@ export function useFieldControl(): FieldControlValue {
 
 export function Field({
     label,
+    hideLabel,
     errors = [],
     hint,
     required,
@@ -66,6 +67,16 @@ export function Field({
     children,
 }: {
     label: string;
+    /**
+     * Keeps the label in the accessibility tree and drops it from the page.
+     *
+     * For a control whose purpose is already stated by a heading above it - the sign-in
+     * dialog says "Masukkan Nomor Ponsel" right over the input - a second visible line
+     * is redundancy the reader has to skip, and removing it outright would leave the
+     * control unnamed for anything that does not see headings. `sr-only` is the
+     * difference: the name stays, the line does not.
+     */
+    hideLabel?: boolean;
     errors?: string[];
     hint?: string;
     required?: boolean;
@@ -98,7 +109,10 @@ export function Field({
             data-slot={slot ?? 'field'}
             className={cn('flex flex-col gap-1.5', className)}
         >
-            <Label htmlFor={id}>
+            <Label
+                htmlFor={id}
+                className={hideLabel === true ? 'sr-only' : undefined}
+            >
                 {label}
 
                 {required === true ? (

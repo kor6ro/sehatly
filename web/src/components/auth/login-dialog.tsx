@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { AlertCircle, MessageCircle, ShieldCheck, Smartphone } from 'lucide-react';
+import { AlertCircle, ChevronDown, Mail, ShieldCheck, Smartphone } from 'lucide-react';
 import { login, resendOtp, verifyOtp } from '@/lib/api/auth';
 import { ApiError, establishSession } from '@/lib/http';
 import { getDeviceId } from '@/lib/token';
@@ -55,15 +55,59 @@ const COOLDOWN_KIRIM_ULANG = 60;
 const NASIONAL = /^8\d{7,11}$/;
 
 /**
+ * The WhatsApp glyph, drawn inline because lucide ships no brand icons.
+ *
+ * The mark is not decoration: the point of a per-channel button is that the channel is
+ * recognised before it is read, and this is Meta's trademark used nominatively - naming
+ * the service the button calls - not a Sehatly mark. The words "Kirim Kode melalui
+ * WhatsApp" are always rendered next to it, so the icon never carries the meaning alone.
+ */
+function WhatsAppIcon({ className }: { className?: string }) {
+    return (
+        <svg
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            aria-hidden
+            className={className}
+        >
+            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347M12.05 21.785h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413" />
+        </svg>
+    );
+}
+
+/**
  * `/` - the sign-in dialog: one door for entering and for joining.
  *
  * ## Why this is a dialog and not a route
  *
  * The header's action is the whole reason a visitor is here, and a route costs a page
- * load to collect one phone number. The dialog also has to hold BOTH steps - number,
- * then code - because sending the visitor to a page between them is the half-measure
- * this replaces. The `/login` route still exists for a reload of `/otp` (which has no
- * other way to recover its identifier) and for anyone holding an old link.
+ * load to collect one phone number. The dialog also has to hold the whole exchange -
+ * number, then channel, then code - because sending the visitor to a page between them
+ * is the half-measure this replaces. The `/login` route still exists for a reload of
+ * `/otp` (which has no other way to recover its identifier) and for anyone holding an
+ * old link.
+ *
+ * ## Three states, and why "Lanjut" sends nothing
+ *
+ * `nomor` -> `kanal` -> `kode`.
+ *
+ * The first transition is local: it validates the digits, and it costs no request, so a
+ * typo is answered before anything is sent. The second state shows that number beside
+ * "Salah nomor? Ganti Nomor Ponsel" and the two channel buttons; typing over the number
+ * at any point drops back to `nomor`, because a changed number has to pass "Lanjut"
+ * again before the channel buttons come back.
+ *
+ * The request is made by the channel button, so nothing leaves the browser until the
+ * visitor has seen the number they are about to use.
+ *
+ * ## The SMS button is real, and it is disabled
+ *
+ * Both channels are rendered, because the choice is the point of the step. The second is
+ * `disabled` because this build ships no SMS sender: `config/otp.php` declares `sms` and
+ * `email` only to have `PemilihPengirimOtp` refuse them loudly rather than quietly
+ * deliver a WhatsApp. A button labelled SMS that sends WhatsApp is a worse thing to
+ * ship than a button that cannot be pressed, so the caption under the pair says which
+ * channel actually carries the code.
  *
  * ## The 401 on the first step means one thing only
  *
@@ -82,7 +126,7 @@ export function LoginDialog({
 }) {
     const navigate = useNavigate();
 
-    const [langkah, setLangkah] = useState<'nomor' | 'kode'>('nomor');
+    const [langkah, setLangkah] = useState<'nomor' | 'kanal' | 'kode'>('nomor');
     const [nomor, setNomor] = useState('');
     const [galatNomor, setGalatNomor] = useState<string | null>(null);
     const [sedangKirim, setSedangKirim] = useState(false);
@@ -170,10 +214,16 @@ export function LoginDialog({
         setGalatNomor(null);
     }, [open]);
 
-    async function onKirimKode(event: React.FormEvent<HTMLFormElement>): Promise<void> {
+    /**
+     * `nomor` -> `kanal`. Local only: no request, so a mistyped digit is caught before
+     * anything is sent. What it commits is the *offer* - the channel buttons are an offer
+     * for this one number - and typing over the number afterwards drops back to `nomor`,
+     * so the offer has to be made again.
+     */
+    function onLanjut(event: React.FormEvent<HTMLFormElement>): void {
         event.preventDefault();
 
-        if (sedangKirim) {
+        if (langkah !== 'nomor' || sedangKirim) {
             return;
         }
 
@@ -186,6 +236,29 @@ export function LoginDialog({
                     ? 'Gunakan 8 sampai 12 digit setelah +62, contoh 8211 6927 632.'
                     : 'Nomor ponsel Indonesia diawali 8 setelah +62, contoh 8211 6927 632.',
             );
+            return;
+        }
+
+        setGalatNomor(null);
+        setLangkah('kanal');
+    }
+
+    /**
+     * `kanal` -> `kode`. The one request across the first two states, made by the
+     * channel button rather than by "Lanjut".
+     */
+    async function onKirimKode(): Promise<void> {
+        if (sedangKirim || langkah !== 'kanal') {
+            return;
+        }
+
+        const nilai = nomor.replace(/[\s-]/g, '');
+        setServerError(null);
+
+        if (!NASIONAL.test(nilai)) {
+            // Editing the field already drops back to `nomor`, so this is only reachable
+            // if the value was somehow never valid - go back rather than send it.
+            setLangkah('nomor');
             return;
         }
 
@@ -510,14 +583,22 @@ export function LoginDialog({
                         <DialogHeader className="items-center text-center">
                             <DialogTitle>Masukkan Nomor Ponsel</DialogTitle>
 
+                            {/**
+                             * The lead phrase is emphasised the way the reference dialog
+                             * emphasises it, so the sentence says what to type before it
+                             * says what you get. It promises only what this build can
+                             * keep: a number with no account is told so below, rather
+                             * than being invited to "membuat akun baru" on the spot -
+                             * that step needs the profile form, which is not built yet.
+                             */}
                             <DialogDescription>
-                                Masukkan nomor ponsel untuk masuk ke Sehatly. Kami akan
-                                mengirim kode verifikasi ke nomor ini.
+                                <strong>Masukkan nomor ponsel</strong> untuk masuk ke
+                                Sehatly.
                             </DialogDescription>
                         </DialogHeader>
 
                         <form
-                            onSubmit={(event) => void onKirimKode(event)}
+                            onSubmit={onLanjut}
                             className="flex flex-col gap-4"
                             noValidate
                         >
@@ -552,54 +633,137 @@ export function LoginDialog({
 
                             <Field
                                 label="Nomor ponsel"
-                                hint="Nomor aktif yang bisa menerima pesan."
+                                hideLabel
                                 errors={galatNomor === null ? [] : [galatNomor]}
                                 required
                             >
                                 <div className="flex items-stretch gap-2">
+                                    {/**
+                                     * The prefix box: flag, `+62`, caret.
+                                     *
+                                     * The caret promises a country picker and Indonesia is
+                                     * the only country this endpoint accepts, so it is
+                                     * `aria-hidden` with no pointer - it reads as the
+                                     * control it is not instead of doing nothing when
+                                     * pressed. The flag is two bands of div rather than
+                                     * `🇮🇩`, which Windows renders as the letters I and D.
+                                     */}
                                     <span
                                         aria-hidden
-                                        className="bg-muted flex h-10 shrink-0 items-center rounded-md border px-3 text-sm tabular-nums"
+                                        className="bg-muted flex h-10 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-sm"
                                     >
-                                        +62
+                                        <span className="flex h-3 w-4 shrink-0 flex-col overflow-hidden rounded-[1px] ring-1 ring-black/15">
+                                            <span className="h-1/2 bg-[#ce1126]" />
+                                            <span className="h-1/2 bg-white" />
+                                        </span>
+
+                                        <span className="tabular-nums">+62</span>
+
+                                        <ChevronDown className="size-3.5 opacity-60" />
                                     </span>
 
+                                    {/**
+                                     * Editable in `kanal` too, and typing un-commits it.
+                                     *
+                                     * A `readOnly` field here would be the literal reading
+                                     * of "committed", but Chrome selects the whole value
+                                     * of a read-only input on focus - so the number
+                                     * lands highlighted, next to the link that offers to
+                                     * change it. Keeping it editable and dropping back to
+                                     * `nomor` on any change does the same job (a new
+                                     * number has to pass "Lanjut" before the channel
+                                     * buttons come back) without either the highlight or
+                                     * a field the visitor has to be told how to unlock.
+                                     */}
                                     <FieldInput
                                         type="tel"
                                         inputMode="numeric"
                                         autoComplete="tel-national"
-                                        placeholder="8211 6927 632"
-                                        className="h-10 flex-1"
+                                        placeholder="82116927632"
+                                        className="h-10 flex-1 tabular-nums"
                                         value={nomor}
-                                        onChange={(event) =>
-                                            setNomor(event.target.value)
-                                        }
+                                        onChange={(event) => {
+                                            setNomor(event.target.value);
+
+                                            if (langkah !== 'nomor') {
+                                                setLangkah('nomor');
+                                                setServerError(null);
+                                            }
+                                        }}
                                     />
                                 </div>
                             </Field>
 
-                            <Button
-                                type="submit"
-                                className="min-h-11"
-                                disabled={sedangKirim}
-                            >
-                                {sedangKirim ? (
-                                    <Spinner />
-                                ) : (
-                                    <MessageCircle aria-hidden className="size-4" />
-                                )}
+                            {langkah === 'nomor' ? (
+                                <Button
+                                    type="submit"
+                                    className="min-h-11"
+                                    disabled={sedangKirim}
+                                >
+                                    Lanjut
+                                </Button>
+                            ) : (
+                                <>
+                                    <p className="text-muted-foreground text-center text-sm">
+                                        Salah nomor?{' '}
 
-                                {sedangKirim
-                                    ? 'Mengirim kode...'
-                                    : 'Kirim Kode'}
-                            </Button>
+                                        <button
+                                            type="button"
+                                            onClick={gantiNomor}
+                                            className="text-primary font-medium underline underline-offset-4"
+                                        >
+                                            Ganti Nomor Ponsel
+                                        </button>
+                                    </p>
+
+                                    <div className="flex flex-col gap-3">
+                                        <Button
+                                            type="button"
+                                            onClick={() => void onKirimKode()}
+                                            className="min-h-11 gap-2"
+                                            disabled={sedangKirim}
+                                        >
+                                            {sedangKirim ? (
+                                                <Spinner />
+                                            ) : (
+                                                <WhatsAppIcon className="size-5" />
+                                            )}
+
+                                            {sedangKirim
+                                                ? 'Mengirim kode...'
+                                                : 'Kirim Kode melalui WhatsApp'}
+                                        </Button>
+
+                                        {/**
+                                         * Renders, and presses nothing. See the note at the
+                                         * top of the file: no SMS sender ships in this
+                                         * build, and `PemilihPengirimOtp` refuses the
+                                         * channel rather than quietly sending a WhatsApp.
+                                         */}
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            className="border-primary/40 text-primary min-h-11 gap-2"
+                                            disabled
+                                        >
+                                            <Mail aria-hidden className="size-5" />
+                                            Kirim Kode melalui SMS
+                                        </Button>
+                                    </div>
+
+                                    <p className="text-muted-foreground text-center text-xs leading-relaxed">
+                                        Kanal SMS belum tersedia. Kode dikirim melalui
+                                        WhatsApp.
+                                    </p>
+                                </>
+                            )}
 
                             <p className="text-muted-foreground text-center text-xs leading-relaxed">
-                                Dengan masuk, saya menyetujui{' '}
+                                Dengan masuk atau mendaftar, saya menyetujui{' '}
                                 <Link
                                     to="/syarat-ketentuan"
                                     onClick={tutup}
-                                    className="text-primary underline underline-offset-4 hover:underline"
+                                    className="text-primary font-medium underline underline-offset-4"
                                 >
                                     Syarat Ketentuan
                                 </Link>{' '}
@@ -607,7 +771,7 @@ export function LoginDialog({
                                 <Link
                                     to="/kebijakan-privasi"
                                     onClick={tutup}
-                                    className="text-primary underline underline-offset-4 hover:underline"
+                                    className="text-primary font-medium underline underline-offset-4"
                                 >
                                     Kebijakan Privasi
                                 </Link>{' '}
