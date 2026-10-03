@@ -729,10 +729,20 @@ test('login refuses a nonaktif or ditangguhan account before minting an OTP', fu
     expect(authSender()->countFor(OtpService::TUJUAN_LOGIN))->toBe(0);
 })->with(['nonaktif', 'ditangguhkan']);
 
-test('login requires a password and at least one identifier', function (): void {
+test('login needs no password, but still needs an identifier', function (): void {
+    authRegisterVerified();
+
+    // The passwordless shape: the OTP is the whole factor, so an identifier alone is a
+    // complete login request and must not be a 422.
     $this->postJson('/api/v1/auth/login', ['no_telepon' => authTestPhone()])
-        ->assertStatus(422)
-        ->assertJsonPath('errors.password.0', 'The kata sandi field is required.');
+        ->assertOk();
+
+    // A password that IS presented still has to be a string - `sometimes` skips the
+    // field when it is absent, never when it is present and malformed.
+    $this->postJson('/api/v1/auth/login', [
+        'no_telepon' => authTestPhone(),
+        'password' => ['bukan', 'string'],
+    ])->assertStatus(422)->assertJsonValidationErrors(['password']);
 
     $neither = $this->postJson('/api/v1/auth/login', ['password' => 'apa-saja-123']);
 

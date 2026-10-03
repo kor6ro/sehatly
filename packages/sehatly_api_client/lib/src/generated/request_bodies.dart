@@ -1102,13 +1102,10 @@ class LoginRequestBody {
   /// NO required field (the reference endpoints read their rules off the route name, so
   /// several are parameterless on some paths) would otherwise have uninitialised finals.
   const LoginRequestBody({
-    required this.password,
     this.email,
     this.noTelepon,
+    this.password,
   });
-
-  /// `password`.
-  final Object? password;
 
   /// `email`.
   final Object? email;
@@ -1116,11 +1113,14 @@ class LoginRequestBody {
   /// `no_telepon`.
   final Object? noTelepon;
 
+  /// `password`.
+  final Object? password;
+
   /// The declared field names, required first, then optional.
   static const List<String> fields = <String>[
-    'password',
     'email',
     'no_telepon',
+    'password',
   ];
 
   /// The fields the server REJECTS when sent. A tenant key, in this project, is
@@ -1134,9 +1134,9 @@ class LoginRequestBody {
   /// explicit `null` for a `sometimes` field is not the same request as omitting it.
   Map<String, Object?> toJson() {
     return <String, Object?>{
-      if (password != null) 'password': password,
       if (email != null) 'email': email,
       if (noTelepon != null) 'no_telepon': noTelepon,
+      if (password != null) 'password': password,
     };
   }
 }

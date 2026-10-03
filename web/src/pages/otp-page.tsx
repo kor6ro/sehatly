@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { AlertCircle, Check, Info, ShieldCheck } from 'lucide-react';
 import { resendOtp, verifyOtp } from '@/lib/api/auth';
@@ -6,6 +6,7 @@ import { ApiError, establishSession } from '@/lib/http';
 import { getDeviceId } from '@/lib/token';
 import { queryClient } from '@/lib/query-client';
 import { dispatchFlash } from '@/lib/flash';
+import { useCountdown } from '@/hooks/use-countdown';
 import { useDocumentTitle } from '@/hooks/use-document-title';
 import { useOnlineStatus } from '@/hooks/use-online-status';
 import {
@@ -20,130 +21,20 @@ import {
     clearPendingOtp,
     describeIdentifier,
     getPendingOtp,
+    sebutanIdentifier,
     setPendingOtp,
     type PendingOtp,
 } from '@/stores/pending-otp';
-import type { Identifier } from '@/lib/api/auth';
-import { Field, useFieldControl } from '@/components/form/field';
+import { Field } from '@/components/form/field';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import {
-    InputOTP,
-    InputOTPGroup,
-    InputOTPSlot,
-} from '@/components/ui/input-otp';
+import { OtpInput } from '@/components/auth/otp-field';
 import { OfflineBanner } from '@/components/offline-banner';
 import { AuthLayout } from '@/pages/auth-layout';
 
 /** How long the resend button stays locked after a request, in seconds. */
 const COOLDOWN_KIRIM_ULANG = 60;
-
-/**
- * The six boxes, wired to their `Field`.
- *
- * `InputOTP` renders an `<input>` with `inputMode="numeric"` and the `data-input-otp`
- * attribute, so the `Field` plumbing is applied to it by hand - `useFieldControl` is
- * exported for exactly this, and the kit's `InputOTP` cannot be modified (relocated
- * registry code). Slots are 44 px and 8 px apart so each one is a full touch target; the
- * whole row is one logical field with `autocomplete="one-time-code"`.
- */
-function OtpInput({
-    value,
-    onChange,
-    disabled,
-    inputRef,
-}: {
-    value: string;
-    onChange: (value: string) => void;
-    disabled: boolean;
-    inputRef: React.RefObject<HTMLInputElement | null>;
-}) {
-    const control = useFieldControl();
-
-    return (
-        <InputOTP
-            id={control.id}
-            ref={inputRef}
-            maxLength={KODE_OTP_PANJANG}
-            value={value}
-            onChange={onChange}
-            disabled={disabled}
-            autoComplete="one-time-code"
-            inputMode="numeric"
-            aria-invalid={control.invalid || undefined}
-            aria-describedby={control.describedBy}
-            containerClassName="justify-start"
-        >
-            <InputOTPGroup className="gap-2 tabular-nums">
-                {Array.from({ length: KODE_OTP_PANJANG }, (_unused, index) => (
-                    <InputOTPSlot
-                        key={index}
-                        index={index}
-                        className="h-11 w-11 rounded-md border text-base"
-                    />
-                ))}
-            </InputOTPGroup>
-        </InputOTP>
-    );
-}
-
-/**
- * Seconds until the code expires, counted down from the server's own
- * `kedaluwarsa_at`.
- *
- * The countdown is a **read** of the deadline, not a decision: the submit button is not
- * disabled on zero. A browser clock is not a trusted clock, and refusing to send a request
- * on the strength of a local countdown would reject a code the server would still accept -
- * which is the worse of the two failures.
- *
- * A resend replaces `kedaluwarsaAt` with the new code's own deadline, and the effect below
- * re-runs against it, so one screen never shows two timers.
- */
-function useCountdown(kedaluwarsaAt: string | null, ttlDetik: number): number {
-    const fallback = useMemo(
-        () => new Date(Date.now() + ttlDetik * 1000),
-        [ttlDetik],
-    );
-
-    const deadline = useMemo(
-        () => (kedaluwarsaAt === null ? fallback : new Date(kedaluwarsaAt)),
-        [fallback, kedaluwarsaAt],
-    );
-
-    const [remaining, setRemaining] = useState(() =>
-        Math.max(0, Math.ceil((deadline.getTime() - Date.now()) / 1000)),
-    );
-
-    useEffect(() => {
-        if (Number.isNaN(deadline.getTime())) {
-            return;
-        }
-
-        const tick = (): void => {
-            setRemaining(
-                Math.max(0, Math.ceil((deadline.getTime() - Date.now()) / 1000)),
-            );
-        };
-
-        tick();
-
-        const timer = globalThis.setInterval(tick, 1000);
-
-        return () => {
-            globalThis.clearInterval(timer);
-        };
-    }, [deadline]);
-
-    return remaining;
-}
-
-/** `nomor 0812****88` / `email na**@contoh.id`, masked, never the full identifier. */
-function sebutanIdentifier(identifier: Identifier): string {
-    const tersamar = describeIdentifier(identifier);
-
-    return 'no_telepon' in identifier ? `nomor ${tersamar}` : `email ${tersamar}`;
-}
 
 /**
  * `/otp` - the second step of both auth flows, and the only place a token is issued.

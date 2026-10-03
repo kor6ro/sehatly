@@ -49,17 +49,6 @@ function schemaFor(kind: IdentifierKind) {
                       .min(1, 'Isi nomor telepon.')
                       .max(20, 'Nomor telepon maksimal 20 karakter.')
                       .refine(apakahTeleponValid, PESAN_TELEPON_FORMAT),
-        password: z
-            .string()
-            .min(1, 'Isi kata sandi.')
-            /**
-             * Deliberately only a presence check, matching `LoginRequest`. The server
-             * applies no minimum on login, on purpose: an account whose password predates
-             * a policy change must not be refused as "too short" before the hash is even
-             * compared. A client-side minimum here would reintroduce exactly that bug, in
-             * the one place the server deliberately left it out.
-             */
-            .max(255, 'Kata sandi maksimal 255 karakter.'),
     });
 }
 
@@ -112,7 +101,7 @@ export function LoginPage() {
         formState: { errors, isSubmitting },
     } = useForm<LoginForm>({
         resolver: zodResolver(schemaFor(kind)),
-        defaultValues: { identifier: '', password: '' },
+        defaultValues: { identifier: '' },
     });
 
     if (getAccessToken() !== null) {
@@ -125,7 +114,7 @@ export function LoginPage() {
         const identifier = toIdentifier(values, kind);
 
         try {
-            const result = await login({ ...identifier, password: values.password });
+            const result = await login(identifier);
 
             setPendingOtp({
                 identifier,
@@ -259,22 +248,6 @@ export function LoginPage() {
                     </Button>
                 </div>
 
-                <Field
-                    label="Kata sandi"
-                    errors={
-                        errors.password?.message === undefined
-                            ? []
-                            : [errors.password.message]
-                    }
-                    required
-                >
-                    <FieldInput
-                        type="password"
-                        autoComplete="current-password"
-                        {...register('password')}
-                    />
-                </Field>
-
                 <Button type="submit" className="min-h-11" disabled={isSubmitting}>
                     {isSubmitting ? <Spinner /> : null}
 
@@ -307,7 +280,7 @@ function fieldErrorsOf(error: unknown, kind: IdentifierKind): string[] {
     return error.fieldErrors(kind);
 }
 
-type SetFieldError = (name: 'password' | 'identifier', value: { message: string }) => void;
+type SetFieldError = (name: 'identifier', value: { message: string }) => void;
 
 function applyLoginFailure(
     error: unknown,
@@ -333,11 +306,5 @@ function applyLoginFailure(
 
     if (identifierMessages.length > 0) {
         setError('identifier', { message: identifierMessages[0] ?? '' });
-    }
-
-    const passwordMessages = error.fieldErrors('password');
-
-    if (passwordMessages.length > 0) {
-        setError('password', { message: passwordMessages[0] ?? '' });
     }
 }

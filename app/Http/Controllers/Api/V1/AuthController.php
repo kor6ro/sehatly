@@ -256,25 +256,44 @@ class AuthController extends Controller
     /**
      * `POST /api/v1/auth/login`
      *
-     * Checks the password and mints a `login` OTP. **Returns no token**, on purpose:
-     * a phone-proved second factor is only a control while the second step still
+     * Mints a `login` OTP for a registered, active account. **Returns no token**, on
+     * purpose: a phone-proved factor is only a control while the second step still
      * requires the phone.
+     *
+     * ## The password is checked only when the request carries one
+     *
+     * The sign-in screen sends none, so the OTP is what admits the caller; a client
+     * that still presents a password has it verified exactly as before. The reasoning
+     * is {@see LoginRequest}'s.
+     *
+     * ## What this costs while `/auth/register` is still a separate door
+     *
+     * An unknown identifier answers 401 and a known one answers 200, so a caller that
+     * omits the password CAN tell the two apart - the decoy hash below only equalises
+     * the response *time*, and only for a caller that sends a password at all. That is
+     * a deliberate, temporary trade. Closing it needs an unknown number to be answered
+     * the way a known one is: mint the account on the spot rather than refuse it, which
+     * is the one-door flow this endpoint is moving towards. Until it does that, this
+     * endpoint enumerates.
      *
      * An unknown identifier and a wrong password produce the same 401 body. The decoy
      * hash in {@see passwordMatches()} makes the two also take the same time, so the
-     * endpoint is not a phone-number oracle.
+     * endpoint is not a phone-number oracle to a caller that sends a password.
      */
     public function login(LoginRequest $request): JsonResponse
     {
         $input = $request->validated();
+        $kataSandi = $input['password'] ?? null;
 
         $user = $this->resolveUser($request);
 
         if ($user === null) {
-            // Spend the same bcrypt time as a real verification, then answer exactly
-            // as a wrong password does. Without the call, this branch returns in the
-            // time of one indexed lookup and the endpoint becomes a timing oracle.
-            $this->passwordMatches((string) $input['password'], null);
+            // Spend the same bcrypt time as a real verification whenever a password was
+            // presented. Without the call, this branch returns in the time of one indexed
+            // lookup and the endpoint becomes a timing oracle.
+            if (is_string($kataSandi) && $kataSandi !== '') {
+                $this->passwordMatches($kataSandi, null);
+            }
 
             return ApiResponse::error(
                 'Nomor telepon, email, atau kata sandi salah.',
@@ -283,7 +302,11 @@ class AuthController extends Controller
             );
         }
 
-        if (! $this->passwordMatches((string) $input['password'], $user)) {
+        if (
+            is_string($kataSandi)
+            && $kataSandi !== ''
+            && ! $this->passwordMatches($kataSandi, $user)
+        ) {
             return ApiResponse::error(
                 'Nomor telepon, email, atau kata sandi salah.',
                 [],

@@ -127,3 +127,17 @@ export function describeIdentifier(identifier: Identifier): string {
 
     return `${email.slice(0, 2)}${'*'.repeat(Math.max(at - 2, 1))}${email.slice(at)}`;
 }
+
+/**
+ * `nomor 0812****88` / `email na**@contoh.id`, masked, never the full identifier.
+ *
+ * The prefix says which kind of identifier it is, because the mask alone (`0812****88`)
+ * does not and a screen that says only "we sent it to 0812****88" leaves the reader to
+ * infer it. Lives here next to {@link describeIdentifier} because it is the same mask
+ * with a word in front of it - the OTP page and the sign-in dialog both need it.
+ */
+export function sebutanIdentifier(identifier: Identifier): string {
+    const tersamar = describeIdentifier(identifier);
+
+    return 'no_telepon' in identifier ? `nomor ${tersamar}` : `email ${tersamar}`;
+}

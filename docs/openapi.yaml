@@ -5412,8 +5412,7 @@ components:
         password:
           type: string
           x-laravel-rule: [string, 'max:255']
-      required:
-        - password
+      required: []
       additionalProperties: false
       x-enum-fields: []
     LogoutAllRequestBody:

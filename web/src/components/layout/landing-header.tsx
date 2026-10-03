@@ -27,6 +27,7 @@ import {
     SheetTrigger,
 } from '@/components/ui/sheet';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
+import { LoginDialog } from '@/components/auth/login-dialog';
 import { getAccessToken } from '@/lib/token';
 import { cn } from '@/lib/utils';
 
@@ -222,19 +223,25 @@ function NavList({
 /**
  * The right-hand action cluster.
  *
- * The single decision it makes is which one of two buttons a visitor needs: nobody has
- * a session yet, so the choice is "sign in" plus the adjacent "register"; somebody does,
- * so the choice collapses to one route into the app. `getAccessToken()` is read on render
- * rather than cached, because this header mounts once per page load and the token is
- * written by the OTP screen in the same session.
+ * The single decision it makes is what the visitor is here to do: nobody has a session,
+ * so the action is "Masuk"; somebody does, and it collapses to one route into the app.
+ * `getAccessToken()` is read on render rather than cached, because this header mounts
+ * once per page load and the token is written by the OTP step in the same session.
  *
- * There is deliberately no "Daftar" button here. The bar offers one door, which is how
- * the front page this header is modelled on behaves: a visitor without an account
- * presses "Masuk" and meets `Belum punya akun? Daftar` in the `auth-layout` footer, so
- * registering is still one click from the same place - it is simply not a second button
- * competing with the one action the bar exists for.
+ * There is deliberately no "Daftar" button here, and "Masuk" opens a dialog rather than
+ * navigating: the bar offers one door, which is how the front page this header is modelled
+ * on behaves, and a visitor without an account meets "Nomor belum terdaftar" inside that
+ * dialog with the one action that fixes it. `onMasuk` is handed in rather than this
+ * component owning a dialog, because it renders twice - top bar and mobile sheet - and two
+ * instances would each hold their own challenge and race over `sessionStorage`.
  */
-function ActionButtons({ className }: { className?: string }) {
+function ActionButtons({
+    className,
+    onMasuk,
+}: {
+    className?: string;
+    onMasuk: () => void;
+}) {
     const authenticated = getAccessToken() !== null;
 
     if (authenticated) {
@@ -252,8 +259,8 @@ function ActionButtons({ className }: { className?: string }) {
 
     return (
         <div className={cn('flex items-center gap-2', className)}>
-            <Button asChild className="rounded-lg font-medium">
-                <Link to="/login">Masuk</Link>
+            <Button onClick={onMasuk} className="rounded-lg font-medium">
+                Masuk
             </Button>
         </div>
     );
@@ -261,6 +268,7 @@ function ActionButtons({ className }: { className?: string }) {
 
 export function LandingHeader() {
     const [open, setOpen] = useState(false);
+    const [loginOpen, setLoginOpen] = useState(false);
 
     return (
         <header
@@ -295,7 +303,7 @@ export function LandingHeader() {
                 */}
                 <ThemeToggle className="ml-auto" />
 
-                <ActionButtons />
+                <ActionButtons onMasuk={() => setLoginOpen(true)} />
 
                 <Sheet open={open} onOpenChange={setOpen}>
                     <SheetTrigger asChild>
@@ -332,7 +340,15 @@ export function LandingHeader() {
                             }}
                         />
 
-                        <ActionButtons className="mt-auto px-4 pb-4" />
+                        <ActionButtons
+                            className="mt-auto px-4 pb-4"
+                            onMasuk={() => {
+                                // The sheet closes first: two overlays stacked on one
+                                // Escape press is a fight the user always loses.
+                                setOpen(false);
+                                setLoginOpen(true);
+                            }}
+                        />
                         {/*
                             No custom close button here: `SheetContent` already renders
                             `SheetPrimitive.Close` (with a screen-reader "Tutup" label) at
@@ -342,6 +358,13 @@ export function LandingHeader() {
                         */}
                     </SheetContent>
                 </Sheet>
+
+                {/*
+                    One dialog for the whole header. Both "Masuk" buttons reach it through
+                    `onMasuk`, so the top bar and the sheet cannot each be mid-challenge at
+                    the same time.
+                */}
+                <LoginDialog open={loginOpen} onOpenChange={setLoginOpen} />
             </div>
         </header>
     );

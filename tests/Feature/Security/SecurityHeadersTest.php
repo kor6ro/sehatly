@@ -264,7 +264,14 @@ test('the header set is identical on an authenticated response and on the 401 th
 });
 
 test('a validation failure carries the headers and keeps the 422 envelope', function (): void {
-    $response = $this->postJson('/api/v1/auth/login', ['no_telepon' => headerTestPhone()]);
+    // The password is no longer REQUIRED (`LoginRequest` makes it `sometimes`, because
+    // the sign-in screen sends none), so a bare identifier is a well-formed request now.
+    // What this test owns is the 422 ENVELOPE and the headers riding on it, so it is
+    // given a genuinely malformed password instead - a present field of the wrong shape.
+    $response = $this->postJson('/api/v1/auth/login', [
+        'no_telepon' => headerTestPhone(),
+        'password' => ['bukan', 'string'],
+    ]);
 
     $response->assertStatus(422)->assertJsonPath('success', false);
     assertSecurityHeaders($response);

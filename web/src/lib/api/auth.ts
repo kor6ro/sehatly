@@ -33,7 +33,16 @@ export type Identifier =
     | { email: string; no_telepon?: never };
 
 export type LoginInput = Identifier & {
-    password: string;
+    /**
+     * Present only for a client that still carries a password.
+     *
+     * The sign-in screen sends none: `LoginRequest` makes the field `sometimes`, so an
+     * identifier alone is a complete `/auth/login` request and the OTP is what admits the
+     * caller. A password that IS sent is verified exactly as it always was - see
+     * `LoginRequest` for why leaving the check in place while the screen stopped sending
+     * one is the honest shape rather than a bypass.
+     */
+    password?: string;
 };
 
 export type RegisterInput = {
@@ -76,9 +85,10 @@ export function login(input: LoginInput) {
     return request<{ otp: OtpChallenge }>('auth/login', {
         method: 'POST',
         json: input,
-        // A 401 here is a wrong password, and the transport must not try to recover from
-        // it: `afterResponse` would attempt a refresh, find no refresh token, and sign
-        // the (already anonymous) visitor out.
+        // A 401 here is an unregistered identifier (or a wrong password, for a client
+        // that still sends one), and the transport must not try to recover from it:
+        // `afterResponse` would attempt a refresh, find no refresh token, and sign the
+        // (already anonymous) visitor out.
         retry: 0,
     });
 }
