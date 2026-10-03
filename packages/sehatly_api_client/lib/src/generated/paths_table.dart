@@ -210,6 +210,16 @@ const List<String> apiv1authlogoutAllMethods = <String>[
   'POST',
 ];
 
+/// `/api/v1/auth/otp/kanal`
+///
+/// Answers: GET (`auth.otp.kanal`).
+const String apiv1authotpkanal = '/api/v1/auth/otp/kanal';
+
+/// The HTTP methods `apiv1authotpkanal` answers.
+const List<String> apiv1authotpkanalMethods = <String>[
+  'GET',
+];
+
 /// `/api/v1/auth/otp/resend`
 ///
 /// Answers: POST (`auth.otp.resend`).

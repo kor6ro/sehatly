@@ -113,6 +113,15 @@ Route::prefix('auth')->name('auth.')->group(function (): void {
         ->middleware('throttle:auth-otp-resend')
         ->name('otp.resend');
 
+    // Anonymous, and deliberately unthrottled. It answers one question about the
+    // deployment - which transport OTPs actually go out on - with no identifier in and
+    // none out, so there is nothing to enumerate and nothing worth rate-limiting; the
+    // public GETs in this file are unthrottled for the same reason. A client reads it
+    // BEFORE login so the send button can be labelled truthfully, which is why
+    // `AuthController::otpKanal()` exists rather than a build-time copy of the driver.
+    Route::get('otp/kanal', [AuthController::class, 'otpKanal'])
+        ->name('otp.kanal');
+
     Route::post('refresh', [AuthController::class, 'refresh'])
         ->middleware('throttle:auth-refresh')
         ->name('refresh');

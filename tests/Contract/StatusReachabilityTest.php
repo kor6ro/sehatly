@@ -121,12 +121,13 @@ it('binds every published 401 and 403 to the same error envelope', function (): 
     }
 });
 
-it('publishes a 404 for all 111 operations, bound to the error envelope', function (): void {
+it('publishes a 404 for all 112 operations, bound to the error envelope', function (): void {
     // Structural, not reachability. The claim is that no operation advertises a
-    // 404 the error envelope cannot describe, and that the count is 111 -- so a
+    // 404 the error envelope cannot describe, and that the count is 112 -- so a
     // route appearing or disappearing moves this number rather than passing
     // quietly. F04 added the three review routes, which is the 102 -> 105 move;
-    // F11 added the six preference/reminder routes, which is 105 -> 111.
+    // F11 added the six preference/reminder routes, which is 105 -> 111; the
+    // sign-in dialog's `GET /auth/otp/kanal` is the 111 -> 112 move.
     $count = 0;
 
     foreach (ContractSpec::specOperations() as $key => $operation) {
@@ -137,7 +138,7 @@ it('publishes a 404 for all 111 operations, bound to the error envelope', functi
         $count++;
     }
 
-    expect($count)->toBe(111);
+    expect($count)->toBe(112);
 });
 
 it('publishes 401 and 403 together, or neither, on every bearer operation', function (): void {

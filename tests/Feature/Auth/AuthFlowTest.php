@@ -1472,7 +1472,7 @@ test('every device endpoint refuses an unauthenticated caller with the 401 envel
 // Contracts the endpoints depend on
 // =====================================================================
 
-test('the route table exposes exactly the ten module 1 auth routes with the expected middleware', function (): void {
+test('the route table exposes exactly the eleven module 1 auth routes with the expected middleware', function (): void {
     $routes = collect(Route::getRoutes()->getRoutes())
         ->filter(fn ($route): bool => str_starts_with($route->uri(), 'api/v1/auth'))
         ->keyBy(fn ($route): string => $route->methods()[0].' '.$route->uri())
@@ -1483,6 +1483,7 @@ test('the route table exposes exactly the ten module 1 auth routes with the expe
         'POST api/v1/auth/login',
         'POST api/v1/auth/otp/verify',
         'POST api/v1/auth/otp/resend',
+        'GET api/v1/auth/otp/kanal',
         'POST api/v1/auth/refresh',
         'POST api/v1/auth/logout',
         'POST api/v1/auth/logout-all',
@@ -1507,6 +1508,17 @@ test('the route table exposes exactly the ten module 1 auth routes with the expe
         ->and($middlewareFor('GET api/v1/auth/devices'))->toContain('auth:sanctum')
         ->and($middlewareFor('POST api/v1/auth/devices'))->toContain('auth:sanctum')
         ->and($middlewareFor('DELETE api/v1/auth/devices/{deviceId}'))->toContain('auth:sanctum');
+
+    // The channel read must stay reachable BEFORE login - that is its entire job - and
+    // unthrottled like every other public GET in this file: no identifier goes in, so
+    // there is no account to enumerate and no work to make scarce.
+    $kanal = $middlewareFor('GET api/v1/auth/otp/kanal');
+
+    expect($kanal)->not->toContain('auth:sanctum')
+        ->and(array_filter(
+            $kanal,
+            static fn (string $m): bool => str_starts_with($m, 'throttle:'),
+        ))->toBeEmpty();
 });
 
 test('every permission and tipe string in routes/api.php resolves against the RbacCatalog', function (): void {

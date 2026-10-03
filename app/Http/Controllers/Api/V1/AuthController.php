@@ -42,7 +42,8 @@ use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Module 1's authentication surface: register, login, OTP verify, refresh, logout and
- * device management.
+ * device management - plus one anonymous read of the channel OTPs actually go out on
+ * ({@see otpKanal()}), which a client needs before it can label a send button.
  *
  * ## This is a token + OTP API, not a session API
  *
@@ -403,6 +404,53 @@ class AuthController extends Controller
                 'kanal' => PemilihPengirimOtp::kanalAktif(),
             ],
         ], $pesan);
+    }
+
+    /**
+     * `GET /api/v1/auth/otp/kanal`
+     *
+     * The channel the ACTIVE OTP driver delivers over, published BEFORE anything is
+     * sent - so a sign-in dialog can name the channel on the button a visitor is about
+     * to press.
+     *
+     * ## Why the client cannot simply already know this
+     *
+     * The two obvious ways to put it in front of the UI both fail in a way this
+     * project already has a name for:
+     *
+     * - **Copy `OTP_DRIVER` into the client build.** `web/vite.config.ts` sets no
+     *   `envDir`, so Vite reads `web/.env` and not the project `.env` a deployment is
+     *   configured through; `VITE_APP_NAME` already sits in the latter, where Vite
+     *   never reads it. Two files holding one fact is the same silent
+     *   contract-versus-transport drift `PenjagaPengirimanProduksi` refuses at boot,
+     *   relocated to a layer where nothing would catch it.
+     * - **Read it off the send response.** By then the button has been pressed and the
+     *   label under it already read.
+     *
+     * So the value comes from the one place that decides it,
+     * {@see PemilihPengirimOtp::kanalAktif()} - the same accessor `otp/resend`
+     * publishes as `otp.kanal`, which is why the two can never disagree.
+     *
+     * ## `log` is a normal answer, not an error
+     *
+     * `PenjagaPengirimanProduksi` permits the log transport only in
+     * `local`/`testing`, and maps it to the `log` channel. A client reporting it
+     * honestly shows a neutral label and no channel picker, instead of offering
+     * WhatsApp and SMS to a visitor who will be sent neither.
+     *
+     * ## Nothing about the caller
+     *
+     * One question about the deployment - what transport this build sends on - with
+     * no identifier in and none out. There is no account to enumerate and no work to
+     * throttle, which is the same reason `GET /dokter` and the fourteen reference
+     * lookups carry no throttle of their own.
+     */
+    public function otpKanal(): JsonResponse
+    {
+        return ApiResponse::success(
+            ['kanal' => PemilihPengirimOtp::kanalAktif()],
+            'Kanal pengiriman OTP aktif.',
+        );
     }
 
     /**

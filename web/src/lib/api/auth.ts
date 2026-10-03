@@ -1,4 +1,4 @@
-import { mutationOptions } from '@tanstack/react-query';
+import { mutationOptions, queryOptions } from '@tanstack/react-query';
 import { request, type IssuedToken } from '@/lib/http';
 import type { OtpChallenge, OtpTujuan, User } from '@/lib/api/types';
 
@@ -157,6 +157,51 @@ export function resendOtp(input: ResendOtpInput) {
         method: 'POST',
         json: input,
         retry: 0,
+    });
+}
+
+export type KanalOtpResult = {
+    /**
+     * The channel the ACTIVE OTP driver actually delivers over: `log` for the local
+     * stand-in, `whatsapp` once `OTP_DRIVER=fonnte`.
+     *
+     * Read from the server rather than baked into the build, because the two files
+     * that could hold it are DIFFERENT files. `web/vite.config.ts` sets no `envDir`,
+     * so Vite reads `web/.env` and not the project `.env` a deployment is configured
+     * through - `VITE_APP_NAME` already sits in the latter, where Vite never reads it.
+     * One fact in two places is exactly the silent contract-versus-transport drift
+     * `PenjagaPengirimanProduksi` refuses at boot, relocated to a layer with nothing
+     * to catch it.
+     */
+    kanal: string;
+};
+
+export const kanalOtpQueryKey = ['v1', 'auth', 'otp', 'kanal'] as const;
+
+/**
+ * `GET /api/v1/auth/otp/kanal`
+ *
+ * The channel read, taken before any credential exists, because a sign-in dialog has to
+ * name the transport on the button a visitor is about to press - and once the send
+ * response arrives, that label has already been read.
+ */
+export function kanalOtp() {
+    return request<KanalOtpResult>('auth/otp/kanal');
+}
+
+/**
+ * Deployment configuration, so a half-hour `staleTime` rather than the module-wide 30 s.
+ *
+ * `config('otp.driver')` cannot change while the server runs: the value is fixed by the
+ * deploy, so refetching on every dialog open would be freshness bought on something with
+ * no freshness to buy. Thirty minutes stays correct across a redeploy without ever
+ * putting the request on a visitor's critical path.
+ */
+export function kanalOtpOptions() {
+    return queryOptions({
+        queryKey: kanalOtpQueryKey,
+        queryFn: kanalOtp,
+        staleTime: 1_800_000,
     });
 }
 

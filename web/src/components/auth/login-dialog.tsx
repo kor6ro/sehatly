@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router';
 import { AlertCircle, ChevronDown, Mail, ShieldCheck, Smartphone } from 'lucide-react';
-import { login, resendOtp, verifyOtp } from '@/lib/api/auth';
+import { kanalOtpOptions, login, resendOtp, verifyOtp } from '@/lib/api/auth';
 import { ApiError, establishSession } from '@/lib/http';
 import { getDeviceId } from '@/lib/token';
 import { queryClient } from '@/lib/query-client';
@@ -100,14 +101,31 @@ function WhatsAppIcon({ className }: { className?: string }) {
  * The request is made by the channel button, so nothing leaves the browser until the
  * visitor has seen the number they are about to use.
  *
- * ## The SMS button is real, and it is disabled
+ * ## The send button labels the channel the SERVER reports
  *
- * Both channels are rendered, because the choice is the point of the step. The second is
- * `disabled` because this build ships no SMS sender: `config/otp.php` declares `sms` and
- * `email` only to have `PemilihPengirimOtp` refuse them loudly rather than quietly
- * deliver a WhatsApp. A button labelled SMS that sends WhatsApp is a worse thing to
- * ship than a button that cannot be pressed, so the caption under the pair says which
- * channel actually carries the code.
+ * `GET /auth/otp/kanal` answers which transport this deployment really sends on, and
+ * the button is written from it: `whatsapp` renders "Kirim Kode melalui WhatsApp" with
+ * the glyph, anything else renders "Kirim Kode" with no glyph at all. "Kirim Kode" is
+ * true under every driver, which is what makes it the right text while the query is
+ * pending and the right fallback if it fails - the label can only ever be REFINED
+ * toward a named transport once one is confirmed, never asserted first and walked back.
+ *
+ * A build-time copy was the alternative, and it is not one: `web/vite.config.ts` sets no
+ * `envDir`, so `VITE_*` reads `web/.env` rather than the project `.env` a deployment is
+ * configured through - which is why `VITE_APP_NAME` sits unread in the latter today.
+ * See `AuthController::otpKanal()` for the full argument.
+ *
+ * ## The SMS button appears only where WhatsApp does, and it is pressed by nobody
+ *
+ * It renders solely when the reported channel is `whatsapp`, because that is the one
+ * case in which offering a second channel says anything. It stays `disabled`: this
+ * build ships no SMS sender, and `config/otp.php` declares `sms` and `email` only to
+ * have `PemilihPengirimOtp` refuse them loudly rather than quietly deliver a WhatsApp.
+ * A button labelled SMS that sends WhatsApp is worse than one that cannot be pressed,
+ * so the caption under the pair names the transport that really carries the code.
+ *
+ * Where the channel is `log` there is no channel to choose between, so no picker is
+ * rendered at all.
  *
  * ## The 401 on the first step means one thing only
  *
@@ -140,6 +158,31 @@ export function LoginDialog({
     const [resendNotice, setResendNotice] = useState<string | null>(null);
     const [resendCooldown, setResendCooldown] = useState(0);
     const [upayaFokus, setUpayaFokus] = useState(0);
+
+    /**
+     * Which transport this deployment actually sends OTPs on, read before it matters.
+     *
+     * The button in the `kanal` step is written from this rather than from a constant;
+     * see `kanalOtpOptions()` in `lib/api/auth.ts` for why the client is not simply told
+     * at build time.
+     */
+    const kanalQuery = useQuery(kanalOtpOptions());
+
+    /**
+     * The reported channel, or `undefined` while the read is pending or has failed.
+     *
+     * `undefined` is deliberately not an error state to show: "Kirim Kode" is true under
+     * every driver, so the button is already correct with no answer at all. The label
+     * can therefore only ever be REFINED toward a named transport once one is
+     * confirmed - never asserted first and walked back afterwards.
+     */
+    const viaWhatsApp = kanalQuery.data?.data.kanal === 'whatsapp';
+
+    const labelKirimKode = sedangKirim
+        ? 'Mengirim kode...'
+        : viaWhatsApp
+          ? 'Kirim Kode melalui WhatsApp'
+          : 'Kirim Kode';
 
     const verifyLock = useRef(false);
     const resendLock = useRef(false);
@@ -717,6 +760,13 @@ export function LoginDialog({
                                     </p>
 
                                     <div className="flex flex-col gap-3">
+                                        {/**
+                                         * The glyph appears only once the server has
+                                         * confirmed `whatsapp`. An icon of a channel this
+                                         * deployment does not send over is the same lie
+                                         * the words would be, and it is seen before the
+                                         * words are.
+                                         */}
                                         <Button
                                             type="button"
                                             onClick={() => void onKirimKode()}
@@ -725,36 +775,41 @@ export function LoginDialog({
                                         >
                                             {sedangKirim ? (
                                                 <Spinner />
-                                            ) : (
+                                            ) : viaWhatsApp ? (
                                                 <WhatsAppIcon className="size-5" />
-                                            )}
+                                            ) : null}
 
-                                            {sedangKirim
-                                                ? 'Mengirim kode...'
-                                                : 'Kirim Kode melalui WhatsApp'}
+                                            {labelKirimKode}
                                         </Button>
 
                                         {/**
-                                         * Renders, and presses nothing. See the note at the
-                                         * top of the file: no SMS sender ships in this
-                                         * build, and `PemilihPengirimOtp` refuses the
+                                         * Only where WhatsApp is the real channel, and
+                                         * pressable by nobody either way. See the note at
+                                         * the top of this file: no SMS sender ships in
+                                         * this build, and `PemilihPengirimOtp` refuses the
                                          * channel rather than quietly sending a WhatsApp.
+                                         * Under `log` there is no channel to choose
+                                         * between, so no picker renders at all.
                                          */}
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            className="border-primary/40 text-primary min-h-11 gap-2"
-                                            disabled
-                                        >
-                                            <Mail aria-hidden className="size-5" />
-                                            Kirim Kode melalui SMS
-                                        </Button>
+                                        {viaWhatsApp ? (
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                className="border-primary/40 text-primary min-h-11 gap-2"
+                                                disabled
+                                            >
+                                                <Mail aria-hidden className="size-5" />
+                                                Kirim Kode melalui SMS
+                                            </Button>
+                                        ) : null}
                                     </div>
 
-                                    <p className="text-muted-foreground text-center text-xs leading-relaxed">
-                                        Kanal SMS belum tersedia. Kode dikirim melalui
-                                        WhatsApp.
-                                    </p>
+                                    {viaWhatsApp ? (
+                                        <p className="text-muted-foreground text-center text-xs leading-relaxed">
+                                            Kanal SMS belum tersedia. Kode dikirim
+                                            melalui WhatsApp.
+                                        </p>
+                                    ) : null}
                                 </>
                             )}
 

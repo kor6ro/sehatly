@@ -136,6 +136,47 @@ test('resend issues a new code, closes the previous one, and reports the channel
     ])->assertOk();
 });
 
+test('the channel read reports the same channel resend reports, and needs no credential', function (): void {
+    // A sign-in dialog labels its send button from this BEFORE it has asked for a
+    // number, so it must answer unauthenticated and with no body - and it must never
+    // disagree with what `otp/resend` reports afterwards, or the button would have
+    // promised one transport while the code went over another. Both sides read
+    // `PemilihPengirimOtp::kanalAktif()`, which is what makes that structural rather
+    // than a coincidence this test merely observes.
+    $response = $this->getJson('/api/v1/auth/otp/kanal');
+
+    $response->assertOk();
+    $response->assertJsonPath('success', true);
+    $response->assertJsonStructure(['success', 'data' => ['kanal'], 'message']);
+
+    // `phpunit.xml` leaves OTP_DRIVER at its `log` default, so this is `log`; the
+    // `fonnte` => `whatsapp` mapping is asserted in `FonnteOtpSenderTest`.
+    $response->assertJsonPath('data.kanal', 'log');
+
+    // Agreement must hold for an account nobody has ever registered, because resend
+    // answers unknown identifiers with the same envelope and the same channel.
+    $this->postJson('/api/v1/auth/otp/resend', [
+        'no_telepon' => ortPhone(),
+        'tujuan' => OtpService::TUJUAN_VERIFIKASI_TELEPON,
+    ])->assertOk()->assertJsonPath('data.otp.kanal', $response->json('data.kanal'));
+});
+
+test('the channel read follows the configured driver, naming whatsapp once fonnte is selected', function (): void {
+    // The half the test above cannot cover: that the answer MOVES when the deployment
+    // does, which is the entire reason the read exists rather than a constant in the
+    // client. `PenjagaPengirimanProduksi` returns early in `local`, so the driver can
+    // point at `fonnte` without a token - and `PemilihPengirimOtp::kanal()` maps it by
+    // driver alone, so the response has to say `whatsapp` here.
+    //
+    // Without this, a client asserting "show the WhatsApp button" would have no test
+    // proving anything ever sets that value.
+    config(['otp.driver' => 'fonnte']);
+
+    $this->getJson('/api/v1/auth/otp/kanal')
+        ->assertOk()
+        ->assertJsonPath('data.kanal', 'whatsapp');
+});
+
 test('resend answers the same body for a registered and an unknown account', function (): void {
     // Frozen so `kedaluwarsa_at` is byte-identical, not merely close. Without
     // this the assertion would compare two different instants and fail for a
