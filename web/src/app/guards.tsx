@@ -2,6 +2,7 @@ import { Link, Navigate, Outlet, useLocation } from 'react-router';
 import { getAccessToken } from '@/lib/token';
 import { EmptyState } from '@/components/states/empty-state';
 import { PageHeader } from '@/components/layout/page-header';
+import { LandingHeader } from '@/components/layout/landing-header';
 import { Button } from '@/components/ui/button';
 
 /**
@@ -52,44 +53,47 @@ export function RootPage() {
     const authenticated = getAccessToken() !== null;
 
     return (
-        <main className="flex min-h-screen flex-col gap-6 p-4 md:p-6">
-            <PageHeader
-                title="Sehatly"
-                description="Telemedicine untuk pasien Indonesia."
-            />
+        <div className="bg-background flex min-h-screen flex-col">
+            <LandingHeader />
 
-            <EmptyState
-                title="Pilih tujuan"
-                description={
-                    authenticated
-                        ? 'Anda sudah masuk. Lanjutkan ke dashboard atau direktori dokter.'
-                        : 'Masuk untuk membuka profil, anggota keluarga, dan data alergi, atau lihat direktori dokter tanpa masuk.'
-                }
-                action={
-                    <div className="flex flex-wrap items-center justify-center gap-2">
-                        <Button asChild>
-                            <Link
-                                to={
-                                    authenticated ? '/dashboard' : '/login'
-                                }
-                            >
-                                {authenticated ? 'Dashboard' : 'Masuk'}
-                            </Link>
-                        </Button>
+            <main className="mx-auto flex w-full max-w-[1280px] flex-1 flex-col gap-6 px-4 py-8 md:px-6">
+                <PageHeader title="Telemedicine untuk pasien Indonesia" />
 
-                        <Button asChild variant="outline">
-                            <Link to="/dokter">Direktori dokter</Link>
-                        </Button>
-
-                        {authenticated ? null : (
-                            <Button asChild variant="ghost">
-                                <Link to="/register">Daftar</Link>
+                <EmptyState
+                    title="Pilih tujuan"
+                    description={
+                        authenticated
+                            ? 'Anda sudah masuk. Lanjutkan ke dashboard atau direktori dokter.'
+                            : 'Masuk untuk membuka profil, anggota keluarga, dan data alergi, atau lihat direktori dokter tanpa masuk.'
+                    }
+                    action={
+                        <div className="flex flex-wrap items-center justify-center gap-2">
+                            <Button asChild>
+                                <Link
+                                    to={
+                                        authenticated ? '/dashboard' : '/login'
+                                    }
+                                >
+                                    {authenticated
+                                        ? 'Dashboard'
+                                        : 'Masuk'}
+                                </Link>
                             </Button>
-                        )}
-                    </div>
-                }
-            />
-        </main>
+
+                            <Button asChild variant="outline">
+                                <Link to="/dokter">Direktori dokter</Link>
+                            </Button>
+
+                            {authenticated ? null : (
+                                <Button asChild variant="ghost">
+                                    <Link to="/register">Daftar</Link>
+                                </Button>
+                            )}
+                        </div>
+                    }
+                />
+            </main>
+        </div>
     );
 }
 
