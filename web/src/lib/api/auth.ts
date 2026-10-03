@@ -86,10 +86,16 @@ export function login(input: LoginInput) {
         method: 'POST',
         json: input,
         // A 401 here is an unregistered identifier (or a wrong password, for a client
-        // that still sends one), and the transport must not try to recover from it:
-        // `afterResponse` would attempt a refresh, find no refresh token, and sign the
-        // (already anonymous) visitor out.
+        // that still sends one): the endpoint ANSWERING, not a session that expired.
+        //
+        // `retry: 0` does not cover this and never did - ky runs `afterResponse` after
+        // every response regardless of the retry budget - so the transport is told
+        // directly. Without the flag it found no refresh token, called
+        // `endSession(null)`, and `RootLayout`'s subscriber threw the visitor out to
+        // `/login` with no flash: the OTP step never rendered. See
+        // `RequestOptions.authRejection`.
         retry: 0,
+        authRejection: true,
     });
 }
 

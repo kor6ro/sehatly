@@ -21,6 +21,46 @@ const origin = import.meta.env.VITE_API_ORIGIN ?? '';
 const pristineRequests = new WeakMap<Request, Request>();
 
 /**
+ * Per-request options on top of ky's own {@link Options}.
+ *
+ * ky carries a flag like this all the way to the hooks without any help:
+ * `createInstance` deep-merges the call's options into the instance's
+ * (`validateAndMerge` copies **every** key it is given), `Ky` builds its option record
+ * with `{ ...options }`, and `#getNormalizedOptions()` hands the rest of that record to
+ * `afterResponse` as `options`. So a request can describe its own 401 and the transport
+ * never has to learn an endpoint's path - which this file deliberately does not know:
+ * the route table lives in `src/lib/api/*.ts`.
+ */
+export type RequestOptions = Options & {
+    /**
+     * A 401 from this endpoint is the **application answering**, not a dead session.
+     *
+     * Everything below does with a 401 is one session-recovery path: refresh the pair,
+     * replay, and when there is nothing to refresh *with*, end the session and send the
+     * visitor to `/login`. For a guarded endpoint that is right - its 401 means "the
+     * token you presented no longer works".
+     *
+     * For an endpoint that answers 401 on purpose it is wrong. `POST /auth/login` returns
+     * 401 for an identifier with no account, in the same byte-identical body as a wrong
+     * password, and there is no session to recover *or* to end: the caller never had one.
+     * Routed through the default path, an anonymous visitor who mistypes their number is
+     * silently thrown out of the sign-in dialog they are standing in - `endSession(null)`
+     * dispatches no flash - and the OTP step is never reached.
+     *
+     * The server already reasons this way about its own 401s: `AuthController::otpRejection`
+     * answers 422 rather than 401 for a bad code precisely because "a 401 here would tell
+     * the client its *session* had expired when its session has not started yet". `login`
+     * cannot do the same without giving up the byte-identical-401 contract that keeps
+     * enumeration from distinguishing an unknown account from a wrong password, so the
+     * disambiguation belongs on this side instead.
+     *
+     * Set it and the whole 401 branch is skipped: no refresh, no replay, no `endSession`,
+     * no redirect. The status reaches the caller's `catch` exactly as the server sent it.
+     */
+    readonly authRejection?: boolean;
+};
+
+/**
  * The single transport for the whole SPA. `VITE_API_ORIGIN` is empty in
  * production, where Laravel serves this bundle from `public/` and `/api/v1` is
  * same-origin; in development `vite.config.ts` proxies `/api` to
@@ -62,8 +102,17 @@ export const api = ky.create({
             },
         ],
         afterResponse: [
-            async ({ request, response, retryCount }) => {
+            async ({ request, options, response, retryCount }) => {
                 if (response.status !== 401) {
+                    return response;
+                }
+
+                // The caller has declared that this 401 is the endpoint answering, so it
+                // is returned untouched before any branch below can mistake a credential
+                // refusal for a session expiry - including the "nothing to refresh with"
+                // branch, which is exactly where an anonymous visitor used to be bounced
+                // to `/login` out of the sign-in dialog. See `RequestOptions`.
+                if ((options as RequestOptions).authRejection === true) {
                     return response;
                 }
 
@@ -378,7 +427,7 @@ export class ApiError extends Error {
  * turned into an `ApiError`. A component therefore never sees an `HTTPError`, never
  * calls `response.json()`, and never has to know that `meta` is a sibling of `data`.
  */
-export async function request<T>(path: string, options: Options = {}): Promise<ApiResult<T>> {
+export async function request<T>(path: string, options: RequestOptions = {}): Promise<ApiResult<T>> {
     try {
         const response = await api(path, { ...options, throwHttpErrors: true });
 
