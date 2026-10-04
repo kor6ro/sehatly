@@ -2015,6 +2015,20 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         // `permission:` hit and adds no second `tipe:`, because the party gate
         // is declared once on the wrapping group.
         "'permission:pasien.kelola'",
+        // The landing-hero module's SIX admin routes, all inside the same admin
+        // group. Each carries `hero.kelola` - the owner-approved catalogue code for
+        // "an `admin` republishes the front page without a deploy" - and none adds
+        // a second `tipe:`, because the party gate is declared once on the wrapping
+        // group. Six hits for six routes. The public read (`GET /api/v1/hero`)
+        // contributes NOTHING to this census: no permission and no `tipe:`, for the
+        // argument `HeroController`'s docblock makes - it is content for a
+        // signed-out visitor, exactly like `GET /master-spesialisasi`.
+        "'permission:hero.kelola'",
+        "'permission:hero.kelola'",
+        "'permission:hero.kelola'",
+        "'permission:hero.kelola'",
+        "'permission:hero.kelola'",
+        "'permission:hero.kelola'",
         // F04 contributes TWO strings for THREE routes. The public review list
         // (`GET /dokter/{dokter}/ulasan`) and the patient's review write
         // (`POST /konsultasi/{id}/ulasan`) carry NEITHER half of the regex: no

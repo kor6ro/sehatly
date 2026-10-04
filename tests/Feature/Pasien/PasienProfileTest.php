@@ -1661,6 +1661,19 @@ test('the route table exposes the twelve auth routes and the eleven patient rout
         'GET api/v1/dokter/{dokter}/ulasan',
         'POST api/v1/konsultasi/{id}/ulasan',
         'PUT api/v1/dokter/ulasan/{id}/balas',
+        // The landing-hero module's SEVEN routes: one public read and the six of
+        // the admin surface, wired inside the F14 group (so they carry the group's
+        // party gate) and listed here in registration order - the public read where
+        // the public `dokter` block sits, the six after F01's support path. Seven
+        // rather than six, because the strip has a read of its own that a signed-out
+        // visitor makes, and it is the only one of the seven without a guard.
+        'GET api/v1/hero',
+        'GET api/v1/admin/hero',
+        'POST api/v1/admin/hero',
+        'PUT api/v1/admin/hero/{id}',
+        'DELETE api/v1/admin/hero/{id}',
+        'POST api/v1/admin/hero/{id}/gambar',
+        'DELETE api/v1/admin/hero/{id}/gambar',
     ]);
 
     // FOURTEEN under the `pasien` filter: the ten above (profil read + write,
@@ -1724,6 +1737,13 @@ test('the route table exposes the twelve auth routes and the eleven patient rout
         // `DokterDirectoryService::find()` inside the controller.
         'GET api/v1/dokter/{dokter}/ulasan',
         'GET api/v1/master-spesialisasi',
+        // The landing carousel read: anonymous for the reason every entry above
+        // gives - it is content the front page needs before anybody has an
+        // account. Gating it would 401 a signed-out visitor on the page they
+        // arrived at, and there is no caller to enumerate: the answer is the
+        // published strip, not a row belonging to anyone. The six writes beside
+        // it are in the F14 group and are NOT here.
+        'GET api/v1/hero',
         // Todo 34's verifier: public by design - a QR code is scanned by a
         // receptionist who has no account. See the routes/api.php block.
         'GET api/v1/surat-keterangan/{nomor_surat}/verify',
@@ -1985,6 +2005,23 @@ test('the route table exposes the twelve auth routes and the eleven patient rout
             'GET api/v1/admin/audit-log' => ['permission:audit.lihat', 'tipe:admin,superadmin'],
             'GET api/v1/admin/persetujuan-pdp' => ['permission:pdp.kelola', 'tipe:admin,superadmin'],
             'PUT api/v1/admin/pasien/{id}/telepon' => ['permission:pasien.kelola', 'tipe:admin,superadmin'],
+            // The landing-hero module's SIX admin routes. Unlike F14's eight
+            // writes, every one of them carries a PERMISSION as well as the party
+            // gate, and that is the module's whole premise: `hero.kelola` is the
+            // owner-approved code for "an `admin` republishes the front page
+            // without a deploy", so the write has a name of its own rather than
+            // resting on the account type. Reusing `promo.validasi` (which
+            // validates a discount code) or `pdp.kelola` (which reads a consent
+            // ledger) was rejected for the reason `pasien.kelola`'s entry gives -
+            // a permission documented to mean something else is worse than a
+            // second code. None adds a different `tipe:`: the party gate is still
+            // the group's, and it is listed here because it applies.
+            'GET api/v1/admin/hero' => ['permission:hero.kelola', 'tipe:admin,superadmin'],
+            'POST api/v1/admin/hero' => ['permission:hero.kelola', 'tipe:admin,superadmin'],
+            'PUT api/v1/admin/hero/{id}' => ['permission:hero.kelola', 'tipe:admin,superadmin'],
+            'DELETE api/v1/admin/hero/{id}' => ['permission:hero.kelola', 'tipe:admin,superadmin'],
+            'POST api/v1/admin/hero/{id}/gambar' => ['permission:hero.kelola', 'tipe:admin,superadmin'],
+            'DELETE api/v1/admin/hero/{id}/gambar' => ['permission:hero.kelola', 'tipe:admin,superadmin'],
             // F04's THREE. The public review list takes NEITHER (it is public for
             // the same reason the profile is), and the patient's review write
             // takes NEITHER: no catalogue code names writing a review, and
@@ -2192,6 +2229,16 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         // `permission:` hit (`pasien.kelola`) and no second `tipe:`, because the
         // party gate is declared once on the wrapping group.
         "'permission:pasien.kelola'",
+        // The landing-hero module's SIX admin routes, each on `hero.kelola` and
+        // none with a second `tipe:` - the party gate stays on the wrapping group.
+        // The public `GET /api/v1/hero` contributes no string at all. Duplicated
+        // from `AuthFlowTest` over the same regex for the reason stated above.
+        "'permission:hero.kelola'",
+        "'permission:hero.kelola'",
+        "'permission:hero.kelola'",
+        "'permission:hero.kelola'",
+        "'permission:hero.kelola'",
+        "'permission:hero.kelola'",
         // F04 contributes TWO strings for THREE routes. The public review list
         // and the patient's review write carry NEITHER half of the regex - no
         // catalogue code names a review read or write, and ownership is the

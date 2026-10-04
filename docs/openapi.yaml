@@ -12,7 +12,7 @@ info:
     drift from the code: a route added, renamed or removed changes it on the next run, and
     `--check` fails until the regenerated file is committed.
 
-    This document describes 113 routes across 98 distinct paths, read from the live route table.
+    This document describes 120 routes across 102 distinct paths, read from the live route table.
 
     ## Envelopes
 
@@ -88,6 +88,9 @@ tags:
   -
     name: dokter
     description: '`/api/v1/dokter` operations. See the module summaries in `docs/modules/` for the curl recipes and the business rules behind these endpoints.'
+  -
+    name: hero
+    description: '`/api/v1/hero` operations. See the module summaries in `docs/modules/` for the curl recipes and the business rules behind these endpoints.'
   -
     name: invoice
     description: '`/api/v1/invoice` operations. See the module summaries in `docs/modules/` for the curl recipes and the business rules behind these endpoints.'
@@ -493,6 +496,241 @@ paths:
       responses:
         200:
           description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
+        422:
+          description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ValidationErrorEnvelope' } } }
+        401:
+          description: 'Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        403:
+          description: 'Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        404:
+          description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        500:
+          description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+  /api/v1/admin/hero:
+    get:
+      operationId: getApiV1AdminHero
+      summary: 'Read /api/v1/admin/hero.'
+      tags:
+        - admin
+      security:
+        -
+          sanctum: []
+      x-route-name: admin.hero.index
+      x-laravel-action: App\Http\Controllers\Api\V1\AdminHeroController@index
+      x-middleware:
+        - 'auth:sanctum'
+        - 'tipe:admin,superadmin'
+        - 'permission:hero.kelola'
+      x-auth:
+        scheme: sanctum
+        transport: bearer
+      responses:
+        200:
+          description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
+        401:
+          description: 'Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        403:
+          description: 'Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        404:
+          description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        500:
+          description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    post:
+      operationId: postApiV1AdminHero
+      summary: 'Create /api/v1/admin/hero.'
+      tags:
+        - admin
+      security:
+        -
+          sanctum: []
+      x-route-name: admin.hero.store
+      x-laravel-action: App\Http\Controllers\Api\V1\AdminHeroController@store
+      x-middleware:
+        - 'auth:sanctum'
+        - 'tipe:admin,superadmin'
+        - 'permission:hero.kelola'
+      x-auth:
+        scheme: sanctum
+        transport: bearer
+      requestBody:
+        required: true
+        description: 'Validated by `App\Http\Requests\Admin\SimpanHeroRequest::rules()`, which is read at generation time -- these properties are the live rules, not a transcription.'
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/SimpanHeroRequestBody' } }
+      responses:
+        201:
+          description: 'Created. `data` holds the created resource.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
+        422:
+          description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ValidationErrorEnvelope' } } }
+        401:
+          description: 'Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        403:
+          description: 'Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        404:
+          description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        500:
+          description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+  '/api/v1/admin/hero/{id}':
+    parameters:
+      -
+        name: id
+        type: integer
+        required: true
+    delete:
+      operationId: deleteApiV1AdminHeroId
+      summary: 'Delete /api/v1/admin/hero/{id}.'
+      tags:
+        - admin
+      security:
+        -
+          sanctum: []
+      x-route-name: admin.hero.destroy
+      x-laravel-action: App\Http\Controllers\Api\V1\AdminHeroController@destroy
+      x-middleware:
+        - 'auth:sanctum'
+        - 'tipe:admin,superadmin'
+        - 'permission:hero.kelola'
+      x-auth:
+        scheme: sanctum
+        transport: bearer
+      responses:
+        200:
+          description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
+        401:
+          description: 'Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        403:
+          description: 'Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        404:
+          description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        500:
+          description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    put:
+      operationId: putApiV1AdminHeroId
+      summary: 'Replace /api/v1/admin/hero/{id}.'
+      tags:
+        - admin
+      security:
+        -
+          sanctum: []
+      x-route-name: admin.hero.update
+      x-laravel-action: App\Http\Controllers\Api\V1\AdminHeroController@update
+      x-middleware:
+        - 'auth:sanctum'
+        - 'tipe:admin,superadmin'
+        - 'permission:hero.kelola'
+      x-auth:
+        scheme: sanctum
+        transport: bearer
+      requestBody:
+        required: true
+        description: 'Validated by `App\Http\Requests\Admin\UbahHeroRequest::rules()`, which is read at generation time -- these properties are the live rules, not a transcription.'
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/UbahHeroRequestBody' } }
+      responses:
+        200:
+          description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
+        422:
+          description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ValidationErrorEnvelope' } } }
+        401:
+          description: 'Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        403:
+          description: 'Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        404:
+          description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        500:
+          description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+  '/api/v1/admin/hero/{id}/gambar':
+    parameters:
+      -
+        name: id
+        type: integer
+        required: true
+    delete:
+      operationId: deleteApiV1AdminHeroIdGambar
+      summary: 'Delete /api/v1/admin/hero/{id}/gambar.'
+      tags:
+        - admin
+      security:
+        -
+          sanctum: []
+      x-route-name: admin.hero.gambar.destroy
+      x-laravel-action: App\Http\Controllers\Api\V1\AdminHeroController@lepasGambar
+      x-middleware:
+        - 'auth:sanctum'
+        - 'tipe:admin,superadmin'
+        - 'permission:hero.kelola'
+      x-auth:
+        scheme: sanctum
+        transport: bearer
+      responses:
+        200:
+          description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
+        401:
+          description: 'Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        403:
+          description: 'Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        404:
+          description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        500:
+          description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    post:
+      operationId: postApiV1AdminHeroIdGambar
+      summary: 'Create /api/v1/admin/hero/{id}/gambar.'
+      tags:
+        - admin
+      security:
+        -
+          sanctum: []
+      x-route-name: admin.hero.gambar
+      x-laravel-action: App\Http\Controllers\Api\V1\AdminHeroController@gambar
+      x-middleware:
+        - 'auth:sanctum'
+        - 'tipe:admin,superadmin'
+        - 'permission:hero.kelola'
+      x-auth:
+        scheme: sanctum
+        transport: bearer
+      requestBody:
+        required: true
+        description: 'Validated by `App\Http\Requests\Admin\UnggahGambarHeroRequest::rules()`, which is read at generation time -- these properties are the live rules, not a transcription.'
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/UnggahGambarHeroRequestBody' } }
+      responses:
+        201:
+          description: 'Created. `data` holds the created resource.'
           content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
         422:
           description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
@@ -1643,6 +1881,26 @@ paths:
         422:
           description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
           content: { application/json: { schema: { $ref: '#/components/schemas/ValidationErrorEnvelope' } } }
+        404:
+          description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        500:
+          description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+  /api/v1/hero:
+    get:
+      operationId: getApiV1Hero
+      summary: 'Read /api/v1/hero.'
+      tags:
+        - hero
+      security: []
+      x-route-name: hero.index
+      x-laravel-action: App\Http\Controllers\Api\V1\HeroController@index
+      x-middleware: []
+      responses:
+        200:
+          description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
         404:
           description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
@@ -5864,6 +6122,68 @@ components:
           - resep_verifikasi.status
           - rujukan.status
           - users.status
+    SimpanHeroRequestBody:
+      type: object
+      title: SimpanHeroRequest
+      description: 'Request body for operations validated by `App\Http\Requests\Admin\SimpanHeroRequest`. The properties below are read from that class''s `rules()` at generation time.'
+      x-form-request: App\Http\Requests\Admin\SimpanHeroRequest
+      properties:
+        cta_label:
+          type: string
+          x-laravel-rule: [string, 'max:60']
+        cta_target:
+          type: string
+          x-laravel-rule: [string, 'max:120', 'regex:/^\/(?!\/)/']
+        deskripsi:
+          type: string
+          x-laravel-rule: [string, 'max:400']
+        eyebrow:
+          type: string
+          x-laravel-rule: [string, 'max:60']
+        gambar:
+          x-laravel-prohibited: true
+          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+        gambar_alt:
+          x-laravel-prohibited: true
+          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+        judul:
+          type: string
+          x-laravel-rule: [string, 'max:160']
+        mulai_tayang:
+          x-laravel-rule: [date]
+        selesai_tayang:
+          x-laravel-rule: [date]
+        status:
+          type: string
+          enum: [draf, tayang]
+          x-laravel-rule: ['in:["draf","tayang"]']
+        urutan:
+          type: integer
+          x-laravel-rule: [integer, 'between:0,255']
+      required:
+        - cta_label
+        - cta_target
+        - deskripsi
+        - judul
+      additionalProperties: false
+      x-enum-fields:
+        status:
+          - artikel.status
+          - booking.status
+          - home_care_pesanan.status
+          - invoice.status
+          - klaim_bpjs.status
+          - konsultasi.status
+          - lab_permintaan.status
+          - pasien_riwayat_penyakit.status
+          - pembayaran.status
+          - pengingat.status
+          - pesanan_obat.status
+          - refund.status
+          - resep.status
+          - resep_verifikasi.status
+          - rujukan.status
+          - users.status
     SimpanRekamMedisRequestBody:
       type: object
       title: SimpanRekamMedisRequest
@@ -6584,6 +6904,64 @@ components:
           - resep_verifikasi.status
           - rujukan.status
           - users.status
+    UbahHeroRequestBody:
+      type: object
+      title: UbahHeroRequest
+      description: 'Request body for operations validated by `App\Http\Requests\Admin\UbahHeroRequest`. The properties below are read from that class''s `rules()` at generation time.'
+      x-form-request: App\Http\Requests\Admin\UbahHeroRequest
+      properties:
+        cta_label:
+          type: string
+          x-laravel-rule: [string, 'max:60']
+        cta_target:
+          type: string
+          x-laravel-rule: [string, 'max:120', 'regex:/^\/(?!\/)/']
+        deskripsi:
+          type: string
+          x-laravel-rule: [string, 'max:400']
+        eyebrow:
+          type: string
+          x-laravel-rule: [string, 'max:60']
+        gambar:
+          x-laravel-prohibited: true
+          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+        gambar_alt:
+          x-laravel-prohibited: true
+          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+        judul:
+          type: string
+          x-laravel-rule: [string, 'max:160']
+        mulai_tayang:
+          x-laravel-rule: [date]
+        selesai_tayang:
+          x-laravel-rule: [date]
+        status:
+          type: string
+          enum: [draf, tayang]
+          x-laravel-rule: ['in:["draf","tayang"]']
+        urutan:
+          type: integer
+          x-laravel-rule: [integer, 'between:0,255']
+      required: []
+      additionalProperties: false
+      x-enum-fields:
+        status:
+          - artikel.status
+          - booking.status
+          - home_care_pesanan.status
+          - invoice.status
+          - klaim_bpjs.status
+          - konsultasi.status
+          - lab_permintaan.status
+          - pasien_riwayat_penyakit.status
+          - pembayaran.status
+          - pengingat.status
+          - pesanan_obat.status
+          - refund.status
+          - resep.status
+          - resep_verifikasi.status
+          - rujukan.status
+          - users.status
     UbahRekamMedisRequestBody:
       type: object
       title: UbahRekamMedisRequest
@@ -6694,6 +7072,22 @@ components:
           x-laravel-rule: [string, 'max:20', 'regex:/^\+?[0-9]{8,20}$/', unique]
       required:
         - no_telepon
+      additionalProperties: false
+      x-enum-fields: []
+    UnggahGambarHeroRequestBody:
+      type: object
+      title: UnggahGambarHeroRequest
+      description: 'Request body for operations validated by `App\Http\Requests\Admin\UnggahGambarHeroRequest`. The properties below are read from that class''s `rules()` at generation time.'
+      x-form-request: App\Http\Requests\Admin\UnggahGambarHeroRequest
+      properties:
+        gambar:
+          x-laravel-rule: [file, 'mimes:jpg,jpeg,png,webp,avif', 'max:2048']
+        gambar_alt:
+          type: string
+          x-laravel-rule: [string, 'max:160']
+      required:
+        - gambar
+        - gambar_alt
       additionalProperties: false
       x-enum-fields: []
     UpdateAlergiRequestBody:

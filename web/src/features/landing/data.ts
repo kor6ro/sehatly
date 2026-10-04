@@ -25,10 +25,14 @@ import type { LucideIcon } from 'lucide-react';
  *
  * ## Why this file exists at all
  *
- * The page is nine sections long and only ONE of them has an endpoint behind it
- * (`GET /master-spesialisasi`, rendered by `SpesialisSection`). The rest is editorial
- * copy: the product's own description of what it does. Keeping that copy in one module
- * rather than inline means a wording change is a data change, and it keeps the section
+ * The page is nine sections long and two things have an endpoint behind them:
+ * `GET /master-spesialisasi` (rendered by `SpesialisSection`) and `GET /hero`, the
+ * carousel the admin edits at `/admin/hero`. The carousel's copy in THIS file is its
+ * fallback - what a signed-out visitor sees while the table is empty or the API is
+ * down - which is why `SLIDE_HERO` is still worth keeping rather than deleted the
+ * moment the data moved behind a route. Everything else is editorial copy: the
+ * product's own description of what it does. Keeping that copy in one module rather
+ * than inline means a wording change is a data change, and it keeps the section
  * components free of the part that has nothing to do with layout.
  *
  * ## The rule every entry here obeys: `to` is a registered route
@@ -91,6 +95,23 @@ export const SLIDE_HERO: Slide[] = [
         cta: { label: 'Booking Janji Temu', to: '/booking' },
         gradien: 'from-emerald-600 via-teal-500 to-cyan-400',
     },
+];
+
+/**
+ * The gradient rotation a slide arrives WITHOUT one gets.
+ *
+ * {@link SLIDE_HERO} carries its own hues because it is the source of truth for the
+ * built-in slides. A slide from `GET /hero`, however, is a row: it stores no Tailwind
+ * class (the server must not know this bundle's class names), so the carousel paints
+ * one of these by position. The three hues are `SLIDE_HERO`'s own, in order, which is
+ * what keeps a published strip indistinguishable in character from the fallback one -
+ * and rotating by index is what keeps two adjacent slides from looking alike, since
+ * the dots are the only indication that anything moved.
+ */
+export const GRADIEN_HERO: readonly string[] = [
+    'from-rose-500 via-rose-400 to-orange-400',
+    'from-violet-600 via-indigo-500 to-sky-400',
+    'from-emerald-600 via-teal-500 to-cyan-400',
 ];
 
 /** "Solusi Kesehatan di Tanganmu" - the six service entry points. */

@@ -101,6 +101,16 @@ use LogicException;
  * it follows `POST /konsultasi/mulai` - ownership is `KonsultasiAccess::ownPasien()`
  * plus the `pasien_id` scope, not a role grant.
  *
+ * **`hero.kelola` is the 28th, added for the owner-approved landing carousel.**
+ * The hero on `/` is front-page content the owner decided an `admin` updates without
+ * a deploy, so it needs a code of its own: none of the existing codes names page
+ * content - `promo.validasi` validates a discount code at checkout, `pdp.kelola`
+ * reads a consent ledger, `laporan.lihat` reads aggregates - and reusing any of them
+ * would be a permission documented to mean something else. `hero.kelola` ("Kelola
+ * Hero") is granted to `admin` and `superadmin`, the two account types that reach
+ * `/admin`, and the public read (`GET /hero`) carries no code at all: it is content
+ * for a signed-out visitor, exactly like `GET /master-spesialisasi`.
+ *
  * The two verbs a developer is most likely to reach for instead are deliberately
  * **absent**: `booking.create` and `booking.cancel` are not codes. `EnsurePermission`
  * treats an unknown code as a programming error and fails with 500, so a route
@@ -206,7 +216,7 @@ final class RbacCatalog
     ];
 
     /**
-     * The 27 permission codes and their derived display names.
+     * The 28 permission codes and their derived display names.
      *
      * Keys are `permissions.kode VARCHAR(100) NOT NULL UNIQUE` (`:159`); values are
      * `permissions.nama VARCHAR(100) NOT NULL` (`:160`). Every value must equal
@@ -214,8 +224,9 @@ final class RbacCatalog
      * `RbacCatalogTest` assertion that enforces it.
      *
      * `laporan.lihat` is F14's owner-approved addition, `pasien.kelola` is F01's,
-     * and `ulasan.balas` is F04's; every other row is plan-named. See the class
-     * docblock.
+     * `ulasan.balas` is F04's and `hero.kelola` is the landing hero's; every other
+     * row is plan-named. See the class docblock. Each addition is APPENDED, so the
+     * seeded `permissions` ids of the original catalogue stay stable.
      *
      * @var array<string, string>
      */
@@ -247,6 +258,7 @@ final class RbacCatalog
         'laporan.lihat' => 'Lihat Laporan',
         'pasien.kelola' => 'Kelola Pasien',
         'ulasan.balas' => 'Balas Ulasan',
+        'hero.kelola' => 'Kelola Hero',
     ];
 
     /**
@@ -325,6 +337,9 @@ final class RbacCatalog
             // F01's support path: correcting a patient's registered phone number
             // is patient-data administration, and no other code names it.
             'pasien.kelola',
+            // The landing hero: front-page content an `admin` republishes without a
+            // deploy, on the same two account types that reach `/admin`.
+            'hero.kelola',
         ],
         'superadmin' => [
             'booking.buat',
@@ -355,9 +370,11 @@ final class RbacCatalog
             // F01's support path: correcting a patient's registered phone number
             // is patient-data administration, and no other code names it.
             'pasien.kelola',
-            // F04's reply grant. Appended LAST so this list order still equals
-            // `permissionCodes()` exactly, which `RbacCatalogTest` asserts.
+            // F04's reply grant, then the landing hero's. Both are appended LAST so
+            // this list order still equals `permissionCodes()` exactly, which
+            // `RbacCatalogTest` asserts.
             'ulasan.balas',
+            'hero.kelola',
         ],
     ];
 

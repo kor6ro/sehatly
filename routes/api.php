@@ -415,6 +415,30 @@ Route::get('dokter/{dokter}/slot', [DokterController::class, 'slot'])
 Route::get('master-spesialisasi', [DokterController::class, 'spesialisasiIndex'])
     ->name('master-spesialisasi.index');
 
+use App\Http\Controllers\Api\V1\HeroController;
+
+/*
+|--------------------------------------------------------------------------
+| The landing carousel, for a signed-out visitor
+|--------------------------------------------------------------------------
+|
+| ONE read, no `permission:` and no `tipe:`, for the reason `GET /dokter` and
+| `GET /master-spesialisasi` above carry neither: it is content the front page
+| needs before anybody has an account. Gating it would put the landing page
+| behind a login.
+|
+| The audience question that matters is on the WRITE side, and it is answered
+| by `hero.kelola` - the owner-approved catalogue code for "an `admin`
+| republishes the hero without a deploy" - on the six `/admin/hero` routes in
+| the F14 group below. Empty is a valid answer (`data.hero: []`): a fresh
+| install has no rows, and the client falls back to its built-in slides rather
+| than rendering an empty strip.
+|
+| @see \App\Http\Controllers\Api\V1\HeroController
+*/
+Route::get('hero', [HeroController::class, 'index'])
+    ->name('hero.index');
+
 /*
 |--------------------------------------------------------------------------
 | Module 3 -- the consultation lifecycle and its chat transcript
@@ -1626,6 +1650,7 @@ Route::delete('pengingat/{id}', [PengingatController::class, 'destroy'])
 
 use App\Http\Controllers\Api\V1\AdminAuditLogController;
 use App\Http\Controllers\Api\V1\AdminDokterController;
+use App\Http\Controllers\Api\V1\AdminHeroController;
 use App\Http\Controllers\Api\V1\AdminJadwalController;
 use App\Http\Controllers\Api\V1\AdminLaporanController;
 use App\Http\Controllers\Api\V1\AdminPasienController;
@@ -1904,6 +1929,71 @@ Route::middleware(['auth:sanctum', 'tipe:admin,superadmin'])
             ->whereNumber('id')
             ->middleware('permission:pasien.kelola')
             ->name('pasien.telepon');
+
+        /*
+        | The landing carousel: SIX routes, the first admin surface in this file
+        | that a non-clinical CONTENT decision runs on. Every one of them carries
+        | the F14 party gate (the group) plus `permission:hero.kelola`, the
+        | owner-approved catalogue code for "an `admin` republishes the front page
+        | without a deploy" - banners are campaign content, and a developer build
+        | to swap an image is the cost this module exists to avoid.
+        |
+        | | route | what it answers |
+        | | --- | --- |
+        | | `GET /admin/hero` | the whole strip, drafts first-class. No pagination: an operator reordering slides must see every row |
+        | | `POST /admin/hero` | create one slide, 201 |
+        | | `PUT /admin/hero/{id}` | partial update - and the publish/unpublish switch when the body carries `status` alone |
+        | | `DELETE /admin/hero/{id}` | the row, plus the image file it owns |
+        | | `POST /admin/hero/{id}/gambar` | multipart upload; replaces and unlinks any previous file |
+        | | `DELETE /admin/hero/{id}/gambar` | image and alt text, cleared together |
+        |
+        | The two image routes are separate from the JSON four on purpose: a file
+        | is multipart and a slide's copy is JSON, and a create that also carried
+        | an image could not have anywhere to put it until the row existed. The
+        | alternative text travels WITH the file because the migration cannot
+        | couple two columns (no `CHECK`, and the reference DDL is read-only) -
+        | see `UnggahGambarHeroRequest`.
+        |
+        | `whereNumber('id')` on every wildcard: `hero_slides.id` is an
+        | auto-increment primary key, so a non-numeric segment is a router 404
+        | rather than a `TypeError`, and `hero` is a literal that nothing here
+        | shadows - the public read above is a different path (`/hero`, one
+        | segment) and this prefix is `/admin/hero`.
+        |
+        | There is deliberately no reorder endpoint and no bulk route. Moving a
+        | slide is `urutan` on that row through `PUT`; ten moves are ten requests,
+        | which is the same answer F14 gives its own declined bulk endpoint - the
+        | per-row response is what a failure can be attributed to.
+        |
+        | @see \App\Http\Controllers\Api\V1\AdminHeroController
+        */
+        Route::get('hero', [AdminHeroController::class, 'index'])
+            ->middleware('permission:hero.kelola')
+            ->name('hero.index');
+
+        Route::post('hero', [AdminHeroController::class, 'store'])
+            ->middleware('permission:hero.kelola')
+            ->name('hero.store');
+
+        Route::put('hero/{id}', [AdminHeroController::class, 'update'])
+            ->whereNumber('id')
+            ->middleware('permission:hero.kelola')
+            ->name('hero.update');
+
+        Route::delete('hero/{id}', [AdminHeroController::class, 'destroy'])
+            ->whereNumber('id')
+            ->middleware('permission:hero.kelola')
+            ->name('hero.destroy');
+
+        Route::post('hero/{id}/gambar', [AdminHeroController::class, 'gambar'])
+            ->whereNumber('id')
+            ->middleware('permission:hero.kelola')
+            ->name('hero.gambar');
+
+        Route::delete('hero/{id}/gambar', [AdminHeroController::class, 'lepasGambar'])
+            ->whereNumber('id')
+            ->middleware('permission:hero.kelola')
+            ->name('hero.gambar.destroy');
     });
 
 /*

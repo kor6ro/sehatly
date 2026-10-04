@@ -127,7 +127,7 @@ function contractSplit(string $key): array
     return [$method, $path];
 }
 
-it('splits the documented operations into 85 bearer, 28 anonymous and 27 unguarded', function (): void {
+it('splits the documented operations into 91 bearer, 29 anonymous and 28 unguarded', function (): void {
     // The counts are pinned so the datasets below cannot silently shrink. If a
     // route is added or removed, this fails first and names the real delta,
     // instead of a per-route test quietly disappearing from the run. F12 added
@@ -147,11 +147,14 @@ it('splits the documented operations into 85 bearer, 28 anonymous and 27 unguard
     // two as well: 27 -> 28, 26 -> 27 and 111 -> 112. The one-door flow's
     // `POST /auth/sign-up/lengkapi` is BEARER - it runs behind `auth:sanctum` for
     // a session that proved its phone at `otp/verify` - and anonymous, so it is
-    // the 84 -> 85 and 112 -> 113 movement.
-    expect(count(contractBearerOperations()))->toBe(85);
-    expect(count(contractAnonymousOperations()))->toBe(28);
-    expect(count(contractUnguardedAnonymousOperations()))->toBe(27);
-    expect(count(contractBearerOperations()) + count(contractAnonymousOperations()))->toBe(113);
+    // the 84 -> 85 and 112 -> 113 movement. The landing-hero module adds SEVEN:
+    // `GET /hero` is anonymous and no webhook, so it moves the last two as well
+    // (28 -> 29, 27 -> 28), while its six `/admin/hero` routes are all bearer and
+    // none anonymous (85 -> 91) - which is the 113 -> 120 total.
+    expect(count(contractBearerOperations()))->toBe(91);
+    expect(count(contractAnonymousOperations()))->toBe(29);
+    expect(count(contractUnguardedAnonymousOperations()))->toBe(28);
+    expect(count(contractBearerOperations()) + count(contractAnonymousOperations()))->toBe(120);
 });
 
 it('answers 401 with the error envelope when the Authorization header is absent', function (string $method, string $path): void {

@@ -175,4 +175,129 @@ test.describe('Landing page (/)', () => {
          */
         await expect(page.locator('[data-sonner-toast]').getByText('Anda telah keluar.')).toBeVisible();
     });
+
+    /**
+     * The carousel's contract with `GET /hero`, which is new as of the admin-managed
+     * module: the strip reads the database, and `SLIDE_HERO` in `features/landing/data.ts`
+     * is its FALLBACK rather than its content. Three states have to render a real page -
+     * an empty table, a published slide, and a dead endpoint - and none of them is
+     * covered by the section-heading test above, which would pass against a blank band.
+     */
+    test('f00-landing-hero-membaca-endpoint-lalu-menampilkan-slide-bawaan-saat-kosong', async ({
+        page,
+    }) => {
+        const panggilan: string[] = [];
+
+        await page.route('**/api/v1/hero', async (route) => {
+            panggilan.push(route.request().url());
+
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    success: true,
+                    message: 'Slide hero berhasil dimuat.',
+                    data: { hero: [] },
+                }),
+            });
+        });
+
+        await page.goto('/');
+
+        // The endpoint is asked, anonymously - no token is set on this page load, and
+        // a `permission:` on this route would have made the strip 401 for every
+        // signed-out visitor.
+        await expect.poll(() => panggilan.length).toBeGreaterThan(0);
+        expect(panggilan[0]).not.toContain('?');
+
+        const karusel = page.locator('[data-slot="hero-carousel"]');
+
+        await expect(karusel).toBeVisible();
+        await expect(
+            page.getByRole('heading', { level: 1, name: 'Bingung Pilih Dokter?', exact: true }),
+        ).toBeVisible();
+
+        // The built-in slides carry no photograph, so the gradient - not an empty
+        // `<img>` - is what fills the band.
+        await expect(karusel.locator('img')).toHaveCount(0);
+    });
+
+    test('f00-landing-hero-menampilkan-slide-admin-beserta-gambar-dan-tautan-internal', async ({
+        page,
+    }) => {
+        await page.route('**/api/v1/hero', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    success: true,
+                    message: 'Slide hero berhasil dimuat.',
+                    data: {
+                        hero: [
+                            {
+                                id: 7,
+                                urutan: 0,
+                                eyebrow: 'Promo Oktober',
+                                judul: 'Slide dari halaman admin',
+                                deskripsi: 'Ditulis lewat /admin/hero, bukan lewat deploy.',
+                                cta_label: 'Lihat Promo',
+                                cta_target: '/dokter',
+                                gambar:
+                                    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+                                gambar_alt: 'Promo konsultasi Oktober',
+                                status: 'tayang',
+                                mulai_tayang: null,
+                                selesai_tayang: null,
+                                tayang_aktif: true,
+                                dibuat_at: '2026-10-01T00:00:00.000000Z',
+                                diubah_at: '2026-10-01T00:00:00.000000Z',
+                            },
+                        ],
+                    },
+                }),
+            });
+        });
+
+        await page.goto('/');
+
+        const karusel = page.locator('[data-slot="hero-carousel"]');
+
+        await expect(
+            page.getByRole('heading', { level: 1, name: 'Slide dari halaman admin', exact: true }),
+        ).toBeVisible();
+
+        // The photograph, carrying the alternative text the admin was required to
+        // upload with it - one slide, so the autoplay never moves it off screen.
+        const gambar = karusel.locator('img[alt="Promo konsultasi Oktober"]');
+        await expect(gambar).toBeVisible();
+        await expect(gambar).toHaveAttribute('src', /^data:image\/png/);
+
+        // The built-in copy is NOT rendered beside it: the server's list replaces the
+        // fallback rather than appending to it.
+        await expect(
+            page.getByRole('heading', { level: 1, name: 'Bingung Pilih Dokter?', exact: true }),
+        ).toHaveCount(0);
+
+        // `cta_target` is internal, and the client renders it verbatim - the
+        // `regex:/^\/(?!\/)/` rule on the server is what keeps it that way.
+        await expect(karusel.locator('a[href="/dokter"]')).toBeVisible();
+        await expect(karusel.locator('a[href^="http"]')).toHaveCount(0);
+    });
+
+    test('f00-landing-hero-endpoint-gagal-tetap-menampilkan-slide-bawaan', async ({ page }) => {
+        await page.route('**/api/v1/hero', async (route) => {
+            await route.abort('connectionrefused');
+        });
+
+        await page.goto('/');
+
+        // `heroOptions` disables retry, so the fallback is on screen immediately
+        // instead of after three failed attempts - and this assertion is what stops
+        // somebody "fixing" the request with a retry policy that leaves the fold blank.
+        await expect(
+            page.getByRole('heading', { level: 1, name: 'Bingung Pilih Dokter?', exact: true }),
+        ).toBeVisible();
+
+        await expect(page.locator('[data-slot="landing-footer"]')).toBeVisible();
+    });
 });

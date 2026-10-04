@@ -88,6 +88,39 @@ const List<String> apiv1admindokteridverifikasiMethods = <String>[
   'PUT',
 ];
 
+/// `/api/v1/admin/hero`
+///
+/// Answers: GET (`admin.hero.index`), POST (`admin.hero.store`).
+const String apiv1adminhero = '/api/v1/admin/hero';
+
+/// The HTTP methods `apiv1adminhero` answers.
+const List<String> apiv1adminheroMethods = <String>[
+  'GET',
+  'POST',
+];
+
+/// `/api/v1/admin/hero/{id}`
+///
+/// Answers: DELETE (`admin.hero.destroy`), PUT (`admin.hero.update`).
+const String apiv1adminheroid = '/api/v1/admin/hero/{id}';
+
+/// The HTTP methods `apiv1adminheroid` answers.
+const List<String> apiv1adminheroidMethods = <String>[
+  'DELETE',
+  'PUT',
+];
+
+/// `/api/v1/admin/hero/{id}/gambar`
+///
+/// Answers: DELETE (`admin.hero.gambar.destroy`), POST (`admin.hero.gambar`).
+const String apiv1adminheroidgambar = '/api/v1/admin/hero/{id}/gambar';
+
+/// The HTTP methods `apiv1adminheroidgambar` answers.
+const List<String> apiv1adminheroidgambarMethods = <String>[
+  'DELETE',
+  'POST',
+];
+
 /// `/api/v1/admin/jadwal/{id}`
 ///
 /// Answers: DELETE (`admin.jadwal.destroy`), PUT (`admin.jadwal.update`).
@@ -377,6 +410,16 @@ const String apiv1dokterdokterulasan = '/api/v1/dokter/{dokter}/ulasan';
 
 /// The HTTP methods `apiv1dokterdokterulasan` answers.
 const List<String> apiv1dokterdokterulasanMethods = <String>[
+  'GET',
+];
+
+/// `/api/v1/hero`
+///
+/// Answers: GET (`hero.index`).
+const String apiv1hero = '/api/v1/hero';
+
+/// The HTTP methods `apiv1hero` answers.
+const List<String> apiv1heroMethods = <String>[
   'GET',
 ];
 

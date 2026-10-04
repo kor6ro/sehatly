@@ -166,11 +166,12 @@ test('every permission code follows the DDL own naming convention', function ():
 // -------------------------------------------------------- catalogue invariants
 
 test('the catalogue holds at least the plan twenty two permissions', function (): void {
-    // The plan's acceptance bar is ">= 22". 27 is what the catalogue carries after
-    // F14's owner-approved `laporan.lihat`, F01's `pasien.kelola` and F04's
-    // `ulasan.balas`; the second assertion is written at the actual number so a
-    // trim or an addition has to be a deliberate edit of this line.
-    expect(RbacCatalog::PERMISSIONS)->toHaveCount(27)
+    // The plan's acceptance bar is ">= 22". 28 is what the catalogue carries after
+    // F14's owner-approved `laporan.lihat`, F01's `pasien.kelola`, F04's
+    // `ulasan.balas` and the landing hero's `hero.kelola`; the second assertion is
+    // written at the actual number so a trim or an addition has to be a deliberate
+    // edit of this line.
+    expect(RbacCatalog::PERMISSIONS)->toHaveCount(28)
         ->and(count(RbacCatalog::PERMISSIONS))->toBeGreaterThanOrEqual(22);
 });
 
@@ -288,10 +289,11 @@ test('the seeded role permission pairs are exactly the catalogue mapping', funct
     usort($expected, static fn (array $a, array $b): int => [$a['nama'], $a['kode']] <=> [$b['nama'], $b['kode']]);
 
     expect($actual)->toBe($expected)
-        // 13 + 17 + 6 + 12 + 27, stated so a trim of the mapping is a visible edit.
-        // Admin's 12 includes F14's `laporan.lihat` and F01's `pasien.kelola`;
-        // dokter's 17 includes F04's `ulasan.balas`; superadmin holds all 27.
-        ->and($actual)->toHaveCount(75);
+        // 13 + 17 + 6 + 13 + 28, stated so a trim of the mapping is a visible edit.
+        // Admin's 13 includes F14's `laporan.lihat`, F01's `pasien.kelola` and the
+        // landing hero's `hero.kelola`; dokter's 17 includes F04's `ulasan.balas`;
+        // superadmin holds all 28.
+        ->and($actual)->toHaveCount(77);
 });
 
 test('the seeder writes no user roles rows', function (): void {

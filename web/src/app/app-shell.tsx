@@ -9,6 +9,7 @@ import {
     ClipboardList,
     FileHeart,
     HeartPulse,
+    Images,
     LayoutDashboard,
     LogOut,
     MessagesSquare,
@@ -285,6 +286,14 @@ function AdminNav({
                         to="/admin/persetujuan-pdp"
                         icon={ShieldCheck}
                         label="Persetujuan PDP"
+                        pathname={pathname}
+                        onNavigate={onNavigate}
+                    />
+
+                    <MenuLink
+                        to="/admin/hero"
+                        icon={Images}
+                        label="Carousel beranda"
                         pathname={pathname}
                         onNavigate={onNavigate}
                     />

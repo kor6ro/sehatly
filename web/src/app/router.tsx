@@ -45,6 +45,8 @@ import { AdminDokterDetailPage } from '@/pages/admin-dokter-detail-page';
 import { AdminLaporanPage } from '@/pages/admin-laporan-page';
 import { AdminAuditLogPage } from '@/pages/admin-audit-log-page';
 import { AdminPersetujuanPdpPage } from '@/pages/admin-persetujuan-pdp-page';
+
+import { AdminHeroPage } from '@/pages/admin-hero-page';
 import { PrivasiPage } from '@/pages/privasi-page';
 import { KebijakanPrivasiPage } from '@/pages/kebijakan-privasi-page';
 import { SyaratKetentuanPage } from '@/pages/syarat-ketentuan-page';
@@ -471,6 +473,22 @@ export const router = createBrowserRouter([
                             {
                                 path: '/admin/persetujuan-pdp',
                                 element: <AdminPersetujuanPdpPage />,
+                                errorElement: <RouteErrorBoundary />,
+                            },
+
+                            /**
+                             * The seventh admin leaf, and the only one whose subject
+                             * is PUBLIC content: `/admin/hero` edits the carousel a
+                             * signed-out visitor reads at `GET /hero`. It joins this
+                             * group for the same reason the other six are here - the
+                             * API route is `auth:sanctum` + `tipe:admin,superadmin`
+                             * (plus its own `hero.kelola`) - and it gates itself with
+                             * `AdminGate` like every sibling, so a patient following
+                             * the link gets `ForbiddenState` rather than a stray 403.
+                             */
+                            {
+                                path: '/admin/hero',
+                                element: <AdminHeroPage />,
                                 errorElement: <RouteErrorBoundary />,
                             },
                         ],

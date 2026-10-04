@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 /**
- * Seeds the RBAC kernel: 5 roles, 27 permissions and their 75 role/permission
+ * Seeds the RBAC kernel: 5 roles, 28 permissions and their 77 role/permission
  * grants.
  *
  * ## None of this data is in `telemedicine_test.sql`
@@ -154,7 +154,7 @@ use RuntimeException;
  * medicine search "is doctor-only (`tipe:dokter`)", so granting a pharmacist drug
  * lookup would assert a consumer the plan does not name. Flagged, not filled.
  *
- * **`admin` (12 grants)** - `promo.validasi` and `pdp.kelola` are the two
+ * **`admin` (13 grants)** - `promo.validasi` and `pdp.kelola` are the two
  * administrative registries, and `audit.lihat` is separated from everything clinical
  * on purpose: the plan's own audit-log acceptance criterion argues that widening
  * `audit.lihat` "widens the blast radius", so it is not granted to any role that also
@@ -165,11 +165,14 @@ use RuntimeException;
  * F01 adds `pasien.kelola` for the support path that corrects a patient's registered
  * phone number (`PUT /admin/pasien/{id}/telepon`): it is patient-data administration
  * that no other code names, and `pdp.kelola` is the read-only consent-ledger grant,
- * not a mutation grant. **No `rekam_medis.*`, no `resep.buat`, no `konsultasi.*`**: an administrator is
+ * not a mutation grant. The hero grant (`hero.kelola`) is the landing carousel's own
+ * code: front-page content the owner wants an `admin` to republish without a deploy,
+ * and no existing code names page content - `promo.validasi` validates a discount
+ * and `pdp.kelola` reads a consent ledger. **No `rekam_medis.*`, no `resep.buat`, no `konsultasi.*`**: an administrator is
  * not a clinician, and giving the role clinical write would put a write-capable
  * grant on the account type that can read the audit log.
  *
- * **`superadmin` (all 27)** - written out in full, not computed, so the seeded table
+ * **`superadmin` (all 28)** - written out in full, not computed, so the seeded table
  * *is* the policy and can be read without running code. There is no code-level
  * bypass anywhere in the middleware; see {@see RbacCatalog}.
  */
