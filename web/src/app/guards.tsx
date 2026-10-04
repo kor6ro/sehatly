@@ -1,10 +1,7 @@
-import { useState } from 'react';
 import { Link, Navigate, Outlet, useLocation } from 'react-router';
 import { getAccessToken } from '@/lib/token';
 import { EmptyState } from '@/components/states/empty-state';
 import { PageHeader } from '@/components/layout/page-header';
-import { LandingHeader } from '@/components/layout/landing-header';
-import { LoginDialog } from '@/components/auth/login-dialog';
 import { Button } from '@/components/ui/button';
 
 /**
@@ -41,62 +38,6 @@ export function RequireAuth() {
     }
 
     return <Outlet />;
-}
-
-/**
- * `/` - the root, which is a chooser rather than a redirect.
- *
- * Redirecting to `/dashboard` unconditionally would send a signed-out visitor to a guard
- * that bounces them to `/login`, which is a redirect chain for no benefit; and redirecting
- * to `/dokter` would put a public directory in front of a patient who is trying to reach
- * their own profile. So the two destinations are both offered and neither is assumed.
- */
-export function RootPage() {
-    const authenticated = getAccessToken() !== null;
-    const [loginOpen, setLoginOpen] = useState(false);
-
-    return (
-        <div className="bg-background flex min-h-screen flex-col">
-            {/*
-                The page owns the dialog so that the header action and the card action
-                below reach ONE instance - two would race over the `sessionStorage`
-                challenge the OTP step is carried in.
-            */}
-            <LandingHeader onMasuk={() => setLoginOpen(true)} />
-
-            <main className="mx-auto flex w-full max-w-[1280px] flex-1 flex-col gap-6 px-4 py-8 md:px-6">
-                <PageHeader title="Telemedicine untuk pasien Indonesia" />
-
-                <EmptyState
-                    title="Pilih tujuan"
-                    description={
-                        authenticated
-                            ? 'Anda sudah masuk. Lanjutkan ke dashboard atau direktori dokter.'
-                            : 'Masuk untuk membuka profil, anggota keluarga, dan data alergi, atau lihat direktori dokter tanpa masuk.'
-                    }
-                    action={
-                        <div className="flex flex-wrap items-center justify-center gap-2">
-                            {authenticated ? (
-                                <Button asChild>
-                                    <Link to="/dashboard">Dashboard</Link>
-                                </Button>
-                            ) : (
-                                <Button onClick={() => setLoginOpen(true)}>
-                                    Masuk
-                                </Button>
-                            )}
-
-                            <Button asChild variant="outline">
-                                <Link to="/dokter">Direktori dokter</Link>
-                            </Button>
-                        </div>
-                    }
-                />
-            </main>
-
-            <LoginDialog open={loginOpen} onOpenChange={setLoginOpen} />
-        </div>
-    );
 }
 
 /**

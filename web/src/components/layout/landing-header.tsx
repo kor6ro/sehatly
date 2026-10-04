@@ -1,16 +1,25 @@
 import { useState } from 'react';
-import { Link, NavLink } from 'react-router';
+import { Link, NavLink, useNavigate } from 'react-router';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import {
-    ArrowRight,
     CalendarDays,
     ChevronDown,
     FileText,
+    LayoutDashboard,
+    LogOut,
     Menu,
     MessagesSquare,
     Pill,
+    Settings,
     Stethoscope,
+    UserRound,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { logout } from '@/lib/api/auth';
+import { meOptions } from '@/lib/api/me';
+import { clearTokens, getRefreshToken } from '@/lib/token';
+import { queryClient } from '@/lib/query-client';
+import { dispatchFlash } from '@/lib/flash';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -27,18 +36,21 @@ import {
     SheetTrigger,
 } from '@/components/ui/sheet';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
-import { getAccessToken } from '@/lib/token';
+import { useSession } from '@/hooks/use-session';
 import { cn } from '@/lib/utils';
 
 /**
- * The header for the pre-session surfaces - today `/`, the landing page.
+ * The header for `/` - the landing page, which is home to every visitor: signed out,
+ * signed in as a patient, or signed in as a doctor.
  *
  * ## Why this is not `AppShell`'s header
  *
  * `AppShell` renders a sidebar and an account header, both of which need a signed-in
- * account to mean anything. A visitor who has not authenticated yet needs the opposite:
- * a way in, a way to browse the public directory, and no account chrome at all. So this
- * is a second, much smaller frame rather than a conditional branch inside the shell.
+ * account to mean anything, and its sidebar would put a patient workspace in front of
+ * somebody who has not asked for it. The landing page needs the opposite: a way in, a way
+ * to browse the public directory, and - once there IS a session - the account's own name
+ * instead of the button that used to be there. So this is a second, much smaller frame
+ * rather than a conditional branch inside the shell.
  *
  * ## The shape is borrowed; the labels are ours
  *
@@ -223,9 +235,17 @@ function NavList({
  * The right-hand action cluster.
  *
  * The single decision it makes is what the visitor is here to do: nobody has a session,
- * so the action is "Masuk"; somebody does, and it collapses to one route into the app.
- * `getAccessToken()` is read on render rather than cached, because this header mounts
- * once per page load and the token is written by the OTP step in the same session.
+ * so the action is "Masuk"; somebody does, and it collapses into the account pill below.
+ *
+ * ## Why this is a hook and not `getAccessToken() !== null`
+ *
+ * A plain read during render is correct and permanently stale - the token is written by
+ * the OTP step and by `clearTokens()`, neither of which renders anything. Two screens
+ * broke that way: a visitor who signed in through the dialog on this very page kept the
+ * "Masuk" button, and a visitor who signed out left the pill's `/me` query subscribed,
+ * so its refetch fired with no credentials and the transport, reading that as a session
+ * expiry, moved them to `/login`. `useSession` subscribes to the store instead, which
+ * makes both directions a re-render of exactly this component.
  *
  * There is deliberately no "Daftar" button here, and "Masuk" opens a dialog rather than
  * navigating: the bar offers one door, which is how the front page this header is modelled
@@ -241,17 +261,12 @@ function ActionButtons({
     className?: string;
     onMasuk: () => void;
 }) {
-    const authenticated = getAccessToken() !== null;
+    const authenticated = useSession();
 
     if (authenticated) {
         return (
             <div className={cn('flex items-center gap-2', className)}>
-                <Button asChild className="rounded-lg font-medium">
-                    <Link to="/dashboard">
-                        Dashboard
-                        <ArrowRight className="size-4" />
-                    </Link>
-                </Button>
+                <AkunPill />
             </div>
         );
     }
@@ -262,6 +277,154 @@ function ActionButtons({
                 Masuk
             </Button>
         </div>
+    );
+}
+
+/** The two initials a name contributes: the first letters of its first two words. */
+function inisial(nama: string): string {
+    return nama
+        .trim()
+        .split(/\s+/)
+        .slice(0, 2)
+        .map((kata) => kata.charAt(0).toUpperCase())
+        .join('');
+}
+
+/**
+ * The signed-in half of {@link ActionButtons}: avatar, name, gear, chevron.
+ *
+ * ## Why a pill and not the "Dashboard" button it replaces
+ *
+ * The landing page is now the home every account returns to after signing in, so its
+ * header has to answer "who am I?" rather than "where do I go?" - the same reason the
+ * reference front page shows a name and a gear instead of a call to action. The workspace
+ * is one menu entry away instead of being the whole bar, and a visitor who has not signed
+ * in still sees the one button they need.
+ *
+ * ## Why `Profil` is conditional and `Dasbor` is not
+ *
+ * `GET /pasien/profil` answers 403 to every account without a `pasien` row, so offering
+ * it to a doctor would render a link to a refusal. `Dasbor` is the one screen every
+ * `users.tipe` can open - the sidebar behind it is simply different per role - which is
+ * the same rule `AppShell` follows: a control that may not be used is not rendered.
+ *
+ * ## Why `/me` is a query and not a prop
+ *
+ * The header has no parent that knows the account: it renders on `/`, outside `AppShell`
+ * and outside `RequireAuth`. `meOptions()` shares its cache key with every other reader of
+ * "who am I", so the name here is the same object the dashboard greets with, and signing
+ * out clears it along with everything else.
+ */
+function AkunPill() {
+    const navigate = useNavigate();
+    const adaSesi = useSession();
+
+    /**
+     * `enabled` keyed on the session, never `true`.
+     *
+     * The parent unmounts this pill the moment `clearTokens()` announces, but the two
+     * updates race: if this component renders once in between, a query that refetches on
+     * an empty cache would call `/me` with no `Authorization` header, and the transport
+     * answers that 401 by declaring the session expired and moving the page to `/login` -
+     * which is how signing OUT of the landing page used to land you on the sign-IN
+     * screen. Gated on the session, that refetch cannot start at all.
+     */
+    const me = useQuery({ ...meOptions(), enabled: adaSesi });
+
+    const user = me.data?.data.user ?? null;
+    const nama = user?.nama_lengkap ?? '';
+    const isPasien = user?.tipe === 'pasien';
+
+    const signOut = useMutation({
+        mutationFn: async () => {
+            const refreshToken = getRefreshToken();
+
+            if (refreshToken === null) {
+                return null;
+            }
+
+            return logout(refreshToken);
+        },
+        /**
+         * `onSettled`, not `onSuccess`, for the reason `AppShell` gives: the point of this
+         * branch is the local pair. A sign-out the server rejects must still remove the
+         * token from this browser, and it must land the visitor on the landing page
+         * either way - where, without a token, the pill is replaced by "Masuk".
+         */
+        onSettled: () => {
+            clearTokens();
+            queryClient.clear();
+
+            dispatchFlash({ level: 'info', message: 'Anda telah keluar.' });
+
+            void navigate('/', { replace: true });
+        },
+    });
+
+    return (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <button
+                    type="button"
+                    data-slot="landing-akun"
+                    className="border-border bg-background hover:bg-secondary flex h-10 items-center gap-2 rounded-full border py-1 pl-1 pr-2.5 text-sm font-medium"
+                >
+                    <span className="bg-primary text-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold">
+                        {nama === '' ? <UserRound className="size-4" /> : inisial(nama)}
+                    </span>
+
+                    <span className="max-w-[9rem] truncate md:max-w-[12rem]">
+                        {nama === '' ? 'Akun saya' : nama}
+                    </span>
+
+                    <span aria-hidden="true" className="bg-border h-5 w-px" />
+
+                    <Settings className="text-muted-foreground size-4 shrink-0" />
+                    <ChevronDown className="text-muted-foreground size-4 shrink-0" />
+                </button>
+            </DropdownMenuTrigger>
+
+            <DropdownMenuContent align="end" className="w-60 p-1.5">
+                <DropdownMenuLabel className="text-muted-foreground truncate px-2 py-1.5 text-xs font-medium">
+                    {nama === '' ? 'Akun Sehatly' : nama}
+                </DropdownMenuLabel>
+
+                <DropdownMenuItem asChild>
+                    <Link to="/dashboard" className="gap-3 px-2 py-2.5">
+                        <span className="bg-secondary flex size-8 shrink-0 items-center justify-center rounded-md">
+                            <LayoutDashboard className="text-primary size-4" />
+                        </span>
+
+                        <span className="truncate text-sm font-medium">Dasbor</span>
+                    </Link>
+                </DropdownMenuItem>
+
+                {isPasien ? (
+                    <DropdownMenuItem asChild>
+                        <Link to="/profil" className="gap-3 px-2 py-2.5">
+                            <span className="bg-secondary flex size-8 shrink-0 items-center justify-center rounded-md">
+                                <UserRound className="text-primary size-4" />
+                            </span>
+
+                            <span className="truncate text-sm font-medium">Profil</span>
+                        </Link>
+                    </DropdownMenuItem>
+                ) : null}
+
+                <DropdownMenuItem
+                    data-slot="landing-akun-keluar"
+                    disabled={signOut.isPending}
+                    onSelect={() => signOut.mutate()}
+                    className="gap-3 px-2 py-2.5"
+                >
+                    <span className="bg-secondary flex size-8 shrink-0 items-center justify-center rounded-md">
+                        <LogOut className="text-primary size-4" />
+                    </span>
+
+                    <span className="truncate text-sm font-medium">Keluar</span>
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
     );
 }
 

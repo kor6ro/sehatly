@@ -104,8 +104,11 @@ export function LoginPage() {
         defaultValues: { identifier: '' },
     });
 
+    // Already signed in: this screen is a door, and a visitor standing inside the
+    // building has no business looking at it. They are sent to the landing page, the
+    // one screen a signed-in account and a stranger can both read.
     if (getAccessToken() !== null) {
-        return <Navigate to="/dashboard" replace />;
+        return <Navigate to="/" replace />;
     }
 
     async function onSubmit(values: LoginForm): Promise<void> {

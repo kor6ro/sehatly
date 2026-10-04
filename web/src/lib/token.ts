@@ -77,27 +77,68 @@ export function getAccessTokenExpiresAt(): string | null {
     return readItem(ACCESS_EXPIRES_AT_KEY);
 }
 
+/**
+ * Who wants to know that the session just changed.
+ *
+ * ## Why this exists at all
+ *
+ * `getAccessToken()` is a synchronous read of `sessionStorage`, and a component that
+ * reads it during render keeps the SAME value until something else re-renders it. The
+ * landing header was exactly that: it rendered "Masuk" because there was no token at
+ * mount, and completing the sign-in dialog wrote a token without rendering anything -
+ * so the button stayed. The reverse direction is worse than cosmetic: the signed-in
+ * header keeps a `/me` query subscribed, and a sign-out that left it mounted let that
+ * refetch fire with no credentials, which the transport reads as "session expired" and
+ * answers by bouncing the visitor off the landing page to `/login`.
+ *
+ * No `useState` inside the header can fix either direction, because nothing in that
+ * tree changes when the storage does. Notifying can: `useSession` subscribes through
+ * `useSyncExternalStore`, so writing or clearing a pair re-renders whoever asked.
+ */
+const sessionListeners = new Set<() => void>();
+
+export function subscribeSession(listener: () => void): () => void {
+    sessionListeners.add(listener);
+
+    return () => {
+        sessionListeners.delete(listener);
+    };
+}
+
+function announceSessionChange(): void {
+    for (const listener of sessionListeners) {
+        listener();
+    }
+}
+
 export function setTokens(pair: TokenPair): void {
     writeItem(ACCESS_TOKEN_KEY, pair.accessToken);
     writeItem(REFRESH_TOKEN_KEY, pair.refreshToken);
 
     if (pair.accessTokenExpiresAt === null) {
         removeItem(ACCESS_EXPIRES_AT_KEY);
-
-        return;
+    } else {
+        writeItem(ACCESS_EXPIRES_AT_KEY, pair.accessTokenExpiresAt);
     }
 
-    writeItem(ACCESS_EXPIRES_AT_KEY, pair.accessTokenExpiresAt);
+    announceSessionChange();
 }
 
 export function setAccessToken(token: string): void {
     writeItem(ACCESS_TOKEN_KEY, token);
+    announceSessionChange();
 }
 
+/**
+ * Announced even on an already-empty store, because for a subscriber that is not a
+ * no-op - it is the answer to "am I still signed in?", and the answer has to arrive
+ * either way.
+ */
 export function clearTokens(): void {
     removeItem(ACCESS_TOKEN_KEY);
     removeItem(REFRESH_TOKEN_KEY);
     removeItem(ACCESS_EXPIRES_AT_KEY);
+    announceSessionChange();
 }
 
 /**

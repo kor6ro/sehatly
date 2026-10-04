@@ -209,7 +209,7 @@ export function OtpPage() {
 
             /**
              * The cache is cleared *after* the pair is stored and *before* the first
-             * navigation, so the dashboard's `/me` is a fresh read and no query made
+             * navigation, so `/me` on the landing page is a fresh read and no query made
              * under a previous identity can be visible under this one.
              */
             queryClient.clear();
@@ -224,7 +224,7 @@ export function OtpPage() {
                         : 'Verifikasi berhasil. Akun aktif.',
             });
 
-            await navigate('/dashboard', { replace: true });
+            await navigate('/', { replace: true });
         } catch (error) {
             setServerError(error);
 

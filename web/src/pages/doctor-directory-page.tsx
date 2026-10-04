@@ -8,7 +8,7 @@ import {
     type RefObject,
 } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import {
     Award,
@@ -158,7 +158,19 @@ export function DoctorDirectoryPage() {
     const [page, setPage] = useState(1);
     const [search, setSearch] = useState(() => bacaKueriTersimpan());
     const [submittedSearch, setSubmittedSearch] = useState(() => bacaKueriTersimpan());
-    const [spesialisasi, setSpesialisasi] = useState<string | undefined>(undefined);
+    /**
+     * Seeded from `?spesialisasi=` so a link from the landing page's specialisation
+     * tiles opens the directory ALREADY filtered, instead of promising a filter it
+     * silently drops. It is a one-shot read: once the state exists, clearing the chip
+     * inside the page is what changes it - the URL is an entry point, not a second
+     * source of truth for the filter. An unknown `kode` is left in place on purpose: the
+     * API answers an empty page for it and the chip above the results can be removed,
+     * which is a better outcome than arriving with no filter at all.
+     */
+    const [searchParams] = useSearchParams();
+    const [spesialisasi, setSpesialisasi] = useState<string | undefined>(
+        () => searchParams.get('spesialisasi') ?? undefined,
+    );
     const [tipe, setTipe] = useState<DokterTipe | undefined>(undefined);
     const [telemedisinOnly, setTelemedisinOnly] = useState(false);
     const [sort, setSort] = useState<SortDokter>(DEFAULT_SORT);

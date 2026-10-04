@@ -189,9 +189,10 @@ export function ProfilEditPage() {
 
     // Finished accounts have nowhere to go here: the consents were already taken and
     // the row already exists, so replaying this form would be a second decision on a
-    // ledger that only records decisions actually made.
+    // ledger that only records decisions actually made. They go where every other door
+    // in this app puts a signed-in visitor now - the landing page, not the dashboard.
     if (akun.nama_lengkap !== '' && akun.pasien !== undefined) {
-        return <Navigate to="/dashboard" replace />;
+        return <Navigate to="/" replace />;
     }
 
     const nasional = akun.no_telepon.replace(/^0/, '');
@@ -234,7 +235,8 @@ export function ProfilEditPage() {
             await lengkapiSignUp(payload);
 
             // Re-read before the next screen asks for the row it just created, so the
-            // dashboard's `/me` is not the shell the cache still holds.
+            // landing page's header - which greets by name - is not the shell the cache
+            // still holds.
             await queryClient.invalidateQueries({ queryKey: ['v1', 'me'] });
 
             dispatchFlash({
@@ -242,7 +244,7 @@ export function ProfilEditPage() {
                 message: 'Akun kamu sudah jadi. Selamat datang di Sehatly!',
             });
 
-            await navigate('/dashboard', { replace: true });
+            await navigate('/', { replace: true });
         } catch (error) {
             setServerError(error);
         }

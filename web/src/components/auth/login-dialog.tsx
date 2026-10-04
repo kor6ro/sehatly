@@ -380,7 +380,8 @@ export function LoginDialog({
              * name, no `pasien` row, no role grant, no consent ledger. The token is
              * real either way, but the dashboard renders a workspace for a patient
              * record that does not exist yet - so the next screen is the form that
-             * creates it, and only a finished account is sent on to `/dashboard`.
+             * creates it, and only a finished account is sent on to the landing page,
+             * which is where this app puts everyone who holds a token.
              */
             const selesai = result.data.profil_lengkap;
 
@@ -395,7 +396,7 @@ export function LoginDialog({
 
             await navigate(
                 selesai
-                    ? '/dashboard'
+                    ? '/'
                     : `/profil/edit/${result.data.user.id}?sign_up=true`,
                 { replace: true },
             );

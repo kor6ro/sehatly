@@ -1,8 +1,9 @@
 import { createBrowserRouter } from 'react-router';
 import { AppShell } from '@/app/app-shell';
 import { RouteErrorBoundary } from '@/app/error-boundary';
-import { NotFoundPage, RequireAuth, RootPage } from '@/app/guards';
+import { NotFoundPage, RequireAuth } from '@/app/guards';
 import { RootLayout } from '@/app/root-layout';
+import { LandingPage } from '@/pages/landing-page';
 import { LoginPage } from '@/pages/login-page';
 import { ProfilEditPage } from '@/pages/profil-edit-page';
 import { OtpPage } from '@/pages/otp-page';
@@ -98,7 +99,7 @@ export const router = createBrowserRouter([
         children: [
             {
                 path: '/',
-                element: <RootPage />,
+                element: <LandingPage />,
                 errorElement: <RouteErrorBoundary />,
             },
 
