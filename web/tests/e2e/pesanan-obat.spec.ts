@@ -130,7 +130,9 @@ async function masuk(page: Page): Promise<void> {
     await isi(page.locator('form input[inputmode="numeric"]'), body.data.otp.kode as string);
     await page.getByRole('button', { name: 'Verifikasi' }).click();
 
-    await expect(page).toHaveURL(/\/dashboard/, { timeout: 30_000 });
+    // Sign-in lands on the landing page; the workspace is one navigation away.
+    await expect(page).toHaveURL(/\/$/, { timeout: 30_000 });
+    await page.goto('/dashboard');
 }
 
 /**

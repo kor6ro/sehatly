@@ -193,7 +193,13 @@ async function masuk(page: Page): Promise<void> {
         .fill(body.data.otp.kode as string);
     await page.getByRole('button', { name: 'Verifikasi' }).click();
 
-    await expect(page).toHaveURL(/\/dashboard/, { timeout: 30_000 });
+    /**
+     * Sign-in lands on the landing page now - `/` is where every door puts a signed-in
+     * account - so the helper finishes by walking to the workspace itself, which is the
+     * state every caller of `masuk` was written against.
+     */
+    await expect(page).toHaveURL(/\/$/, { timeout: 30_000 });
+    await page.goto('/dashboard');
 }
 
 test.describe.configure({ mode: 'serial' });

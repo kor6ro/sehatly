@@ -415,8 +415,8 @@ async function pasangSesi(page: Page, deviceId?: string): Promise<void> {
  * Registered AFTER `pasangMock`, because Playwright gives the most recently registered
  * route the first refusal - so this one wins for `/me` and `pasangMock` keeps winning
  * for everything else. That matters here: `ProfilEditPage` reads `/me`, and if it saw a
- * finished account it would redirect to `/dashboard` instead of rendering the form this
- * file is about.
+ * finished account it would redirect to the landing page instead of rendering the form
+ * this file is about.
  */
 async function pasangSesiCangkang(page: Page): Promise<void> {
     await pasangSesi(page);
@@ -629,7 +629,11 @@ for (const vp of VIEWPORTS) {
             await page.getByRole('button', { name: 'Buat Akun' }).click();
 
             await expect.poll(() => state.lengkapi.length).toBe(1);
-            await expect(page).toHaveURL(/\/dashboard/);
+
+            // The landing page, not the dashboard: this is the one destination every
+            // door in the app shares now, and the hero strip is what says so.
+            await expect(page).toHaveURL(/\/$/);
+            await expect(page.locator('[data-slot="hero-carousel"]')).toBeVisible();
 
             const body = state.lengkapi[0] as Record<string, unknown>;
 
@@ -706,7 +710,8 @@ for (const vp of VIEWPORTS) {
             await page.getByRole('button', { name: 'Buat Akun' }).click();
 
             await expect.poll(() => state.lengkapi.length).toBe(1);
-            await expect(page).toHaveURL(/\/dashboard/);
+            await expect(page).toHaveURL(/\/$/);
+            await expect(page.locator('[data-slot="hero-carousel"]')).toBeVisible();
 
             const body = state.lengkapi[0] as Record<string, unknown>;
 

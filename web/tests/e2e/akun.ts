@@ -29,8 +29,8 @@ import { expect, type Page } from '@playwright/test';
  * number, and the number here is unique per run, so each account gets its own budget.
  *
  * `POST /auth/sign-up` writes a COMPLETE account - name, `pasien` row, role, ledger -
- * so `otp/verify` answers `profil_lengkap: true` and the account lands on `/dashboard`
- * rather than at the completion screen. That is asserted below rather than assumed,
+ * so `otp/verify` answers `profil_lengkap: true` and the account lands on the landing
+ * page rather than at the completion screen. That is asserted below rather than assumed,
  * because a regression there would silently move every spec onto a form page it has no
  * assertions for.
  *

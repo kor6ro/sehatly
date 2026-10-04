@@ -381,10 +381,23 @@ function oklchKeSrgb(l: number, c: number, h: number): RGB {
 function parseWarna(css: string): RGB | null {
     const teks = css.trim();
 
-    const oklch = /^oklch\(\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)\s*\)$/.exec(teks);
+    /**
+     * `oklch(L C H)`, in either spelling of `L`.
+     *
+     * `app.css` writes `--card: oklch(1 0 0)`, but a custom property is a token stream
+     * rather than a computed colour - what `getPropertyValue` hands back is Chromium's
+     * *serialisation*, and it now renders `L` as a percentage, so this arrives as
+     * `oklch(100% 0 0)`. The old pattern matched only the source spelling, which meant
+     * the ratio below could not be computed at all and the test failed on its parser
+     * rather than on any colour. On `L`, `%` is 100% = 1; `C` and `H` serialise as plain
+     * numbers, with `H` optionally carrying the `deg` unit it may also be written with.
+     */
+    const oklch = /^oklch\(\s*([\d.]+)(%?)\s+([\d.]+)\s+([\d.]+)(deg)?\s*\)$/i.exec(teks);
 
     if (oklch !== null) {
-        return oklchKeSrgb(Number(oklch[1]), Number(oklch[2]), Number(oklch[3]));
+        const l = Number(oklch[1]) / (oklch[2] === '%' ? 100 : 1);
+
+        return oklchKeSrgb(l, Number(oklch[3]), Number(oklch[4]));
     }
 
     const rgb = /^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/.exec(teks);
