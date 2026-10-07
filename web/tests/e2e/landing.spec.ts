@@ -6,7 +6,7 @@ import { daftarDanMasuk } from './akun';
  *
  * ## What this spec is actually guarding
  *
- * Four decisions are pinned down below, and each of them can regress without
+ * Five decisions are pinned down below, and each of them can regress without
  * breaking anything else:
  *
  * 1. **The body is the whole page.** `RootPage` used to be a chooser with two buttons;
@@ -30,6 +30,12 @@ import { daftarDanMasuk } from './akun';
  *    "Layanan Kesehatan" opens on hover instead of on a click. Nothing there may be
  *    hover-ONLY: the keyboard and the mobile sheet keep their own way in, which is what
  *    the last four tests in this file are for.
+ *
+ * 5. **The panels are shaped like a catalog menu and carry pictures.** Group headings
+ *    over plain links, a promo card whose photograph comes from `GET /hero` - the
+ *    admin's gallery - so the header has images without a deploy. One of these tests
+ *    exists because the first version of the services panel flickered open and shut
+ *    under a resting cursor.
  *
  * ## Why the sign-in path is driven through `daftarDanMasuk`
  *
@@ -213,7 +219,9 @@ test.describe('Landing page (/)', () => {
 
         // Both kinds of choice the panel offers, before anything is clicked.
         await expect(panel.locator('a[href^="/dokter?spesialisasi="]').first()).toBeVisible();
-        await expect(panel.locator('a[href="/dokter"]')).toBeVisible();
+        await expect(
+            panel.getByRole('link', { name: /Lihat semua dokter/ }),
+        ).toBeVisible();
 
         /**
          * The panel is sized by the HEADER BAR, not by the trigger: its containing block
@@ -257,36 +265,104 @@ test.describe('Landing page (/)', () => {
     });
 
     /**
-     * The other half of "no click needed": the services dropdown opens on hover too.
+     * The other half of "no click needed": the services panel opens on hover too - and
+     * it must STAY open, which is the whole point of this test.
      *
-     * Its content is PORTALED, so it is not a DOM child of the nav entry - leaving the
-     * entry for the menu therefore reads as leaving the menu, and the content carries its
-     * own enter handler to cancel the pending close. Hovering straight onto a menu item
-     * (which is what this does) is exactly the path that would break if that were
-     * missing: the menu would close mid-flight and the click would hit the page beneath.
+     * The regression it exists for: the first version of this panel was a Radix
+     * `DropdownMenu` with a controlled `open`. Radix's menu is modal, so opening it
+     * writes `pointer-events: none` onto `<body>`; the trigger the cursor is resting on
+     * then stops being hoverable, `pointerleave` fires, the menu closes, Radix clears the
+     * style, hover is re-evaluated and it reopens - a ~300 ms loop reported as "cursor
+     * diarahkan ke layanan kesehatan dia auto buka tutup terus". Nothing here uses Radix
+     * any more, so the assertion is two-fold: the panel is still there after a second of
+     * sitting still, and `<body>` never grew the inline pointer-events lockout that would
+     * mean a modal menu is back in the path.
      *
-     * The click itself lands on the login door, which is the documented behaviour for a
+     * The click lands on the login door, which is the documented behaviour for a
      * signed-out visitor: `/konsultasi` sits inside `RequireAuth`, so the router - not a
      * link that goes nowhere - is what answers.
      */
-    test('f00-landing-nav-layanan-terbuka-saat-hover-lalu-menuju-pintu-masuk', async ({ page }) => {
+    test('f00-landing-nav-layanan-terbuka-saat-hover-tanpa-membuka-menutup-sendiri', async ({
+        page,
+    }) => {
         await page.goto('/');
 
-        const menu = page.getByRole('menuitem', { name: 'Chat dengan Dokter' });
-        await expect(menu).toHaveCount(0);
+        const panel = page.locator('[data-slot="nav-layanan-panel"]');
+        await expect(panel).toHaveCount(0);
 
         await page.getByRole('button', { name: 'Layanan Kesehatan' }).hover();
+        await expect(panel).toBeVisible();
 
-        await expect(menu).toBeVisible();
-        await expect(page.getByRole('menuitem', { name: 'Booking Janji Temu' })).toBeVisible();
+        // A second of sitting still: ten consecutive samplings, no flicker allowed.
+        for (let putaran = 1; putaran <= 10; putaran++) {
+            await expect(panel, `panel harus tetap terbuka (putaran ${putaran})`).toBeVisible();
+            await page.waitForTimeout(100);
+        }
 
-        // straight onto an item, across the portal boundary
-        await menu.hover();
-        await expect(menu).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Layanan Kesehatan' })).toHaveAttribute(
+            'aria-expanded',
+            'true',
+        );
 
-        await menu.click();
+        expect(
+            await page.evaluate(() => document.body.style.pointerEvents),
+            'body tidak boleh dikunci pointer-events oleh menu modal',
+        ).toBe('');
 
+        // The panel is a Zalora-shaped column set, not the old flat dropdown: group
+        // headings over plain links, and every link a real route.
+        await expect(panel.getByText('Konsultasi & Janji')).toBeVisible();
+        await expect(panel.getByText('Obat & Apotek')).toBeVisible();
+        await expect(panel.getByText('Riwayat Kesehatan')).toBeVisible();
+
+        const chat = panel.getByRole('link', { name: 'Chat dengan Dokter', exact: true });
+        await expect(chat).toBeVisible();
+
+        // moving onto a link inside the panel must not close it either
+        await chat.hover();
+        await expect(panel).toBeVisible();
+
+        await chat.click();
         await expect(page).toHaveURL(/\/login/);
+    });
+
+    /**
+     * The pictures the mega panels carry, and where they come from.
+     *
+     * `GET /hero` is this product's only public source of real photography, and it is
+     * the admin's own: a slide is written in `/admin/hero` together with its image and
+     * its alt text. So the menu gets pictures without a deploy for exactly the reason the
+     * carousel does - and the alt text is asserted rather than assumed, because an image
+     * with no alternative text is how a "menu with pictures" becomes a menu with a blank
+     * hole for anyone not looking at the screen.
+     */
+    test('f00-landing-nav-mega-menampilkan-kartu-promo-bergambar', async ({ page }) => {
+        await page.goto('/');
+
+        for (const nama of ['Direktori Dokter', 'Layanan Kesehatan']) {
+            await page.getByRole('button', { name: nama }).hover();
+
+            const panel = page.locator(
+                nama === 'Direktori Dokter'
+                    ? '[data-slot="nav-direktori-panel"]'
+                    : '[data-slot="nav-layanan-panel"]',
+            );
+            const kartu = panel.locator('[data-slot="nav-promo"]').first();
+            const gambar = kartu.locator('img');
+
+            await expect(gambar, `panel "${nama}" harus memuat kartu promo`).toHaveCount(1);
+            await expect(gambar).toBeVisible();
+
+            // A real, decoded photograph - not a broken source painted over by alt text.
+            await expect
+                .poll(() => gambar.evaluate((el: HTMLImageElement) => el.naturalWidth))
+                .toBeGreaterThan(0);
+
+            await expect(gambar).not.toHaveAttribute('alt', '');
+
+            // and the card is a link, so the picture is also a way in
+            await expect(kartu).toHaveAttribute('href', '/dokter');
+        }
     });
 
     /**
