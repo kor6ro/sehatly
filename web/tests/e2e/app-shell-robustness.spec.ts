@@ -36,7 +36,7 @@ import { daftarDanMasuk } from './akun';
  * | --- | --- | --- |
  * | a route that throws is contained and the sidebar survives | F3-01 BLOCKER | the shell is gone, so `[data-sidebar="sidebar"]` never becomes visible and the navigation click cannot happen |
  * | no stack trace reaches the user | F3-01 BLOCKER | the body carries React's own error page |
- * | all seventeen destinations are reachable at 390 px | F3-04 MAJOR | there is no `[data-sidebar="trigger"]` to click |
+ * | all sixteen destinations are reachable at 390 px | F3-04 MAJOR | there is no `[data-sidebar="trigger"]` to click |
  * | no destination carries a hardcoded id | F3-06 MAJOR | a link is `/konsultasi/1` and 404s for this account |
  * | every destination renders inside the shell | F3-06 MAJOR | the shell is destroyed, or a raw English error card is shown |
  */
@@ -48,13 +48,17 @@ const DESKTOP = { width: 1280, height: 900 };
 const PONSEL = { width: 390, height: 844 };
 
 /**
- * The seventeen nav destinations a patient account is offered, as paths.
+ * The sixteen nav destinations a patient account is offered, as paths.
  *
  * Written out rather than counted, because "the drawer has links" would pass with the three
  * F3-04 measured. A destination added later fails here until this list is updated, which is
  * the whole value of writing it down - and which is how `/profil/notifikasi` and
  * `/pengingat` were caught: the "Notifikasi & pengingat" group landed in the shell and this
  * array did not, so the spec failed until the list was brought up to date.
+ *
+ * `/dokter/booking` ("Booking masuk") left this list when the practitioner entrances were
+ * held back from the sidebar: it answers `tipe:dokter` only, so for this account it was a
+ * link to a 403 card rather than a destination.
  */
 const TUJUAN_PASIEN: ReadonlyArray<string> = [
     '/dashboard',
@@ -65,7 +69,6 @@ const TUJUAN_PASIEN: ReadonlyArray<string> = [
     '/profil/privasi',
     '/dokter',
     '/booking',
-    '/dokter/booking',
     '/konsultasi',
     '/rekam-medis',
     '/pasien/resep',
@@ -113,12 +116,12 @@ async function tujuanSidebar(page: Page): Promise<string[]> {
 /**
  * Wait until the shell knows WHO is signed in.
  *
- * The sidebar filters five destinations on `user.tipe === 'pasien'`, and that user comes
+ * The sidebar's whole patient group hangs off `user.tipe === 'pasien'`, and that user comes
  * from `GET /api/v1/me`. A hard navigation starts with an empty query cache, so for the
- * first few hundred milliseconds the shell legitimately renders the nine unconditional
- * entries and only then the four patient ones. Comparing the two sets before that point
- * would compare a half-rendered menu, and the run that first found this failed on a race
- * rather than on a defect.
+ * first few hundred milliseconds the shell legitimately renders the two destinations every
+ * account type may open and only then the patient menu. Comparing the two sets before that
+ * point would compare a half-rendered menu, and the run that first found this failed on a
+ * race rather than on a defect.
  *
  * `/profil` is the marker because it is patient-only, so its presence IS the proof that
  * `/me` has answered and the role filter has been applied.
@@ -322,7 +325,7 @@ test.describe('App shell robustness (F3-01, F3-04, F3-06)', () => {
         );
     });
 
-    test('all seventeen destinations are reachable at 390 px', async ({ page }) => {
+    test('all sixteen destinations are reachable at 390 px', async ({ page }) => {
         test.setTimeout(180_000);
 
         await page.setViewportSize(DESKTOP);

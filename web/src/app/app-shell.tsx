@@ -2,21 +2,17 @@ import type { LucideIcon } from 'lucide-react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import {
     AlarmClock,
-    BarChart3,
     Bell,
     CalendarDays,
     ClipboardCheck,
     ClipboardList,
     FileHeart,
     HeartPulse,
-    Images,
-    LayoutDashboard,
     LogOut,
     MessagesSquare,
     MonitorSmartphone,
     Package,
     Pill,
-    ScrollText,
     ShieldAlert,
     ShieldCheck,
     Stethoscope,
@@ -63,10 +59,18 @@ import {
  *
  * ## Why the nav is a hand-written list and not a generated one
  *
- * There are thirteen destinations and no nested sections, so a generated nav would be
- * thirteen lines of configuration plus a component to interpret it. A list is the honest
- * amount of machinery for this many items, and the patient-only entries are filtered on
- * `user.tipe === 'pasien'` so a non-patient account is not offered a 403.
+ * There are sixteen destinations and no nested sections, so a generated nav would be
+ * sixteen lines of configuration plus a component to interpret it. A list is the honest
+ * amount of machinery for this many items.
+ *
+ * ## What the menu shows: the patient product, and nothing else
+ *
+ * Every `users.tipe` now sees the patient menu, and an account that is not a patient
+ * sees the two destinations all of them may open. The practitioner and clinic entrances
+ * (the old admin nav, `/dokter/dashboard`, `/dokter/booking`, `/apotek/resep`, "Tulis
+ * resep") are held back until they get a door of their own; the routes stay registered
+ * and server-guarded, so they still answer by URL. The full reasoning sits on the
+ * `<SidebarContent>` block below, next to the branch it describes.
  *
  * ## No destination carries a made-up id (F3-06)
  *
@@ -210,99 +214,6 @@ function MenuLink({
     );
 }
 
-/**
- * The whole navigation an `admin`/`superadmin` account sees.
- *
- * ## Why it replaces the generic nav instead of adding to it
- *
- * The F14 pattern's RBAC boundary is "a menu the account may not use is not
- * rendered". The generic nav offers patient-owned booking, consultation and
- * prescription destinations that an admin cannot open (the role holds no
- * `rekam_medis.lihat`/`resep.lihat` and the patient routes are profile-owned),
- * so the honest answer is a nav of the admin's own destinations plus the public
- * directory - which is exactly the AC-11 assertion (zero Rekam medis/Resep
- * links on an admin account) rather than a disabled menu.
- */
-function AdminNav({
-    pathname,
-    onNavigate,
-}: {
-    pathname: string;
-    onNavigate: () => void;
-}) {
-    return (
-        <>
-            <SidebarGroup>
-                <SidebarGroupLabel>Umum</SidebarGroupLabel>
-
-                <SidebarMenu>
-                    <MenuLink
-                        to="/dashboard"
-                        icon={ClipboardList}
-                        label="Dashboard"
-                        pathname={pathname}
-                        onNavigate={onNavigate}
-                    />
-
-                    <MenuLink
-                        to="/dokter"
-                        icon={Stethoscope}
-                        label="Direktori dokter"
-                        pathname={pathname}
-                        onNavigate={onNavigate}
-                    />
-                </SidebarMenu>
-            </SidebarGroup>
-
-            <SidebarGroup>
-                <SidebarGroupLabel>Admin klinik</SidebarGroupLabel>
-
-                <SidebarMenu>
-                    <MenuLink
-                        to="/admin/dokter"
-                        icon={HeartPulse}
-                        label="Dokter"
-                        pathname={pathname}
-                        onNavigate={onNavigate}
-                    />
-
-                    <MenuLink
-                        to="/admin/laporan"
-                        icon={BarChart3}
-                        label="Laporan"
-                        pathname={pathname}
-                        onNavigate={onNavigate}
-                    />
-
-                    <MenuLink
-                        to="/admin/audit-log"
-                        icon={ScrollText}
-                        label="Jejak audit"
-                        pathname={pathname}
-                        onNavigate={onNavigate}
-                    />
-
-                    <MenuLink
-                        to="/admin/persetujuan-pdp"
-                        icon={ShieldCheck}
-                        label="Persetujuan PDP"
-                        pathname={pathname}
-                        onNavigate={onNavigate}
-                    />
-
-                    <MenuLink
-                        to="/admin/hero"
-                        icon={Images}
-                        label="Carousel beranda"
-                        pathname={pathname}
-                        onNavigate={onNavigate}
-                    />
-                </SidebarMenu>
-            </SidebarGroup>
-        </>
-    );
-}
-
 function AppSidebar() {
     const navigate = useNavigate();
     const location = useLocation();
@@ -349,23 +260,21 @@ function AppSidebar() {
     });
 
     const user = me.data?.data.user ?? null;
-    const isPasien = user?.tipe === 'pasien';
-    const isDokter = user?.tipe === 'dokter';
-    const isApotek = user?.tipe === 'apoteker' || user?.tipe === 'superadmin';
 
     /**
-     * F14's account-type guard, and the reason the nav is split further down.
+     * The only branch the sidebar still needs: is this account a patient?
      *
-     * The backend's whole `/admin` group is `tipe:admin,superadmin`. The role
-     * holds no `rekam_medis.lihat` and no `resep.lihat` (`RbacCatalog`), so for
-     * an admin the clinical groups are not merely irrelevant - following them
-     * would be a 403. The F14 pattern's RBAC rule is "a control that may not be
-     * used is not rendered", so an admin nav carries the admin destinations and
-     * the public directory, and the patient/doctor/clinical groups are omitted.
-     * This branch is why AC-11 can assert zero Rekam medis/Resep links for an
-     * admin account.
+     * Every other `users.tipe` used to carry its own group here - `admin` had its own
+     * nav (`/admin/dokter`, `/admin/laporan`, `/admin/audit-log`, `/admin/hero`),
+     * `dokter` had "Dasbor dokter" and "Tulis resep", `apoteker` had the pharmacy
+     * queue - and all of those are held back together, because what the product
+     * presents at the moment is the PATIENT experience and those entrances have not
+     * been given a door of their own yet. The server-side guards behind them are
+     * untouched (`tipe:` and `permission:` in `routes/api.php`), so hiding a menu
+     * costs nothing but a label: the route still answers the account it always
+     * answered, by URL.
      */
-    const isAdmin = user?.tipe === 'admin' || user?.tipe === 'superadmin';
+    const isPasien = user?.tipe === 'pasien';
 
     return (
         <Sidebar collapsible="icon">
@@ -388,24 +297,47 @@ function AppSidebar() {
             <SidebarSeparator />
 
             <SidebarContent>
-                {isAdmin ? (
-                    <AdminNav pathname={pathname} onNavigate={tutupDrawer} />
-                ) : (
+                {/**
+                 * The whole visible menu is the PATIENT product: the patient menu for a
+                 * patient, and the two destinations every `users.tipe` may open for
+                 * anyone else (see the branch at the bottom).
+                 *
+                 * The practitioner and clinic entrances used to live here too: an
+                 * `admin` nav (`/admin/dokter`, `/admin/laporan`, `/admin/audit-log`,
+                 * `/admin/persetujuan-pdp`, `/admin/hero`), a "Dokter" group
+                 * (`/dokter/dashboard`), "Booking masuk" (`/dokter/booking`), "Tulis
+                 * resep" and "Antrean apoteker" (`/apotek/resep`). All of them are held
+                 * back until they get a dedicated door of their own, because what this
+                 * build presents is the patient product and an entrance without a door
+                 * is not an entrance, it is a stray link.
+                 *
+                 * This is F14's own RBAC rule - "a control the account may not use is
+                 * not rendered" - applied to the whole role surface at once instead of
+                 * link by link. The ROUTES are untouched: they stay registered in
+                 * `app/router.tsx` and answer exactly the `tipe:`/`permission:` guards
+                 * the server puts on them, so `/admin/hero` still opens by URL for the
+                 * owner today, and re-adding a labelled entrance later is a change to
+                 * this block alone - no router, no API, no migration.
+                 *
+                 * An account that is NOT a patient therefore gets only the two
+                 * destinations every `users.tipe` may open - `/dashboard`, which reads
+                 * the account's own profile, and the public directory - rather than a
+                 * patient menu whose links would answer 403.
+                 */}
+                {isPasien ? (
                     <>
-                <SidebarGroup>
-                    <SidebarGroupLabel>Pasien</SidebarGroupLabel>
+                        <SidebarGroup>
+                            <SidebarGroupLabel>Pasien</SidebarGroupLabel>
 
-                    <SidebarMenu>
-                        <MenuLink
-                            to="/dashboard"
-                            icon={ClipboardList}
-                            label="Dashboard"
-                            pathname={pathname}
-                            onNavigate={tutupDrawer}
-                        />
+                            <SidebarMenu>
+                                <MenuLink
+                                    to="/dashboard"
+                                    icon={ClipboardList}
+                                    label="Dashboard"
+                                    pathname={pathname}
+                                    onNavigate={tutupDrawer}
+                                />
 
-                        {isPasien ? (
-                            <>
                                 <MenuLink
                                     to="/profil"
                                     icon={ClipboardList}
@@ -445,241 +377,184 @@ function AppSidebar() {
                                     pathname={pathname}
                                     onNavigate={tutupDrawer}
                                 />
-                            </>
-                        ) : null}
-                    </SidebarMenu>
-                </SidebarGroup>
+                            </SidebarMenu>
+                        </SidebarGroup>
 
-                <SidebarGroup>
-                    <SidebarGroupLabel>Umum</SidebarGroupLabel>
+                        <SidebarGroup>
+                            <SidebarGroupLabel>Umum</SidebarGroupLabel>
 
-                    <SidebarMenu>
-                        <MenuLink
-                            to="/dokter"
-                            icon={Stethoscope}
-                            label="Direktori dokter"
-                            pathname={pathname}
-                            onNavigate={tutupDrawer}
-                        />
-                    </SidebarMenu>
-                </SidebarGroup>
+                            <SidebarMenu>
+                                <MenuLink
+                                    to="/dokter"
+                                    icon={Stethoscope}
+                                    label="Direktori dokter"
+                                    pathname={pathname}
+                                    onNavigate={tutupDrawer}
+                                />
+                            </SidebarMenu>
+                        </SidebarGroup>
 
-                {/**
-                 * F13's dashboard is a doctor-only home: every endpoint behind it is
-                 * `tipe:dokter`, so offering it to a patient would be a 403 card. The
-                 * group is hidden rather than disabled for that reason - unlike the
-                 * booking list below, where the refusal itself is informative.
-                 */}
-                {isDokter ? (
-                    <SidebarGroup>
-                        <SidebarGroupLabel>Dokter</SidebarGroupLabel>
+                        {/**
+                         * "Booking masuk" (`/dokter/booking`, the doctor's list of
+                         * incoming bookings) is part of the deferred doctor entrance,
+                         * so only the patient's own list is offered here. It used to be
+                         * rendered for every account and answered a patient with the
+                         * 403 the server returns for `tipe:dokter`.
+                         */}
+                        <SidebarGroup>
+                            <SidebarGroupLabel>Booking</SidebarGroupLabel>
 
-                        <SidebarMenu>
-                            <MenuLink
-                                to="/dokter/dashboard"
-                                icon={LayoutDashboard}
-                                label="Dasbor dokter"
-                                pathname={pathname}
-                                onNavigate={tutupDrawer}
-                            />
-                        </SidebarMenu>
-                    </SidebarGroup>
-                ) : null}
+                            <SidebarMenu>
+                                <MenuLink
+                                    to="/booking"
+                                    icon={CalendarDays}
+                                    label="Booking saya"
+                                    pathname={pathname}
+                                    onNavigate={tutupDrawer}
+                                />
+                            </SidebarMenu>
+                        </SidebarGroup>
 
-                {/**
-                 * Booking is shown to every signed-in account, not only to patients,
-                 * because `GET /api/v1/dokter/booking` is a real doctor-side surface and
-                 * `tipe:dokter` is the only thing separating the two. Hiding it from a
-                 * doctor would hide the one list they can actually read, and showing it to
-                 * a patient costs them a 403 screen that explains why - which is the
-                 * server's own contract, not a client-side guess.
-                 */}
-                <SidebarGroup>
-                    <SidebarGroupLabel>Booking</SidebarGroupLabel>
+                        {/**
+                         * F11's two self-service screens. The endpoints carry
+                         * `permission:notifikasi.lihat`, which every role holds except
+                         * `perawat`/`kurir`; they are here for the patient who owns the
+                         * reminder, and the doctor's copy belongs with the doctor
+                         * entrance that does not exist yet.
+                         */}
+                        <SidebarGroup>
+                            <SidebarGroupLabel>Notifikasi &amp; pengingat</SidebarGroupLabel>
 
-                    <SidebarMenu>
-                        <MenuLink
-                            to="/booking"
-                            icon={CalendarDays}
-                            label="Booking saya"
-                            pathname={pathname}
-                            onNavigate={tutupDrawer}
-                        />
+                            <SidebarMenu>
+                                <MenuLink
+                                    to="/profil/notifikasi"
+                                    icon={Bell}
+                                    label="Notifikasi"
+                                    pathname={pathname}
+                                    onNavigate={tutupDrawer}
+                                />
 
-                        <MenuLink
-                            to="/dokter/booking"
-                            icon={ClipboardCheck}
-                            label="Booking masuk"
-                            pathname={pathname}
-                            onNavigate={tutupDrawer}
-                        />
-                    </SidebarMenu>
-                </SidebarGroup>
+                                <MenuLink
+                                    to="/pengingat"
+                                    icon={AlarmClock}
+                                    label="Pengingat"
+                                    pathname={pathname}
+                                    onNavigate={tutupDrawer}
+                                />
+                            </SidebarMenu>
+                        </SidebarGroup>
 
-                {/**
-                 * F11's two self-service screens, for the two roles the pattern names -
-                 * the patient who owns the reminder and the doctor who receives the
-                 * notification. The endpoints carry `permission:notifikasi.lihat`,
-                 * which every role holds except `perawat`/`kurir`; those two are
-                 * already outside this nav, and admin gets {@link AdminNav} instead.
-                 */}
-                {isPasien || isDokter ? (
-                    <SidebarGroup>
-                        <SidebarGroupLabel>Notifikasi &amp; pengingat</SidebarGroupLabel>
+                        {/**
+                         * Module 3's two screens, and the two that needed the F3-06
+                         * fix: both point at an id-free index route, so `/konsultasi`
+                         * and `/rekam-medis` resolve the caller's own ids from their
+                         * prescription history or say that there are none. `/1` is a row
+                         * in another tenant's database.
+                         */}
+                        <SidebarGroup>
+                            <SidebarGroupLabel>Konsultasi</SidebarGroupLabel>
 
-                        <SidebarMenu>
-                            <MenuLink
-                                to="/profil/notifikasi"
-                                icon={Bell}
-                                label="Notifikasi"
-                                pathname={pathname}
-                                onNavigate={tutupDrawer}
-                            />
+                            <SidebarMenu>
+                                <MenuLink
+                                    to="/konsultasi"
+                                    icon={MessagesSquare}
+                                    label="Konsultasi"
+                                    pathname={pathname}
+                                    onNavigate={tutupDrawer}
+                                />
 
-                            <MenuLink
-                                to="/pengingat"
-                                icon={AlarmClock}
-                                label="Pengingat"
-                                pathname={pathname}
-                                onNavigate={tutupDrawer}
-                            />
-                        </SidebarMenu>
-                    </SidebarGroup>
-                ) : null}
+                                <MenuLink
+                                    to="/rekam-medis"
+                                    icon={FileHeart}
+                                    label="Rekam medis"
+                                    pathname={pathname}
+                                    onNavigate={tutupDrawer}
+                                />
+                            </SidebarMenu>
+                        </SidebarGroup>
 
-                {/**
-                 * Module 3's two screens, and the two that needed the F3-06 fix. Both point
-                 * at an id-free index route now: `/konsultasi` and `/rekam-medis` resolve
-                 * the caller's own ids from their prescription history, or say that there
-                 * are none. `/1` is a row in another tenant's database.
-                 *
-                 * Both are here rather than filtered by account type because each one is a
-                 * real surface for both sides: `GET /konsultasi/{id}` and
-                 * `GET /rekam-medis/{id}` are readable by the patient, the doctor, and
-                 * `admin`/`superadmin`, and the SOAP form and the record editor are gated
-                 * inside the page on `user.tipe` rather than here. Hiding a link a
-                 * signed-in account is entitled to follow would be a worse failure than
-                 * showing one whose content explains the refusal.
-                 */}
-                <SidebarGroup>
-                    <SidebarGroupLabel>Konsultasi</SidebarGroupLabel>
+                        {/**
+                         * Module 4, patient half: the prescription history is
+                         * patient-owned data (`GET /pasien/resep`). "Tulis resep"
+                         * (`tipe:dokter`) and "Antrean apoteker" (`tipe:apoteker`) are
+                         * part of the deferred practitioner entrance and are not
+                         * rendered - a group with nothing the patient may use in it
+                         * would be a heading over an empty list.
+                         */}
+                        <SidebarGroup>
+                            <SidebarGroupLabel>Resep</SidebarGroupLabel>
 
-                    <SidebarMenu>
-                        <MenuLink
-                            to="/konsultasi"
-                            icon={MessagesSquare}
-                            label="Konsultasi"
-                            pathname={pathname}
-                            onNavigate={tutupDrawer}
-                        />
+                            <SidebarMenu>
+                                <MenuLink
+                                    to="/pasien/resep"
+                                    icon={Pill}
+                                    label="Riwayat resep"
+                                    pathname={pathname}
+                                    onNavigate={tutupDrawer}
+                                />
+                            </SidebarMenu>
+                        </SidebarGroup>
 
-                        <MenuLink
-                            to="/rekam-medis"
-                            icon={FileHeart}
-                            label="Rekam medis"
-                            pathname={pathname}
-                            onNavigate={tutupDrawer}
-                        />
-                    </SidebarMenu>
-                </SidebarGroup>
+                        {/**
+                         * Module 5. All three point at index routes: `/pesanan` and
+                         * `/pembayaran` cannot be resolved from anything because the API
+                         * publishes no order list and no invoice list, so those pages
+                         * say so and point at the checkout confirmation - the only
+                         * moment a patient is given an order number. The previous
+                         * `/pesanan/1` and `/pembayaran/1` were 404 cards.
+                         */}
+                        <SidebarGroup>
+                            <SidebarGroupLabel>Obat dan pembayaran</SidebarGroupLabel>
 
-                {/**
-                 * Module 4's screens, split by who each one is for rather than rendered
-                 * for everyone.
-                 *
-                 * The prescription composer and the pharmacy queue are the two genuinely
-                 * single-audience screens here: `POST /konsultasi/{id}/resep` carries
-                 * `tipe:dokter` and `POST /resep/{id}/verifikasi` carries `tipe:apoteker`, so
-                 * showing either to the wrong account type costs a 403 screen. The history
-                 * is patient-owned data, so it is offered to the patient alone.
-                 *
-                 * "Tulis resep" points at `/konsultasi` and no longer at
-                 * `/konsultasi/1/resep`: a prescription hangs off a consultation, and id `1`
-                 * is not this doctor's consultation. The index is where a consultation
-                 * would be chosen; its content states the limit for a doctor, who has no
-                 * prescription history to derive one from.
-                 */}
-                <SidebarGroup>
-                    <SidebarGroupLabel>Resep</SidebarGroupLabel>
+                            <SidebarMenu>
+                                <MenuLink
+                                    to="/checkout"
+                                    icon={Package}
+                                    label="Checkout resep"
+                                    pathname={pathname}
+                                    onNavigate={tutupDrawer}
+                                />
 
-                    <SidebarMenu>
-                        {isDokter ? (
-                            <MenuLink
-                                to="/konsultasi"
-                                icon={Pill}
-                                label="Tulis resep"
-                                pathname={pathname}
-                                onNavigate={tutupDrawer}
-                            />
-                        ) : null}
+                                <MenuLink
+                                    to="/pesanan"
+                                    icon={Package}
+                                    label="Lacak pesanan"
+                                    pathname={pathname}
+                                    onNavigate={tutupDrawer}
+                                />
 
-                        {isApotek ? (
-                            <MenuLink
-                                to="/apotek/resep"
-                                icon={ClipboardCheck}
-                                label="Antrean apoteker"
-                                pathname={pathname}
-                                onNavigate={tutupDrawer}
-                            />
-                        ) : null}
-
-                        {isPasien ? (
-                            <MenuLink
-                                to="/pasien/resep"
-                                icon={Pill}
-                                label="Riwayat resep"
-                                pathname={pathname}
-                                onNavigate={tutupDrawer}
-                            />
-                        ) : null}
-                    </SidebarMenu>
-                </SidebarGroup>
-
-                {/**
-                 * Module 5. Shown to every signed-in account rather than filtered by type,
-                 * because the routes behind them are different surfaces and only the
-                 * checkout write is `pasien`-gated: `GET /pesanan-obat/{id}` also serves
-                 * `apoteker` and `admin`. Hiding a link an account may follow would be a
-                 * worse failure than showing one whose content explains the refusal.
-                 *
-                 * All three point at index routes. `/pesanan` and `/pembayaran` cannot be
-                 * resolved from anything: the API publishes no order list and no invoice
-                 * list, so those pages say so and point at the checkout confirmation, which
-                 * is the only moment a patient is given an order number. The previous
-                 * `/pesanan/1` and `/pembayaran/1` were 404 cards for everyone else.
-                 */}
-                <SidebarGroup>
-                    <SidebarGroupLabel>Obat dan pembayaran</SidebarGroupLabel>
-
-                    <SidebarMenu>
-                        {isPasien ? (
-                            <MenuLink
-                                to="/checkout"
-                                icon={Package}
-                                label="Checkout resep"
-                                pathname={pathname}
-                                onNavigate={tutupDrawer}
-                            />
-                        ) : null}
-
-                        <MenuLink
-                            to="/pesanan"
-                            icon={Package}
-                            label="Lacak pesanan"
-                            pathname={pathname}
-                            onNavigate={tutupDrawer}
-                        />
-
-                        <MenuLink
-                            to="/pembayaran"
-                            icon={ClipboardCheck}
-                            label="Bayar"
-                            pathname={pathname}
-                            onNavigate={tutupDrawer}
-                        />
-                    </SidebarMenu>
-                </SidebarGroup>
+                                <MenuLink
+                                    to="/pembayaran"
+                                    icon={ClipboardCheck}
+                                    label="Bayar"
+                                    pathname={pathname}
+                                    onNavigate={tutupDrawer}
+                                />
+                            </SidebarMenu>
+                        </SidebarGroup>
                     </>
+                ) : (
+                    <SidebarGroup>
+                        <SidebarGroupLabel>Umum</SidebarGroupLabel>
+
+                        <SidebarMenu>
+                            <MenuLink
+                                to="/dashboard"
+                                icon={ClipboardList}
+                                label="Dashboard"
+                                pathname={pathname}
+                                onNavigate={tutupDrawer}
+                            />
+
+                            <MenuLink
+                                to="/dokter"
+                                icon={Stethoscope}
+                                label="Direktori dokter"
+                                pathname={pathname}
+                                onNavigate={tutupDrawer}
+                            />
+                        </SidebarMenu>
+                    </SidebarGroup>
                 )}
             </SidebarContent>
 

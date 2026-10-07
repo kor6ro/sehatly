@@ -11,7 +11,6 @@ import {
     MessagesSquare,
     Pill,
     Settings,
-    Stethoscope,
     UserRound,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -109,22 +108,6 @@ const LAYANAN: NavItem[] = [
     },
 ];
 
-/** The practitioner side, mirroring the patient-side list above. */
-const UNTUK_DOKTER: NavItem[] = [
-    {
-        to: '/dokter/dashboard',
-        label: 'Dashboard Dokter',
-        description: 'Antrean & pasien hari ini',
-        icon: Stethoscope,
-    },
-    {
-        to: '/dokter/booking',
-        label: 'Jadwal Praktik',
-        description: 'Kelola slot & hari libur',
-        icon: CalendarDays,
-    },
-];
-
 /** The one nav entry that needs no session at all. */
 const DIREKTORI = '/dokter';
 
@@ -199,7 +182,18 @@ function NavDropdown({
     );
 }
 
-/** The full nav, rendered inline on desktop and inside the sheet on mobile. */
+/**
+ * The full nav, rendered inline on desktop and inside the sheet on mobile.
+ *
+ * ## Why there is no "Untuk Dokter" menu
+ *
+ * The practitioner entrances (`/dokter/dashboard`, `/dokter/booking`) and the whole
+ * `/admin` group are being kept out of the public face until they get a dedicated door
+ * of their own: what the landing page shows is the PATIENT product. The routes are not
+ * deleted, only unadvertised - they stay registered in `app/router.tsx` and still answer
+ * the `tipe:`/`permission:` guards the server puts on them, so `/admin/hero` opens by URL
+ * today and a labelled entrance can be re-added later without touching a route.
+ */
 function NavList({
     className,
     onNavigate,
@@ -219,12 +213,6 @@ function NavList({
             <NavDropdown
                 label="Layanan Kesehatan"
                 items={LAYANAN}
-                onNavigate={onNavigate}
-            />
-
-            <NavDropdown
-                label="Untuk Dokter"
-                items={UNTUK_DOKTER}
                 onNavigate={onNavigate}
             />
         </nav>

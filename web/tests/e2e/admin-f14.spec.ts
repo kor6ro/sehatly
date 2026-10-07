@@ -1190,7 +1190,7 @@ for (const viewport of VIEWPORTS) {
             await expectNoA11yViolations(page);
         });
 
-        test('AC-11 rbac: 403 -> ForbiddenState, tanpa tautan klinis, non-admin tanpa tautan audit', async ({
+        test('AC-11 rbac: 403 -> ForbiddenState, tanpa tautan klinis, tanpa nav admin', async ({
             page,
         }) => {
             await masukPalsu(page);
@@ -1205,13 +1205,35 @@ for (const viewport of VIEWPORTS) {
 
             await bukaNavigasiMobile(page, viewport.width);
 
+            /**
+             * The shell renders the patient menu for an `admin` account now, so the
+             * clinical groups are absent for the same reason they always were here
+             * (the role holds no `rekam_medis.lihat`/`resep.lihat`), and the admin
+             * destinations are absent for the new reason: the practitioner and clinic
+             * entrances are held back from the sidebar until they get a door of their
+             * own. The route itself still answers the `tipe:` guard - this test is on
+             * `/admin/audit-log`, and the 403 above is the server's own.
+             */
             await expect(
                 page.getByRole('link', { name: 'Rekam medis' }),
             ).toHaveCount(0);
             await expect(page.getByRole('link', { name: 'Resep' })).toHaveCount(0);
 
             await expect(
-                page.getByRole('link', { name: 'Jejak audit' }).first(),
+                page.getByRole('link', { name: 'Jejak audit' }),
+            ).toHaveCount(0);
+            await expect(
+                page.getByRole('link', { name: 'Persetujuan PDP' }),
+            ).toHaveCount(0);
+
+            // ...and the drawer really did open, rather than the two counts above
+            // passing because nothing rendered: the two destinations every `users.tipe`
+            // may open are on screen.
+            await expect(
+                page.getByRole('link', { name: 'Dashboard' }).first(),
+            ).toBeVisible();
+            await expect(
+                page.getByRole('link', { name: 'Direktori dokter' }).first(),
             ).toBeVisible();
         });
 
