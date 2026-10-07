@@ -25,9 +25,10 @@ import type { LucideIcon } from 'lucide-react';
  *
  * ## Why this file exists at all
  *
- * The page is nine sections long and two things have an endpoint behind them:
- * `GET /master-spesialisasi` (rendered by `SpesialisSection`) and `GET /hero`, the
- * carousel the admin edits at `/admin/hero`. The carousel's copy in THIS file is its
+ * The page is seven sections long and none of THEM has an endpoint behind it: the
+ * fetching moved into the header. `PanelDirektori` asks for `GET /master-spesialisasi`,
+ * and the carousel - and that same menu, on the same query key - asks for `GET /hero`,
+ * the gallery the admin edits at `/admin/hero`. The carousel's copy in THIS file is its
  * fallback - what a signed-out visitor sees while the table is empty or the API is
  * down - which is why `SLIDE_HERO` is still worth keeping rather than deleted the
  * moment the data moved behind a route. Everything else is editorial copy: the

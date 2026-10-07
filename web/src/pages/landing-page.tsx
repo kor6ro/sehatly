@@ -12,7 +12,6 @@ import {
     ObatSection,
     PromoSection,
     SolusiSection,
-    SpesialisSection,
     TestimoniSection,
 } from '@/features/landing/sections';
 
@@ -62,7 +61,6 @@ export function LandingPage() {
 
                 <SolusiSection />
                 <PromoSection />
-                <SpesialisSection />
                 <ObatSection />
                 <KamusSection />
                 <ArtikelSection />

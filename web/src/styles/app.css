@@ -207,12 +207,12 @@
  * makes Chromium take over the axis and IGNORE the pseudo-elements entirely, leaving a
  * thumb that reserves nothing and appears on no screenshot.
  *
- * The rail is the reason this matters: it holds fifteen rows in a window that fits about
+ * The rail is the reason this matters: it holds sixteen rows in a window that fits about
  * ten, and a panel whose only hint of more content is a scrollbar that may never appear
  * reads as a list that simply ENDS. So the native bar is turned off on both spellings -
  * `scrollbar-width: none` for engines that honour the standard, `display: none` on the
- * pseudo-element for the ones that only honour WebKit's - and the thumb in
- * `SpesialisSection` is a real element: it is laid out, it is draggable, and it exists
+ * pseudo-element for the ones that only honour WebKit's - and the thumb drawn by
+ * `RelMenggulir` is a real element: it is laid out, it is draggable, and it exists
  * identically on every machine, which is the whole point.
  */
 .gulir-sendiri {

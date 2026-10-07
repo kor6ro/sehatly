@@ -46,11 +46,10 @@ import { daftarDanMasuk } from './akun';
  * render, not observed.
  */
 
-/** The nine section headings, in the order the page stacks them. */
+/** The seven section headings, in the order the page stacks them. */
 const SEKSI: ReadonlyArray<string> = [
     'Solusi Kesehatan di Tanganmu',
     'Promo & Penawaran Hari Ini',
-    'Konsultasi Spesialis Tepercaya',
     'Beli Obat & Suplemen Kesehatan',
     'Telusuri Kamus Kesehatan',
     'Baca Artikel Kesehatan Terkini',
@@ -106,129 +105,6 @@ test.describe('Landing page (/)', () => {
         // The door does not cost the visitor their place: closing it is the landing page.
         await page.keyboard.press('Escape');
         await expect(page.locator('[data-slot="hero-carousel"]')).toBeVisible();
-    });
-
-    /**
-     * The specialty rows are the only thing in this file that changed SHAPE without
-     * changing meaning: six tiles carrying a decorative "Sp" badge became a scrollable
-     * menu list whose row is line-art + name and nothing else. So the assertion that
-     * matters is the one that was always there - the row that arrived is the SAME string
-     * the directory's own filter chip shows - and the badge-stripping that made it
-     * provable before is now simply unnecessary: `innerText` IS `master_spesialisasi.nama`.
-     *
-     * Scoping to `[data-slot="spesialis-daftar"]` matters too: the header's hover panel
-     * publishes the same `?spesialisasi=` links, and "the first one on the page" is no
-     * longer a stable way to name this section's rows.
-     */
-    test('f00-landing-baris-spesialis-membuka-direktori-yang-sudah-terfilter', async ({
-        page,
-    }) => {
-        await page.goto('/');
-
-        const baris = page
-            .locator('[data-slot="spesialis-daftar"] a[href^="/dokter?spesialisasi="]')
-            .first();
-        await expect(baris).toBeVisible();
-
-        const href = await baris.getAttribute('href');
-        expect(href).not.toBeNull();
-
-        const nama = (await baris.innerText()).trim();
-
-        await baris.click();
-
-        await expect(page).toHaveURL(/\/dokter\?spesialisasi=/);
-        await expect(page.locator('[data-slot="dokter-count"]')).toBeVisible();
-        await expect(page.locator('[data-slot="dokter-chip"]')).toContainText(nama);
-    });
-
-    /**
-     * The shape itself, which is what was asked for: the WIDE catalog panel with three
-     * zones, not the single scrollable column it was between two commits ago.
-     *
-     * Four things have to be true at once or it is only a list with a title. The heading
-     * and its "Lihat semua" link share the panel's top ROW (a grid section puts the
-     * heading in its own column, which is exactly what this replaced). The three zones
-     * sit SIDE BY SIDE at desktop width - rail, shortcuts, picture grid - because a
-     * stacked version is the old single column wearing a different hat. The rail carries
-     * line art on every one of its fifteen rows and still scrolls, which is the claim
-     * that the whole reference table is present rather than a sample of it. And the
-     * picture zone is a full grid of four cards, so the panel's right-hand third is not
-     * the empty column it would be if only the admin's photographs were counted.
-     */
-    test('f00-landing-panel-spesialis-tiga-zona-ala-menu-katalog', async ({ page }) => {
-        await page.goto('/');
-
-        const panel = page.locator('[data-slot="spesialis-panel"]');
-        await expect(panel).toBeVisible();
-
-        await expect(
-            panel.getByRole('heading', { name: 'Konsultasi Spesialis Tepercaya' }),
-        ).toBeVisible();
-        await expect(panel.getByRole('link', { name: /Lihat semua/ })).toBeVisible();
-
-        // the three zones are three COLUMNS, side by side
-        const zona = panel.locator('[data-slot="spesialis-zona"]');
-        const kolom = await zona.evaluate((el) =>
-            getComputedStyle(el).gridTemplateColumns.split(' ').length,
-        );
-        expect(kolom, 'tiga zona harus sejajar, bukan menumpuk').toBe(3);
-
-        // Zone 1 - the rail: every row has line art, and it scrolls
-        const daftar = zona.locator('[data-slot="spesialis-daftar"]');
-        await expect(daftar).toBeVisible();
-
-        const jumlah = await daftar.locator('li').count();
-        expect(
-            jumlah,
-            'seluruh tabel spesialisasi harus terbaca, bukan enam teratas',
-        ).toBeGreaterThan(10);
-        expect(await daftar.locator('li svg').count()).toBe(jumlah);
-
-        const gulir = await daftar.evaluate((el) => ({
-            kolomTunggal: getComputedStyle(el).display !== 'grid',
-            tinggi: el.scrollHeight - el.clientHeight,
-        }));
-        expect(gulir.kolomTunggal, 'baris harus menumpuk ke bawah, bukan grid').toBe(true);
-        expect(gulir.tinggi, 'daftar harus menggulir, bukan memendek').toBeGreaterThan(0);
-
-        /**
-         * ...and it says so. The platform scrollbar is switched off (`.gulir-sendiri`)
-         * because Chromium 153 reserves no space for a native one even when its width is
-         * styled, so the rail draws a thumb of its own - an element with height, not a
-         * pseudo-element that may or may not paint. Two claims are checked: the thumb is
-         * shorter than the rail (which is only possible while there is more to reach),
-         * and dragging it actually moves the list, because a scrollbar that cannot be
-         * grabbed is decoration.
-         */
-        const thumb = zona.locator('[data-slot="spesialis-gulir"]');
-        await expect(thumb).toBeVisible();
-
-        const kotakThumb = await thumb.boundingBox();
-        const kotakRel = await daftar.boundingBox();
-        expect(kotakThumb.height, 'thumb harus lebih pendek dari relnya').toBeLessThan(
-            kotakRel.height,
-        );
-
-        await thumb.hover();
-        await page.mouse.down();
-        await page.mouse.move(kotakThumb.x + 3, kotakThumb.y + 90, { steps: 6 });
-        await page.mouse.up();
-
-        await expect
-            .poll(() => daftar.evaluate((el) => el.scrollTop))
-            .toBeGreaterThan(0);
-
-        // Zone 2 - both shortcut columns, with their headings
-        const pintasan = zona.locator('[data-slot="spesialis-pintasan"]');
-        await expect(pintasan.getByText('Sering dicari')).toBeVisible();
-        await expect(pintasan.getByText('Layanan', { exact: true })).toBeVisible();
-        expect(await pintasan.locator('a').count()).toBeGreaterThanOrEqual(8);
-
-        // Zone 3 - a full grid of cards, whatever the admin has uploaded
-        const promo = zona.locator('[data-slot="spesialis-promo"]');
-        await expect(promo).toBeVisible();
-        expect(await promo.locator('a').count(), 'grid gambar harus penuh').toBe(4);
     });
 
     /**
@@ -360,6 +236,102 @@ test.describe('Landing page (/)', () => {
 
         await expect(page).toHaveURL(/\/dokter\?spesialisasi=/);
         await expect(page.locator('[data-slot="dokter-chip"]')).toBeVisible();
+    });
+
+    /**
+     * The catalog-panel shape, which asked to live HERE rather than in the page body.
+     *
+     * It used to be published twice: a `SpesialisSection` on `/` and this hover panel,
+     * both carrying the same reference table. The section was deleted and its shape moved
+     * into this menu, so the first assertion is the negative one - the landing page no
+     * longer has that heading - and the rest is the shape itself, which only makes sense
+     * as a menu: a SCROLLING icon rail on the left (sixteen rows, about ten visible, with
+     * the panel's own thumb because Chromium 153 reserves no space for a native one),
+     * two columns of shortcuts in the middle, and the picture grid on the right.
+     *
+     * Every zone is asserted rather than only the first, because three zones that STACK
+     * would satisfy a naive "is it visible" check while looking nothing like the
+     * reference: the column count is computed from the box.
+     */
+    test('f00-landing-nav-direktori-tiga-zona-ala-menu-katalog', async ({ page }) => {
+        await page.goto('/');
+
+        // the section this shape was moved OUT of is gone from the page body
+        await expect(
+            page.getByRole('heading', { name: 'Konsultasi Spesialis Tepercaya' }),
+        ).toHaveCount(0);
+
+        const panel = page.locator('[data-slot="nav-direktori-panel"]');
+        await page.getByRole('button', { name: 'Direktori Dokter' }).hover();
+        await expect(panel).toBeVisible();
+
+        // the three zones are three COLUMNS, side by side
+        const zona = panel.locator('[data-slot="nav-direktori-zona"]');
+        const kolom = await zona.evaluate((el) =>
+            getComputedStyle(el).gridTemplateColumns.split(' ').length,
+        );
+        expect(kolom, 'tiga zona harus sejajar, bukan menumpuk').toBe(3);
+
+        // Zone 1 - the rail: the whole table, line art on every row, and it scrolls
+        const daftar = zona.locator('[data-slot="nav-direktori-spesialisasi"]');
+        await expect(daftar).toBeVisible();
+
+        const jumlah = await daftar.locator('li').count();
+        expect(
+            jumlah,
+            'seluruh tabel spesialisasi harus terbaca, bukan enam teratas',
+        ).toBeGreaterThan(10);
+        expect(await daftar.locator('li svg').count()).toBe(jumlah);
+
+        const tinggiGulir = await daftar.evaluate(
+            (el) => el.scrollHeight - el.clientHeight,
+        );
+        expect(tinggiGulir, 'rel harus menggulir, bukan memendek').toBeGreaterThan(0);
+
+        /**
+         * ...and it says so. The thumb is an ELEMENT with a height, not a scrollbar
+         * pseudo-element that may never paint (see `.gulir-sendiri`), and it is dragged
+         * rather than merely found: a scrollbar that cannot be grabbed is decoration.
+         */
+        const thumb = zona.locator('[data-slot="nav-direktori-spesialisasi-gulir"]');
+        await expect(thumb).toBeVisible();
+
+        const kotakThumb = await thumb.boundingBox();
+        const kotakRel = await daftar.boundingBox();
+        expect(kotakThumb.height, 'thumb harus lebih pendek dari relnya').toBeLessThan(
+            kotakRel.height,
+        );
+
+        /**
+         * Deliberately NOT `thumb.hover()` first: hovering centres the pointer in a
+         * thumb that is ~280px tall, and the drag below is downward - from the centre it
+         * would be a NEGATIVE offset, which `scrollTop` clamps to zero and the assertion
+         * then times out against a rail that never moved. So the pointer is parked at the
+         * top of the track, pressed, and walked down.
+         */
+        await page.mouse.move(kotakThumb.x + 3, kotakThumb.y + 5);
+        await page.mouse.down();
+        await page.mouse.move(kotakThumb.x + 3, kotakThumb.y + 90, { steps: 6 });
+        await page.mouse.up();
+
+        await expect
+            .poll(() => daftar.evaluate((el) => el.scrollTop))
+            .toBeGreaterThan(0);
+
+        // Zone 2 - both columns of shortcuts, with the headings that name them
+        const pintasan = zona.locator('[data-slot="nav-direktori-pintasan"]');
+        await expect(pintasan.getByText('Sering dicari')).toBeVisible();
+        await expect(pintasan.getByText('Layanan', { exact: true })).toBeVisible();
+        expect(await pintasan.locator('a').count()).toBeGreaterThanOrEqual(8);
+
+        // Zone 3 - the picture grid: exactly six tiles in the reference's 3x2, the
+        // admin's photograph first (which is the `nav-promo` contract the mega-panel
+        // picture test checks against) and the product's own campaign cards filling the
+        // rest - never a white rectangle where a photo should be.
+        const promo = zona.locator('[data-slot="nav-direktori-promo"]');
+        await expect(promo).toBeVisible();
+        expect(await promo.locator('a').count(), 'grid harus penuh 3x2').toBe(6);
+        await expect(promo.locator('[data-slot="nav-promo"] img')).toHaveCount(1);
     });
 
     /**

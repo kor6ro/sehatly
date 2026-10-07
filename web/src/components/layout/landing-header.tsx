@@ -1,5 +1,6 @@
 import {
     useEffect,
+    useMemo,
     useRef,
     useState,
     type PointerEvent as ReactPointerEvent,
@@ -18,7 +19,9 @@ import {
     Menu,
     MessagesSquare,
     Pill,
+    Search,
     Settings,
+    Stethoscope,
     UserRound,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -26,6 +29,9 @@ import { logout } from '@/lib/api/auth';
 import { cariMasterPopuler, POPULER, spesialisasiOptions } from '@/lib/api/dokter';
 import { heroOptions } from '@/lib/api/hero';
 import { meOptions } from '@/lib/api/me';
+import { PROMO, SLIDE_HERO } from '@/features/landing/data';
+import { IKON_BAWAAN, IKON_SPESIALISASI } from '@/features/landing/ikon-spesialis';
+import { RelMenggulir } from '@/features/landing/rel-menggulir';
 import { clearTokens, getRefreshToken } from '@/lib/token';
 import { queryClient } from '@/lib/query-client';
 import { dispatchFlash } from '@/lib/flash';
@@ -562,11 +568,11 @@ function NavDropdownLaci({
 }
 
 /**
- * The directory's panel: every specialisation as a pre-filtered link, the four
- * "Sering dicari" shortcuts the directory itself offers, one "Lihat semua dokter" link
- * for the visitor who already knew they wanted the list, and the promo card.
+ * The directory's panel, in the Zalora desktop-menu shape: three zones side by side
+ * under the title row - a scrolling icon rail of every specialisation, two columns of
+ * shortcuts, and a grid of pictures.
  *
- * ## Why it stopped being a link on the desktop (the Zalora shape)
+ * ## Why it stopped being a link on the desktop
  *
  * As a `<NavLink>` the first pointer-down on this entry threw the visitor onto `/dokter`
  * - search, filters, result cards - before they knew what the directory held: the menu
@@ -580,12 +586,98 @@ function NavDropdownLaci({
  * pointer moves into it - but the wrapper carries NO `position: relative`, which makes
  * the header bar its containing block. The bar's width is guaranteed (it is
  * `max-w-[1280px]` and centered); a width measured from the trigger has to guess how
- * much room is left and guesses wrong on a narrow window. Full names are the point of a
- * menu that is meant to be READ, so the list wraps instead of truncating.
+ * much room is left and guesses wrong on a narrow window.
+ *
+ * ## What each zone is made of, and why it is not a costume
+ *
+ * - **The rail (left) is the reference table itself**, all sixteen rows, icon + full
+ *   name, in the order `GET /master-spesialisasi` returns them. It is a rail rather than
+ *   the old four-column list because the shape was asked for by reference - but the
+ *   reason it is allowed to be one is that sixteen names in a single column is the only
+ *   arrangement where "Spesialis Orthopaedi & Traumatologi" is never abbreviated: the
+ *   columns it used to sit in were as wide as the LONGEST name in each one.
+ *   {@link RelMenggulir} scrolls it and draws its own thumb, because a rail whose ten
+ *   visible rows are not followed by a visible scrollbar reads as a finished list.
+ * - **The middle is two columns of shortcuts**: "Sering dicari" resolves `POPULER`
+ *   against the very table the rail just read, so a shortcut whose code no longer exists
+ *   is skipped rather than offered against a filter that returns nothing; "Layanan" is
+ *   the same `LAYANAN` the landing page publishes, so the two can never tell a visitor
+ *   different stories about what the app does.
+ * - **The pictures (right) are the panel's photography**, and `GET /hero` is the
+ *   product's only public source of it: an admin's slide, with its own image and alt
+ *   text, comes first and keeps `data-slot="nav-promo"` so the picture is still a link to
+ *   the campaign. The grid is SIX tiles - the reference menu's 3x2, not a ragged row - so
+ *   it is topped up from the product's own campaign copy: `PROMO` (the section's four
+ *   cards) and then `SLIDE_HERO` (the three slides the carousel shows when no gallery has
+ *   been published). Both are editorial data with a `to` that resolves in
+ *   `app/router.tsx`, so a filled cell is still never a fake photograph, and the moment
+ *   the admin uploads enough slides the photographs take the six slots back. Same query
+ *   key as the carousel, so the header costs no extra request on `/`.
+ *
+ * Every row and card resolves to a route in `app/router.tsx`, and every link closes the
+ * panel on the way out (`hover.tutup`) - a menu that leaves itself open behind the page
+ * it just opened is a menu the visitor has to dismiss twice.
  */
 function PanelDirektori({ hover }: { hover: NavHover }) {
     const spesialisasi = useQuery(spesialisasiOptions());
+    const hero = useQuery(heroOptions());
     const daftar = spesialisasi.data?.data.spesialisasi ?? [];
+
+    /** One tile of the picture grid: a photograph when there is one, a painted card
+     * when there is not - the same bargain the hero carousel makes, so the panel never
+     * promises a picture it cannot show. */
+    const kartu = useMemo<
+        Array<{
+            kunci: string;
+            judul: string;
+            tautan: string;
+            to: string;
+            foto: string | null;
+            alt: string;
+            gradien: string;
+        }>
+    >(() => {
+        const foto = (hero.data?.data.hero ?? [])
+            .filter(
+                (slide): slide is typeof slide & { gambar: string } =>
+                    slide.gambar !== null,
+            )
+            .map((slide) => ({
+                kunci: `hero-${slide.id}`,
+                judul: slide.judul,
+                tautan: slide.cta_label,
+                to: slide.cta_target,
+                foto: slide.gambar as string,
+                alt: slide.gambar_alt ?? '',
+                gradien: '',
+            }));
+
+        const lukisan = [
+            ...PROMO.map((promo) => ({
+                kunci: promo.judul,
+                judul: promo.judul,
+                tautan: promo.cta,
+                to: promo.to,
+                foto: null,
+                alt: '',
+                gradien: promo.gradien,
+            })),
+            // Top-up only: these three are the slides the CAROUSEL falls back to, and
+            // they are consulted because four PROMO cards leave the 3x2 grid a cell
+            // short - never as a substitute for a photograph that does exist.
+            ...SLIDE_HERO.map((slide) => ({
+                kunci: `hero-bawaan-${slide.id}`,
+                judul: slide.judul,
+                tautan: slide.cta.label,
+                to: slide.cta.to,
+                foto: null,
+                alt: '',
+                gradien: slide.gradien,
+            })),
+        ];
+
+        return [...foto, ...lukisan].slice(0, 6);
+    }, [hero.data]);
 
     return (
         <div
@@ -612,16 +704,20 @@ function PanelDirektori({ hover }: { hover: NavHover }) {
                 </Link>
             </div>
 
-            <div className="mt-4 grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
-                <div className="min-w-0">
+            <div
+                data-slot="nav-direktori-zona"
+                className="mt-4 grid items-start gap-6 lg:grid-cols-[minmax(0,15rem)_minmax(0,23rem)_minmax(0,1fr)] lg:gap-7"
+            >
+                {/* Zone 1 - the rail: the whole table, one row per specialisation */}
+                <div className="lg:border-border min-w-0 lg:border-r lg:pr-6">
                     <p className="text-muted-foreground mb-2 text-xs font-semibold tracking-wide uppercase">
                         Spesialisasi
                     </p>
 
                     {spesialisasi.isPending ? (
-                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                        <div className="grid gap-1">
                             {Array.from({ length: 8 }, (_, i) => (
-                                <Skeleton key={i} className="h-8 rounded-md" />
+                                <Skeleton key={i} className="h-10 rounded-lg" />
                             ))}
                         </div>
                     ) : null}
@@ -641,32 +737,51 @@ function PanelDirektori({ hover }: { hover: NavHover }) {
                     ) : null}
 
                     {spesialisasi.isSuccess ? (
-                        <ul
-                            data-slot="nav-direktori-spesialisasi"
-                            className="grid grid-cols-2 gap-x-4 gap-y-0.5 sm:grid-cols-3 lg:grid-cols-4"
+                        <RelMenggulir
+                            slot="nav-direktori-spesialisasi"
+                            label="Daftar spesialisasi, menggulir"
+                            className="max-h-[22rem] lg:max-h-[28rem]"
                         >
-                            {daftar.map((baris) => (
-                                <li key={baris.kode}>
-                                    <Link
-                                        to={`/dokter?spesialisasi=${encodeURIComponent(baris.kode)}`}
-                                        onClick={hover.tutup}
-                                        className="hover:bg-secondary block rounded-md px-2 py-1.5 leading-snug text-sm"
-                                    >
-                                        {baris.nama}
-                                    </Link>
-                                </li>
-                            ))}
-                        </ul>
+                            {daftar.map((baris) => {
+                                const Ikon =
+                                    IKON_SPESIALISASI[baris.kode] ?? IKON_BAWAAN;
+
+                                return (
+                                    <li key={baris.kode}>
+                                        <Link
+                                            to={`/dokter?spesialisasi=${encodeURIComponent(baris.kode)}`}
+                                            onClick={hover.tutup}
+                                            className="hover:bg-secondary flex items-center gap-3 rounded-lg px-2.5 py-2.5 transition-colors"
+                                        >
+                                            <Ikon
+                                                aria-hidden="true"
+                                                className="text-foreground/80 size-4 shrink-0"
+                                            />
+
+                                            <span className="min-w-0 flex-1 text-sm leading-snug font-medium">
+                                                {baris.nama}
+                                            </span>
+                                        </Link>
+                                    </li>
+                                );
+                            })}
+                        </RelMenggulir>
                     ) : null}
                 </div>
 
-                <div className="grid content-start gap-5">
+                {/* Zone 2 - two columns of shortcuts, the same data the body of the
+                    landing page publishes, laid out as the reference menu lays its two */}
+                <div
+                    data-slot="nav-direktori-pintasan"
+                    className="grid min-w-0 gap-5 sm:grid-cols-2"
+                >
                     <div className="min-w-0">
-                        <p className="text-muted-foreground mb-2 text-xs font-semibold tracking-wide uppercase">
+                        <p className="text-foreground flex items-center gap-1.5 text-xs font-semibold tracking-wide uppercase">
+                            <Search aria-hidden="true" className="size-3.5" />
                             Sering dicari
                         </p>
 
-                        <div className="flex flex-wrap gap-2">
+                        <ul className="mt-1.5 grid gap-0.5">
                             {POPULER.map((pintasan) => {
                                 const master = cariMasterPopuler(
                                     daftar,
@@ -678,25 +793,114 @@ function PanelDirektori({ hover }: { hover: NavHover }) {
                                 if (master === undefined) return null;
 
                                 return (
-                                    <Link
-                                        key={pintasan.label}
-                                        to={`/dokter?spesialisasi=${encodeURIComponent(master.kode)}`}
-                                        onClick={hover.tutup}
-                                        className="border-border bg-secondary hover:border-primary/40 rounded-full border px-3 py-1.5 text-xs font-medium"
-                                    >
-                                        {pintasan.label}
-                                    </Link>
+                                    <li key={pintasan.label}>
+                                        <Link
+                                            to={`/dokter?spesialisasi=${encodeURIComponent(master.kode)}`}
+                                            onClick={hover.tutup}
+                                            className="hover:bg-secondary text-muted-foreground hover:text-foreground block rounded-md px-2 py-1.5 text-sm transition-colors"
+                                        >
+                                            {pintasan.label}
+                                        </Link>
+                                    </li>
                                 );
                             })}
-                        </div>
+                        </ul>
                     </div>
 
                     <div className="min-w-0">
-                        <p className="text-muted-foreground mb-2 text-xs font-semibold tracking-wide uppercase">
-                            Promo
+                        <p className="text-foreground flex items-center gap-1.5 text-xs font-semibold tracking-wide uppercase">
+                            <Stethoscope aria-hidden="true" className="size-3.5" />
+                            Layanan
                         </p>
 
-                        <KartuPromo onPilih={hover.tutup} />
+                        <ul className="mt-1.5 grid gap-0.5">
+                            {LAYANAN.map((layanan) => (
+                                <li key={layanan.to}>
+                                    <Link
+                                        to={layanan.to}
+                                        onClick={hover.tutup}
+                                        className="hover:bg-secondary text-muted-foreground hover:text-foreground block rounded-md px-2 py-1.5 text-sm transition-colors"
+                                    >
+                                        {layanan.label}
+                                    </Link>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                </div>
+
+                {/* Zone 3 - the picture grid, which is where the panel's photographs
+                    live; no heading, because the reference menu has none over its tiles */}
+                <div className="min-w-0">
+                    <div
+                        data-slot="nav-direktori-promo"
+                        className="grid grid-cols-2 gap-2.5 xl:grid-cols-3"
+                    >
+                        {kartu.map((kartu_) =>
+                            kartu_.foto !== null ? (
+                                <Link
+                                    key={kartu_.kunci}
+                                    to={kartu_.to}
+                                    onClick={hover.tutup}
+                                    data-slot="nav-promo"
+                                    className="group relative block aspect-[4/3] overflow-hidden rounded-lg"
+                                >
+                                    <img
+                                        src={kartu_.foto}
+                                        alt={kartu_.alt}
+                                        loading="lazy"
+                                        className="absolute inset-0 size-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                    />
+
+                                    <span
+                                        aria-hidden="true"
+                                        className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent"
+                                    />
+
+                                    <span className="absolute inset-x-2.5 bottom-2.5 text-white">
+                                        <span className="block text-xs leading-snug font-semibold">
+                                            {kartu_.judul}
+                                        </span>
+
+                                        <span className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-medium opacity-90">
+                                            {kartu_.tautan}
+                                            <ArrowRight className="size-3" />
+                                        </span>
+                                    </span>
+                                </Link>
+                            ) : (
+                                <Link
+                                    key={kartu_.kunci}
+                                    to={kartu_.to}
+                                    onClick={hover.tutup}
+                                    className="group relative block aspect-[4/3] overflow-hidden rounded-lg"
+                                >
+                                    <span
+                                        aria-hidden="true"
+                                        className={cn(
+                                            'absolute inset-0 bg-gradient-to-br',
+                                            kartu_.gradien,
+                                        )}
+                                    />
+
+                                    <span
+                                        aria-hidden="true"
+                                        className="absolute inset-0 bg-gradient-to-t from-black/45 to-transparent"
+                                    />
+
+                                    <span className="absolute inset-x-2.5 bottom-2.5 text-white">
+                                        <span className="block text-xs leading-snug font-semibold">
+                                            {kartu_.judul}
+                                        </span>
+
+                                        <span className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-medium opacity-90">
+                                            {kartu_.tautan}
+                                            <ArrowRight className="size-3" />
+                                        </span>
+                                    </span>
+                                </Link>
+                            ),
+                        )}
                     </div>
                 </div>
             </div>
