@@ -104,6 +104,35 @@ export function labelTipeDokter(value: DokterTipe): string {
 }
 
 /**
+ * The "Sering dicari" shortcuts, mapped to the seeded `master_spesialisasi` rows by
+ * keyword.
+ *
+ * This list lived in `DoctorDirectoryPage` until the landing header's hover panel began
+ * offering the same four shortcuts: two copies of a keyword list drift apart the first
+ * time the reference table is reworded, so both callers read it from here.
+ *
+ * Matching by keyword instead of by a hard-coded `kode` keeps the shortcut working
+ * against the reference table the API actually returns - and a shortcut whose master row
+ * is absent is not rendered rather than silently mapped to a code that no longer exists.
+ */
+export const POPULER: ReadonlyArray<{ label: string; kataKunci: readonly string[] }> = [
+    { label: 'Dokter Anak', kataKunci: ['anak'] },
+    { label: 'Dokter Kandungan', kataKunci: ['kandungan', 'obstetri', 'ginekologi'] },
+    { label: 'Dokter Penyakit Dalam', kataKunci: ['penyakit dalam'] },
+    { label: 'Dokter Gigi', kataKunci: ['gigi'] },
+];
+
+/** The first master row whose name contains any of a shortcut's keywords. */
+export function cariMasterPopuler(
+    baris: ReadonlyArray<Spesialisasi>,
+    kataKunci: readonly string[],
+): Spesialisasi | undefined {
+    return baris.find((row) =>
+        kataKunci.some((kata) => row.nama.toLowerCase().includes(kata)),
+    );
+}
+
+/**
  * The list request.
  *
  * `sort` is dropped from the query string when it is `relevan` (the default), because

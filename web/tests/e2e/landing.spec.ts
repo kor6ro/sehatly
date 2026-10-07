@@ -6,7 +6,7 @@ import { daftarDanMasuk } from './akun';
  *
  * ## What this spec is actually guarding
  *
- * Three decisions landed in the same commit and each of them can regress without
+ * Four decisions are pinned down below, and each of them can regress without
  * breaking anything else:
  *
  * 1. **The body is the whole page.** `RootPage` used to be a chooser with two buttons;
@@ -24,6 +24,12 @@ import { daftarDanMasuk } from './akun';
  *    "Masuk"; signed in it collapses into the account pill - avatar, name, gear,
  *    chevron - whose menu carries the one route (`/dashboard`) that moved out of reach,
  *    the patient-only `/profil`, and the sign-out that puts the pill back to "Masuk".
+ *
+ * 4. **The nav shows its content before it asks for a click.** "Direktori Dokter" is
+ *    no longer a link on the desktop bar but a hover panel of pre-filtered choices, and
+ *    "Layanan Kesehatan" opens on hover instead of on a click. Nothing there may be
+ *    hover-ONLY: the keyboard and the mobile sheet keep their own way in, which is what
+ *    the last four tests in this file are for.
  *
  * ## Why the sign-in path is driven through `daftarDanMasuk`
  *
@@ -167,6 +173,170 @@ test.describe('Landing page (/)', () => {
         await expect(page).toHaveURL(/\/#cek-mandiri$/);
         await expect(page.locator('[role="dialog"]')).toHaveCount(0);
         await expect(page.locator('#cek-mandiri')).toBeInViewport();
+    });
+
+    /**
+     * The Zalora shape: the panel arrives under the pointer instead of behind a click.
+     *
+     * Two things are being pinned down here, and either one can regress silently:
+     *
+     * 1. Hovering "Direktori Dokter" OPENS it and does not navigate. Before this, the
+     *    entry was a plain `<NavLink>`, so the first pointer-down threw the visitor onto
+     *    `/dokter` - search, filters, results - before they knew what the directory held.
+     *    The panel has to be visible without any click, and the URL has to be untouched
+     *    while it opens.
+     * 2. Moving the pointer INTO the panel keeps it open. `pointerleave` does not fire
+     *    when the pointer enters a DOM descendant, so this passes by construction - until
+     *    somebody portals the panel or introduces a seam under the trigger, at which
+     *    point the panel would shut on the way in and this test is the only thing that
+     *    would notice.
+     *
+     * Clicking a specialisation is the payoff: a pre-filtered directory, which is the
+     * one promise the panel makes that the old link could not.
+     */
+    test('f00-landing-nav-direktori-terbuka-saat-hover-lalu-membuka-direktori-terfilter', async ({
+        page,
+    }) => {
+        await page.goto('/');
+
+        const panel = page.locator('[data-slot="nav-direktori-panel"]');
+        const trigger = page.getByRole('button', { name: 'Direktori Dokter' });
+
+        await expect(panel).toHaveCount(0);
+
+        await trigger.hover();
+
+        // Opening must not be navigating: the visitor is still on the landing page.
+        await expect(panel).toBeVisible();
+        await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+        await expect(page).toHaveURL(/\/$/);
+
+        // Both kinds of choice the panel offers, before anything is clicked.
+        await expect(panel.locator('a[href^="/dokter?spesialisasi="]').first()).toBeVisible();
+        await expect(panel.locator('a[href="/dokter"]')).toBeVisible();
+
+        /**
+         * The panel is sized by the HEADER BAR, not by the trigger: its containing block
+         * is the bar (`relative`), so the two boxes are the same width and the panel
+         * cannot run off the right edge of a window the trigger's offset would have
+         * pushed it past.
+         */
+        const panelBox = await panel.boundingBox();
+        const barBox = await page
+            .locator('[data-slot="landing-header"] > div')
+            .first()
+            .boundingBox();
+
+        expect(panelBox).not.toBeNull();
+        expect(barBox).not.toBeNull();
+        expect(Math.round(panelBox!.width)).toBe(Math.round(barBox!.width));
+
+        /**
+         * And every specialisation name is shown IN FULL. This is the difference between
+         * a menu that is a choice and one that is a teaser: `truncate` would ellipsise
+         * "Spesialis Orthopaedi & Traumatologi" into a prefix, so the assertion is on
+         * the rendered boxes rather than on the count of links.
+         */
+        const terpotong = await panel
+            .locator('[data-slot="nav-direktori-spesialisasi"] a')
+            .evaluateAll((els) =>
+                els.filter((el) => el.scrollWidth > el.clientWidth + 1).map((el) => el.textContent),
+            );
+        expect(terpotong).toEqual([]);
+
+        // Into the panel: still open, still on `/`.
+        const pilihan = panel.locator('a[href^="/dokter?spesialisasi="]').first();
+        await pilihan.hover();
+        await expect(panel).toBeVisible();
+        await expect(page).toHaveURL(/\/$/);
+
+        await pilihan.click();
+
+        await expect(page).toHaveURL(/\/dokter\?spesialisasi=/);
+        await expect(page.locator('[data-slot="dokter-chip"]')).toBeVisible();
+    });
+
+    /**
+     * The other half of "no click needed": the services dropdown opens on hover too.
+     *
+     * Its content is PORTALED, so it is not a DOM child of the nav entry - leaving the
+     * entry for the menu therefore reads as leaving the menu, and the content carries its
+     * own enter handler to cancel the pending close. Hovering straight onto a menu item
+     * (which is what this does) is exactly the path that would break if that were
+     * missing: the menu would close mid-flight and the click would hit the page beneath.
+     *
+     * The click itself lands on the login door, which is the documented behaviour for a
+     * signed-out visitor: `/konsultasi` sits inside `RequireAuth`, so the router - not a
+     * link that goes nowhere - is what answers.
+     */
+    test('f00-landing-nav-layanan-terbuka-saat-hover-lalu-menuju-pintu-masuk', async ({ page }) => {
+        await page.goto('/');
+
+        const menu = page.getByRole('menuitem', { name: 'Chat dengan Dokter' });
+        await expect(menu).toHaveCount(0);
+
+        await page.getByRole('button', { name: 'Layanan Kesehatan' }).hover();
+
+        await expect(menu).toBeVisible();
+        await expect(page.getByRole('menuitem', { name: 'Booking Janji Temu' })).toBeVisible();
+
+        // straight onto an item, across the portal boundary
+        await menu.hover();
+        await expect(menu).toBeVisible();
+
+        await menu.click();
+
+        await expect(page).toHaveURL(/\/login/);
+    });
+
+    /**
+     * Hover must never be the only way in. The keyboard reaches the same panel by
+     * focusing the trigger (`onFocusCapture`), walks into it with Tab, and Escape closes
+     * it and gives focus back to the trigger - in that order, because focusing a trigger
+     * whose panel was JUST closed is what would reopen it.
+     */
+    test('f00-landing-nav-direktori-dibuka-keyboard-dan-ditutup-escape', async ({ page }) => {
+        await page.goto('/');
+
+        const trigger = page.getByRole('button', { name: 'Direktori Dokter' });
+        const panel = page.locator('[data-slot="nav-direktori-panel"]');
+
+        await trigger.focus();
+        await expect(panel).toBeVisible();
+
+        // Tab lands inside the panel, on the link that leads to the whole directory.
+        await page.keyboard.press('Tab');
+        await expect(
+            panel.getByRole('link', { name: /Lihat semua dokter/ }),
+        ).toBeFocused();
+
+        await page.keyboard.press('Escape');
+
+        await expect(panel).toHaveCount(0);
+        await expect(trigger).toBeFocused();
+        await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    });
+
+    /**
+     * On a phone the same entry is the plain link it always was: no hover exists there,
+     * so the sheet keeps navigation rather than opening a panel a finger would have to
+     * dismiss. The query is scoped to the dialog because the footer of the same page can
+     * carry a directory link of its own.
+     */
+    test('f00-landing-nav-direktori-di-laci-ponsel-tetap-tautan-langsung', async ({ page }) => {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.goto('/');
+
+        await page.getByRole('button', { name: 'Buka menu navigasi' }).click();
+
+        const laci = page.locator('[role="dialog"]');
+        await expect(
+            laci.getByRole('button', { name: 'Direktori Dokter' }),
+        ).toHaveCount(0);
+
+        await laci.getByRole('link', { name: 'Direktori Dokter' }).click();
+
+        await expect(page).toHaveURL(/\/dokter$/);
     });
 
     test('f00-landing-pill-akun-menggantikan-masuk-setelah-sesi-terpasang', async ({ page }) => {

@@ -23,10 +23,12 @@ import {
     X,
 } from 'lucide-react';
 import {
+    cariMasterPopuler,
     DEFAULT_SORT,
     dokterCountOptions,
     dokterOptions,
     labelTipeDokter,
+    POPULER,
     SORT_DOKTER,
     spesialisasiOptions,
     TIPE_DOKTER,
@@ -112,22 +114,6 @@ const PILIHAN_KOSONG: PilihanFilter = {
     telemedisin: false,
     sort: DEFAULT_SORT,
 };
-
-/**
- * `Sering dicari:` shortcuts, mapped to the seeded `master_spesialisasi` rows by keyword.
- *
- * The copy is the pattern's own ("Dokter Anak"), and the seeded reference table spells the
- * same services differently ("Spesialis Anak", "Spesialis Obstetri & Ginekologi", "Dokter
- * Gigi"). Matching by keyword instead of by hard-coded `kode` keeps the shortcut working
- * against the reference table the API actually returns - and a shortcut whose master row is
- * absent is disabled rather than silently mapped to a code that no longer exists.
- */
-const POPULER: ReadonlyArray<{ label: string; kataKunci: readonly string[] }> = [
-    { label: 'Dokter Anak', kataKunci: ['anak'] },
-    { label: 'Dokter Kandungan', kataKunci: ['kandungan', 'obstetri', 'ginekologi'] },
-    { label: 'Dokter Penyakit Dalam', kataKunci: ['penyakit dalam'] },
-    { label: 'Dokter Gigi', kataKunci: ['gigi'] },
-];
 
 function bacaKueriTersimpan(): string {
     try {
@@ -1131,15 +1117,6 @@ function PanelFilterMobile({
                 </DialogPrimitive.Content>
             </DialogPrimitive.Portal>
         </DialogPrimitive.Root>
-    );
-}
-
-function cariMasterPopuler(
-    baris: ReadonlyArray<Spesialisasi>,
-    kataKunci: readonly string[],
-): Spesialisasi | undefined {
-    return baris.find((row) =>
-        kataKunci.some((kata) => row.nama.toLowerCase().includes(kata)),
     );
 }
 

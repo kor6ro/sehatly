@@ -1,7 +1,13 @@
-import { useState } from 'react';
+import {
+    useEffect,
+    useRef,
+    useState,
+    type PointerEvent as ReactPointerEvent,
+} from 'react';
 import { Link, NavLink, useNavigate } from 'react-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
+    ArrowRight,
     CalendarDays,
     ChevronDown,
     FileText,
@@ -15,11 +21,13 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { logout } from '@/lib/api/auth';
+import { cariMasterPopuler, POPULER, spesialisasiOptions } from '@/lib/api/dokter';
 import { meOptions } from '@/lib/api/me';
 import { clearTokens, getRefreshToken } from '@/lib/token';
 import { queryClient } from '@/lib/query-client';
 import { dispatchFlash } from '@/lib/flash';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -64,6 +72,11 @@ import { cn } from '@/lib/utils';
  *   no placeholder links: a signed-out visitor who picks "Chat dengan Dokter" lands on
  *   `RequireAuth`, which hands them to `/login` - the correct outcome, reached through
  *   the router rather than through a link that goes nowhere.
+ * - The nav shows its content before it asks for a click. Both entries with something
+ *   behind them - "Direktori Dokter" and "Layanan Kesehatan" - expand under a pointer
+ *   instead of waiting to be clicked, so the visitor can see what is on offer without
+ *   already knowing where it leads. Nothing is reachable only that way: the same panels
+ *   open on click and on Enter, and the mobile sheet keeps the links it had.
  *
  * ## Why the wordmark is text and not a second logo file
  *
@@ -121,64 +134,410 @@ function navLinkClass({ isActive }: { isActive: boolean }): string {
 }
 
 /**
- * A nav entry with a disclosure chevron.
+ * Hover intent for the two desktop nav entries that open something.
+ *
+ * ## Why the delay is on CLOSE and not on OPEN
+ *
+ * Opening on the first pointer frame is what makes a hover menu feel instant; the grace
+ * period is what keeps it from feeling nervous. The pointer crosses a seam between a
+ * trigger and its panel, and without ~160 ms of slack the panel would flicker shut and
+ * reopen on that seam. Moving away for real still closes it one beat later, which nobody
+ * perceives as a delay.
+ *
+ * ## Why `pointerType === 'mouse'`
+ *
+ * A touch pointer fires `pointerenter` on TAP, so treating every pointer alike would
+ * open the panel under a finger that was pressing a link - and the tap would then be
+ * spent inside a panel nobody asked for. Touch keeps click-to-open exactly as it was.
+ * Nothing in this header is reachable ONLY by hover, which is the rule that keeps the
+ * keyboard and the phone working.
+ *
+ * ## Why the source is remembered
+ *
+ * A click on a trigger the pointer is already resting on must not close the menu from
+ * under the cursor (there is no pointer re-entry that would bring it back), while Escape
+ * and an outside click must still close it. `sumber` is the difference: while a hover
+ * owns the menu and the pointer is inside, other close paths are refused; every other
+ * path closes normally.
+ */
+function useNavHover() {
+    const [open, setOpen] = useState(false);
+    /** True while a MOUSE pointer is inside the trigger or the panel it opened. */
+    const diDalam = useRef(false);
+    /** `'hover'` while hover is what opened the menu; `null` for click, touch or focus. */
+    const sumber = useRef<'hover' | null>(null);
+    const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+    useEffect(() => () => clearTimeout(timer.current), []);
+
+    const batalkan = () => clearTimeout(timer.current);
+
+    const onPointerEnter = (e: ReactPointerEvent<HTMLElement>) => {
+        if (e.pointerType !== 'mouse') return;
+
+        diDalam.current = true;
+        sumber.current = 'hover';
+        batalkan();
+        setOpen(true);
+    };
+
+    const onPointerLeave = (e: ReactPointerEvent<HTMLElement>) => {
+        if (e.pointerType !== 'mouse') return;
+
+        diDalam.current = false;
+        sumber.current = null;
+        batalkan();
+        timer.current = setTimeout(() => setOpen(false), 160);
+    };
+
+    /** Close at once: Escape, a blur out of the whole entry, or a link that navigates. */
+    const tutup = () => {
+        diDalam.current = false;
+        sumber.current = null;
+        batalkan();
+        setOpen(false);
+    };
+
+    return {
+        open,
+        setOpen,
+        diDalam,
+        sumber,
+        onPointerEnter,
+        onPointerLeave,
+        tutup,
+        batalkan,
+    };
+}
+
+/**
+ * A nav entry with a disclosure chevron: hover opens it on the desktop bar, click or
+ * Enter opens it everywhere else.
  *
  * `asChild` puts Radix's `data-state` on the `<Button>`, which is what the rotated
  * chevron keys off (`group-data-[state=open]:rotate-180`) - so the arrow turns with the
  * menu without a second source of truth for "is this open?".
+ *
+ * ## Why `open` is controlled instead of Radix's default
+ *
+ * Radix's own trigger is click-to-open, and the request is "no click needed": a pointer
+ * arriving is enough. So `open` lives in {@link useNavHover} and Radix is told the truth
+ * rather than nudged. Two consequences are handled below rather than left as bugs:
+ *
+ * - The content is PORTALED, so it is not a DOM child of the wrapper and leaving the
+ *   wrapper for the menu would read as leaving the menu. The content therefore carries
+ *   its own enter/leave handlers, and enter only cancels the pending close.
+ * - Radix focuses its content on open and hands focus back to the trigger on close. That
+ *   is exactly right for a keyboard (Tab to the trigger, arrow into the menu) and it is
+ *   harmless on hover: focus landing on the trigger does not re-open anything here,
+ *   because this entry opens on focus nowhere - only {@link NavDirektori} does, and it
+ *   has no portal handing focus back.
  */
 function NavDropdown({
     label,
     items,
     onNavigate,
+    interaksi,
 }: {
     label: string;
     items: NavItem[];
     /** Closes the mobile sheet, where the same list renders inline. */
     onNavigate?: () => void;
+    /** `hover` on the desktop bar, `sentuh` inside the sheet. */
+    interaksi: 'hover' | 'sentuh';
 }) {
+    const hover = useNavHover();
+    const pakaiHover = interaksi === 'hover';
+
     return (
-        <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-                <Button
-                    variant="ghost"
-                    className="group gap-1 px-3 text-[15px] font-medium text-foreground/75 hover:bg-secondary hover:text-primary"
+        <div
+            className="relative"
+            {...(pakaiHover
+                ? {
+                      onPointerEnter: hover.onPointerEnter,
+                      onPointerLeave: hover.onPointerLeave,
+                  }
+                : {})}
+        >
+            <DropdownMenu
+                open={hover.open}
+                onOpenChange={(next) => {
+                    /**
+                     * The refusal that makes hover authoritative: while the pointer is
+                     * inside, a close from Radix's own trigger toggle (a click on the
+                     * label the cursor is resting on) would shut the menu with no way to
+                     * bring it back. Escape and an outside click both arrive with
+                     * `sumber` already cleared by their own handler, so they pass.
+                     */
+                    if (
+                        !next &&
+                        pakaiHover &&
+                        hover.diDalam.current &&
+                        hover.sumber.current === 'hover'
+                    ) {
+                        return;
+                    }
+
+                    hover.setOpen(next);
+                }}
+            >
+                <DropdownMenuTrigger asChild>
+                    <Button
+                        variant="ghost"
+                        className="group gap-1 px-3 text-[15px] font-medium text-foreground/75 hover:bg-secondary hover:text-primary"
+                    >
+                        {label}
+                        <ChevronDown className="size-4 opacity-60 transition-transform group-data-[state=open]:rotate-180" />
+                    </Button>
+                </DropdownMenuTrigger>
+
+                <DropdownMenuContent
+                    align="start"
+                    className="w-72 p-1.5"
+                    onPointerEnter={hover.batalkan}
+                    onPointerLeave={(event) => {
+                        if (pakaiHover) hover.onPointerLeave(event);
+                    }}
+                    onKeyDown={(event) => {
+                        if (event.key === 'Escape') hover.tutup();
+                    }}
                 >
-                    {label}
-                    <ChevronDown className="size-4 opacity-60 transition-transform group-data-[state=open]:rotate-180" />
-                </Button>
-            </DropdownMenuTrigger>
+                    <DropdownMenuLabel className="text-muted-foreground px-2 py-1.5 text-xs font-medium">
+                        {label}
+                    </DropdownMenuLabel>
 
-            <DropdownMenuContent align="start" className="w-72 p-1.5">
-                <DropdownMenuLabel className="text-muted-foreground px-2 py-1.5 text-xs font-medium">
-                    {label}
-                </DropdownMenuLabel>
+                    {items.map((item) => (
+                        <DropdownMenuItem key={item.to} asChild>
+                            <Link
+                                to={item.to}
+                                onClick={onNavigate}
+                                className="gap-3 px-2 py-2.5"
+                            >
+                                <span className="bg-secondary flex size-8 shrink-0 items-center justify-center rounded-md">
+                                    <item.icon className="text-primary size-4" />
+                                </span>
 
-                {items.map((item) => (
-                    <DropdownMenuItem key={item.to} asChild>
+                                <span className="flex min-w-0 flex-col">
+                                    <span className="truncate text-sm font-medium">
+                                        {item.label}
+                                    </span>
+
+                                    <span className="text-muted-foreground truncate text-xs">
+                                        {item.description}
+                                    </span>
+                                </span>
+                            </Link>
+                        </DropdownMenuItem>
+                    ))}
+                </DropdownMenuContent>
+            </DropdownMenu>
+        </div>
+    );
+}
+
+/**
+ * "Direktori Dokter" - a hover panel on the desktop bar, the plain link it always was
+ * inside the sheet.
+ *
+ * ## Why it stopped being a link on the desktop (the Zalora shape)
+ *
+ * As a `<NavLink>` the first pointer-down on this entry threw the visitor onto `/dokter`
+ * - search, filters, result cards - before they knew what the directory held: the menu
+ * WAS the destination instead of being the choice. Hovering now reveals the choices
+ * first: every specialisation as a pre-filtered link, the four "Sering dicari" shortcuts
+ * the directory itself offers, and one "Lihat semua dokter" link for the visitor who
+ * already knew they wanted the list.
+ *
+ * ## Nothing here is reachable only by hover
+ *
+ * The trigger opens on click as well (`useNavHover` ignores a touch pointer's
+ * `pointerenter`, so a tap is a tap), the panel is a plain list of links a keyboard
+ * walks in order - Tab opens it, Escape closes it and gives focus back - and the sheet
+ * renders the entry as a link, because a phone has no pointer to hover with.
+ *
+ * ## Why the panel is a child of the wrapper, but is not positioned by it
+ *
+ * Two halves of keeping it open. `pointerleave` does not fire while the pointer moves
+ * into a DOM descendant, so the panel being a child is one; `top-full` with no margin is
+ * the other - a seam would let the pointer drop through to the page underneath and close
+ * the panel on its way past.
+ *
+ * The wrapper therefore carries NO `position: relative`. The panel's containing block is
+ * the header bar itself, so the panel spans the bar rather than starting at the trigger's
+ * offset: that is the width the layout can guarantee (the bar is `max-w-[1280px]` and
+ * centered), whereas a width measured from the trigger has to guess how much room is
+ * left and guesses wrong on a narrow window. Full names are the point of a menu that is
+ * meant to be READ, so the list wraps instead of truncating.
+ */
+function NavDirektori({
+    interaksi,
+    onNavigate,
+}: {
+    interaksi: 'hover' | 'sentuh';
+    onNavigate?: () => void;
+}) {
+    const hover = useNavHover();
+    const trigger = useRef<HTMLButtonElement>(null);
+    const spesialisasi = useQuery(spesialisasiOptions());
+    const daftar = spesialisasi.data?.data.spesialisasi ?? [];
+
+    if (interaksi === 'sentuh') {
+        return (
+            <NavLink to={DIREKTORI} className={navLinkClass} onClick={onNavigate}>
+                Direktori Dokter
+            </NavLink>
+        );
+    }
+
+    return (
+        <div
+            onPointerEnter={hover.onPointerEnter}
+            onPointerLeave={hover.onPointerLeave}
+            onFocusCapture={() => {
+                if (!hover.open) hover.setOpen(true);
+            }}
+            onBlurCapture={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget)) hover.tutup();
+            }}
+            onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                    // Focus BEFORE closing: `tutup()` sets `open` false, and opening the
+                    // panel on focus is what `onFocusCapture` above does - closing first
+                    // and focusing second would hand the panel straight back to the
+                    // visitor who just dismissed it.
+                    trigger.current?.focus();
+                    hover.tutup();
+                }
+            }}
+        >
+            <button
+                ref={trigger}
+                type="button"
+                aria-expanded={hover.open}
+                aria-controls="nav-direktori-panel"
+                className={navLinkClass({ isActive: false })}
+                onClick={() => {
+                    // A mouse is already inside, and hover has already opened it; for a
+                    // finger or a keyboard this is the only way in, so it toggles.
+                    if (hover.diDalam.current) return;
+                    hover.setOpen((nilai) => !nilai);
+                }}
+            >
+                Direktori Dokter
+                <ChevronDown
+                    className={cn(
+                        'size-4 opacity-60 transition-transform',
+                        hover.open && 'rotate-180',
+                    )}
+                />
+            </button>
+
+            {hover.open ? (
+                <div
+                    id="nav-direktori-panel"
+                    data-slot="nav-direktori-panel"
+                    className="bg-popover text-popover-foreground border-border absolute top-full right-0 left-0 z-50 rounded-b-2xl border p-5 shadow-xl"
+                >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                            <p className="text-sm font-semibold">Direktori Dokter</p>
+
+                            <p className="text-muted-foreground text-sm">
+                                Pilih bidang, lalu lihat jadwal praktik dan ulasan pasien.
+                            </p>
+                        </div>
+
                         <Link
-                            to={item.to}
-                            onClick={onNavigate}
-                            className="gap-3 px-2 py-2.5"
+                            to={DIREKTORI}
+                            onClick={hover.tutup}
+                            className="text-primary inline-flex shrink-0 items-center gap-1 text-sm font-semibold hover:underline"
                         >
-                            <span className="bg-secondary flex size-8 shrink-0 items-center justify-center rounded-md">
-                                <item.icon className="text-primary size-4" />
-                            </span>
-
-                            <span className="flex min-w-0 flex-col">
-                                <span className="truncate text-sm font-medium">
-                                    {item.label}
-                                </span>
-
-                                <span className="text-muted-foreground truncate text-xs">
-                                    {item.description}
-                                </span>
-                            </span>
+                            Lihat semua dokter
+                            <ArrowRight className="size-4" />
                         </Link>
-                    </DropdownMenuItem>
-                ))}
-            </DropdownMenuContent>
-        </DropdownMenu>
+                    </div>
+
+                    <div className="mt-4 grid gap-6 md:grid-cols-[minmax(0,1fr)_14rem]">
+                        <div className="min-w-0">
+                            <p className="text-muted-foreground mb-2 text-xs font-semibold tracking-wide uppercase">
+                                Spesialisasi
+                            </p>
+
+                            {spesialisasi.isPending ? (
+                                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                                    {Array.from({ length: 9 }, (_, i) => (
+                                        <Skeleton key={i} className="h-8 rounded-md" />
+                                    ))}
+                                </div>
+                            ) : null}
+
+                            {spesialisasi.isError ? (
+                                <p className="text-muted-foreground text-sm">
+                                    Daftar spesialis tidak dapat dimuat.{' '}
+                                    <Link
+                                        to={DIREKTORI}
+                                        onClick={hover.tutup}
+                                        className="text-primary font-medium"
+                                    >
+                                        Buka direktori dokter
+                                    </Link>{' '}
+                                    untuk memilih langsung.
+                                </p>
+                            ) : null}
+
+                            {spesialisasi.isSuccess ? (
+                                <ul
+                                    data-slot="nav-direktori-spesialisasi"
+                                    className="grid grid-cols-2 gap-x-4 gap-y-0.5 sm:grid-cols-3"
+                                >
+                                    {daftar.map((baris) => (
+                                        <li key={baris.kode}>
+                                            <Link
+                                                to={`/dokter?spesialisasi=${encodeURIComponent(baris.kode)}`}
+                                                onClick={hover.tutup}
+                                                className="hover:bg-secondary block rounded-md px-2 py-1.5 leading-snug text-sm"
+                                            >
+                                                {baris.nama}
+                                            </Link>
+                                        </li>
+                                    ))}
+                                </ul>
+                            ) : null}
+                        </div>
+
+                        <div>
+                            <p className="text-muted-foreground mb-2 text-xs font-semibold tracking-wide uppercase">
+                                Sering dicari
+                            </p>
+
+                            <div className="flex flex-wrap gap-2">
+                                {POPULER.map((pintasan) => {
+                                    const master = cariMasterPopuler(
+                                        daftar,
+                                        pintasan.kataKunci,
+                                    );
+
+                                    // Absent from the reference table = not offered, rather
+                                    // than offered against a code that no longer exists.
+                                    if (master === undefined) return null;
+
+                                    return (
+                                        <Link
+                                            key={pintasan.label}
+                                            to={`/dokter?spesialisasi=${encodeURIComponent(master.kode)}`}
+                                            onClick={hover.tutup}
+                                            className="border-border bg-secondary hover:border-primary/40 rounded-full border px-3 py-1.5 text-xs font-medium"
+                                        >
+                                            {pintasan.label}
+                                        </Link>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            ) : null}
+        </div>
     );
 }
 
@@ -196,27 +555,35 @@ function NavDropdown({
  *
  * The three entries it does carry: the directory (the funnel), the services dropdown,
  * and one anchor into this page's own "Cek Kesehatan Mandiri" section.
+ *
+ * ## `interaksi`: hover on the bar, tap in the sheet
+ *
+ * The same list renders twice - `hidden lg:flex` at the top of the page and inside the
+ * mobile `Sheet` - and only one of those has a pointer that can hover. `hover` gives the
+ * bar the panels that open themselves; `sentuh` keeps the sheet on links and click-to-
+ * open menus, so a finger never opens something it cannot put away.
  */
 function NavList({
     className,
     onNavigate,
+    interaksi,
 }: {
     className?: string;
     onNavigate?: () => void;
+    interaksi: 'hover' | 'sentuh';
 }) {
     return (
         <nav
             aria-label="Navigasi utama"
             className={cn('flex items-center gap-1', className)}
         >
-            <NavLink to={DIREKTORI} className={navLinkClass} onClick={onNavigate}>
-                Direktori Dokter
-            </NavLink>
+            <NavDirektori interaksi={interaksi} onNavigate={onNavigate} />
 
             <NavDropdown
                 label="Layanan Kesehatan"
                 items={LAYANAN}
                 onNavigate={onNavigate}
+                interaksi={interaksi}
             />
 
             {/**
@@ -456,7 +823,7 @@ export function LandingHeader({ onMasuk }: { onMasuk: () => void }) {
             data-slot="landing-header"
             className="bg-card/95 border-b supports-[backdrop-filter]:bg-card/80 sticky top-0 z-40 w-full backdrop-blur"
         >
-            <div className="mx-auto flex h-16 max-w-[1280px] items-center gap-3 px-4 md:h-[72px] md:gap-6 md:px-6">
+            <div className="relative mx-auto flex h-16 max-w-[1280px] items-center gap-3 px-4 md:h-[72px] md:gap-6 md:px-6">
                 <Link
                     to="/"
                     className="flex shrink-0 items-center gap-2"
@@ -474,7 +841,7 @@ export function LandingHeader({ onMasuk }: { onMasuk: () => void }) {
                     </span>
                 </Link>
 
-                <NavList className="hidden lg:flex" />
+                <NavList className="hidden lg:flex" interaksi="hover" />
 
                 {/*
                     `ml-auto` lives on the toggle rather than on a wrapper around the
@@ -516,6 +883,7 @@ export function LandingHeader({ onMasuk }: { onMasuk: () => void }) {
 
                         <NavList
                             className="flex-col items-stretch gap-1 px-4"
+                            interaksi="sentuh"
                             onNavigate={() => {
                                 setOpen(false);
                             }}
