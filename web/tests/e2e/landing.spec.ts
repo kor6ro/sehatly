@@ -121,6 +121,54 @@ test.describe('Landing page (/)', () => {
         await expect(page.locator('[data-slot="dokter-chip"]')).toContainText(nama);
     });
 
+    /**
+     * The header's one content link is an ANCHOR, not a route. "Cek Kesehatan Mandiri"
+     * is a section of tiles with no endpoint behind it, so following it must move the
+     * reader down THIS page and leave the path alone: a registered `/cek-mandiri` route
+     * would be a destination that resolves to nothing, and it would have to be added to
+     * every route census in the PHP suite for the privilege.
+     */
+    test('f00-landing-tautan-cek-mandiri-lompat-ke-seksinya-tanpa-membuka-rute', async ({
+        page,
+    }) => {
+        await page.goto('/');
+
+        await page.getByRole('link', { name: 'Cek Kesehatan Mandiri' }).click();
+
+        await expect(page).toHaveURL(/\/#cek-mandiri$/);
+        await expect(page.locator('#cek-mandiri')).toBeInViewport();
+
+        // the reader lands under the heading, not merely somewhere inside the box
+        await expect(
+            page.getByRole('heading', {
+                level: 2,
+                name: 'Cek Kesehatan Mandiri',
+                exact: true,
+            }),
+        ).toBeInViewport();
+    });
+
+    /**
+     * The same link on a phone, where it lives inside the header's sheet: the sheet has
+     * to close AND the jump has to survive it closing. Radix scroll-locks the dialog it
+     * opens, so the regression worth catching is a tap that closes the drawer and leaves
+     * the section below the fold.
+     */
+    test('f00-landing-tautan-cek-mandiri-di-laci-ponsel-menutup-laci-lalu-lompat', async ({
+        page,
+    }) => {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.goto('/');
+
+        await page.getByRole('button', { name: 'Buka menu navigasi' }).click();
+
+        await page.getByRole('link', { name: 'Cek Kesehatan Mandiri' }).click();
+
+        await expect(page).toHaveURL(/\/#cek-mandiri$/);
+        await expect(page.locator('[role="dialog"]')).toHaveCount(0);
+        await expect(page.locator('#cek-mandiri')).toBeInViewport();
+    });
+
     test('f00-landing-pill-akun-menggantikan-masuk-setelah-sesi-terpasang', async ({ page }) => {
         await daftarDanMasuk(page, { nama: 'Pasien E2E Landing' });
 

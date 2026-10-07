@@ -193,6 +193,9 @@ function NavDropdown({
  * deleted, only unadvertised - they stay registered in `app/router.tsx` and still answer
  * the `tipe:`/`permission:` guards the server puts on them, so `/admin/hero` opens by URL
  * today and a labelled entrance can be re-added later without touching a route.
+ *
+ * The three entries it does carry: the directory (the funnel), the services dropdown,
+ * and one anchor into this page's own "Cek Kesehatan Mandiri" section.
  */
 function NavList({
     className,
@@ -215,6 +218,28 @@ function NavList({
                 items={LAYANAN}
                 onNavigate={onNavigate}
             />
+
+            {/**
+             * The nav's only in-page link, and the reason it is not a route.
+             *
+             * "Cek Kesehatan Mandiri" is a section of tiles with nothing to press
+             * behind it - no endpoint, no screen, so a `/cek-mandiri` URL would be a
+             * registered destination that resolves to nothing. An anchor to the section
+             * on this very page carries the same meaning and adds no route to
+             * `app/router.tsx`, which is also why the route census does not see it.
+             *
+             * A plain `<a>`, not a `NavLink`: `navLinkClass({ isActive: false })` gives
+             * it the resting style the other two entries use, and the active style
+             * would stay lit for a link whose hash changes no path for React Router to
+             * match on.
+             */}
+            <a
+                href="#cek-mandiri"
+                onClick={onNavigate}
+                className={navLinkClass({ isActive: false })}
+            >
+                Cek Kesehatan Mandiri
+            </a>
         </nav>
     );
 }

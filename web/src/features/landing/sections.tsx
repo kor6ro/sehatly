@@ -61,16 +61,24 @@ function JudulBagian({
 }
 
 function Bagian({
+    id,
     judul,
     deskripsi,
     children,
 }: {
+    /**
+     * An in-page anchor target. Only one section carries it: `CekMandiriSection` is
+     * what the header's "Cek Kesehatan Mandiri" jumps to, so the landing nav can
+     * offer a content link the way a health portal does without inventing a route
+     * that has no endpoint behind it.
+     */
+    id?: string;
     judul: string;
     deskripsi?: string;
     children: ReactNode;
 }) {
     return (
-        <section className="mx-auto w-full max-w-[1280px] px-4 py-12 md:px-6">
+        <section id={id} className="mx-auto w-full max-w-[1280px] px-4 py-12 md:px-6">
             <div className="grid gap-6 md:grid-cols-[minmax(0,16rem)_minmax(0,1fr)] md:gap-12">
                 <div>
                     <h2 className="text-2xl leading-snug font-bold md:text-3xl">
@@ -466,6 +474,7 @@ export function ArtikelSection() {
 export function CekMandiriSection() {
     return (
         <Bagian
+            id="cek-mandiri"
             judul="Cek Kesehatan Mandiri"
             deskripsi="Dapatkan gambaran ringkas tentang kesehatanmu dan ketahui penanganan selanjutnya, tanpa biaya."
         >
