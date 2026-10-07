@@ -193,3 +193,32 @@
         @apply bg-background text-foreground;
     }
 }
+
+/**
+ * The specialty rail hides the platform's scrollbar and draws its own.
+ *
+ * ## Why not simply style the native one
+ *
+ * Because it does not work. Chromium 153 - measured in isolation, on a throwaway page
+ * with nothing else going on - reserves `offsetWidth - clientWidth === 0` for an
+ * overflowed box whether or not `::-webkit-scrollbar { width: 8px }` is present: the
+ * scrollbar is an OVERLAY one, it paints only while it is being dragged, and sizing the
+ * pseudo-element no longer buys layout space. `scrollbar-width: thin` is no better - it
+ * makes Chromium take over the axis and IGNORE the pseudo-elements entirely, leaving a
+ * thumb that reserves nothing and appears on no screenshot.
+ *
+ * The rail is the reason this matters: it holds fifteen rows in a window that fits about
+ * ten, and a panel whose only hint of more content is a scrollbar that may never appear
+ * reads as a list that simply ENDS. So the native bar is turned off on both spellings -
+ * `scrollbar-width: none` for engines that honour the standard, `display: none` on the
+ * pseudo-element for the ones that only honour WebKit's - and the thumb in
+ * `SpesialisSection` is a real element: it is laid out, it is draggable, and it exists
+ * identically on every machine, which is the whole point.
+ */
+.gulir-sendiri {
+    scrollbar-width: none;
+}
+
+.gulir-sendiri::-webkit-scrollbar {
+    display: none;
+}
