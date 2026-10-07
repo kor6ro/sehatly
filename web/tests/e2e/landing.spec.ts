@@ -108,29 +108,80 @@ test.describe('Landing page (/)', () => {
         await expect(page.locator('[data-slot="hero-carousel"]')).toBeVisible();
     });
 
-    test('f00-landing-ubin-spesialis-membuka-direktori-yang-sudah-terfilter', async ({ page }) => {
+    /**
+     * The specialty rows are the only thing in this file that changed SHAPE without
+     * changing meaning: six tiles carrying a decorative "Sp" badge became a scrollable
+     * menu list whose row is line-art + name and nothing else. So the assertion that
+     * matters is the one that was always there - the row that arrived is the SAME string
+     * the directory's own filter chip shows - and the badge-stripping that made it
+     * provable before is now simply unnecessary: `innerText` IS `master_spesialisasi.nama`.
+     *
+     * Scoping to `[data-slot="spesialis-daftar"]` matters too: the header's hover panel
+     * publishes the same `?spesialisasi=` links, and "the first one on the page" is no
+     * longer a stable way to name this section's rows.
+     */
+    test('f00-landing-baris-spesialis-membuka-direktori-yang-sudah-terfilter', async ({
+        page,
+    }) => {
         await page.goto('/');
 
-        const ubin = page.locator('a[href^="/dokter?spesialisasi="]').first();
-        await expect(ubin).toBeVisible();
+        const baris = page
+            .locator('[data-slot="spesialis-daftar"] a[href^="/dokter?spesialisasi="]')
+            .first();
+        await expect(baris).toBeVisible();
 
-        const href = await ubin.getAttribute('href');
+        const href = await baris.getAttribute('href');
         expect(href).not.toBeNull();
 
-        /**
-         * The tile's visible text is the badge and the name run together ("SpDokter
-         * Gigi"), because the badge is decorative and has no separator in the markup.
-         * Stripping the leading "Sp" recovers `master_spesialisasi.nama`, which is the
-         * exact string the directory's own filter chip shows - so the assertion is that
-         * the SAME row arrived, not merely that some filter is active.
-         */
-        const nama = (await ubin.innerText()).trim().replace(/^Sp/, '');
+        const nama = (await baris.innerText()).trim();
 
-        await ubin.click();
+        await baris.click();
 
         await expect(page).toHaveURL(/\/dokter\?spesialisasi=/);
         await expect(page.locator('[data-slot="dokter-count"]')).toBeVisible();
         await expect(page.locator('[data-slot="dokter-chip"]')).toContainText(nama);
+    });
+
+    /**
+     * The shape itself, which is what was asked for: a catalog menu panel, not a grid.
+     *
+     * Three things have to be true at once or it is only a list with a title: the
+     * heading and its "Lihat semua" link share the panel's top ROW (a grid section puts
+     * the heading in its own column, which is exactly what this replaced), every row
+     * carries line art beside its name, and the body SCROLLS - 15 specialties in an
+     * 8-row window is the affordance the shape is built on, and a section that cannot
+     * scroll has silently gone back to showing a sample of the table.
+     */
+    test('f00-landing-panel-spesialis-berbentuk-menu-katalog-yang-menggulir', async ({
+        page,
+    }) => {
+        await page.goto('/');
+
+        const panel = page.locator('[data-slot="spesialis-panel"]');
+        await expect(panel).toBeVisible();
+
+        await expect(
+            panel.getByRole('heading', { name: 'Konsultasi Spesialis Tepercaya' }),
+        ).toBeVisible();
+        await expect(panel.getByRole('link', { name: /Lihat semua/ })).toBeVisible();
+
+        const daftar = panel.locator('[data-slot="spesialis-daftar"]');
+        await expect(daftar).toBeVisible();
+
+        const jumlah = await daftar.locator('li').count();
+        expect(jumlah, 'seluruh tabel spesialisasi harus terbaca, bukan enam teratas').toBeGreaterThan(10);
+
+        // an icon on every row, and none of them counted as a label
+        expect(await daftar.locator('li svg').count()).toBe(jumlah);
+        expect((await daftar.locator('li').first().innerText()).trim()).not.toBe('');
+
+        // the rows run DOWN: one column, and more content than the window can show
+        const gulir = await daftar.evaluate((el) => ({
+            kolomTunggal: getComputedStyle(el).display !== 'grid',
+            tinggi: el.scrollHeight - el.clientHeight,
+        }));
+        expect(gulir.kolomTunggal, 'baris harus menumpuk ke bawah, bukan grid').toBe(true);
+        expect(gulir.tinggi, 'daftar harus menggulir, bukan memendek').toBeGreaterThan(0);
     });
 
     /**

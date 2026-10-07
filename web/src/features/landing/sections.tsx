@@ -1,7 +1,26 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, Quote } from 'lucide-react';
+import {
+    Activity,
+    ArrowRight,
+    Baby,
+    Bone,
+    Brain,
+    Droplets,
+    Ear,
+    Eye,
+    Flower2,
+    Hand,
+    Heart,
+    Quote,
+    Scissors,
+    Sparkles,
+    Stethoscope,
+    Wind,
+    Zap,
+} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { spesialisasiOptions } from '@/lib/api/dokter';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -34,6 +53,12 @@ import {
  * content is a full-width list (articles, testimonials) use {@link JudulBagian} instead,
  * and that difference is deliberate: a heading beside a five-row list pushes the list into
  * a third of the width it needs.
+ *
+ * `SpesialisSection` breaks that frame ON PURPOSE, and it is the third shape in the set:
+ * a self-contained catalog panel whose heading and "Lihat semua" link share a row inside
+ * the panel, with the list scrolling beneath them - the way a shop's category menu is
+ * built. The heading is still an `h2` carrying the same words, so the page still reads in
+ * the same order; only the frame around it changes.
  */
 
 function JudulBagian({
@@ -200,18 +225,67 @@ export function PromoSection() {
 }
 
 /**
- * "Konsultasi Spesialis Tepercaya" - the only server-backed section.
+ * The line art for a specialisation, keyed by `master_spesialisasi.kode`.
+ *
+ * ## Why a table and not an `if` chain
+ *
+ * The codes are the reference table's own (`SP.A`, `GIGI`, ...), so this map is the only
+ * place that translates a code the API owns into a shape a visitor recognises. It is
+ * deliberately a FALLBACK-ABLE table: an unknown or newly seeded code renders
+ * {@link IKON_BAWAAN} rather than throwing or leaving an empty box, because the icon is
+ * decoration and the label beside it is what actually names the specialty.
+ *
+ * The icons are `aria-hidden` for the same reason - a link whose accessible name is
+ * "Spesialis Mata" should not also announce an eye.
+ */
+const IKON_SPESIALISASI: Readonly<Record<string, LucideIcon>> = {
+    UMUM: Stethoscope,
+    // Gigi: sparkles, because lucide ships no tooth and a bone would say "orthopaedi".
+    GIGI: Sparkles,
+    'SP.A': Baby,
+    'SP.B': Scissors,
+    'SP.BP': Scissors, // both are surgery, which is how Zalora reuses one glyph too
+    'SP.JP': Heart,
+    'SP.KJ': Brain,
+    'SP.KK': Hand,
+    'SP.M': Eye,
+    'SP.N': Zap, // the impulse, which is what a nerve conducts
+    'SP.OG': Flower2,
+    'SP.P': Wind,
+    'SP.PD': Activity,
+    'SP.S': Bone,
+    'SP.THT': Ear,
+    'SP.U': Droplets,
+};
+
+const IKON_BAWAAN = Stethoscope;
+
+/**
+ * "Konsultasi Spesialis Tepercaya" - the only server-backed section, shaped like a
+ * catalog menu: a white panel, the heading and its "Lihat semua" link sharing the top
+ * row, and the specialties listed one per row going DOWN - line art on the left, the
+ * name in bold on the right - inside a scrollable body.
  *
  * `GET /master-spesialisasi` is public, so this renders for a visitor with no session,
  * and its rows are the reference table the directory itself filters on - a hard-coded
  * list would drift from the table the API answers with, which is exactly the failure
  * `DoctorDirectoryPage`'s "Sering dicari" shortcuts were changed to avoid.
  *
- * Each tile links to `/dokter?spesialisasi={kode}`; `DoctorDirectoryPage` reads that
- * parameter on mount, so the tile opens the directory already filtered rather than
+ * ## Why the list is long instead of sliced
+ *
+ * The previous shape was six tiles in a 3-column grid, which answered "what kinds of
+ * doctor are there?" with a sample. A menu answers it with the whole table, and a scroll
+ * is what keeps 15 rows from turning a landing page into a wall: the panel shows about
+ * eight and the scrollbar says there are more, which is the affordance this shape is
+ * built on. `dokter_umum` stays out of the list - it is not a "spesialis" - unless the
+ * pure set is too thin to stand on its own, the same guard the tiles had minus the
+ * `slice(0, 6)`.
+ *
+ * Each row links to `/dokter?spesialisasi={kode}`; `DoctorDirectoryPage` reads that
+ * parameter on mount, so the row opens the directory already filtered rather than
  * promising a filter it does not apply.
  *
- * While it loads the tiles are skeletons of the same size, so the grid does not jump.
+ * While it loads the rows are skeletons of the same height, so the panel does not jump.
  * A failed read leaves the heading and its call to action, which still work: the
  * directory has its own filter control.
  */
@@ -222,56 +296,86 @@ export function SpesialisSection() {
         const semua = spesialisasi.data?.data.spesialisasi ?? [];
         const murni = semua.filter((baris) => baris.tipe === 'spesialis');
 
-        return (murni.length >= 6 ? murni : semua).slice(0, 6);
+        return murni.length >= 6 ? murni : semua;
     }, [spesialisasi.data]);
 
     return (
-        <Bagian
-            judul="Konsultasi Spesialis Tepercaya"
-            deskripsi="Pilih bidang yang kamu butuhkan, lalu lihat dokternya lengkap dengan jadwal dan ulasan."
-        >
-            {spesialisasi.isPending ? (
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                    {Array.from({ length: 6 }, (_, i) => (
-                        <Skeleton key={i} className="h-16 rounded-2xl" />
-                    ))}
+        <section className="mx-auto w-full max-w-[1280px] px-4 py-12 md:px-6">
+            <div
+                data-slot="spesialis-panel"
+                className="border-border bg-card mx-auto w-full max-w-[46rem] rounded-3xl border p-5 shadow-sm md:p-6"
+            >
+                <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                        <h2 className="text-2xl leading-snug font-bold md:text-3xl">
+                            Konsultasi Spesialis Tepercaya
+                        </h2>
+
+                        <p className="text-muted-foreground mt-2 text-sm md:text-base">
+                            Pilih bidang yang kamu butuhkan, lalu lihat dokternya lengkap
+                            dengan jadwal dan ulasan.
+                        </p>
+                    </div>
+
+                    <Link
+                        to="/dokter"
+                        className="text-primary inline-flex shrink-0 items-center gap-1 pt-1 text-sm font-semibold hover:underline"
+                    >
+                        Lihat semua
+                        <ArrowRight className="size-4" />
+                    </Link>
                 </div>
-            ) : null}
 
-            {spesialisasi.isError ? (
-                <p className="text-muted-foreground text-sm">
-                    Daftar spesialis sedang tidak dapat dimuat.{' '}
-                    <Link to="/dokter" className="text-primary font-medium">
-                        Buka direktori dokter
-                    </Link>{' '}
-                    untuk memilih langsung.
-                </p>
-            ) : null}
+                <div className="mt-5">
+                    {spesialisasi.isPending ? (
+                        <div className="grid gap-1">
+                            {Array.from({ length: 6 }, (_, i) => (
+                                <Skeleton key={i} className="h-14 rounded-xl" />
+                            ))}
+                        </div>
+                    ) : null}
 
-            {spesialisasi.isSuccess ? (
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                    {daftar.map((baris) => (
-                        <Link
-                            key={baris.kode}
-                            to={`/dokter?spesialisasi=${encodeURIComponent(baris.kode)}`}
-                            className="bg-card flex items-center gap-3 rounded-2xl border p-4 transition hover:border-primary/40 hover:shadow-sm"
+                    {spesialisasi.isError ? (
+                        <p className="text-muted-foreground text-sm">
+                            Daftar spesialis sedang tidak dapat dimuat.{' '}
+                            <Link to="/dokter" className="text-primary font-medium">
+                                Buka direktori dokter
+                            </Link>{' '}
+                            untuk memilih langsung.
+                        </p>
+                    ) : null}
+
+                    {spesialisasi.isSuccess ? (
+                        <ul
+                            data-slot="spesialis-daftar"
+                            className="max-h-[26rem] overflow-y-auto md:max-h-[30rem]"
                         >
-                            <span className="bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-bold">
-                                Sp
-                            </span>
+                            {daftar.map((baris) => {
+                                const Ikon = IKON_SPESIALISASI[baris.kode] ?? IKON_BAWAAN;
 
-                            <span className="min-w-0 flex-1 truncate text-sm font-semibold">
-                                {baris.nama}
-                            </span>
+                                return (
+                                    <li key={baris.kode}>
+                                        <Link
+                                            to={`/dokter?spesialisasi=${encodeURIComponent(baris.kode)}`}
+                                            className="hover:bg-secondary flex items-center gap-4 rounded-xl px-3 py-3.5 transition-colors"
+                                        >
+                                            <Ikon
+                                                aria-hidden="true"
+                                                className="text-foreground/80 size-6 shrink-0"
+                                            />
 
-                            <ArrowRight className="text-muted-foreground size-4 shrink-0" />
-                        </Link>
-                    ))}
+                                            <span className="min-w-0 flex-1 text-[15px] font-semibold">
+                                                {baris.nama}
+                                            </span>
+                                        </Link>
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    ) : null}
                 </div>
-            ) : null}
-
-            <TautanBagian to="/dokter" label="Lihat Semua Spesialis" />
-        </Bagian>
+            </div>
+        </section>
     );
 }
 
