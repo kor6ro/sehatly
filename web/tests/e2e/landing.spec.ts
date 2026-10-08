@@ -10,7 +10,7 @@ import { daftarDanMasuk } from './akun';
  * breaking anything else:
  *
  * 1. **The body is the whole page.** `RootPage` used to be a chooser with two buttons;
- *    it is now nine sections plus a footer. A section quietly dropped in a refactor
+ *    it is now seven sections plus a footer. A section quietly dropped in a refactor
  *    would not fail any other spec - nothing else reads this screen - so the headings
  *    are written out here, one per line, the same way `TUJUAN_PASIEN` writes out the
  *    sidebar's seventeen destinations.
@@ -31,11 +31,14 @@ import { daftarDanMasuk } from './akun';
  *    hover-ONLY: the keyboard and the mobile sheet keep their own way in, which is what
  *    the last four tests in this file are for.
  *
- * 5. **The panels are shaped like a catalog menu and carry pictures.** Group headings
- *    over plain links, a promo card whose photograph comes from `GET /hero` - the
- *    admin's gallery - so the header has images without a deploy. One of these tests
- *    exists because the first version of the services panel flickered open and shut
- *    under a resting cursor.
+ * 5. **Both panels are shaped like the catalog menu and carry pictures.** Three zones
+ *    side by side - an icon rail, a column of links under their own headings, and the
+ *    six-tile picture grid whose photograph comes from `GET /hero`, the admin's gallery
+ *    - so the header has images without a deploy. The services that used to sit INSIDE
+ *    the directory panel have their own panel now, which is why the Layanan shape has a
+ *    test of its own rather than being asserted through the directory's. One of these
+ *    tests exists because the first version of the services panel flickered open and
+ *    shut under a resting cursor.
  *
  * ## Why the sign-in path is driven through `daftarDanMasuk`
  *
@@ -247,7 +250,7 @@ test.describe('Landing page (/)', () => {
      * longer has that heading - and the rest is the shape itself, which only makes sense
      * as a menu: a SCROLLING icon rail on the left (sixteen rows, about ten visible, with
      * the panel's own thumb because Chromium 153 reserves no space for a native one),
-     * two columns of shortcuts in the middle, and the picture grid on the right.
+     * a column of shortcuts in the middle, and the picture grid on the right.
      *
      * Every zone is asserted rather than only the first, because three zones that STACK
      * would satisfy a naive "is it visible" check while looking nothing like the
@@ -303,6 +306,20 @@ test.describe('Landing page (/)', () => {
         );
 
         /**
+         * ...and it rides the LINE. The zone's right edge is the divider the eye already
+         * follows, so the thumb's right edge must land on it (within the 1px border);
+         * a bar sitting a centimetre short of the line it belongs to reads as a second,
+         * broken scrollbar. What buys this is the padding living on the `<ul>` instead
+         * of on the zone - the zone's own padding is what used to hold the thumb back.
+         */
+        const kotakZona = await zona.locator('div').first().boundingBox();
+        expect(kotakZona).not.toBeNull();
+        const jarakGaris = Math.abs(
+            kotakThumb!.x + kotakThumb!.width - (kotakZona!.x + kotakZona!.width),
+        );
+        expect(jarakGaris, 'thumb harus menempel pada garis pembatas rel').toBeLessThanOrEqual(2);
+
+        /**
          * Deliberately NOT `thumb.hover()` first: hovering centres the pointer in a
          * thumb that is ~280px tall, and the drag below is downward - from the centre it
          * would be a NEGATIVE offset, which `scrollTop` clamps to zero and the assertion
@@ -318,17 +335,19 @@ test.describe('Landing page (/)', () => {
             .poll(() => daftar.evaluate((el) => el.scrollTop))
             .toBeGreaterThan(0);
 
-        // Zone 2 - both columns of shortcuts, with the headings that name them
+        // Zone 2 - the shortcuts. The services column moved to the Layanan panel: a
+        // visitor hovering "Direktori Dokter" is choosing a DOCTOR, and a column of
+        // appointment links beside the specialties answers a question they did not ask.
         const pintasan = zona.locator('[data-slot="nav-direktori-pintasan"]');
         await expect(pintasan.getByText('Sering dicari')).toBeVisible();
-        await expect(pintasan.getByText('Layanan', { exact: true })).toBeVisible();
-        expect(await pintasan.locator('a').count()).toBeGreaterThanOrEqual(8);
+        await expect(pintasan.getByText('Layanan', { exact: true })).toHaveCount(0);
+        expect(await pintasan.locator('a').count()).toBeGreaterThanOrEqual(4);
 
         // Zone 3 - the picture grid: exactly six tiles in the reference's 3x2, the
         // admin's photograph first (which is the `nav-promo` contract the mega-panel
         // picture test checks against) and the product's own campaign cards filling the
         // rest - never a white rectangle where a photo should be.
-        const promo = zona.locator('[data-slot="nav-direktori-promo"]');
+        const promo = zona.locator('[data-slot="nav-promo-grid"]');
         await expect(promo).toBeVisible();
         expect(await promo.locator('a').count(), 'grid harus penuh 3x2').toBe(6);
         await expect(promo.locator('[data-slot="nav-promo"] img')).toHaveCount(1);
@@ -379,11 +398,15 @@ test.describe('Landing page (/)', () => {
             'body tidak boleh dikunci pointer-events oleh menu modal',
         ).toBe('');
 
-        // The panel is a Zalora-shaped column set, not the old flat dropdown: group
-        // headings over plain links, and every link a real route.
-        await expect(panel.getByText('Konsultasi & Janji')).toBeVisible();
-        await expect(panel.getByText('Obat & Apotek')).toBeVisible();
-        await expect(panel.getByText('Riwayat Kesehatan')).toBeVisible();
+        // The panel is the Zalora-shaped column set, not the old flat dropdown: rail of
+        // group rows, links under their own headings, picture grid. The group NAMES
+        // appear twice on purpose - rail row and heading - exactly as the reference's
+        // "Produk Baru" is both a rail row and a middle title, so the assertion is
+        // scoped to the link zone or the rail row would make it ambiguous.
+        const tautan = panel.locator('[data-slot="nav-layanan-tautan"]');
+        await expect(tautan.getByText('Konsultasi & Janji')).toBeVisible();
+        await expect(tautan.getByText('Obat & Apotek')).toBeVisible();
+        await expect(tautan.getByText('Riwayat Kesehatan')).toBeVisible();
 
         const chat = panel.getByRole('link', { name: 'Chat dengan Dokter', exact: true });
         await expect(chat).toBeVisible();
@@ -394,6 +417,72 @@ test.describe('Landing page (/)', () => {
 
         await chat.click();
         await expect(page).toHaveURL(/\/login/);
+    });
+
+    /**
+     * The Layanan panel in the SAME three-zone shape as the directory's, because the two
+     * are one menu rather than two menus that happen to share a header.
+     *
+     * Asserted as columns, not as visibility: three zones stacked would pass a naive
+     * check while looking nothing like the reference. The rail's rows are checked for
+     * icon AND for where they GO - a category row that goes nowhere is a label
+     * pretending to be a menu entry - and the middle is checked for all five services,
+     * which is the content that used to sit inside the DIRECTORY panel before it moved
+     * here, where it is a menu of its own.
+     */
+    test('f00-landing-nav-layanan-tiga-zona-ala-menu-katalog', async ({ page }) => {
+        await page.goto('/');
+
+        const panel = page.locator('[data-slot="nav-layanan-panel"]');
+        await page.getByRole('button', { name: 'Layanan Kesehatan' }).hover();
+        await expect(panel).toBeVisible();
+
+        // the three zones are three COLUMNS, side by side
+        const zona = panel.locator('[data-slot="nav-layanan-zona"]');
+        const kolom = await zona.evaluate((el) =>
+            getComputedStyle(el).gridTemplateColumns.split(' ').length,
+        );
+        expect(kolom, 'tiga zona harus sejajar, bukan menumpuk').toBe(3);
+
+        // Zone 1 - the rail: one row per group, line art on every row, names in full
+        const rel = zona.locator('[data-slot="nav-layanan-kelompok"]');
+        await expect(rel).toBeVisible();
+
+        const jumlah = await rel.locator('li').count();
+        expect(jumlah, 'satu baris per kelompok').toBe(3);
+        expect(await rel.locator('li svg').count()).toBe(jumlah);
+
+        const terpotong = await rel
+            .locator('a')
+            .evaluateAll((els) =>
+                els.filter((el) => el.scrollWidth > el.clientWidth + 1).map((el) => el.textContent),
+            );
+        expect(terpotong).toEqual([]);
+
+        // ...and each row opens its group's own hub, not a row that goes nowhere
+        const hub = await rel.locator('a').evaluateAll((els) =>
+            els.map((el) => el.getAttribute('href')),
+        );
+        expect(hub, 'tiap kelompok membuka hubnya sendiri').toEqual([
+            '/konsultasi',
+            '/pasien/resep',
+            '/rekam-medis',
+        ]);
+
+        // Zone 2 - all five services, under the three headings that name them
+        const tautan = zona.locator('[data-slot="nav-layanan-tautan"]');
+        await expect(tautan.getByText('Konsultasi & Janji')).toBeVisible();
+        await expect(tautan.getByText('Obat & Apotek')).toBeVisible();
+        await expect(tautan.getByText('Riwayat Kesehatan')).toBeVisible();
+        expect(await tautan.locator('a').count(), 'lima layanan, tak ada yang ganda').toBe(5);
+
+        // Zone 3 - the picture grid: the same six tiles, the admin's photograph among
+        // them, which is the `nav-promo` contract the picture test checks both panels
+        // against rather than the directory's alone.
+        const promo = zona.locator('[data-slot="nav-promo-grid"]');
+        await expect(promo).toBeVisible();
+        expect(await promo.locator('a').count(), 'grid harus penuh 3x2').toBe(6);
+        await expect(promo.locator('[data-slot="nav-promo"] img')).toHaveCount(1);
     });
 
     /**
