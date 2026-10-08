@@ -430,12 +430,13 @@ test.describe('Landing page (/)', () => {
      * are one menu rather than two menus that happen to share a header.
      *
      * Asserted as columns, not as visibility: three zones stacked would pass a naive
-     * check while looking nothing like the reference. The rail is checked for the SIX
-     * services the landing page itself publishes - flat, one row each, in their order -
-     * because the grouping this replaces is the thing the test exists to keep out: it
-     * printed the services, then printed them again under single-item headings, so the
-     * negative assertions below (no heading, no second copy of a service) are the point
-     * rather than a detail of the current markup.
+     * check while looking nothing like the reference. The rail is checked for the FIVE
+     * services the bar and the sheet share - flat, one row each, in order - because the
+     * grouping this replaces is the thing the test exists to keep out: it printed the
+     * services, then printed them again under single-item headings, so the negative
+     * assertions below (no heading, no second copy of a service, no directory row where
+     * its own nav entry already sits) are the point rather than a detail of the current
+     * markup.
      */
     test('f00-landing-nav-layanan-tiga-zona-ala-menu-katalog', async ({ page }) => {
         await page.goto('/');
@@ -456,7 +457,7 @@ test.describe('Landing page (/)', () => {
         await expect(rel).toBeVisible();
 
         const jumlah = await rel.locator('li').count();
-        expect(jumlah, 'enam layanan, sama seperti bagian Solusi di bawahnya').toBe(6);
+        expect(jumlah, 'lima layanan; direktori tidak ikut, pintunya sudah di sebelah').toBe(5);
         expect(await rel.locator('li svg').count()).toBe(jumlah);
 
         const terpotong = await rel
@@ -473,12 +474,12 @@ test.describe('Landing page (/)', () => {
             '/konsultasi',
             '/booking',
             '/pasien/resep',
-            '/rekam-medis',
-            '/dokter',
             '/pengingat',
+            '/rekam-medis',
         ]);
 
-        // nothing groups them any more, and no service is printed a second time
+        // nothing groups them any more, no service is printed a second time, and the
+        // directory does not reappear inside a panel whose bar entry sits two items left
         for (const nama of ['Konsultasi & Janji', 'Obat & Apotek', 'Riwayat Kesehatan']) {
             await expect(panel.getByText(nama)).toHaveCount(0);
         }
@@ -486,6 +487,10 @@ test.describe('Landing page (/)', () => {
             await panel.getByRole('link', { name: 'Chat dengan Dokter', exact: true }).count(),
             'layanan tidak boleh tercetak dua kali',
         ).toBe(1);
+        expect(
+            await panel.getByRole('link', { name: 'Direktori Dokter', exact: true }).count(),
+            'direktori sudah punya pintu sendiri di bar',
+        ).toBe(0);
 
         // Zone 2 - the four campaigns as text links, the same four painted on the right
         const promoTeks = zona.locator('[data-slot="nav-layanan-promo"]');

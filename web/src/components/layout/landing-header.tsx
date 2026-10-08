@@ -29,7 +29,7 @@ import { logout } from '@/lib/api/auth';
 import { cariMasterPopuler, POPULER, spesialisasiOptions } from '@/lib/api/dokter';
 import { heroOptions } from '@/lib/api/hero';
 import { meOptions } from '@/lib/api/me';
-import { PROMO, SLIDE_HERO, LAYANAN as LAYANAN_SOLUSI } from '@/features/landing/data';
+import { PROMO, SLIDE_HERO } from '@/features/landing/data';
 import { IKON_BAWAAN, IKON_SPESIALISASI } from '@/features/landing/ikon-spesialis';
 import { RelMenggulir } from '@/features/landing/rel-menggulir';
 import { clearTokens, getRefreshToken } from '@/lib/token';
@@ -103,19 +103,18 @@ type NavItem = {
 };
 
 /**
- * The five service entries the SHEET (touch) lists, each resolving to a real route.
+ * The five service entry points, each resolving to a real route.
  *
- * The desktop bar does not read this list: its rail renders `LAYANAN_SOLUSI`, the six
- * entry points the landing page body itself publishes under "Solusi Kesehatan di
- * Tanganmu", so the panel cannot show fewer services than the page below it. What the
- * sheet needs on top of those six is the `description` - with no columns to fill on a
- * phone, the row explains itself - and the sixth service, "Direktori Dokter", is the
- * sheet's own nav link just above, so listing it here would print it twice. Five here
- * plus that link IS the same six.
+ * They are listed twice on purpose - by the SHEET (touch) as rows with a `description`,
+ * and by the desktop bar as the rail of its "Layanan Kesehatan" panel with an icon - but
+ * from this one array, so the two surfaces cannot drift into offering different menus.
+ * `description` is what the sheet reads and the bar does not: with no columns to fill on
+ * a phone, the row explains itself instead.
  *
- * There is deliberately no grouping anywhere: five services are a list, not a taxonomy,
- * and the bar used to split them into single-item buckets only to print the buckets and
- * the services both.
+ * "Direktori Dokter" is deliberately NOT here. The bar gives it its own entry two items
+ * to the left, so listing it would print one destination twice inside a single nav - a
+ * menu pointing at itself. The landing page can afford to show it as a sixth "Solusi"
+ * tile; a bar with three doors cannot.
  */
 const LAYANAN: NavItem[] = [
     {
@@ -504,10 +503,17 @@ function GridPromoPanel({
  * That was the reference's category rail applied to a menu that has no categories: five
  * services are a list, not a taxonomy, and splitting a list into buckets only to print
  * the buckets AND the list is how a menu starts explaining itself instead of offering
- * something. The rail now prints `LAYANAN_SOLUSI`, the SIX entry points the landing page
- * itself publishes under "Solusi Kesehatan di Tanganmu", in their own order - so the
- * panel can never offer fewer services than the page below it, and "Direktori Dokter" is
- * one of them for exactly the reason it is a tile there.
+ * something. The rail now prints `items` - the SAME five the sheet lists - one row per
+ * service, so the two surfaces offer one menu rather than two that drift.
+ *
+ * ## Why "Direktori Dokter" is not on that rail
+ *
+ * The landing's "Solusi Kesehatan di Tanganmu" section has six tiles; this rail has five
+ * rows, and the one left out is the directory. The bar already gives it its own entry two
+ * items to the left, and a destination printed twice inside a single nav is a menu
+ * pointing at itself: a visitor who wants the catalogue should open the catalogue's panel,
+ * not find it filed under services. The page can afford it as a sixth tile; a bar with
+ * three doors cannot.
  *
  * ## Why the middle carries the campaigns
  *
@@ -519,8 +525,8 @@ function GridPromoPanel({
  * ## Why the title row carries no "Lihat semua"
  *
  * The directory has one because a directory has an index page, `/dokter`. The services
- * have none - the six rows in the rail are all of them - so a link promising "all" would
- * be one of the six wearing a different hat. The title row says what the panel is
+ * have none - the five rows in the rail are all of them - so a link promising "all" would
+ * be one of the five wearing a different hat. The title row says what the panel is
  * instead of pointing at a page that does not exist.
  *
  * Every link is a route registered in `app/router.tsx` - a signed-out visitor who picks
@@ -528,7 +534,7 @@ function GridPromoPanel({
  * the router - and every one of them closes the panel on the way out (`hover.tutup`), so
  * the menu never lies open behind the page it opened.
  */
-function PanelLayanan({ hover }: { hover: NavHover }) {
+function PanelLayanan({ items, hover }: { items: NavItem[]; hover: NavHover }) {
     const kartu = useKartuPanel();
 
     return (
@@ -549,8 +555,8 @@ function PanelLayanan({ hover }: { hover: NavHover }) {
                 data-slot="nav-layanan-zona"
                 className="mt-4 grid gap-6 lg:grid-cols-[minmax(0,15rem)_minmax(0,15rem)_minmax(0,1fr)] lg:gap-7"
             >
-                {/* Zone 1 - the rail: one row per service, line art on every row, in the
-                    order the landing page publishes them */}
+                {/* Zone 1 - the rail: one row per service, line art on every row, the
+                    same five the sheet lists below it */}
                 <div className="lg:border-border min-w-0 lg:border-r">
                     <p className="text-muted-foreground mb-2 text-xs font-semibold tracking-wide uppercase lg:pr-6">
                         Layanan
@@ -561,8 +567,8 @@ function PanelLayanan({ hover }: { hover: NavHover }) {
                         label="Daftar layanan"
                         className="max-h-[22rem] lg:max-h-[28rem] lg:pr-6"
                     >
-                        {LAYANAN_SOLUSI.map((layanan) => {
-                            const Ikon = layanan.ikon;
+                        {items.map((layanan) => {
+                            const Ikon = layanan.icon;
 
                             return (
                                 <li key={layanan.to}>
@@ -577,7 +583,7 @@ function PanelLayanan({ hover }: { hover: NavHover }) {
                                         />
 
                                         <span className="min-w-0 flex-1 text-sm leading-snug font-medium">
-                                            {layanan.judul}
+                                            {layanan.label}
                                         </span>
                                     </Link>
                                 </li>
@@ -648,7 +654,7 @@ function NavLayanan({
             <NavPanelEntry
                 label={label}
                 idPanel="nav-layanan-panel"
-                panel={(hover) => <PanelLayanan hover={hover} />}
+                panel={(hover) => <PanelLayanan items={items} hover={hover} />}
             />
         );
     }
