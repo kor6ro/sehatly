@@ -6,7 +6,7 @@ import { daftarDanMasuk } from './akun';
  *
  * ## What this spec is actually guarding
  *
- * Five decisions are pinned down below, and each of them can regress without
+ * Six decisions are pinned down below, and each of them can regress without
  * breaking anything else:
  *
  * 1. **The body is the whole page.** `RootPage` used to be a chooser with two buttons;
@@ -29,7 +29,7 @@ import { daftarDanMasuk } from './akun';
  *    no longer a link on the desktop bar but a hover panel of pre-filtered choices, and
  *    "Layanan Kesehatan" opens on hover instead of on a click. Nothing there may be
  *    hover-ONLY: the keyboard and the mobile sheet keep their own way in, which is what
- *    the last four tests in this file are for.
+ *    the keyboard and sheet tests further down are for.
  *
  * 5. **Both panels are shaped like the catalog menu and carry pictures.** Three zones
  *    side by side - an icon rail, a column of links, and the six-tile picture grid whose
@@ -39,6 +39,17 @@ import { daftarDanMasuk } from './akun';
  *    because it is the kind of thing a refactor puts back. One of these tests exists
  *    because the first version of the services panel flickered open and shut under a
  *    resting cursor.
+ *
+ * 6. **The bar is the reference's bar: two rows, and a search that goes somewhere.**
+ *    Row one carries the wordmark, the search pill and the account cluster; row two
+ *    carries the tabs - uppercase, bare of chevrons, ruled underneath only while their
+ *    panel is open, and starting on the same pixel as the wordmark. The search opens
+ *    `/dokter?search=…` because the directory is the only screen that can answer a
+ *    query, and the directory seeds its own field from that parameter the way it already
+ *    seeds `?spesialisasi=` from the rail: a field pointing at a screen that ignored it
+ *    would be a field that pretends, and the pretence would break nothing else here.
+ *    Below `md` the bar drops the field and the drawer carries its own copy of the same
+ *    form, so "add a search" never quietly means "add a search to viewports 1024 and up".
  *
  * ## Why the sign-in path is driven through `daftarDanMasuk`
  *
@@ -507,6 +518,186 @@ test.describe('Landing page (/)', () => {
     });
 
     /**
+     * The bar itself: two rows, and a search field that goes somewhere real.
+     *
+     * The reference stacks its bar - wordmark, search, account on top; tabs underneath -
+     * because the search is the widest thing in it and cannot share a line with a nav it
+     * would squeeze into a strip between two boxes. Row two is also the panel's
+     * containing block, so this is the measurement behind every "the panel is as wide as
+     * the bar" assertion below: two rows of the same geometry, or the panels and the bar
+     * disagree about where the page's centre is.
+     *
+     * The search navigates to `/dokter?search=…` because the directory is the ONLY
+     * screen in the product that can answer a query - it has a `search` field of its own
+     * and `GET /dokter` takes the parameter - and the assertion that follows checks the
+     * directory's own field received the value. A header that searched a screen which
+     * ignored it would be a field that pretends, and the pretence would pass every other
+     * test in this file.
+     */
+    test('f00-landing-bar-dua-baris-dengan-cari-membuka-direktori-terfilter', async ({ page }) => {
+        await page.goto('/');
+
+        const baris1 = page.locator('[data-slot="landing-header"] > div').first();
+        const baris2 = page.locator('[data-slot="landing-nav-baris"]');
+
+        await expect(baris2, 'baris tab ada hanya di desktop').toBeVisible();
+
+        const kotak1 = await baris1.boundingBox();
+        const kotak2 = await baris2.boundingBox();
+        expect(kotak1, 'baris pertama harus terukur').not.toBeNull();
+        expect(kotak2, 'baris tab harus terukur').not.toBeNull();
+        if (kotak1 === null || kotak2 === null) {
+            return;
+        }
+
+        expect(
+            Math.round(kotak2.y),
+            'baris tab harus DI BAWAH baris pencarian',
+        ).toBeGreaterThanOrEqual(Math.round(kotak1.y + kotak1.height));
+        expect(
+            Math.round(kotak2.width),
+            'kedua baris lebar sama - itulah lebar panelnya',
+        ).toBe(Math.round(kotak1.width));
+
+        const cari = page.locator('[data-slot="landing-cari"]');
+        await expect(cari).toBeVisible();
+        await expect(cari).toHaveAttribute('role', 'search');
+
+        const kolom = page.getByRole('searchbox', { name: 'Cari dokter' });
+        await expect(kolom).toBeVisible();
+
+        await kolom.fill('rina');
+        await cari.getByRole('button', { name: 'Cari', exact: true }).click();
+
+        await expect(page).toHaveURL(/\/dokter\?search=rina$/);
+        await expect(
+            page.locator('[data-slot="dokter-cari"]'),
+            'direktori menerima kuerinya, bukan sekadar dibuka',
+        ).toHaveValue('rina');
+    });
+
+    /**
+     * The tab row's style, and the size of the pictures behind it - both of which are
+     * claims about the reference this header is drawn from and would otherwise drift
+     * without anything breaking.
+     *
+     * Tabs: uppercase, 12px, no chevron (the reference's tabs are bare words), marked by
+     * a bottom rule only while their panel is OPEN - which is the reference marking
+     * "Wanita", and which React Router could not answer here since two of the three
+     * entries are not routes. The first tab's text starts on the pixel the wordmark
+     * starts on, so the two rows read as one column.
+     *
+     * Pictures: squares of about a tenth of the panel's width in a 3x2 block. The
+     * `aspect-[4/3]` they replaced stretched six cards across the whole right-hand zone
+     * and turned a picture grid into a wall; a test that only counted them would have
+     * passed both.
+     */
+    test('f00-landing-nav-tab-alas-menu-bar-dan-gambar-persegi', async ({ page }) => {
+        await page.goto('/');
+
+        const tab = page.getByRole('button', { name: 'Direktori Dokter' });
+        await expect(tab).toBeVisible();
+
+        expect(await tab.evaluate((el) => getComputedStyle(el).textTransform)).toBe('uppercase');
+        expect(await tab.evaluate((el) => getComputedStyle(el).fontSize)).toBe('12px');
+        expect(
+            await tab.locator('svg').count(),
+            'tab rujukan tidak membawa chevron - garis bawahnya yang berbicara',
+        ).toBe(0);
+
+        // the tab's first letter on the wordmark's first pixel
+        const teksKiri = await tab.evaluate((el) => {
+            const range = document.createRange();
+            range.selectNodeContents(el);
+            return Math.round(range.getBoundingClientRect().x);
+        });
+        const logo = await page
+            .getByRole('banner')
+            .getByRole('link', { name: 'Sehatly - beranda' })
+            .boundingBox();
+        expect(logo).not.toBeNull();
+        if (logo === null) {
+            return;
+        }
+        expect(Math.abs(teksKiri - Math.round(logo.x)), 'baris 1 dan 2 mulai di satu garis').toBeLessThanOrEqual(
+            2,
+        );
+
+        // the rule under a tab is transparent until its panel opens
+        expect(await tab.evaluate((el) => getComputedStyle(el).borderBottomColor)).toBe(
+            'rgba(0, 0, 0, 0)',
+        );
+        await tab.hover();
+
+        const panel = page.locator('[data-slot="nav-direktori-panel"]');
+        await expect(panel).toBeVisible();
+        expect(await tab.evaluate((el) => getComputedStyle(el).borderBottomColor)).not.toBe(
+            'rgba(0, 0, 0, 0)',
+        );
+
+        // the title row is a display word, not a label
+        const judul = panel.getByText('Direktori Dokter', { exact: true });
+        expect(parseFloat(await judul.evaluate((el) => getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(
+            24,
+        );
+
+        // six square tiles, each about a tenth of the panel - never stretched to fill
+        const panelL = (await panel.boundingBox())?.width ?? 0;
+        expect(panelL).toBeGreaterThan(0);
+
+        const kotak = await panel
+            .locator('[data-slot="nav-promo-grid"] a')
+            .evaluateAll((els) =>
+                els.map((el) => {
+                    const b = el.getBoundingClientRect();
+                    return { w: Math.round(b.width), h: Math.round(b.height) };
+                }),
+            );
+        expect(kotak, 'grid harus penuh 3x2').toHaveLength(6);
+
+        for (const { w, h } of kotak) {
+            expect(Math.abs(w - h), `gambar harus persegi, bukan ${w}x${h}`).toBeLessThanOrEqual(1);
+            expect(w, 'terlalu kecil untuk memuat judulnya sendiri').toBeGreaterThanOrEqual(100);
+            expect(
+                w,
+                'terlalu besar: rujukan memakai ~9% lebar panel, batasnya 14%',
+            ).toBeLessThanOrEqual(Math.round(panelL * 0.14));
+        }
+    });
+
+    /**
+     * The Layanan panel's "Lihat semua", which is an ANCHOR rather than the route the
+     * directory's see-all points at.
+     *
+     * The services have no index page - a `/layanan` URL would resolve to nothing - so
+     * the link jumps to `#solusi`, the landing's own six-tile section, which is the index
+     * it is promising. Following it must move THIS page, leave the path at `/`, and take
+     * the panel with it: a menu left open over the section it scrolled to is a menu the
+     * visitor has to dismiss twice.
+     */
+    test('f00-landing-tautan-lihat-semua-layanan-lompat-ke-seksi-solusi', async ({ page }) => {
+        await page.goto('/');
+
+        await page.getByRole('button', { name: 'Layanan Kesehatan' }).hover();
+
+        const panel = page.locator('[data-slot="nav-layanan-panel"]');
+        await expect(panel).toBeVisible();
+
+        await panel.getByRole('link', { name: /Lihat semua/ }).click();
+
+        await expect(page).toHaveURL(/\/#solusi$/);
+        await expect(page.locator('#solusi')).toBeInViewport();
+        await expect(
+            page.getByRole('heading', {
+                level: 2,
+                name: 'Solusi Kesehatan di Tanganmu',
+                exact: true,
+            }),
+        ).toBeInViewport();
+        await expect(panel, 'panel ikut tertutup').toHaveCount(0);
+    });
+
+    /**
      * The pictures the mega panels carry, and where they come from.
      *
      * `GET /hero` is this product's only public source of real photography, and it is
@@ -593,6 +784,36 @@ test.describe('Landing page (/)', () => {
         await laci.getByRole('link', { name: 'Direktori Dokter' }).click();
 
         await expect(page).toHaveURL(/\/dokter$/);
+    });
+
+    /**
+     * The search on a PHONE, where the bar keeps only the wordmark and the menu button.
+     *
+     * Hiding the field below `md` is not a decision to make it desktop-only: the drawer
+     * carries its own copy of the same form, because a search a visitor has to know to
+     * look for is one they will not find. What the drawer must NOT do is sit on top of
+     * the page it just opened, so closing it is asserted rather than assumed - the same
+     * rule the anchor test applies to the panel, one overlay per dismissal.
+     */
+    test('f00-landing-cari-di-laci-ponsel-menutup-laci-lalu-membuka-direktori', async ({ page }) => {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.goto('/');
+
+        // no field in the BAR below `md` - only the drawer's, which is not yet open
+        await expect(page.locator('[data-slot="landing-cari"]:visible')).toHaveCount(0);
+
+        await page.getByRole('button', { name: 'Buka menu navigasi' }).click();
+
+        const laci = page.locator('[role="dialog"]');
+        const kolom = laci.getByRole('searchbox', { name: 'Cari dokter' });
+        await expect(kolom).toBeVisible();
+
+        await kolom.fill('anak');
+        await laci.getByRole('button', { name: 'Cari', exact: true }).click();
+
+        await expect(laci, 'laci ikut tertutup di belakang navigasinya').toHaveCount(0);
+        await expect(page).toHaveURL(/\/dokter\?search=anak$/);
+        await expect(page.locator('[data-slot="dokter-cari"]')).toHaveValue('anak');
     });
 
     test('f00-landing-pill-akun-menggantikan-masuk-setelah-sesi-terpasang', async ({ page }) => {

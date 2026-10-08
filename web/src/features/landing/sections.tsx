@@ -66,10 +66,15 @@ function Bagian({
     children,
 }: {
     /**
-     * An in-page anchor target. Only one section carries it: `CekMandiriSection` is
-     * what the header's "Cek Kesehatan Mandiri" jumps to, so the landing nav can
-     * offer a content link the way a health portal does without inventing a route
-     * that has no endpoint behind it.
+     * An in-page anchor target. Two sections carry it: `CekMandiriSection` is what the
+     * header's "Cek Kesehatan Mandiri" jumps to, and `SolusiSection` is what the Layanan
+     * panel's "Lihat semua" jumps to - both are content the navigation can promise
+     * without inventing a route that has no endpoint behind it.
+     *
+     * The scroll margin rides along with the id: the header is sticky and TWO rows tall
+     * on desktop, so a bare hash jump would park the section's heading underneath it.
+     * 8rem is measured against the tall header; on a phone, where the bar is one row, it
+     * simply leaves a little air above the heading, which costs nothing.
      */
     id?: string;
     judul: string;
@@ -77,7 +82,13 @@ function Bagian({
     children: ReactNode;
 }) {
     return (
-        <section id={id} className="mx-auto w-full max-w-[1280px] px-4 py-12 md:px-6">
+        <section
+            id={id}
+            className={cn(
+                'mx-auto w-full max-w-[1280px] px-4 py-12 md:px-6',
+                id === undefined ? null : 'scroll-mt-32',
+            )}
+        >
             <div className="grid gap-6 md:grid-cols-[minmax(0,16rem)_minmax(0,1fr)] md:gap-12">
                 <div>
                     <h2 className="text-2xl leading-snug font-bold md:text-3xl">
@@ -122,6 +133,7 @@ export function SolusiSection() {
     return (
         <section className="bg-muted/40 w-full">
             <Bagian
+                id="solusi"
                 judul="Solusi Kesehatan di Tanganmu"
                 deskripsi="Dari tanya dokter sampai obat sampai di rumah, semuanya lewat satu aplikasi."
             >

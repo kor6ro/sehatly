@@ -164,6 +164,31 @@ export function DoctorDirectoryPage() {
     const [sheetOpen, setSheetOpen] = useState(false);
     const [draft, setDraft] = useState<PilihanFilter>(PILIHAN_KOSONG);
 
+    /**
+     * `?search=` from OUTSIDE the page: the landing header's search field navigates here
+     * with the query in the URL, for the same reason `?spesialisasi=` arrives in it - the
+     * URL states what the page is showing, so Back returns to the search that produced it
+     * and a reload does not silently revert to whatever sessionStorage last held.
+     *
+     * It wins over the stored value when both exist, and it re-runs only when the URL
+     * value CHANGES: clearing the box inside the page is untouched by it, because the
+     * effect keys on the parameter rather than on the state it writes. A visit with no
+     * parameter is a no-op, which is what keeps the pre-existing sessionStorage handoff
+     * exactly as it was.
+     */
+    const kueriUrl = searchParams.get('search');
+
+    useEffect(() => {
+        if (kueriUrl === null) {
+            return;
+        }
+
+        setSearch(kueriUrl);
+        setSubmittedSearch(kueriUrl);
+        simpanKueriTersimpan(kueriUrl);
+        resetToFirstPage();
+    }, [kueriUrl]);
+
     const hasilRef = useRef<HTMLParagraphElement | null>(null);
     const pemicuFilterMobileRef = useRef<HTMLButtonElement | null>(null);
     const fokusHasil = useRef(false);

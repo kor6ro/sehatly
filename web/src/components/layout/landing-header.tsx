@@ -21,6 +21,7 @@ import {
     Pill,
     Search,
     Settings,
+    ShoppingBag,
     Tag,
     UserRound,
 } from 'lucide-react';
@@ -70,13 +71,19 @@ import { cn } from '@/lib/utils';
  *
  * ## The shape is borrowed; the labels are ours
  *
- * The layout follows the Indonesian telemedicine convention this product competes in:
- * mark and wordmark on the left, a short nav of service entry points, one filled
- * call-to-action on the right. Two deliberate differences from the reference:
+ * The layout is the catalog-menu reference's, down to its two rows: mark and wordmark on
+ * the left of row ONE with a wide search pill between them and the account cluster on the
+ * right, then row TWO carrying the tabs, from which both panels hang at the bar's own
+ * width. Four deliberate differences from that reference:
  *
  * - No endorsement badge. The reference shows a ministry-of-health endorsement. Claiming
  *   one here would be a statement of fact about Sehatly that nobody has made, so the slot
  *   simply does not exist in this component.
+ * - No "Daftar", and no wishlist heart. The reference sets "Masuk / Daftar" as text with
+ *   a heart and a bag beside it; the product has ONE door (a phone number into the OTP
+ *   dialog) and no wishlist route to point an icon at, so the second word and the heart
+ *   would both be promises this product does not keep. The bag survives because
+ *   `/pesanan` exists - it is where a prescription order already lives.
  * - Every menu entry points at a route that is registered in `app/router.tsx`. There are
  *   no placeholder links: a signed-out visitor who picks "Chat dengan Dokter" lands on
  *   `RequireAuth`, which hands them to `/login` - the correct outcome, reached through
@@ -158,6 +165,34 @@ function navLinkClass({ isActive }: { isActive: boolean }): string {
         isActive
             ? 'bg-secondary text-primary'
             : 'text-foreground/75 hover:bg-secondary hover:text-primary',
+    );
+}
+
+/**
+ * The style of row TWO of the header - the reference's menu bar rather than three pill
+ * buttons: small, uppercase, and carrying the underline that sits on the bar's own
+ * bottom edge.
+ *
+ * ## Why `isActive` is the panel's `open`, not the route
+ *
+ * The reference underlines the category whose panel is showing, and on this bar that is
+ * exactly "which tab is open". React Router cannot answer it: two of the three entries
+ * are not routes at all (one opens a panel, one is an in-page anchor), so route matching
+ * would leave the two that need the mark unmarked and keep the third lit for a hash no
+ * path ever changes.
+ *
+ * ## Why the sheet keeps {@link navLinkClass}
+ *
+ * The same list renders vertically inside the mobile sheet, where a border under every
+ * row reads as a divider instead of as a selection, and where nothing can hover to earn
+ * the mark. `NavList` picks between the two classes on `interaksi`.
+ */
+function navTabClass({ isActive }: { isActive: boolean }): string {
+    return cn(
+        'inline-flex items-center border-b-2 px-3 pb-3 pt-3.5 text-xs font-semibold tracking-wide uppercase transition-colors',
+        isActive
+            ? 'border-foreground text-foreground'
+            : 'border-transparent text-foreground/65 hover:text-foreground',
     );
 }
 
@@ -311,7 +346,15 @@ function NavPanelEntry({
                 type="button"
                 aria-expanded={hover.open}
                 aria-controls={idPanel}
-                className={navLinkClass({ isActive: false })}
+                /**
+                 * No chevron, which is the one ornament the reference tabs do not have:
+                 * a menu bar's affordance is that hovering it opens something, and the
+                 * state a screen reader needs is `aria-expanded` above rather than an
+                 * arrow that only a pointer could have used anyway. The underline is the
+                 * affordance for everyone else - it is what marks the open tab, the way
+                 * the reference marks "Wanita".
+                 */
+                className={navTabClass({ isActive: hover.open })}
                 onClick={() => {
                     // A mouse is already inside, and hover has already opened it; for a
                     // finger or a keyboard this is the only way in, so it toggles.
@@ -320,12 +363,6 @@ function NavPanelEntry({
                 }}
             >
                 {label}
-                <ChevronDown
-                    className={cn(
-                        'size-4 opacity-60 transition-transform',
-                        hover.open && 'rotate-180',
-                    )}
-                />
             </button>
 
             {hover.open ? panel(hover) : null}
@@ -409,6 +446,16 @@ function useKartuPanel(): KartuPanel[] {
  * admin has published one, a painted card from the product's own copy when it has not -
  * the same bargain the hero carousel makes. Every card is a link, so a picture is also
  * a way in, and `tutup` closes the panel behind the choice.
+ *
+ * ## Why the tiles are SQUARE and capped at 30rem
+ *
+ * Because the reference's are: six photographs of the same size in a 3x2 block, about a
+ * tenth of the panel's width each, with a gap you can see. The `aspect-[4/3]` they
+ * replaced filled the whole right-hand zone and turned a picture grid into a wall, and
+ * the cap is what keeps the block the reference's PROPORTION rather than one that grows
+ * with the window - the panel is `max-w-[1280px]`, so a fixed 30rem is a fixed share of
+ * it at every width the bar can be. Below `lg` the grid falls back to two columns,
+ * because the panels only render at `lg` and up and this is the sheet-free path.
  */
 function GridPromoPanel({
     kartu,
@@ -420,7 +467,7 @@ function GridPromoPanel({
     return (
         <div
             data-slot="nav-promo-grid"
-            className="grid min-w-0 grid-cols-2 gap-2.5 xl:grid-cols-3"
+            className="grid min-w-0 grid-cols-2 gap-3 lg:max-w-[30rem] lg:grid-cols-3"
         >
             {kartu.map((kartu_) =>
                 kartu_.foto !== null ? (
@@ -429,7 +476,7 @@ function GridPromoPanel({
                         to={kartu_.to}
                         onClick={tutup}
                         data-slot="nav-promo"
-                        className="group relative block aspect-[4/3] overflow-hidden rounded-lg"
+                        className="group relative block aspect-square overflow-hidden rounded-lg"
                     >
                         <img
                             src={kartu_.foto}
@@ -459,7 +506,7 @@ function GridPromoPanel({
                         key={kartu_.kunci}
                         to={kartu_.to}
                         onClick={tutup}
-                        className="group relative block aspect-[4/3] overflow-hidden rounded-lg"
+                        className="group relative block aspect-square overflow-hidden rounded-lg"
                     >
                         <span
                             aria-hidden="true"
@@ -522,17 +569,20 @@ function GridPromoPanel({
  * `PROMO`'s four campaigns as links, and the same four painted as tiles to the right.
  * What the middle must not carry is the service list again; that is what was removed.
  *
- * ## Why the title row carries no "Lihat semua"
+ * ## Why the title row's "Lihat semua" is an anchor and not a route
  *
- * The directory has one because a directory has an index page, `/dokter`. The services
- * have none - the five rows in the rail are all of them - so a link promising "all" would
- * be one of the five wearing a different hat. The title row says what the panel is
- * instead of pointing at a page that does not exist.
+ * The directory's see-all points at `/dokter`, which has an index page. The services
+ * have none - a `/layanan` URL would be a registered destination that resolves to
+ * nothing - so this one jumps to `#solusi`, the landing's own six-tile section, which is
+ * the index it is promising. The directory carries the sixth tile the rail deliberately
+ * leaves out, which makes the jump a truthful "all of them" rather than one of the five
+ * wearing a different hat.
  *
- * Every link is a route registered in `app/router.tsx` - a signed-out visitor who picks
- * one still lands on `RequireAuth` and its `/login`, the correct outcome reached through
- * the router - and every one of them closes the panel on the way out (`hover.tutup`), so
- * the menu never lies open behind the page it opened.
+ * Every destination is honest about what it is: a route registered in `app/router.tsx`
+ * - a signed-out visitor who picks one still lands on `RequireAuth` and its `/login`, the
+ * correct outcome reached through the router - or the `#solusi` anchor above, which is
+ * this page. Every one of them closes the panel on the way out (`hover.tutup`), so the
+ * menu never lies open behind the page it opened.
  */
 function PanelLayanan({ items, hover }: { items: NavItem[]; hover: NavHover }) {
     const kartu = useKartuPanel();
@@ -541,26 +591,41 @@ function PanelLayanan({ items, hover }: { items: NavItem[]; hover: NavHover }) {
         <div
             id="nav-layanan-panel"
             data-slot="nav-layanan-panel"
-            className="bg-popover text-popover-foreground border-border absolute top-full right-0 left-0 z-50 rounded-b-2xl border p-5 shadow-xl"
+            className="bg-popover text-popover-foreground absolute top-full right-0 left-0 z-50 rounded-b-2xl p-5 shadow-xl"
         >
-            <div className="min-w-0">
-                <p className="text-sm font-semibold">Layanan Kesehatan</p>
-
-                <p className="text-muted-foreground text-sm">
-                    Konsultasi, janji temu, resep, sampai rekam medis - dalam satu aplikasi.
+            {/*
+                The reference's title row: large word, blue "see all", nothing else.
+                This panel's see-all is an ANCHOR to the landing's own "Solusi Kesehatan
+                di Tanganmu" section rather than a route - a services menu has no index
+                page, and `#solusi` points at the six tiles that ARE the index without
+                adding a destination to `app/router.tsx` that would have to resolve to
+                something. The deck goes with the old copy.
+            */}
+            <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                <p className="text-foreground text-[1.6rem] leading-tight font-normal">
+                    Layanan Kesehatan
                 </p>
+
+                <a
+                    href="#solusi"
+                    onClick={hover.tutup}
+                    className="text-primary inline-flex items-center gap-1 text-sm font-medium hover:underline"
+                >
+                    Lihat semua
+                    <ArrowRight className="size-4" />
+                </a>
             </div>
 
             <div
                 data-slot="nav-layanan-zona"
-                className="mt-4 grid gap-6 lg:grid-cols-[minmax(0,15rem)_minmax(0,15rem)_minmax(0,1fr)] lg:gap-7"
+                className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,15rem)_minmax(0,20rem)_minmax(0,1fr)] lg:gap-7"
             >
                 {/* Zone 1 - the rail: one row per service, line art on every row, the
-                    same five the sheet lists below it */}
+                    same five the sheet lists below it, and no visible heading - the
+                    reference's rail starts at its first row so the rows and the middle
+                    heading share a baseline */}
                 <div className="lg:border-border min-w-0 lg:border-r">
-                    <p className="text-muted-foreground mb-2 text-xs font-semibold tracking-wide uppercase lg:pr-6">
-                        Layanan
-                    </p>
+                    <p className="sr-only">Layanan</p>
 
                     <RelMenggulir
                         slot="nav-layanan-daftar"
@@ -596,8 +661,8 @@ function PanelLayanan({ items, hover }: { items: NavItem[]; hover: NavHover }) {
                     paints as pictures */}
                 <div data-slot="nav-layanan-promo" className="grid min-w-0 gap-5">
                     <div className="min-w-0">
-                        <p className="text-foreground flex items-center gap-1.5 text-xs font-semibold tracking-wide uppercase">
-                            <Tag aria-hidden="true" className="size-3.5" />
+                        <p className="text-foreground flex items-center gap-1.5 text-sm font-semibold">
+                            <Tag aria-hidden="true" className="size-4" />
                             Promo &amp; Penawaran
                         </p>
 
@@ -748,9 +813,9 @@ function NavDropdownLaci({
  *
  * It is a child of the entry's wrapper - so `pointerleave` does not fire while the
  * pointer moves into it - but the wrapper carries NO `position: relative`, which makes
- * the header bar its containing block. The bar's width is guaranteed (it is
- * `max-w-[1280px]` and centered); a width measured from the trigger has to guess how
- * much room is left and guesses wrong on a narrow window.
+ * row two of the header bar its containing block. That row's width is guaranteed (it is
+ * `max-w-[1280px]` and centered, the same box row one is); a width measured from the
+ * trigger has to guess how much room is left and guesses wrong on a narrow window.
  *
  * ## What each zone is made of, and why it is not a costume
  *
@@ -796,21 +861,24 @@ function PanelDirektori({ hover }: { hover: NavHover }) {
         <div
             id="nav-direktori-panel"
             data-slot="nav-direktori-panel"
-            className="bg-popover text-popover-foreground border-border absolute top-full right-0 left-0 z-50 rounded-b-2xl border p-5 shadow-xl"
+            className="bg-popover text-popover-foreground absolute top-full right-0 left-0 z-50 rounded-b-2xl p-5 shadow-xl"
         >
-            <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
-                    <p className="text-sm font-semibold">Direktori Dokter</p>
-
-                    <p className="text-muted-foreground text-sm">
-                        Pilih bidang, lalu lihat jadwal praktik dan ulasan pasien.
-                    </p>
-                </div>
+            {/*
+                The reference's title row: one large word with a blue "see all" on its
+                baseline, and nothing else. The deck this used to carry is gone with it -
+                a menu that explains itself under its own title is copy written for a
+                screenshot rather than for a visitor who is already looking at sixteen
+                choices.
+            */}
+            <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                <p className="text-foreground text-[1.6rem] leading-tight font-normal">
+                    Direktori Dokter
+                </p>
 
                 <Link
                     to={DIREKTORI}
                     onClick={hover.tutup}
-                    className="text-primary inline-flex shrink-0 items-center gap-1 text-sm font-semibold hover:underline"
+                    className="text-primary inline-flex items-center gap-1 text-sm font-medium hover:underline"
                 >
                     Lihat semua dokter
                     <ArrowRight className="size-4" />
@@ -819,16 +887,20 @@ function PanelDirektori({ hover }: { hover: NavHover }) {
 
             <div
                 data-slot="nav-direktori-zona"
-                className="mt-4 grid items-start gap-6 lg:grid-cols-[minmax(0,15rem)_minmax(0,13rem)_minmax(0,1fr)] lg:gap-7"
+                className="mt-5 grid items-start gap-6 lg:grid-cols-[minmax(0,15rem)_minmax(0,20rem)_minmax(0,1fr)] lg:gap-7"
             >
-                {/* Zone 1 - the rail: the whole table, one row per specialisation. The
-                    ZONE carries no right padding: the divider is the line the thumb
+                {/* Zone 1 - the rail: the whole table, one row per specialisation, and
+                    no visible heading above it - the reference's rail starts at its
+                    first row so that the rows and the middle column's heading share one
+                    baseline. The column keeps its name for assistive technology only,
+                    because a scroll region holding sixteen names still has to say which
+                    list it is.
+
+                    The ZONE carries no right padding: the divider is the line the thumb
                     rides, so the clearance the rows need belongs to the `<ul>` inside
                     it - otherwise the bar floats a centimetre short of the line. */}
                 <div className="lg:border-border min-w-0 lg:border-r">
-                    <p className="text-muted-foreground mb-2 text-xs font-semibold tracking-wide uppercase lg:pr-6">
-                        Spesialisasi
-                    </p>
+                    <p className="sr-only">Spesialisasi</p>
 
                     {spesialisasi.isPending ? (
                         <div className="grid gap-1 lg:pr-6">
@@ -891,8 +963,8 @@ function PanelDirektori({ hover }: { hover: NavHover }) {
                     appointment links beside them answers a question nobody asked. */}
                 <div data-slot="nav-direktori-pintasan" className="grid min-w-0 gap-5">
                     <div className="min-w-0">
-                        <p className="text-foreground flex items-center gap-1.5 text-xs font-semibold tracking-wide uppercase">
-                            <Search aria-hidden="true" className="size-3.5" />
+                        <p className="text-foreground flex items-center gap-1.5 text-sm font-semibold">
+                            <Search aria-hidden="true" className="size-4" />
                             Sering dicari
                         </p>
 
@@ -957,7 +1029,8 @@ function NavDirektori({
 }
 
 /**
- * The full nav, rendered inline on desktop and inside the sheet on mobile.
+ * The full nav, rendered as the bar's SECOND row on desktop and inside the sheet on
+ * mobile.
  *
  * ## Why there is no "Untuk Dokter" menu
  *
@@ -973,7 +1046,7 @@ function NavDirektori({
  *
  * ## `interaksi`: hover on the bar, tap in the sheet
  *
- * The same list renders twice - `hidden lg:flex` at the top of the page and inside the
+ * The same list renders twice - in the bar's tab row (`hidden lg:block`) and inside the
  * mobile `Sheet` - and only one of those has a pointer that can hover. `hover` gives the
  * bar the panels that open themselves; `sentuh` keeps the sheet on links and click-to-
  * open menus, so a finger never opens something it cannot put away.
@@ -1010,19 +1083,99 @@ function NavList({
              * on this very page carries the same meaning and adds no route to
              * `app/router.tsx`, which is also why the route census does not see it.
              *
-             * A plain `<a>`, not a `NavLink`: `navLinkClass({ isActive: false })` gives
-             * it the resting style the other two entries use, and the active style
-             * would stay lit for a link whose hash changes no path for React Router to
-             * match on.
+             * A plain `<a>`, not a `NavLink`: `navLinkClass({ isActive: false })` on the
+             * sheet and `navTabClass({ isActive: false })` on the bar give it the resting
+             * style the other two entries use, and an active style would stay lit for a
+             * link whose hash changes no path for React Router to match on.
              */}
             <a
                 href="#cek-mandiri"
                 onClick={onNavigate}
-                className={navLinkClass({ isActive: false })}
+                className={
+                    interaksi === 'hover'
+                        ? navTabClass({ isActive: false })
+                        : navLinkClass({ isActive: false })
+                }
             >
                 Cek Kesehatan Mandiri
             </a>
         </nav>
+    );
+}
+
+/**
+ * The search field in the middle of the bar's FIRST row.
+ *
+ * ## Where a search goes, and why it is `/dokter`
+ *
+ * The directory is the only screen in the product that ANSWERS a query - it carries a
+ * `search` box of its own, and `GET /dokter` takes `search` as a parameter - so a header
+ * field searching anything else would be a field that pretends. The form navigates to
+ * `/dokter?search=…`, and the directory seeds its own input from that parameter exactly
+ * as it already seeds `?spesialisasi=` from the panel's rail: the URL states what the
+ * page is showing, which is also what keeps the browser's Back button honest about where
+ * a search came from.
+ *
+ * An empty query goes to `/dokter` with NO parameter rather than to `?search=`: a
+ * parameter carrying nothing is a URL claiming the visitor searched for the empty string.
+ *
+ * ## Why it is a form and not a per-keystroke request
+ *
+ * A field that queries on every character has to decide what happens when the visitor
+ * walks away mid-word, and every answer is worse than the one a submit button gives.
+ * The dark circle at the end is the reference's, and it is a real submit button - Enter
+ * in the field does the same thing it does.
+ *
+ * `onCari` is the mobile sheet's hook: the form also renders inside the drawer, where
+ * navigating without closing would leave the panel stacked over the page it just opened.
+ */
+function PencarianBar({
+    className,
+    onCari,
+}: {
+    className?: string;
+    onCari?: () => void;
+}) {
+    const navigate = useNavigate();
+    const [kueri, setKueri] = useState('');
+
+    return (
+        <form
+            role="search"
+            data-slot="landing-cari"
+            onSubmit={(event) => {
+                event.preventDefault();
+
+                const bersih = kueri.trim();
+                navigate(
+                    bersih === ''
+                        ? DIREKTORI
+                        : `${DIREKTORI}?search=${encodeURIComponent(bersih)}`,
+                );
+                onCari?.();
+            }}
+            className={cn(
+                'border-input bg-background focus-within:border-foreground/40 flex h-10 min-w-0 max-w-[42rem] flex-1 items-center gap-1 rounded-full border pl-4 pr-1 transition-colors',
+                className,
+            )}
+        >
+            <input
+                type="search"
+                value={kueri}
+                onChange={(event) => setKueri(event.target.value)}
+                aria-label="Cari dokter"
+                placeholder="Cari nama dokter (contoh: dr. Rina)"
+                className="placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent text-sm outline-none"
+            />
+
+            <button
+                type="submit"
+                aria-label="Cari"
+                className="bg-foreground text-background hover:opacity-85 flex size-8 shrink-0 items-center justify-center rounded-full transition-opacity"
+            >
+                <Search aria-hidden="true" className="size-4" />
+            </button>
+        </form>
     );
 }
 
@@ -1068,7 +1221,21 @@ function ActionButtons({
 
     return (
         <div className={cn('flex items-center gap-2', className)}>
-            <Button onClick={onMasuk} className="rounded-lg font-medium">
+            {/*
+                The reference's account control is TEXT with a person in front of it,
+                not a filled pill: in a bar whose widest element is the search, the
+                account is a destination rather than a call to action, and a solid blue
+                button there shouts over everything else in the row. `variant="ghost"`
+                takes the fill away while leaving it the `<button>` that the dialog, the
+                keyboard path and every test in `landing.spec.ts` already expect - the
+                role is the contract, the colour is only a costume.
+            */}
+            <Button
+                variant="ghost"
+                onClick={onMasuk}
+                className="text-foreground/80 hover:text-foreground gap-1.5 rounded-lg px-2.5 font-medium"
+            >
+                <UserRound aria-hidden="true" className="size-4" />
                 Masuk
             </Button>
         </div>
@@ -1238,7 +1405,7 @@ export function LandingHeader({ onMasuk }: { onMasuk: () => void }) {
             data-slot="landing-header"
             className="bg-card/95 border-b supports-[backdrop-filter]:bg-card/80 sticky top-0 z-40 w-full backdrop-blur"
         >
-            <div className="relative mx-auto flex h-16 max-w-[1280px] items-center gap-3 px-4 md:h-[72px] md:gap-6 md:px-6">
+            <div className="mx-auto grid h-16 max-w-[1280px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 md:h-[72px] md:gap-5 md:px-6">
                 <Link
                     to="/"
                     className="flex shrink-0 items-center gap-2"
@@ -1256,72 +1423,147 @@ export function LandingHeader({ onMasuk }: { onMasuk: () => void }) {
                     </span>
                 </Link>
 
-                <NavList className="hidden lg:flex" interaksi="hover" />
+                {/*
+                    The search owns row one's MIDDLE column and is centered inside it,
+                    which is what puts it where the reference puts it: not flush after
+                    the wordmark and not flush before the actions, but a fixed-width
+                    pill whose centre sits a little left of the container's, because the
+                    wordmark is narrower than the cluster on the right. `justify-self-
+                    center` does that arithmetically instead of by leaving a gap that a
+                    longer wordmark would eat. Hidden below `md`, where the row keeps the
+                    wordmark and the menu button - a phone still has the directory's own
+                    search field, so nothing here is the only way to search.
+                */}
+                <PencarianBar className="col-start-2 hidden w-full max-w-[42rem] justify-self-center md:flex" />
 
                 {/*
-                    `ml-auto` lives on the toggle rather than on a wrapper around the
-                    whole right-hand cluster: it pushes the toggle, the action buttons
-                    and the menu button to the right without re-indenting the sheet
-                    below, and it keeps the nav glued to the logo when it appears.
+                    The right-hand column, as one grid cell: theme, account, bag, menu.
+                    Keeping them together is what lets the middle column stay exactly
+                    `minmax(0,1fr)` - with `ml-auto` on the first of four siblings the
+                    free space went wherever the tallest of them left it, and the search
+                    drifted left every time the account pill grew a longer name.
                 */}
-                <ThemeToggle className="ml-auto" />
+                <div className="col-start-3 flex items-center gap-1.5">
+                    <ThemeToggle />
 
-                <ActionButtons onMasuk={onMasuk} />
+                    <ActionButtons onMasuk={onMasuk} />
 
-                <Sheet open={open} onOpenChange={setOpen}>
-                    <SheetTrigger asChild>
-                        <Button
-                            variant="outline"
-                            size="icon"
-                            className="lg:hidden"
-                            aria-label="Buka menu navigasi"
-                        >
-                            <Menu className="size-5" />
-                        </Button>
-                    </SheetTrigger>
+                    {/*
+                        The bag the reference carries after the account, pointed at the one
+                        route that answers it: `/pesanan` is where a prescription order
+                        lives. It is offered signed-out on purpose, for the same reason every
+                        service link is - `RequireAuth` sends the visitor to `/login`, which
+                        is the correct outcome reached through the router rather than a link
+                        that pretends a cart exists. The reference's heart is deliberately
+                        NOT reproduced: there is no wishlist route to point it at, and an
+                        icon whose destination is "nowhere" is a dead link wearing a
+                        costume.
+                    */}
+                    <Link
+                        to="/pesanan"
+                        aria-label="Pesanan obat"
+                        className="text-foreground/75 hover:bg-secondary hover:text-foreground inline-flex size-9 items-center justify-center rounded-lg transition-colors"
+                    >
+                        <ShoppingBag aria-hidden="true" className="size-5" />
+                    </Link>
 
-                    <SheetContent side="right" className="w-[300px] sm:w-[340px]">
-                        <SheetHeader>
-                            <SheetTitle className="flex items-center gap-2">
-                                <img
-                                    src="/logo.svg"
-                                    alt=""
-                                    aria-hidden="true"
-                                    className="size-7"
-                                />
+                    <Sheet open={open} onOpenChange={setOpen}>
+                        <SheetTrigger asChild>
+                            <Button
+                                variant="outline"
+                                size="icon"
+                                className="lg:hidden"
+                                aria-label="Buka menu navigasi"
+                            >
+                                <Menu className="size-5" />
+                            </Button>
+                        </SheetTrigger>
 
-                                <span className="text-lg font-bold tracking-tight">
-                                    Sehatly
-                                </span>
-                            </SheetTitle>
-                        </SheetHeader>
+                        <SheetContent side="right" className="w-[300px] sm:w-[340px]">
+                            <SheetHeader>
+                                <SheetTitle className="flex items-center gap-2">
+                                    <img
+                                        src="/logo.svg"
+                                        alt=""
+                                        aria-hidden="true"
+                                        className="size-7"
+                                    />
 
-                        <NavList
-                            className="flex-col items-stretch gap-1 px-4"
-                            interaksi="sentuh"
-                            onNavigate={() => {
-                                setOpen(false);
-                            }}
-                        />
+                                    <span className="text-lg font-bold tracking-tight">
+                                        Sehatly
+                                    </span>
+                                </SheetTitle>
+                            </SheetHeader>
 
-                        <ActionButtons
-                            className="mt-auto px-4 pb-4"
-                            onMasuk={() => {
-                                // The sheet closes first: two overlays stacked on one
-                                // Escape press is a fight the user always loses.
-                                setOpen(false);
-                                onMasuk();
-                            }}
-                        />
-                        {/*
-                            No custom close button here: `SheetContent` already renders
-                            `SheetPrimitive.Close` (with a screen-reader "Tutup" label) at
-                            `absolute top-4 right-4`. Adding a second one only stacks two
-                            X icons on the same coordinates - which is exactly what the
-                            first draft of this component did.
-                        */}
-                    </SheetContent>
-                </Sheet>
+                            {/*
+                                The drawer's own copy of the search: on a phone the top
+                                bar keeps only the wordmark and the menu button, so
+                                without this the field would be a desktop-only feature,
+                                and a search a visitor has to know to look for is one
+                                they will not find. `flex-none` matters here: this sheet
+                                lays its children out in a COLUMN, and the bar's `flex-1`
+                                would grow the field to fill the drawer instead of
+                                leaving it at h-10.
+                            */}
+                            <PencarianBar
+                                className="mx-4 flex-none"
+                                onCari={() => setOpen(false)}
+                            />
+
+                            <NavList
+                                className="flex-col items-stretch gap-1 px-4"
+                                interaksi="sentuh"
+                                onNavigate={() => {
+                                    setOpen(false);
+                                }}
+                            />
+
+                            <ActionButtons
+                                className="mt-auto px-4 pb-4"
+                                onMasuk={() => {
+                                    // The sheet closes first: two overlays stacked on one
+                                    // Escape press is a fight the user always loses.
+                                    setOpen(false);
+                                    onMasuk();
+                                }}
+                            />
+                            {/*
+                                No custom close button here: `SheetContent` already renders
+                                `SheetPrimitive.Close` (with a screen-reader "Tutup" label) at
+                                `absolute top-4 right-4`. Adding a second one only stacks two
+                                X icons on the same coordinates - which is exactly what the
+                                first draft of this component did.
+                            */}
+                        </SheetContent>
+                    </Sheet>
+                </div>
+            </div>
+
+            {/*
+                Row two: the tabs, and the containing block both panels hang from.
+
+                They are `left-0 right-0`, so they take the width of whatever is
+                `relative` around them - and that must be THIS row (`max-w-[1280px]`,
+                centered) rather than the sticky header above it, which is `w-full`: the
+                panels would otherwise span the whole viewport and run off both edges of
+                the window. The row keeps row one's exact horizontal geometry too, which
+                is what makes "the panel is as wide as the bar" a testable claim rather
+                than a coincidence.
+
+                Its own padding is HALF of row one's, and that is arithmetic rather than
+                taste: row one puts the wordmark at `px-6`, and each tab carries its own
+                `px-3`, so `12 + 12` lands the first tab's first letter on exactly the
+                pixel the wordmark starts on. The panel's title is 4px inside that line
+                (`p-5` from the panel edge, which is the row's own edge), close enough to
+                read as one column down the page and not so close that the tab looks
+                welded to the heading it is hovering above. The reference hangs its tabs
+                a little further left than its logo does; ours sit on the logo instead.
+            */}
+            <div
+                data-slot="landing-nav-baris"
+                className="relative mx-auto hidden max-w-[1280px] px-3 lg:block"
+            >
+                <NavList interaksi="hover" />
             </div>
         </header>
     );
