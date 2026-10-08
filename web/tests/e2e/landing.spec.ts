@@ -1,5 +1,45 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { daftarDanMasuk } from './akun';
+
+/**
+ * The total brightness (0-765) of the middle pixel of a screenshot clip.
+ *
+ * The veil is a question about what a region actually LOOKS like while an overlay sits
+ * on top of it, and no computed style can answer that - `opacity: 1` on a transparent
+ * box and `opacity: 1` on a black one read identically. So the test reads pixels the
+ * way a visitor's eye does.
+ *
+ * The clip goes back into the page as a data URL and is decoded through a canvas: data
+ * URLs do not taint it, so `getImageData` stays readable without fetching anything.
+ * Sampling the MIDDLE of a 3x3 clip is deliberate - it dodges the letterforms and the
+ * anti-aliased edge of the plate the tab is painted on.
+ */
+async function sampelPiksel(
+    page: Page,
+    clip: { x: number; y: number; width: number; height: number },
+): Promise<number> {
+    const potongan = await page.screenshot({ clip });
+    const dataUrl = 'data:image/png;base64,' + potongan.toString('base64');
+
+    return await page.evaluate(async (src) => {
+        const gambar = new Image();
+        await new Promise<void>((selesai, gagal) => {
+            gambar.onload = () => selesai();
+            gambar.onerror = () => gagal(new Error('potongan gambar tidak terbaca'));
+            gambar.src = src;
+        });
+
+        const kanvas = document.createElement('canvas');
+        kanvas.width = gambar.width;
+        kanvas.height = gambar.height;
+        const ctx = kanvas.getContext('2d');
+        if (!ctx) throw new Error('canvas 2d tidak tersedia');
+        ctx.drawImage(gambar, 0, 0);
+
+        const d = ctx.getImageData(Math.floor(gambar.width / 2), Math.floor(gambar.height / 2), 1, 1).data;
+        return d[0] + d[1] + d[2];
+    }, dataUrl);
+}
 
 /**
  * `/` - the landing page, and the header that now speaks to two audiences.
@@ -51,15 +91,18 @@ import { daftarDanMasuk } from './akun';
  *    Below `md` the bar drops the field and the drawer carries its own copy of the same
  *    form, so "add a search" never quietly means "add a search to viewports 1024 and up".
  *
- * 7. **An open panel takes the light with it.** The reference dims the page behind its
- *    menu, because a white panel on a white page has no edge except a shadow - and a
- *    shadow over a photograph reads as smudge. Two boxes do the dimming: one inside the
- *    bar, covering the bar's own 116 px (`backdrop-filter` makes that box the containing
- *    block for fixed descendants, so a `fixed` child goes no further than it anyway),
- *    and one hanging from the bar's bottom edge down a full viewport. Both are
- *    `pointer-events-none`, and the open tab keeps a `z-index` it takes as a flex item
- *    without taking `position` - the combination that keeps the panel's containing block
- *    where the width assertion above says it is.
+ * 7. **An open panel takes the light with it - and the tab does not.** The reference
+ *    dims the page behind its menu, because a white panel on a white page has no edge
+ *    except a shadow - and a shadow over a photograph reads as smudge. Two boxes do the
+ *    dimming: one inside the bar, covering the bar's own 116 px (`backdrop-filter` makes
+ *    that box the containing block for fixed descendants, so a `fixed` child goes no
+ *    further than it anyway), and one hanging from the bar's bottom edge down a full
+ *    viewport. Both are `pointer-events-none`, and the open tab keeps a `z-index` it
+ *    takes as a flex item without taking `position` - the combination that keeps the
+ *    panel's containing block where the width assertion above says it is. The tab also
+ *    grows a `bg-popover` plate, rounded at the top only, so tab + rule + panel are one
+ *    white shape; without it the open tab is a dark word in a grey field with a box
+ *    hanging below it, and nothing ties the two together.
  *
  * ## Why the sign-in path is driven through `daftarDanMasuk`
  *
@@ -633,10 +676,16 @@ test.describe('Landing page (/)', () => {
             2,
         );
 
-        // the rule under a tab is transparent until its panel opens
+        // the rule under a tab is transparent until its panel opens, and so is the plate
+        // behind it: at rest the bar is just words on the header
         expect(await tab.evaluate((el) => getComputedStyle(el).borderBottomColor)).toBe(
             'rgba(0, 0, 0, 0)',
         );
+        expect(
+            await tab.evaluate((el) => getComputedStyle(el).backgroundColor),
+            'tab yang belum dibuka tidak punya piring sama sekali',
+        ).toBe('rgba(0, 0, 0, 0)');
+
         await tab.hover();
 
         const panel = page.locator('[data-slot="nav-direktori-panel"]');
@@ -644,6 +693,26 @@ test.describe('Landing page (/)', () => {
         expect(await tab.evaluate((el) => getComputedStyle(el).borderBottomColor)).not.toBe(
             'rgba(0, 0, 0, 0)',
         );
+
+        // the open tab is cut from the same cloth as the panel it owns - one plate,
+        // rounded at the top only, so tab + rule + panel read as one object instead of a
+        // word floating in a grey bar above a box. Polled because `transition-colors`
+        // would otherwise be sampled mid-flight.
+        await expect
+            .poll(() => tab.evaluate((el) => getComputedStyle(el).backgroundColor), {
+                message: 'piring tab harus menyetel sendiri sebelum dibandingkan',
+            })
+            .toBe(await panel.evaluate((el) => getComputedStyle(el).backgroundColor));
+
+        const sudut = await tab.evaluate((el) => {
+            const gaya = getComputedStyle(el);
+            return { atas: gaya.borderTopLeftRadius, bawah: gaya.borderBottomLeftRadius };
+        });
+        expect(sudut.atas, 'sudut atas piring membulat').not.toBe('0px');
+        expect(
+            sudut.bawah,
+            'sudut bawah tetap siku - garis bawahnya yang menempel ke panel',
+        ).toBe('0px');
 
         // the title row is a display word, not a label
         const judul = panel.getByText('Direktori Dokter', { exact: true });
@@ -693,6 +762,11 @@ test.describe('Landing page (/)', () => {
      * the veil WITHOUT `position: relative` - which would move the panel's containing
      * block onto the wrapper and size the panel to one tab. The width assertion at the
      * end is the one that would notice.
+     *
+     * Last come three PIXEL readings, because the requirement is a picture and no
+     * computed style can see one: `opacity: 1` over a black box and `opacity: 1` over a
+     * transparent one are the same line of CSS and completely different images. The bar
+     * and the page must measurably darken; the open tab, on its plate, must not.
      */
     test('f00-landing-panel-aktif-menguapkan-bar-dan-halaman-di-belakangnya', async ({ page }) => {
         await page.goto('/');
@@ -701,11 +775,25 @@ test.describe('Landing page (/)', () => {
         const tiraiHalaman = page.locator('[data-slot="landing-tirai-halaman"]');
         const panel = page.locator('[data-slot="nav-direktori-panel"]');
         const baris2 = page.locator('[data-slot="landing-nav-baris"]');
+        const tab = page.getByRole('button', { name: 'Direktori Dokter' });
 
         await expect(tiraiBar).toHaveCSS('opacity', '0');
         await expect(tiraiHalaman).toHaveCSS('opacity', '0');
 
-        await page.getByRole('button', { name: 'Direktori Dokter' }).hover();
+        const tinggiLayar = page.viewportSize()?.height ?? 0;
+        expect(tinggiLayar, 'perlu viewport yang jelas untuk ukuran ini').toBeGreaterThan(0);
+
+        // The one strip of page where the page's half of the veil can be read from: the
+        // panel spans the whole bar, so everything above its bottom edge is panel. Fixed
+        // for BOTH readings - before and after the hover must sample the same pixel or
+        // the comparison means nothing.
+        const yHalaman = tinggiLayar - 32;
+
+        // Left edge, x=6: inside the bar and inside the page, left of every word.
+        const barSebelum = await sampelPiksel(page, { x: 6, y: 30, width: 4, height: 4 });
+        const halamanSebelum = await sampelPiksel(page, { x: 6, y: yHalaman, width: 4, height: 4 });
+
+        await tab.hover();
         await expect(panel).toBeVisible();
 
         await expect(tiraiBar).toHaveCSS('opacity', '1');
@@ -729,8 +817,6 @@ test.describe('Landing page (/)', () => {
             'setengah halaman mulai tepat di situ - bukan bertumpuk, bukan berjarak',
         ).toBe(Math.round(kotakBar.height));
 
-        const tinggiLayar = page.viewportSize()?.height ?? 0;
-        expect(tinggiLayar, 'perlu viewport yang jelas untuk ukuran ini').toBeGreaterThan(0);
         expect(
             Math.round(kotakHalaman.height),
             'dan setidaknya setinggi satu layar penuh',
@@ -752,6 +838,49 @@ test.describe('Landing page (/)', () => {
             Math.round(kotakPanel.width),
             'z-20 tidak boleh memindahkan containing block panelnya',
         ).toBe(Math.round(kotakBaris.width));
+
+        // that strip has to still be page and not panel - the sampling above is only
+        // honest while there IS a strip of page under the menu
+        expect(
+            Math.round(kotakPanel.y + kotakPanel.height),
+            'panel harus menyisakan halaman di bawahnya untuk disampel',
+        ).toBeLessThan(yHalaman);
+
+        // THE PICTURE, which is the requirement itself. Three numbers no computed style
+        // can produce: the bar goes dark, the page behind it goes dark, and the open tab
+        // does NOT - its plate is what welds it to the panel below. Both dim samples are
+        // taken before the hover at the same coordinates, so each is a comparison rather
+        // than a guess about how light the theme happens to be.
+        const kotakTab = await tab.boundingBox();
+        expect(kotakTab).not.toBeNull();
+        if (kotakTab === null) {
+            return;
+        }
+
+        // polled because `transition-colors` would otherwise be photographed mid-flight
+        await expect
+            .poll(() => tab.evaluate((el) => getComputedStyle(el).backgroundColor), {
+                message: 'piring tab harus menyetel sebelum diabadikan',
+            })
+            .toBe(await panel.evaluate((el) => getComputedStyle(el).backgroundColor));
+
+        const piring = await sampelPiksel(page, {
+            x: Math.round(kotakTab.x + kotakTab.width - 4),
+            y: Math.round(kotakTab.y + kotakTab.height - 8),
+            width: 3,
+            height: 3,
+        });
+        const bar = await sampelPiksel(page, { x: 6, y: 30, width: 4, height: 4 });
+        const halaman = await sampelPiksel(page, { x: 6, y: yHalaman, width: 4, height: 4 });
+
+        expect(bar, 'baris satu ikut meredup di bawah tirai').toBeLessThanOrEqual(barSebelum * 0.75);
+        expect(halaman, 'halaman ikut meredup di bawah tirai').toBeLessThanOrEqual(
+            halamanSebelum * 0.75,
+        );
+        expect(
+            piring,
+            'tab terbuka TIDAK ikut meredup - piringnyalah yang menempelkannya ke panel',
+        ).toBeGreaterThan(bar + 60);
 
         // closed again: both halves leave with the panel
         await page.mouse.move(720, 920);

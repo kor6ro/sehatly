@@ -182,6 +182,20 @@ function navLinkClass({ isActive }: { isActive: boolean }): string {
  * would leave the two that need the mark unmarked and keep the third lit for a hash no
  * path ever changes.
  *
+ * ## Why the open tab grows a PLATE
+ *
+ * While a panel is open the bar is behind the veil (see {@link LandingHeader}), and a
+ * tab that is merely underlined would be a dark word floating in a grey field with a
+ * white panel hanging below it - two objects that look unrelated. The reference cuts
+ * the open tab out of the dim instead: a solid `bg-popover` rectangle, rounded at the
+ * TOP only, carrying the black rule on its bottom edge. Tab, rule and panel are then
+ * one white shape with a line drawn across it, which is what makes the menu read as a
+ * single object rather than a label and a box.
+ *
+ * `bg-popover` and not `bg-card` because the panel it has to match uses `bg-popover`;
+ * they are the same colour in both themes today, and a tab that matched card while the
+ * panel matched popover would split the moment they stopped being.
+ *
  * ## Why the sheet keeps {@link navLinkClass}
  *
  * The same list renders vertically inside the mobile sheet, where a border under every
@@ -192,7 +206,7 @@ function navTabClass({ isActive }: { isActive: boolean }): string {
     return cn(
         'inline-flex items-center border-b-2 px-3 pb-3 pt-3.5 text-xs font-semibold tracking-wide uppercase transition-colors',
         isActive
-            ? 'border-foreground text-foreground'
+            ? 'rounded-t-md border-foreground bg-popover text-foreground'
             : 'border-transparent text-foreground/65 hover:text-foreground',
     );
 }
