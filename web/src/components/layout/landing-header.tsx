@@ -174,6 +174,14 @@ function navLinkClass({ isActive }: { isActive: boolean }): string {
  * buttons: small, uppercase, and carrying the underline that sits on the bar's own
  * bottom edge.
  *
+ * Row two is 36px, which is measured rather than chosen: the reference's wordmark
+ * centres on y=35 (so its row one is 70) and its open plate runs y=71 into the panel
+ * at y=107. The padding below is what buys that number - `pt-2.5` + a 16px line +
+ * `pb-2` + the 2px rule - and the bottom gap is counted WITH the rule so the word sits
+ * centred in the plate rather than 2px high. 44px, which is what the natural `pt-3.5`
+ * + `pb-3` gives, makes the header a stack taller than the one it is drawn from and
+ * drops the panel's top edge 8px below the reference's.
+ *
  * ## Why `isActive` is the panel's `open`, not the route
  *
  * The reference underlines the category whose panel is showing, and on this bar that is
@@ -204,7 +212,7 @@ function navLinkClass({ isActive }: { isActive: boolean }): string {
  */
 function navTabClass({ isActive }: { isActive: boolean }): string {
     return cn(
-        'inline-flex items-center border-b-2 px-3 pb-3 pt-3.5 text-xs font-semibold tracking-wide uppercase transition-colors',
+        'inline-flex items-center border-b-2 px-3 pb-2 pt-2.5 text-xs font-semibold tracking-wide uppercase transition-colors',
         isActive
             ? 'rounded-t-md border-foreground bg-popover text-foreground'
             : 'border-transparent text-foreground/65 hover:text-foreground',
@@ -492,15 +500,27 @@ function useKartuPanel(): KartuPanel[] {
  * the same bargain the hero carousel makes. Every card is a link, so a picture is also
  * a way in, and `tutup` closes the panel behind the choice.
  *
- * ## Why the tiles are SQUARE and capped at 30rem
+ * ## Why the tiles are SQUARE and capped at 24rem
  *
  * Because the reference's are: six photographs of the same size in a 3x2 block, about a
- * tenth of the panel's width each, with a gap you can see. The `aspect-[4/3]` they
- * replaced filled the whole right-hand zone and turned a picture grid into a wall, and
- * the cap is what keeps the block the reference's PROPORTION rather than one that grows
- * with the window - the panel is `max-w-[1280px]`, so a fixed 30rem is a fixed share of
- * it at every width the bar can be. Below `lg` the grid falls back to two columns,
- * because the panels only render at `lg` and up and this is the sheet-free path.
+ * tenth of the panel's width each, with a gap you can see. Measured off the reference
+ * they are 119px squares in a 1296px panel - 9.2% each, 377px for the block, 158px of
+ * slack to the panel's right edge - and 30rem gave 152px tiles instead, a block that
+ * weighed a quarter more than the one it is drawn from. 24rem gives 120px squares
+ * (9.4%) in the same 1280px panel.
+ *
+ * The block keeps its slack because the LEFT zones grew to 21rem while it shrank: the
+ * reference spends a fourth column on its brands and these panels have only three, so
+ * without that width the smaller block would start where the bigger one did and leave
+ * 260px - a fifth of the panel - empty to its right. As it stands the block starts at
+ * x=732 against the reference's 761 and ends with 164px of slack against its 158.
+ *
+ * The `aspect-[4/3]` they replaced filled the whole right-hand zone and turned a picture
+ * grid into a wall, and the cap is what keeps the block the reference's PROPORTION
+ * rather than one that grows with the window - the panel is `max-w-[1280px]`, so a fixed
+ * 24rem is a fixed share of it at every width the bar can be. Below `lg` the grid falls
+ * back to two columns, because the panels only render at `lg` and up and this is the
+ * sheet-free path.
  */
 function GridPromoPanel({
     kartu,
@@ -512,7 +532,7 @@ function GridPromoPanel({
     return (
         <div
             data-slot="nav-promo-grid"
-            className="grid min-w-0 grid-cols-2 gap-3 lg:max-w-[30rem] lg:grid-cols-3"
+            className="grid min-w-0 grid-cols-2 gap-3 lg:max-w-[24rem] lg:grid-cols-3"
         >
             {kartu.map((kartu_) =>
                 kartu_.foto !== null ? (
@@ -663,19 +683,21 @@ function PanelLayanan({ items, hover }: { items: NavItem[]; hover: NavHover }) {
 
             <div
                 data-slot="nav-layanan-zona"
-                className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,15rem)_minmax(0,20rem)_minmax(0,1fr)] lg:gap-7"
+                className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,21rem)_minmax(0,20rem)_minmax(0,1fr)] lg:gap-7"
             >
                 {/* Zone 1 - the rail: one row per service, line art on every row, the
                     same five the sheet lists below it, and no visible heading - the
                     reference's rail starts at its first row so the rows and the middle
-                    heading share a baseline */}
+                    heading share a baseline. Its height takes the same
+                    `min(35rem, 100vh - 16rem)` the directory's rail measures, so the
+                    two panels never stand at different heights in one window. */}
                 <div className="lg:border-border min-w-0 lg:border-r">
                     <p className="sr-only">Layanan</p>
 
                     <RelMenggulir
                         slot="nav-layanan-daftar"
                         label="Daftar layanan"
-                        className="max-h-[22rem] lg:max-h-[28rem] lg:pr-6"
+                        className="max-h-[22rem] lg:max-h-[min(35rem,calc(100vh_-_16rem))] lg:pr-6"
                     >
                         {items.map((layanan) => {
                             const Ikon = layanan.icon;
@@ -936,7 +958,7 @@ function PanelDirektori({ hover }: { hover: NavHover }) {
 
             <div
                 data-slot="nav-direktori-zona"
-                className="mt-5 grid items-start gap-6 lg:grid-cols-[minmax(0,15rem)_minmax(0,20rem)_minmax(0,1fr)] lg:gap-7"
+                className="mt-5 grid items-start gap-6 lg:grid-cols-[minmax(0,21rem)_minmax(0,20rem)_minmax(0,1fr)] lg:gap-7"
             >
                 {/* Zone 1 - the rail: the whole table, one row per specialisation, and
                     no visible heading above it - the reference's rail starts at its
@@ -944,6 +966,14 @@ function PanelDirektori({ hover }: { hover: NavHover }) {
                     baseline. The column keeps its name for assistive technology only,
                     because a scroll region holding sixteen names still has to say which
                     list it is.
+
+                    The rail's own height is `min(35rem, 100vh - 16rem)`: the reference's
+                    rail stands 540px inside a panel 650px tall, and 35rem gives this
+                    panel 652px in the same proportion - a fixed 28rem stopped at 448px
+                    whatever the screen, leaving this panel 110px shorter than the menu
+                    it is drawn from. The viewport term is the ceiling for short windows:
+                    at 720px it yields 464px, which puts the panel's bottom edge at 664
+                    and keeps the strip of page under it that the veil tests sample.
 
                     The ZONE carries no right padding: the divider is the line the thumb
                     rides, so the clearance the rows need belongs to the `<ul>` inside
@@ -977,7 +1007,7 @@ function PanelDirektori({ hover }: { hover: NavHover }) {
                         <RelMenggulir
                             slot="nav-direktori-spesialisasi"
                             label="Daftar spesialisasi, menggulir"
-                            className="max-h-[22rem] lg:max-h-[28rem] lg:pr-6"
+                            className="max-h-[22rem] lg:max-h-[min(35rem,calc(100vh_-_16rem))] lg:pr-6"
                         >
                             {daftar.map((baris) => {
                                 const Ikon =

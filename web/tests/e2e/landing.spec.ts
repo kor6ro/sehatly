@@ -94,7 +94,7 @@ async function sampelPiksel(
  * 7. **An open panel takes the light with it - and the tab does not.** The reference
  *    dims the page behind its menu, because a white panel on a white page has no edge
  *    except a shadow - and a shadow over a photograph reads as smudge. Two boxes do the
- *    dimming: one inside the bar, covering the bar's own 116 px (`backdrop-filter` makes
+ *    dimming: one inside the bar, covering the bar's own 108 px (`backdrop-filter` makes
  *    that box the containing block for fixed descendants, so a `fixed` child goes no
  *    further than it anyway), and one hanging from the bar's bottom edge down a full
  *    viewport. Both are `pointer-events-none`, and the open tab keeps a `z-index` it
