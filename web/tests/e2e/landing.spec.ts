@@ -6,7 +6,7 @@ import { daftarDanMasuk } from './akun';
  *
  * ## What this spec is actually guarding
  *
- * Six decisions are pinned down below, and each of them can regress without
+ * Seven decisions are pinned down below, and each of them can regress without
  * breaking anything else:
  *
  * 1. **The body is the whole page.** `RootPage` used to be a chooser with two buttons;
@@ -50,6 +50,16 @@ import { daftarDanMasuk } from './akun';
  *    would be a field that pretends, and the pretence would break nothing else here.
  *    Below `md` the bar drops the field and the drawer carries its own copy of the same
  *    form, so "add a search" never quietly means "add a search to viewports 1024 and up".
+ *
+ * 7. **An open panel takes the light with it.** The reference dims the page behind its
+ *    menu, because a white panel on a white page has no edge except a shadow - and a
+ *    shadow over a photograph reads as smudge. Two boxes do the dimming: one inside the
+ *    bar, covering the bar's own 116 px (`backdrop-filter` makes that box the containing
+ *    block for fixed descendants, so a `fixed` child goes no further than it anyway),
+ *    and one hanging from the bar's bottom edge down a full viewport. Both are
+ *    `pointer-events-none`, and the open tab keeps a `z-index` it takes as a flex item
+ *    without taking `position` - the combination that keeps the panel's containing block
+ *    where the width assertion above says it is.
  *
  * ## Why the sign-in path is driven through `daftarDanMasuk`
  *
@@ -663,6 +673,90 @@ test.describe('Landing page (/)', () => {
                 'terlalu besar: rujukan memakai ~9% lebar panel, batasnya 14%',
             ).toBeLessThanOrEqual(Math.round(panelL * 0.14));
         }
+    });
+
+    /**
+     * The veil, and exactly what an open panel does to everything behind it.
+     *
+     * The reference opens its menu over a dimmed page because a white panel on a white
+     * page has no edge anywhere but its shadow - and a shadow over a photograph reads as
+     * smudge. Two boxes do the dimming, and BOTH are asserted rather than only the
+     * obvious one: the bar's half (which takes the wordmark, the search, the account
+     * cluster and the tab row with it) and the page's half, which has to start on the
+     * pixel the bar ends on or the two veils either overlap into a double-dark seam or
+     * leave a bright stripe at the boundary.
+     *
+     * `pointer-events: none` is asserted for the same reason the geometry is: an overlay
+     * that swallowed clicks would change what the panel's links DO, and this suite has
+     * opinions about those links. And the entry's `z-20` is checked together with
+     * `position: static`, because z-index on a flex item is what lifts the open tab above
+     * the veil WITHOUT `position: relative` - which would move the panel's containing
+     * block onto the wrapper and size the panel to one tab. The width assertion at the
+     * end is the one that would notice.
+     */
+    test('f00-landing-panel-aktif-menguapkan-bar-dan-halaman-di-belakangnya', async ({ page }) => {
+        await page.goto('/');
+
+        const tiraiBar = page.locator('[data-slot="landing-tirai-bar"]');
+        const tiraiHalaman = page.locator('[data-slot="landing-tirai-halaman"]');
+        const panel = page.locator('[data-slot="nav-direktori-panel"]');
+        const baris2 = page.locator('[data-slot="landing-nav-baris"]');
+
+        await expect(tiraiBar).toHaveCSS('opacity', '0');
+        await expect(tiraiHalaman).toHaveCSS('opacity', '0');
+
+        await page.getByRole('button', { name: 'Direktori Dokter' }).hover();
+        await expect(panel).toBeVisible();
+
+        await expect(tiraiBar).toHaveCSS('opacity', '1');
+        await expect(tiraiHalaman).toHaveCSS('opacity', '1');
+
+        // no wall: both halves let every pointer through to what is behind them
+        await expect(tiraiBar).toHaveCSS('pointer-events', 'none');
+        await expect(tiraiHalaman).toHaveCSS('pointer-events', 'none');
+
+        const kotakBar = await tiraiBar.boundingBox();
+        const kotakHalaman = await tiraiHalaman.boundingBox();
+        expect(kotakBar).not.toBeNull();
+        expect(kotakHalaman).not.toBeNull();
+        if (kotakBar === null || kotakHalaman === null) {
+            return;
+        }
+
+        expect(Math.round(kotakBar.y), 'setengah bar mulai di puncak header').toBe(0);
+        expect(
+            Math.round(kotakHalaman.y),
+            'setengah halaman mulai tepat di situ - bukan bertumpuk, bukan berjarak',
+        ).toBe(Math.round(kotakBar.height));
+
+        const tinggiLayar = page.viewportSize()?.height ?? 0;
+        expect(tinggiLayar, 'perlu viewport yang jelas untuk ukuran ini').toBeGreaterThan(0);
+        expect(
+            Math.round(kotakHalaman.height),
+            'dan setidaknya setinggi satu layar penuh',
+        ).toBeGreaterThanOrEqual(tinggiLayar);
+
+        // the open entry: z-index without position, and the panel still spans the bar
+        const pembungkus = page.locator('[data-slot="landing-nav-baris"] > nav > div').first();
+        expect(await pembungkus.evaluate((el) => getComputedStyle(el).position)).toBe('static');
+        expect(await pembungkus.evaluate((el) => getComputedStyle(el).zIndex)).toBe('20');
+
+        const kotakPanel = await panel.boundingBox();
+        const kotakBaris = await baris2.boundingBox();
+        expect(kotakPanel).not.toBeNull();
+        expect(kotakBaris).not.toBeNull();
+        if (kotakPanel === null || kotakBaris === null) {
+            return;
+        }
+        expect(
+            Math.round(kotakPanel.width),
+            'z-20 tidak boleh memindahkan containing block panelnya',
+        ).toBe(Math.round(kotakBaris.width));
+
+        // closed again: both halves leave with the panel
+        await page.mouse.move(720, 920);
+        await expect(tiraiBar).toHaveCSS('opacity', '0');
+        await expect(tiraiHalaman).toHaveCSS('opacity', '0');
     });
 
     /**

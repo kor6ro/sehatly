@@ -1,4 +1,5 @@
 import {
+    useCallback,
     useEffect,
     useMemo,
     useRef,
@@ -311,17 +312,47 @@ function NavPanelEntry({
     label,
     idPanel,
     panel,
+    onStatusChange,
 }: {
     label: string;
     /** The `aria-controls` target, which only exists while the panel is open. */
     idPanel: string;
     panel: (hover: NavHover) => ReactNode;
+    /**
+     * Reports open/closed up to the bar, which paints ONE veil for whichever panel is
+     * open - see {@link LandingHeader}.
+     *
+     * It reports per id rather than as a plain boolean on purpose: the two entries are
+     * separate `useNavHover` instances, so crossing from one tab to the next leaves the
+     * first open for its 160 ms grace period. A boolean would be last-writer-wins, and
+     * the veil would switch OFF while the second panel was still up - a 160 ms flash of
+     * undimmed page exactly at the moment the visitor is reading the menu.
+     */
+    onStatusChange?: (idPanel: string, open: boolean) => void;
 }) {
     const hover = useNavHover();
     const trigger = useRef<HTMLButtonElement>(null);
 
+    // After paint rather than during render: this reports INTO the bar, and a render-
+    // phase update of a parent is the one React does not allow.
+    useEffect(() => {
+        onStatusChange?.(idPanel, hover.open);
+        return () => onStatusChange?.(idPanel, false);
+    }, [hover.open, idPanel, onStatusChange]);
+
     return (
         <div
+            /**
+             * `z-20` while open, so the tab and its panel rise above the veil the bar
+             * paints at `z-10`.
+             *
+             * A FLEX item takes a z-index without taking `position`, and that is the
+             * whole point: adding `relative` here would make this wrapper the panel's
+             * containing block, and the panel would size itself to the width of one
+             * tab instead of to the width of the bar. The wrapper stays unpositioned,
+             * its z-index still applies, and both facts are asserted elsewhere.
+             */
+            className={hover.open ? 'z-20' : undefined}
             onPointerEnter={hover.onPointerEnter}
             onPointerLeave={hover.onPointerLeave}
             onFocusCapture={() => {
@@ -707,12 +738,15 @@ function NavLayanan({
     items,
     onNavigate,
     interaksi,
+    onStatusChange,
 }: {
     label: string;
     items: NavItem[];
     /** Closes the mobile sheet, where the same list renders inline. */
     onNavigate?: () => void;
     interaksi: 'hover' | 'sentuh';
+    /** The bar's veil hook, passed down to whichever entry can open a panel. */
+    onStatusChange?: (idPanel: string, open: boolean) => void;
 }) {
     if (interaksi === 'hover') {
         return (
@@ -720,6 +754,7 @@ function NavLayanan({
                 label={label}
                 idPanel="nav-layanan-panel"
                 panel={(hover) => <PanelLayanan items={items} hover={hover} />}
+                onStatusChange={onStatusChange}
             />
         );
     }
@@ -1007,9 +1042,11 @@ function PanelDirektori({ hover }: { hover: NavHover }) {
 function NavDirektori({
     interaksi,
     onNavigate,
+    onStatusChange,
 }: {
     interaksi: 'hover' | 'sentuh';
     onNavigate?: () => void;
+    onStatusChange?: (idPanel: string, open: boolean) => void;
 }) {
     if (interaksi === 'sentuh') {
         return (
@@ -1024,6 +1061,7 @@ function NavDirektori({
             label="Direktori Dokter"
             idPanel="nav-direktori-panel"
             panel={(hover) => <PanelDirektori hover={hover} />}
+            onStatusChange={onStatusChange}
         />
     );
 }
@@ -1055,23 +1093,31 @@ function NavList({
     className,
     onNavigate,
     interaksi,
+    onStatusChange,
 }: {
     className?: string;
     onNavigate?: () => void;
     interaksi: 'hover' | 'sentuh';
+    /** Forwarded only to entries that can open a panel, i.e. the bar's, never the sheet's. */
+    onStatusChange?: (idPanel: string, open: boolean) => void;
 }) {
     return (
         <nav
             aria-label="Navigasi utama"
             className={cn('flex items-center gap-1', className)}
         >
-            <NavDirektori interaksi={interaksi} onNavigate={onNavigate} />
+            <NavDirektori
+                interaksi={interaksi}
+                onNavigate={onNavigate}
+                onStatusChange={onStatusChange}
+            />
 
             <NavLayanan
                 label="Layanan Kesehatan"
                 items={LAYANAN}
                 onNavigate={onNavigate}
                 interaksi={interaksi}
+                onStatusChange={onStatusChange}
             />
 
             {/**
@@ -1396,9 +1442,73 @@ function AkunPill() {
  * The landing body has its own "Masuk" action, and two `LoginDialog` instances would each
  * hold their own challenge and race over the one `sessionStorage` key that carries it -
  * so the page owns the dialog and hands the opener down. The header renders it nowhere.
+ *
+ * ## The veil: the page goes dark while a panel is open
+ *
+ * The reference opens its menu over a dimmed page, and the reason is geometry rather than
+ * taste: a white panel dropped on a white page has no edge anywhere except the shadow,
+ * and a shadow over a photograph reads as smudge. Dimming the page gives the panel an
+ * edge on all four sides at once, and it costs one absolutely-positioned box.
+ *
+ * It takes TWO boxes, and they split the job between them. The header carries
+ * `backdrop-blur`, and `backdrop-filter` - like `filter` - makes its box the containing
+ * block for fixed descendants, so a `position: fixed` child stops at the bar's own edge
+ * (measured, not assumed: 1440x116 inside a 1440x950 viewport). Both halves therefore
+ * hang off the header itself:
+ *
+ * - `landing-tirai-bar` is `inset-0` at `z-10`. That is above the header's own
+ *   background (layer 1), above row one, which is in-flow (layer 3), and above row two,
+ *   which is positioned with `z: auto` (layer 6) - so the wordmark, the search, the
+ *   account cluster and the whole tab row all take the veil, full header width.
+ * - `landing-tirai-halaman` is `top-full h-screen` at `z-0`, and it starts exactly where
+ *   the bar ends. The bar is `sticky top-0`, so one viewport height from its bottom edge
+ *   IS the rest of the screen; and living inside a `z-40` header already puts it above
+ *   every element the landing page renders, with no z-index negotiation against them.
+ *
+ * What stays bright is exactly what the reference keeps bright: the open tab and its
+ * panel. {@link NavPanelEntry} gives that entry `z-20`, which lands above the veil's
+ * `z-10` in the header's own stacking context.
+ *
+ * Both boxes are `pointer-events-none`, which is the difference between a veil and a
+ * modal. The veil changes what things LOOK like and nothing else: the panel still closes
+ * on a pointer leaving, on Escape, on a link that navigates, and a click on the heading
+ * behind an open menu still lands on that heading. An overlay that swallowed clicks
+ * would be a behavior change wearing a costume - and it would fail the very tests that
+ * pin the panel's links down.
  */
 export function LandingHeader({ onMasuk }: { onMasuk: () => void }) {
     const [open, setOpen] = useState(false);
+
+    /**
+     * Which panels are open, as ids rather than one boolean.
+     *
+     * The two entries are separate {@link useNavHover} instances with their own 160 ms
+     * grace period, so crossing from one tab to the next leaves BOTH open for that beat.
+     * One boolean would be last-writer-wins and the veil would switch off mid-read; a
+     * set only goes dark when the last panel has really closed.
+     *
+     * Reporting `false` for a panel that is already absent returns the SAME set, which
+     * is what keeps the report effect from re-rendering the bar forever.
+     */
+    const [panelTerbuka, setPanelTerbuka] = useState<ReadonlySet<string>>(() => new Set());
+
+    const laporkanPanel = useCallback((idPanel: string, buka: boolean) => {
+        setPanelTerbuka((sebelumnya) => {
+            if (sebelumnya.has(idPanel) === buka) return sebelumnya;
+
+            const berikut = new Set(sebelumnya);
+            if (buka) berikut.add(idPanel);
+            else berikut.delete(idPanel);
+            return berikut;
+        });
+    }, []);
+
+    const adaPanel = panelTerbuka.size > 0;
+    const tirai = (buka: boolean) =>
+        cn(
+            'bg-black/40 pointer-events-none transition-opacity duration-200',
+            buka ? 'opacity-100' : 'opacity-0',
+        );
 
     return (
         <header
@@ -1563,8 +1673,41 @@ export function LandingHeader({ onMasuk }: { onMasuk: () => void }) {
                 data-slot="landing-nav-baris"
                 className="relative mx-auto hidden max-w-[1280px] px-3 lg:block"
             >
-                <NavList interaksi="hover" />
+                <NavList interaksi="hover" onStatusChange={laporkanPanel} />
             </div>
+
+            {/*
+                The veils come LAST in the DOM, so that the bar's first `div` child is
+                still row one - several assertions read that row by position. They are
+                not placed by order anyway: `z-10` and `z-0` settle it against row one's
+                in-flow boxes and row two's `z: auto`.
+
+                The bar's half: `inset-0` against a sticky header is that header's own
+                box, full width, both rows - the wordmark, the search, the account
+                cluster and the tab row all take it.
+            */}
+            <div
+                data-slot="landing-tirai-bar"
+                aria-hidden="true"
+                className={cn('absolute inset-0 z-10', tirai(adaPanel))}
+            />
+
+            {/*
+                The page's half: `top-full` starts it exactly where the bar ends and
+                `h-screen` carries it down past everything the landing renders. The bar is
+                `sticky top-0`, so "one viewport height from the bar's bottom edge" IS the
+                rest of the screen, and being a child of a `z-40` header already puts it
+                above every page element - no z-index negotiation with the sections below.
+
+                `z-0` rather than nothing, for one reason: it must sit UNDER the open
+                entry's `z-20`, because the panel it is meant to sit behind hangs down
+                into this very area.
+            */}
+            <div
+                data-slot="landing-tirai-halaman"
+                aria-hidden="true"
+                className={cn('absolute inset-x-0 top-full z-0 h-screen', tirai(adaPanel))}
+            />
         </header>
     );
 }
