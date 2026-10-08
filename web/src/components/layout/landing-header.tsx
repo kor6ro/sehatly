@@ -21,6 +21,7 @@ import {
     Pill,
     Search,
     Settings,
+    Tag,
     UserRound,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -28,7 +29,7 @@ import { logout } from '@/lib/api/auth';
 import { cariMasterPopuler, POPULER, spesialisasiOptions } from '@/lib/api/dokter';
 import { heroOptions } from '@/lib/api/hero';
 import { meOptions } from '@/lib/api/me';
-import { PROMO, SLIDE_HERO } from '@/features/landing/data';
+import { PROMO, SLIDE_HERO, LAYANAN as LAYANAN_SOLUSI } from '@/features/landing/data';
 import { IKON_BAWAAN, IKON_SPESIALISASI } from '@/features/landing/ikon-spesialis';
 import { RelMenggulir } from '@/features/landing/rel-menggulir';
 import { clearTokens, getRefreshToken } from '@/lib/token';
@@ -99,23 +100,22 @@ type NavItem = {
     label: string;
     description: string;
     icon: LucideIcon;
-    /**
-     * The column heading this entry sits under in the desktop mega panel.
-     *
-     * The sheet (touch) shows a flat list, so the field is only read on the bar - but it
-     * lives on the item rather than on the panel because the two must not disagree: a
-     * heading that groups a link on one surface and not the other is how a menu starts
-     * telling two different stories.
-     */
-    kelompok: string;
 };
 
 /**
- * Service entry points, each resolving to a real route - the group order below is the
- * column order on the bar, because the groups are discovered in insertion order.
+ * The five service entries the SHEET (touch) lists, each resolving to a real route.
  *
- * "Pengingat Obat" is new here: the mega panel has room for the whole set the landing
- * body offers, and `/pengingat` was already one of its tiles.
+ * The desktop bar does not read this list: its rail renders `LAYANAN_SOLUSI`, the six
+ * entry points the landing page body itself publishes under "Solusi Kesehatan di
+ * Tanganmu", so the panel cannot show fewer services than the page below it. What the
+ * sheet needs on top of those six is the `description` - with no columns to fill on a
+ * phone, the row explains itself - and the sixth service, "Direktori Dokter", is the
+ * sheet's own nav link just above, so listing it here would print it twice. Five here
+ * plus that link IS the same six.
+ *
+ * There is deliberately no grouping anywhere: five services are a list, not a taxonomy,
+ * and the bar used to split them into single-item buckets only to print the buckets and
+ * the services both.
  */
 const LAYANAN: NavItem[] = [
     {
@@ -123,35 +123,30 @@ const LAYANAN: NavItem[] = [
         label: 'Chat dengan Dokter',
         description: 'Konsultasi teks & video',
         icon: MessagesSquare,
-        kelompok: 'Konsultasi & Janji',
     },
     {
         to: '/booking',
         label: 'Booking Janji Temu',
         description: 'Pilih jadwal dokter',
         icon: CalendarDays,
-        kelompok: 'Konsultasi & Janji',
     },
     {
         to: '/pasien/resep',
         label: 'Resep & Apotek',
         description: 'Antar obat ke rumah',
         icon: Pill,
-        kelompok: 'Obat & Apotek',
     },
     {
         to: '/pengingat',
         label: 'Pengingat Obat',
         description: 'Alarm minum obat',
         icon: Bell,
-        kelompok: 'Obat & Apotek',
     },
     {
         to: '/rekam-medis',
         label: 'Rekam Medis',
         description: 'Riwayat kesehatan Anda',
         icon: FileText,
-        kelompok: 'Riwayat Kesehatan',
     },
 ];
 
@@ -497,52 +492,43 @@ function GridPromoPanel({
     );
 }
 
-/** Items grouped by their column heading, in the order the groups first appear. */
-function kelompokkan(items: readonly NavItem[]): Array<{
-    nama: string;
-    isi: NavItem[];
-}> {
-    const peta = new Map<string, NavItem[]>();
-
-    for (const item of items) {
-        const ada = peta.get(item.kelompok);
-        if (ada) ada.push(item);
-        else peta.set(item.kelompok, [item]);
-    }
-
-    return [...peta].map(([nama, isi]) => ({ nama, isi }));
-}
-
 /**
- * "Layanan Kesehatan" in the SAME Zalora shape as the directory's panel: a rail of the
- * service groups on the left, the links under their own headings in the middle, and the
- * picture grid on the right.
+ * "Layanan Kesehatan" in the SAME Zalora shape as the directory's panel: a flat rail of
+ * the services on the left, the campaign links in the middle, and the picture grid on the
+ * right.
  *
- * ## Why the rail holds the GROUPS and not the services
+ * ## Why the rail is flat
  *
- * Because the middle already holds the services, and a panel that prints "Chat dengan
- * Dokter" twice, side by side, is a panel that ran out of things to say. The rail is the
- * reference's category column: its row names are exactly the headings the middle prints,
- * the way the reference's "Produk Baru" rail row is also its middle title. A row opens
- * the group's own hub - its first service - because a row that goes nowhere is a label
- * pretending to be a menu entry, and the first service is what each group is named for:
- * Konsultasi & Janji is `/konsultasi`, Obat & Apotek is `/pasien/resep`, Riwayat Kesehatan
- * is `/rekam-medis`.
+ * It used to be one row per GROUP - "Konsultasi & Janji", "Obat & Apotek", "Riwayat
+ * Kesehatan" - with the five services printed again under those headings in the middle.
+ * That was the reference's category rail applied to a menu that has no categories: five
+ * services are a list, not a taxonomy, and splitting a list into buckets only to print
+ * the buckets AND the list is how a menu starts explaining itself instead of offering
+ * something. The rail now prints `LAYANAN_SOLUSI`, the SIX entry points the landing page
+ * itself publishes under "Solusi Kesehatan di Tanganmu", in their own order - so the
+ * panel can never offer fewer services than the page below it, and "Direktori Dokter" is
+ * one of them for exactly the reason it is a tile there.
+ *
+ * ## Why the middle carries the campaigns
+ *
+ * The reference's middle column is a text list of the same brands its right column shows
+ * as pictures - six names beside six tiles. Ours is that bargain with our own data:
+ * `PROMO`'s four campaigns as links, and the same four painted as tiles to the right.
+ * What the middle must not carry is the service list again; that is what was removed.
  *
  * ## Why the title row carries no "Lihat semua"
  *
  * The directory has one because a directory has an index page, `/dokter`. The services
- * have none - the five links in this panel are all of them - so a link promising "all"
- * would be one of the five wearing a different hat. The title row says what the panel is
+ * have none - the six rows in the rail are all of them - so a link promising "all" would
+ * be one of the six wearing a different hat. The title row says what the panel is
  * instead of pointing at a page that does not exist.
  *
- * Every link is a route from `LAYANAN`, which is registered in `app/router.tsx` - a
- * signed-out visitor who picks one still lands on `RequireAuth` and its `/login`, the
- * correct outcome reached through the router - and every one of them closes the panel on
- * the way out (`hover.tutup`), so the menu never lies open behind the page it opened.
+ * Every link is a route registered in `app/router.tsx` - a signed-out visitor who picks
+ * one still lands on `RequireAuth` and its `/login`, the correct outcome reached through
+ * the router - and every one of them closes the panel on the way out (`hover.tutup`), so
+ * the menu never lies open behind the page it opened.
  */
-function PanelLayanan({ items, hover }: { items: NavItem[]; hover: NavHover }) {
-    const kolom = kelompokkan(items);
+function PanelLayanan({ hover }: { hover: NavHover }) {
     const kartu = useKartuPanel();
 
     return (
@@ -561,37 +547,37 @@ function PanelLayanan({ items, hover }: { items: NavItem[]; hover: NavHover }) {
 
             <div
                 data-slot="nav-layanan-zona"
-                className="mt-4 grid gap-6 lg:grid-cols-[minmax(0,15rem)_minmax(0,18rem)_minmax(0,1fr)] lg:gap-7"
+                className="mt-4 grid gap-6 lg:grid-cols-[minmax(0,15rem)_minmax(0,15rem)_minmax(0,1fr)] lg:gap-7"
             >
-                {/* Zone 1 - the rail: one row per group, line art on every row, opened
-                    at the group's own hub */}
+                {/* Zone 1 - the rail: one row per service, line art on every row, in the
+                    order the landing page publishes them */}
                 <div className="lg:border-border min-w-0 lg:border-r">
                     <p className="text-muted-foreground mb-2 text-xs font-semibold tracking-wide uppercase lg:pr-6">
-                        Kelompok
+                        Layanan
                     </p>
 
                     <RelMenggulir
-                        slot="nav-layanan-kelompok"
-                        label="Kelompok layanan"
+                        slot="nav-layanan-daftar"
+                        label="Daftar layanan"
                         className="max-h-[22rem] lg:max-h-[28rem] lg:pr-6"
                     >
-                        {kolom.map((kelompok) => {
-                            const Hub = kelompok.isi[0].icon;
+                        {LAYANAN_SOLUSI.map((layanan) => {
+                            const Ikon = layanan.ikon;
 
                             return (
-                                <li key={kelompok.nama}>
+                                <li key={layanan.to}>
                                     <Link
-                                        to={kelompok.isi[0].to}
+                                        to={layanan.to}
                                         onClick={hover.tutup}
                                         className="hover:bg-secondary flex items-center gap-3 rounded-lg px-2.5 py-2.5 transition-colors"
                                     >
-                                        <Hub
+                                        <Ikon
                                             aria-hidden="true"
                                             className="text-foreground/80 size-4 shrink-0"
                                         />
 
                                         <span className="min-w-0 flex-1 text-sm leading-snug font-medium">
-                                            {kelompok.nama}
+                                            {layanan.judul}
                                         </span>
                                     </Link>
                                 </li>
@@ -600,31 +586,35 @@ function PanelLayanan({ items, hover }: { items: NavItem[]; hover: NavHover }) {
                     </RelMenggulir>
                 </div>
 
-                {/* Zone 2 - the links, under the same names the rail just printed; the
-                    group heading is the reference's "Brands" row, its services the list
-                    beneath it */}
-                <div data-slot="nav-layanan-tautan" className="grid min-w-0 gap-5">
-                    {kolom.map((kelompok) => (
-                        <div key={kelompok.nama} className="min-w-0">
-                            <p className="text-foreground mb-1.5 text-xs font-semibold tracking-wide uppercase">
-                                {kelompok.nama}
-                            </p>
+                {/* Zone 2 - the campaigns as text, the same four the grid on the right
+                    paints as pictures */}
+                <div data-slot="nav-layanan-promo" className="grid min-w-0 gap-5">
+                    <div className="min-w-0">
+                        <p className="text-foreground flex items-center gap-1.5 text-xs font-semibold tracking-wide uppercase">
+                            <Tag aria-hidden="true" className="size-3.5" />
+                            Promo &amp; Penawaran
+                        </p>
 
-                            <ul className="grid gap-0.5">
-                                {kelompok.isi.map((item) => (
-                                    <li key={item.to}>
-                                        <Link
-                                            to={item.to}
-                                            onClick={hover.tutup}
-                                            className="hover:bg-secondary text-muted-foreground hover:text-foreground block rounded-md px-2 py-1.5 text-sm transition-colors"
-                                        >
-                                            {item.label}
-                                        </Link>
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    ))}
+                        <ul className="mt-1.5 grid gap-1">
+                            {PROMO.map((promo) => (
+                                <li key={promo.judul}>
+                                    <Link
+                                        to={promo.to}
+                                        onClick={hover.tutup}
+                                        className="hover:bg-secondary hover:text-foreground block rounded-md px-2 py-1.5 text-muted-foreground transition-colors"
+                                    >
+                                        <span className="block text-sm leading-snug font-medium">
+                                            {promo.judul}
+                                        </span>
+
+                                        <span className="mt-0.5 block text-xs leading-snug">
+                                            {promo.deskripsi}
+                                        </span>
+                                    </Link>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
                 </div>
 
                 {/* Zone 3 - the picture grid, same six tiles as the directory panel */}
@@ -658,7 +648,7 @@ function NavLayanan({
             <NavPanelEntry
                 label={label}
                 idPanel="nav-layanan-panel"
-                panel={(hover) => <PanelLayanan items={items} hover={hover} />}
+                panel={(hover) => <PanelLayanan hover={hover} />}
             />
         );
     }

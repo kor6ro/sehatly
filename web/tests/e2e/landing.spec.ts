@@ -32,13 +32,13 @@ import { daftarDanMasuk } from './akun';
  *    the last four tests in this file are for.
  *
  * 5. **Both panels are shaped like the catalog menu and carry pictures.** Three zones
- *    side by side - an icon rail, a column of links under their own headings, and the
- *    six-tile picture grid whose photograph comes from `GET /hero`, the admin's gallery
- *    - so the header has images without a deploy. The services that used to sit INSIDE
- *    the directory panel have their own panel now, which is why the Layanan shape has a
- *    test of its own rather than being asserted through the directory's. One of these
- *    tests exists because the first version of the services panel flickered open and
- *    shut under a resting cursor.
+ *    side by side - an icon rail, a column of links, and the six-tile picture grid whose
+ *    photograph comes from `GET /hero`, the admin's gallery - so the header has images
+ *    without a deploy. The services are printed FLAT, once, in their own panel: the
+ *    grouping they used to sit under is asserted to be GONE rather than merely absent,
+ *    because it is the kind of thing a refactor puts back. One of these tests exists
+ *    because the first version of the services panel flickered open and shut under a
+ *    resting cursor.
  *
  * ## Why the sign-in path is driven through `daftarDanMasuk`
  *
@@ -398,18 +398,24 @@ test.describe('Landing page (/)', () => {
             'body tidak boleh dikunci pointer-events oleh menu modal',
         ).toBe('');
 
-        // The panel is the Zalora-shaped column set, not the old flat dropdown: rail of
-        // group rows, links under their own headings, picture grid. The group NAMES
-        // appear twice on purpose - rail row and heading - exactly as the reference's
-        // "Produk Baru" is both a rail row and a middle title, so the assertion is
-        // scoped to the link zone or the rail row would make it ambiguous.
-        const tautan = panel.locator('[data-slot="nav-layanan-tautan"]');
-        await expect(tautan.getByText('Konsultasi & Janji')).toBeVisible();
-        await expect(tautan.getByText('Obat & Apotek')).toBeVisible();
-        await expect(tautan.getByText('Riwayat Kesehatan')).toBeVisible();
+        // The panel is FLAT: the services are printed once, in the rail, and the group
+        // headings that used to repeat them in the middle are gone for good.
+        const rel = panel.locator('[data-slot="nav-layanan-daftar"]');
+        await expect(rel).toBeVisible();
+
+        for (const nama of ['Konsultasi & Janji', 'Obat & Apotek', 'Riwayat Kesehatan']) {
+            await expect(
+                panel.getByText(nama),
+                `"${nama}" tidak boleh kembali memecah daftar`,
+            ).toHaveCount(0);
+        }
 
         const chat = panel.getByRole('link', { name: 'Chat dengan Dokter', exact: true });
         await expect(chat).toBeVisible();
+        expect(
+            await panel.getByRole('link', { name: 'Chat dengan Dokter', exact: true }).count(),
+            'setiap layanan hanya boleh tercetak sekali',
+        ).toBe(1);
 
         // moving onto a link inside the panel must not close it either
         await chat.hover();
@@ -424,11 +430,12 @@ test.describe('Landing page (/)', () => {
      * are one menu rather than two menus that happen to share a header.
      *
      * Asserted as columns, not as visibility: three zones stacked would pass a naive
-     * check while looking nothing like the reference. The rail's rows are checked for
-     * icon AND for where they GO - a category row that goes nowhere is a label
-     * pretending to be a menu entry - and the middle is checked for all five services,
-     * which is the content that used to sit inside the DIRECTORY panel before it moved
-     * here, where it is a menu of its own.
+     * check while looking nothing like the reference. The rail is checked for the SIX
+     * services the landing page itself publishes - flat, one row each, in their order -
+     * because the grouping this replaces is the thing the test exists to keep out: it
+     * printed the services, then printed them again under single-item headings, so the
+     * negative assertions below (no heading, no second copy of a service) are the point
+     * rather than a detail of the current markup.
      */
     test('f00-landing-nav-layanan-tiga-zona-ala-menu-katalog', async ({ page }) => {
         await page.goto('/');
@@ -444,12 +451,12 @@ test.describe('Landing page (/)', () => {
         );
         expect(kolom, 'tiga zona harus sejajar, bukan menumpuk').toBe(3);
 
-        // Zone 1 - the rail: one row per group, line art on every row, names in full
-        const rel = zona.locator('[data-slot="nav-layanan-kelompok"]');
+        // Zone 1 - the rail: one row per service, line art on every row, names in full
+        const rel = zona.locator('[data-slot="nav-layanan-daftar"]');
         await expect(rel).toBeVisible();
 
         const jumlah = await rel.locator('li').count();
-        expect(jumlah, 'satu baris per kelompok').toBe(3);
+        expect(jumlah, 'enam layanan, sama seperti bagian Solusi di bawahnya').toBe(6);
         expect(await rel.locator('li svg').count()).toBe(jumlah);
 
         const terpotong = await rel
@@ -459,22 +466,31 @@ test.describe('Landing page (/)', () => {
             );
         expect(terpotong).toEqual([]);
 
-        // ...and each row opens its group's own hub, not a row that goes nowhere
-        const hub = await rel.locator('a').evaluateAll((els) =>
-            els.map((el) => el.getAttribute('href')),
-        );
-        expect(hub, 'tiap kelompok membuka hubnya sendiri').toEqual([
+        const hub = await rel
+            .locator('a')
+            .evaluateAll((els) => els.map((el) => el.getAttribute('href')));
+        expect(hub, 'urut seperti halaman landing, tanpa kelompok').toEqual([
             '/konsultasi',
+            '/booking',
             '/pasien/resep',
             '/rekam-medis',
+            '/dokter',
+            '/pengingat',
         ]);
 
-        // Zone 2 - all five services, under the three headings that name them
-        const tautan = zona.locator('[data-slot="nav-layanan-tautan"]');
-        await expect(tautan.getByText('Konsultasi & Janji')).toBeVisible();
-        await expect(tautan.getByText('Obat & Apotek')).toBeVisible();
-        await expect(tautan.getByText('Riwayat Kesehatan')).toBeVisible();
-        expect(await tautan.locator('a').count(), 'lima layanan, tak ada yang ganda').toBe(5);
+        // nothing groups them any more, and no service is printed a second time
+        for (const nama of ['Konsultasi & Janji', 'Obat & Apotek', 'Riwayat Kesehatan']) {
+            await expect(panel.getByText(nama)).toHaveCount(0);
+        }
+        expect(
+            await panel.getByRole('link', { name: 'Chat dengan Dokter', exact: true }).count(),
+            'layanan tidak boleh tercetak dua kali',
+        ).toBe(1);
+
+        // Zone 2 - the four campaigns as text links, the same four painted on the right
+        const promoTeks = zona.locator('[data-slot="nav-layanan-promo"]');
+        await expect(promoTeks.getByText('Promo & Penawaran')).toBeVisible();
+        expect(await promoTeks.locator('a').count(), 'empat kampanye').toBe(4);
 
         // Zone 3 - the picture grid: the same six tiles, the admin's photograph among
         // them, which is the `nav-promo` contract the picture test checks both panels
