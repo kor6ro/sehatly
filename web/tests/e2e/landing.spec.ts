@@ -350,6 +350,76 @@ test.describe('Landing page (/)', () => {
         ).toBeGreaterThan(10);
         expect(await daftar.locator('li svg').count()).toBe(jumlah);
 
+        /**
+         * The rail is a BLOCK, and its rows are paced like the reference's - two numbers
+         * that read as a picture rather than as a style. The grey behind the rows is what
+         * separates a rail from a plain list on a white panel, and 51px between rows is
+         * the difference between a menu with ten choices on screen and a table.
+         */
+        const latar = await daftar.evaluate((el) => getComputedStyle(el).backgroundColor);
+        const latarPanel = await panel.evaluate((el) => getComputedStyle(el).backgroundColor);
+        expect(latar, 'rel harus jadi blok tersendiri, bukan daftar di atas putih').not.toBe(
+            latarPanel,
+        );
+
+        const irama = await daftar
+            .locator('li a')
+            .nth(1)
+            .evaluate((el) => el.getBoundingClientRect().height);
+        expect(irama, 'irama baris 51px di rujukan - bukan tabel yang dipadatkan').toBeGreaterThanOrEqual(
+            46,
+        );
+        expect(irama, 'dan tidak melebar sampai cuma sepuluh nama yang muat').toBeLessThanOrEqual(56);
+
+        /**
+         * ...and the reference's selection is PAINTED AT REST: its first row sits white
+         * behind a 4px black bar while the pointer is on the tab that opened the panel.
+         * Ours matches that resting state, and since no row here is "current" the bar
+         * claims nothing - it FOLLOWS the eye: onto the row under the pointer, back to
+         * the first row when the pointer leaves the rail. The row is also a sharp
+         * rectangle, because the reference's white row is white in all four corners.
+         */
+        const baris = daftar.locator('li a');
+        const batang = (i: number) =>
+            baris.nth(i).evaluate((el) => getComputedStyle(el).borderLeftColor);
+
+        expect(
+            await batang(0),
+            'baris pertama tersorot SEBELUM ada pointer - seperti rujukan',
+        ).not.toBe('rgba(0, 0, 0, 0)');
+        const batangAktif = await batang(0);
+        expect(
+            await baris.nth(0).evaluate((el) => getComputedStyle(el).backgroundColor),
+            'baris tersorot berwarna putih panel, seperti rujukan',
+        ).toBe(latarPanel);
+        expect(
+            await baris.nth(1).evaluate((el) => getComputedStyle(el).borderRadius),
+            'baris adalah persegi tajam - rujukan putih di keempat sudutnya',
+        ).toBe('0px');
+
+        /**
+         * Both moves below poll for the SETTLED colour rather than merely "not
+         * transparent": `transition-colors` interpolates in oklab, so a row caught
+         * mid-fade reads as a half-black oklab that would satisfy a `not.toBe` while
+         * the bar is still travelling. Reading the resting bar first also pins the
+         * exact string Chrome serialises it as, so "the bar came back" is an equality
+         * rather than an absence.
+         */
+        await baris.nth(3).hover();
+        await expect
+            .poll(() => batang(3), { message: 'bar hitam 4px mengikuti pointer' })
+            .toBe(batangAktif);
+        await expect
+            .poll(() => batang(0), { message: 'baris pertama melepas bar saat pointer berpindah' })
+            .toBe('rgba(0, 0, 0, 0)');
+
+        await panel.getByText('Direktori Dokter', { exact: true }).hover();
+        await expect
+            .poll(() => batang(0), {
+                message: 'bar kembali ke baris pertama saat pointer keluar dari rel',
+            })
+            .toBe(batangAktif);
+
         const tinggiGulir = await daftar.evaluate(
             (el) => el.scrollHeight - el.clientHeight,
         );
@@ -370,11 +440,13 @@ test.describe('Landing page (/)', () => {
         );
 
         /**
-         * ...and it rides the LINE. The zone's right edge is the divider the eye already
-         * follows, so the thumb's right edge must land on it (within the 1px border);
-         * a bar sitting a centimetre short of the line it belongs to reads as a second,
-         * broken scrollbar. What buys this is the padding living on the `<ul>` instead
-         * of on the zone - the zone's own padding is what used to hold the thumb back.
+         * ...and it rides the LINE. The rail is a grey block with no divider beside it -
+         * the reference draws none - so the edge the eye follows IS the block's own right
+         * edge, and the thumb's right edge must land on it (within the 2px slack a real
+         * scrollbar leaves); a bar sitting a centimetre short of the edge it belongs to
+         * reads as a second, broken scrollbar. What buys this is the padding living on
+         * the `<ul>` instead of on the zone - the zone's own padding is what used to hold
+         * the thumb back.
          */
         const kotakZona = await zona.locator('div').first().boundingBox();
         expect(kotakZona).not.toBeNull();
@@ -415,6 +487,17 @@ test.describe('Landing page (/)', () => {
         await expect(promo).toBeVisible();
         expect(await promo.locator('a').count(), 'grid harus penuh 3x2').toBe(6);
         await expect(promo.locator('[data-slot="nav-promo"] img')).toHaveCount(1);
+
+        // square in the CORNER sense too: the reference's photographs carry no radius
+        // at all - the photo's colour starts on the very pixel of the corner - so a
+        // rounded tile would show the white panel in a notch the reference never has.
+        expect(
+            await promo
+                .locator('a')
+                .first()
+                .evaluate((el) => getComputedStyle(el).borderRadius),
+            'kartu promo tanpa sudut membulat - rujukan foto persegi tajam',
+        ).toBe('0px');
     });
 
     /**
@@ -763,10 +846,11 @@ test.describe('Landing page (/)', () => {
      * block onto the wrapper and size the panel to one tab. The width assertion at the
      * end is the one that would notice.
      *
-     * Last come three PIXEL readings, because the requirement is a picture and no
+     * Last come FOUR PIXEL readings, because the requirement is a picture and no
      * computed style can see one: `opacity: 1` over a black box and `opacity: 1` over a
      * transparent one are the same line of CSS and completely different images. The bar
-     * and the page must measurably darken; the open tab, on its plate, must not.
+     * and the page must measurably darken - to the reference's 74%, in a band rather
+     * than to a ceiling - and the open tab, on its plate, must not.
      */
     test('f00-landing-panel-aktif-menguapkan-bar-dan-halaman-di-belakangnya', async ({ page }) => {
         await page.goto('/');
@@ -873,9 +957,26 @@ test.describe('Landing page (/)', () => {
         const bar = await sampelPiksel(page, { x: 6, y: 30, width: 4, height: 4 });
         const halaman = await sampelPiksel(page, { x: 6, y: yHalaman, width: 4, height: 4 });
 
-        expect(bar, 'baris satu ikut meredup di bawah tirai').toBeLessThanOrEqual(barSebelum * 0.75);
-        expect(halaman, 'halaman ikut meredup di bawah tirai').toBeLessThanOrEqual(
-            halamanSebelum * 0.75,
+        /**
+         * A BAND, not a ceiling: the veil has a measured level to hold. The reference's
+         * bar and page read 189 where their undimmed white is 255 - 74% of what is
+         * beneath it - so `bg-black/25` lands on exactly three quarters and the point of
+         * these four numbers is to keep it there. The upper bound fails if the veil is
+         * lifted; the lower one fails if it is deepened back towards the 40% it replaced
+         * (60%, well outside the band). Only "it got darker" would pass both, and only
+         * "it darkened to the reference's weight" passes the band.
+         */
+        expect(bar, 'baris satu meredup ke ~74% terangnya, seperti rujukan').toBeLessThanOrEqual(
+            barSebelum * 0.78,
+        );
+        expect(bar, 'dan tidak lebih gelap dari itu - tirai, bukan malam').toBeGreaterThanOrEqual(
+            barSebelum * 0.7,
+        );
+        expect(halaman, 'halaman ikut meredup ke level yang sama').toBeLessThanOrEqual(
+            halamanSebelum * 0.78,
+        );
+        expect(halaman, 'dan tetap terbaca di bawah panel').toBeGreaterThanOrEqual(
+            halamanSebelum * 0.7,
         );
         expect(
             piring,

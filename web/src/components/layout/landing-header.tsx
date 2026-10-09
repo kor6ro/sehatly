@@ -500,27 +500,37 @@ function useKartuPanel(): KartuPanel[] {
  * the same bargain the hero carousel makes. Every card is a link, so a picture is also
  * a way in, and `tutup` closes the panel behind the choice.
  *
- * ## Why the tiles are SQUARE and capped at 24rem
+ * ## Why the tiles are SQUARE and fixed at 24rem
  *
  * Because the reference's are: six photographs of the same size in a 3x2 block, about a
- * tenth of the panel's width each, with a gap you can see. Measured off the reference
- * they are 119px squares in a 1296px panel - 9.2% each, 377px for the block, 158px of
- * slack to the panel's right edge - and 30rem gave 152px tiles instead, a block that
- * weighed a quarter more than the one it is drawn from. 24rem gives 120px squares
- * (9.4%) in the same 1280px panel.
+ * tenth of the panel's width each, with a gap you can see - and an UNSQUARE one: 10px
+ * between columns, 20px between rows, both measured off the reference. Square in the
+ * other sense too: the reference's tiles have NO corner radius - the photo's colour
+ * starts on the very pixel of the corner (1054,225 is beige, not white) - so these
+ * carry no `rounded` either, only `overflow-hidden` for the hover zoom. 30rem gave
+ * 152px tiles instead, a block that weighed a quarter more than the one it is drawn
+ * from. 24rem with those gaps gives 121px squares (9.5% of this 1280px panel) against
+ * the reference's 119px (9.2% of its 1296px).
  *
- * The block keeps its slack because the LEFT zones grew to 21rem while it shrank: the
- * reference spends a fourth column on its brands and these panels have only three, so
- * without that width the smaller block would start where the bigger one did and leave
- * 260px - a fifth of the panel - empty to its right. As it stands the block starts at
- * x=732 against the reference's 761 and ends with 164px of slack against its 158.
+ * The block is CENTERED in the right-hand zone rather than left-aligned to it, because
+ * the reference spends a fourth column on its brands and these panels have only three.
+ * The rail could not keep the reference's 224px while keeping these names on one line:
+ * the longest ("Spesialis Telinga Hidung Tenggorokan") measures 251px of text against
+ * 58px of bar, icon and padding, so 224 wrapped seven of the sixteen rows and broke the
+ * rhythm - the rail is 320px and the shortcuts column 256px instead. Centered in the
+ * remaining 608 the block starts at x=764 against the reference's 761 (measured from
+ * each panel's own left edge) and ends with 132px of slack against its 157: the offset
+ * and the slack both land within a thumbnail of the menu this one is drawn from,
+ * without a fourth column of invented content to buy them.
  *
  * The `aspect-[4/3]` they replaced filled the whole right-hand zone and turned a picture
- * grid into a wall, and the cap is what keeps the block the reference's PROPORTION
- * rather than one that grows with the window - the panel is `max-w-[1280px]`, so a fixed
- * 24rem is a fixed share of it at every width the bar can be. Below `lg` the grid falls
- * back to two columns, because the panels only render at `lg` and up and this is the
- * sheet-free path.
+ * grid into a wall, and the fixed `w-96` is what keeps the block the reference's
+ * PROPORTION rather than one that grows with the window - the panel is `max-w-[1280px]`,
+ * so a fixed 24rem is a fixed share of it at every width the bar can be. It is a WIDTH
+ * and not a `max-w` because centered intrinsic sizing would otherwise measure the tiles'
+ * own contents - all of which are absolutely positioned - and collapse the block to
+ * nothing. Below `lg` the grid falls back to two columns at full width, because the
+ * panels only render at `lg` and up and this is the sheet-free path.
  */
 function GridPromoPanel({
     kartu,
@@ -532,7 +542,7 @@ function GridPromoPanel({
     return (
         <div
             data-slot="nav-promo-grid"
-            className="grid min-w-0 grid-cols-2 gap-3 lg:max-w-[24rem] lg:grid-cols-3"
+            className="grid min-w-0 grid-cols-2 gap-x-2.5 gap-y-5 lg:mt-10 lg:w-96 lg:max-w-full lg:justify-self-center lg:grid-cols-3"
         >
             {kartu.map((kartu_) =>
                 kartu_.foto !== null ? (
@@ -541,7 +551,7 @@ function GridPromoPanel({
                         to={kartu_.to}
                         onClick={tutup}
                         data-slot="nav-promo"
-                        className="group relative block aspect-square overflow-hidden rounded-lg"
+                        className="group relative block aspect-square overflow-hidden"
                     >
                         <img
                             src={kartu_.foto}
@@ -571,7 +581,7 @@ function GridPromoPanel({
                         key={kartu_.kunci}
                         to={kartu_.to}
                         onClick={tutup}
-                        className="group relative block aspect-square overflow-hidden rounded-lg"
+                        className="group relative block aspect-square overflow-hidden"
                     >
                         <span
                             aria-hidden="true"
@@ -651,12 +661,13 @@ function GridPromoPanel({
  */
 function PanelLayanan({ items, hover }: { items: NavItem[]; hover: NavHover }) {
     const kartu = useKartuPanel();
+    const [sorot, setSorot] = useState(0);
 
     return (
         <div
             id="nav-layanan-panel"
             data-slot="nav-layanan-panel"
-            className="bg-popover text-popover-foreground absolute top-full right-0 left-0 z-50 rounded-b-2xl p-5 shadow-xl"
+            className="bg-popover text-popover-foreground absolute top-full right-0 left-0 z-50 rounded-tr-2xl rounded-b-2xl px-5 pt-6 pb-4 shadow-xl"
         >
             {/*
                 The reference's title row: large word, blue "see all", nothing else.
@@ -666,8 +677,8 @@ function PanelLayanan({ items, hover }: { items: NavItem[]; hover: NavHover }) {
                 adding a destination to `app/router.tsx` that would have to resolve to
                 something. The deck goes with the old copy.
             */}
-            <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-                <p className="text-foreground text-[1.6rem] leading-tight font-normal">
+            <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
+                <p className="text-foreground text-[1.5rem] leading-10 font-normal">
                     Layanan Kesehatan
                 </p>
 
@@ -683,23 +694,27 @@ function PanelLayanan({ items, hover }: { items: NavItem[]; hover: NavHover }) {
 
             <div
                 data-slot="nav-layanan-zona"
-                className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,21rem)_minmax(0,20rem)_minmax(0,1fr)] lg:gap-7"
+                className="mt-3 grid items-start gap-6 lg:grid-cols-[minmax(0,20rem)_minmax(0,16rem)_minmax(0,1fr)] lg:gap-7"
             >
                 {/* Zone 1 - the rail: one row per service, line art on every row, the
                     same five the sheet lists below it, and no visible heading - the
                     reference's rail starts at its first row so the rows and the middle
                     heading share a baseline. Its height takes the same
                     `min(35rem, 100vh - 16rem)` the directory's rail measures, so the
-                    two panels never stand at different heights in one window. */}
-                <div className="lg:border-border min-w-0 lg:border-r">
+                    two panels never stand at different heights in one window - and it
+                    is the same BLOCK the directory's rail paints (`bg-background`,
+                    51px rows, square corners, the black bar resting on the first row
+                    and following the pointer), because two rails that look different
+                    would read as two different menus. */}
+                <div className="min-w-0" onMouseLeave={() => setSorot(0)}>
                     <p className="sr-only">Layanan</p>
 
                     <RelMenggulir
                         slot="nav-layanan-daftar"
                         label="Daftar layanan"
-                        className="max-h-[22rem] lg:max-h-[min(35rem,calc(100vh_-_16rem))] lg:pr-6"
+                        className="bg-background max-h-[22rem] rounded lg:max-h-[min(35rem,calc(100vh_-_16rem))] lg:pr-3"
                     >
-                        {items.map((layanan) => {
+                        {items.map((layanan, i) => {
                             const Ikon = layanan.icon;
 
                             return (
@@ -707,14 +722,21 @@ function PanelLayanan({ items, hover }: { items: NavItem[]; hover: NavHover }) {
                                     <Link
                                         to={layanan.to}
                                         onClick={hover.tutup}
-                                        className="hover:bg-secondary flex items-center gap-3 rounded-lg px-2.5 py-2.5 transition-colors"
+                                        onFocus={() => setSorot(i)}
+                                        onMouseEnter={() => setSorot(i)}
+                                        className={cn(
+                                            'flex items-center gap-3 border-l-4 py-4 pr-2 pl-3.5 transition-colors focus-visible:outline-none',
+                                            i === sorot
+                                                ? 'border-foreground bg-popover'
+                                                : 'border-transparent bg-transparent',
+                                        )}
                                     >
                                         <Ikon
                                             aria-hidden="true"
                                             className="text-foreground/80 size-4 shrink-0"
                                         />
 
-                                        <span className="min-w-0 flex-1 text-sm leading-snug font-medium">
+                                        <span className="min-w-0 flex-1 text-sm leading-snug font-semibold">
                                             {layanan.label}
                                         </span>
                                     </Link>
@@ -898,10 +920,11 @@ function NavDropdownLaci({
  *   columns it used to sit in were as wide as the LONGEST name in each one.
  *   {@link RelMenggulir} scrolls it and draws its own thumb, because a rail whose ten
  *   visible rows are not followed by a visible scrollbar reads as a finished list. The
- *   thumb sits ON the zone's divider line: the padding that keeps the rows clear of the
- *   border belongs to the `<ul>` rather than to the zone, so the wrapper the thumb is
- *   measured against reaches the border. A bar floating a centimetre to the left of the
- *   line it is supposed to be riding looks like a second, broken scrollbar.
+ *   thumb rides the rail's own right edge - there is no divider line to ride: the
+ *   reference has none, and the padding that keeps the rows clear of the thumb belongs
+ *   to the `<ul>` rather than to the zone, so the wrapper the thumb is measured against
+ *   is the same box the grey block paints. A bar floating a centimetre to the left of
+ *   the edge it is supposed to be riding looks like a second, broken scrollbar.
  * - **The middle is one column of shortcuts**: "Sering dicari" resolves `POPULER`
  *   against the very table the rail just read, so a shortcut whose code no longer exists
  *   is skipped rather than offered against a filter that returns nothing. The services
@@ -927,12 +950,13 @@ function PanelDirektori({ hover }: { hover: NavHover }) {
     const spesialisasi = useQuery(spesialisasiOptions());
     const daftar = spesialisasi.data?.data.spesialisasi ?? [];
     const kartu = useKartuPanel();
+    const [sorot, setSorot] = useState(0);
 
     return (
         <div
             id="nav-direktori-panel"
             data-slot="nav-direktori-panel"
-            className="bg-popover text-popover-foreground absolute top-full right-0 left-0 z-50 rounded-b-2xl p-5 shadow-xl"
+            className="bg-popover text-popover-foreground absolute top-full right-0 left-0 z-50 rounded-tr-2xl rounded-b-2xl px-5 pt-6 pb-4 shadow-xl"
         >
             {/*
                 The reference's title row: one large word with a blue "see all" on its
@@ -941,8 +965,8 @@ function PanelDirektori({ hover }: { hover: NavHover }) {
                 screenshot rather than for a visitor who is already looking at sixteen
                 choices.
             */}
-            <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-                <p className="text-foreground text-[1.6rem] leading-tight font-normal">
+            <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
+                <p className="text-foreground text-[1.5rem] leading-10 font-normal">
                     Direktori Dokter
                 </p>
 
@@ -958,7 +982,7 @@ function PanelDirektori({ hover }: { hover: NavHover }) {
 
             <div
                 data-slot="nav-direktori-zona"
-                className="mt-5 grid items-start gap-6 lg:grid-cols-[minmax(0,21rem)_minmax(0,20rem)_minmax(0,1fr)] lg:gap-7"
+                className="mt-3 grid items-start gap-6 lg:grid-cols-[minmax(0,20rem)_minmax(0,16rem)_minmax(0,1fr)] lg:gap-7"
             >
                 {/* Zone 1 - the rail: the whole table, one row per specialisation, and
                     no visible heading above it - the reference's rail starts at its
@@ -967,30 +991,51 @@ function PanelDirektori({ hover }: { hover: NavHover }) {
                     because a scroll region holding sixteen names still has to say which
                     list it is.
 
+                    The rail is a BLOCK, not a white column with a rule beside it. The
+                    reference paints its list `#F9F9F9` against a white panel - 224px
+                    wide, rows 51px apart, the icon 18px in and the text at 46 - and
+                    turns its FIRST row white behind a 4px black bar while the pointer
+                    is somewhere else entirely. So the `<ul>` carries the block
+                    (`bg-background`, 248 against 255 here, the reference's own 249
+                    against 255) plus the clearance for the thumb (`lg:pr-3`), and each
+                    row gives the longest name its last two pixels (`pr-2`: at `pr-3`,
+                    "Spesialis Telinga Hidung Tenggorokan" has 250px of room and needs
+                    251, so it wraps and breaks the rhythm the block exists to hold -
+                    which is also why this block is 320px and not the reference's 224).
+                    The rows are SQUARE for the same reason the tiles are: the
+                    reference's white row is a sharp rectangle, white in all four
+                    corners, and a rounded one would notch the block with grey.
+
+                    The bar is PAINTED AT REST rather than earned by hover: `sorot`
+                    starts on row 0, follows the pointer and the keyboard focus row by
+                    row, and falls back to the first row when the pointer leaves the
+                    rail - which is the state the reference is screenshotted in. It
+                    stays honest by claiming nothing: no row is "current" on the
+                    landing, so the bar marks where the eye is, never where the URL is.
+                    The ZONE carries no border for the same reason the block needs no
+                    divider - the reference draws none, and the block's own right edge
+                    is the line the thumb rides.
+
                     The rail's own height is `min(35rem, 100vh - 16rem)`: the reference's
-                    rail stands 540px inside a panel 650px tall, and 35rem gives this
+                    rail stands 550px inside a panel 649px tall, and 35rem gives this
                     panel 652px in the same proportion - a fixed 28rem stopped at 448px
                     whatever the screen, leaving this panel 110px shorter than the menu
                     it is drawn from. The viewport term is the ceiling for short windows:
                     at 720px it yields 464px, which puts the panel's bottom edge at 664
-                    and keeps the strip of page under it that the veil tests sample.
-
-                    The ZONE carries no right padding: the divider is the line the thumb
-                    rides, so the clearance the rows need belongs to the `<ul>` inside
-                    it - otherwise the bar floats a centimetre short of the line. */}
-                <div className="lg:border-border min-w-0 lg:border-r">
+                    and keeps the strip of page under it that the veil tests sample. */}
+                <div className="min-w-0" onMouseLeave={() => setSorot(0)}>
                     <p className="sr-only">Spesialisasi</p>
 
                     {spesialisasi.isPending ? (
-                        <div className="grid gap-1 lg:pr-6">
+                        <div className="grid gap-1 lg:pr-3">
                             {Array.from({ length: 8 }, (_, i) => (
-                                <Skeleton key={i} className="h-10 rounded-lg" />
+                                <Skeleton key={i} className="h-12 rounded-lg" />
                             ))}
                         </div>
                     ) : null}
 
                     {spesialisasi.isError ? (
-                        <p className="text-muted-foreground text-sm lg:pr-6">
+                        <p className="text-muted-foreground text-sm lg:pr-3">
                             Daftar spesialis tidak dapat dimuat.{' '}
                             <Link
                                 to={DIREKTORI}
@@ -1007,9 +1052,9 @@ function PanelDirektori({ hover }: { hover: NavHover }) {
                         <RelMenggulir
                             slot="nav-direktori-spesialisasi"
                             label="Daftar spesialisasi, menggulir"
-                            className="max-h-[22rem] lg:max-h-[min(35rem,calc(100vh_-_16rem))] lg:pr-6"
+                            className="bg-background max-h-[22rem] rounded lg:max-h-[min(35rem,calc(100vh_-_16rem))] lg:pr-3"
                         >
-                            {daftar.map((baris) => {
+                            {daftar.map((baris, i) => {
                                 const Ikon =
                                     IKON_SPESIALISASI[baris.kode] ?? IKON_BAWAAN;
 
@@ -1018,14 +1063,21 @@ function PanelDirektori({ hover }: { hover: NavHover }) {
                                         <Link
                                             to={`/dokter?spesialisasi=${encodeURIComponent(baris.kode)}`}
                                             onClick={hover.tutup}
-                                            className="hover:bg-secondary flex items-center gap-3 rounded-lg px-2.5 py-2.5 transition-colors"
+                                            onFocus={() => setSorot(i)}
+                                            onMouseEnter={() => setSorot(i)}
+                                            className={cn(
+                                                'flex items-center gap-3 border-l-4 py-4 pr-2 pl-3.5 transition-colors focus-visible:outline-none',
+                                                i === sorot
+                                                    ? 'border-foreground bg-popover'
+                                                    : 'border-transparent bg-transparent',
+                                            )}
                                         >
                                             <Ikon
                                                 aria-hidden="true"
                                                 className="text-foreground/80 size-4 shrink-0"
                                             />
 
-                                            <span className="min-w-0 flex-1 text-sm leading-snug font-medium">
+                                            <span className="min-w-0 flex-1 text-sm leading-snug font-semibold">
                                                 {baris.nama}
                                             </span>
                                         </Link>
@@ -1513,6 +1565,17 @@ function AkunPill() {
  * panel. {@link NavPanelEntry} gives that entry `z-20`, which lands above the veil's
  * `z-10` in the header's own stacking context.
  *
+ * ## How dark: a quarter, not a wash
+ *
+ * The level is measured rather than picked. The reference's bar and the page under it
+ * both read `189` where their undimmed white is `255` - 74% of the surface beneath,
+ * which is a black box at 25% (`bg-black/25`). The 40% this used to carry dimmed the
+ * page to 60%, and a side-by-side against the menu it is drawn from is where that
+ * shows: everything except the panel loses more than a third of its brightness, and
+ * the panel stops reading as a sheet of paper laid ON the page and starts reading as
+ * a light source in a dark room. A quarter still gives the panel an edge on all four
+ * sides - which is the entire reason the veil exists - at the reference's weight.
+ *
  * Both boxes are `pointer-events-none`, which is the difference between a veil and a
  * modal. The veil changes what things LOOK like and nothing else: the panel still closes
  * on a pointer leaving, on Escape, on a link that navigates, and a click on the heading
@@ -1550,7 +1613,7 @@ export function LandingHeader({ onMasuk }: { onMasuk: () => void }) {
     const adaPanel = panelTerbuka.size > 0;
     const tirai = (buka: boolean) =>
         cn(
-            'bg-black/40 pointer-events-none transition-opacity duration-200',
+            'bg-black/25 pointer-events-none transition-opacity duration-200',
             buka ? 'opacity-100' : 'opacity-0',
         );
 
@@ -1708,7 +1771,7 @@ export function LandingHeader({ onMasuk }: { onMasuk: () => void }) {
                 taste: row one puts the wordmark at `px-6`, and each tab carries its own
                 `px-3`, so `12 + 12` lands the first tab's first letter on exactly the
                 pixel the wordmark starts on. The panel's title is 4px inside that line
-                (`p-5` from the panel edge, which is the row's own edge), close enough to
+                (`px-5` from the panel edge, which is the row's own edge), close enough to
                 read as one column down the page and not so close that the tab looks
                 welded to the heading it is hovering above. The reference hangs its tabs
                 a little further left than its logo does; ours sit on the logo instead.
