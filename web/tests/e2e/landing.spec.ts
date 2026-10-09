@@ -592,6 +592,33 @@ test.describe('Landing page (/)', () => {
         await page.getByRole('button', { name: 'Layanan Kesehatan' }).hover();
         await expect(panel).toBeVisible();
 
+        /**
+         * THE ROUNDED CORNER, which only a tab away from the edge can show. The panel's
+         * top-left is a 16px curve - the reference's is too, and there it becomes
+         * visible the moment "Pria" owns the menu instead of "Wanita"; here, the moment
+         * Layanan Kesehatan does. Two pixels inside that corner are still page (dimmed
+         * under the veil), not panel: white only starts on the curve.
+         */
+        const kotakLayanan = await panel.boundingBox();
+        expect(kotakLayanan, 'panel layanan harus terukur').not.toBeNull();
+        if (kotakLayanan === null) {
+            return;
+        }
+        expect(
+            await panel.evaluate((el) => getComputedStyle(el).borderTopLeftRadius),
+            'sudut kiri atas membulat seperti pada gambar rujukan',
+        ).not.toBe('0px');
+        const pojokLayanan = await sampelPiksel(page, {
+            x: Math.round(kotakLayanan.x) + 2,
+            y: Math.round(kotakLayanan.y) + 2,
+            width: 3,
+            height: 3,
+        });
+        expect(
+            pojokLayanan,
+            'dua piksel di sudut itu masih halaman yang diredupi - putihnya baru mulai di lengkungan',
+        ).toBeLessThanOrEqual(640);
+
         // the three zones are three COLUMNS, side by side
         const zona = panel.locator('[data-slot="nav-layanan-zona"]');
         const kolom = await zona.evaluate((el) =>
@@ -767,7 +794,7 @@ test.describe('Landing page (/)', () => {
         // the rule is as wide as the WORDS: a border on the button itself would ink the
         // whole plate, 16px of padding more on each side than the reference draws
         const kata = await tab.evaluate((el) => {
-            const tanda = el.querySelector('span');
+            const tanda = el.querySelector('[data-slot="nav-tab-garis"]');
             const teks = tanda === null ? null : tanda.firstChild;
             if (teks === null) {
                 return 0;
@@ -776,7 +803,7 @@ test.describe('Landing page (/)', () => {
             range.selectNode(teks);
             return Math.round(range.getBoundingClientRect().width);
         });
-        const garisTab = tab.locator('span');
+        const garisTab = tab.locator('[data-slot="nav-tab-garis"]');
         const garisLebar = await garisTab.evaluate((el) => Math.round(el.getBoundingClientRect().width));
         expect(
             Math.abs(garisLebar - kata),
@@ -819,6 +846,46 @@ test.describe('Landing page (/)', () => {
             Math.abs(Math.round(panelKotak.x) - Math.round(tabKotak.x)),
             'panel dan piringnya satu garis di tepi kiri - panel tidak boleh menonjol',
         ).toBeLessThanOrEqual(1);
+
+        /**
+         * AND THE JUNCTION UNDER IT, the other half of the same picture. The panel's
+         * top-left corner rounds (as the reference's does - which is what shows when a
+         * tab away from the edge owns the menu), so a plate that simply STOPPED at the
+         * bar's bottom edge would leave a sixteen-pixel bite bitten out of its own left
+         * side. The reference has none: below the panel's top at x=293..312 its rows
+         * are unbroken white. The plate's skirt is what buys that here, and it hangs
+         * off the TAB - so it is measured against the panel's own corner.
+         */
+        expect(
+            await panel.evaluate((el) => getComputedStyle(el).borderTopLeftRadius),
+            'sudut panel membulat seperti rujukan',
+        ).not.toBe('0px');
+
+        const rok = tab.locator('[data-slot="nav-tab-rok"]');
+        await expect(rok, 'piring tab membawa roknya selama panelnya terbuka').toBeVisible();
+        const kotakRok = await rok.boundingBox();
+        expect(kotakRok, 'rok harus terukur').not.toBeNull();
+        if (kotakRok === null) {
+            return;
+        }
+        expect(Math.round(kotakRok.x), 'rok mulai di tepi panel yang sama').toBe(
+            Math.round(panelKotak.x),
+        );
+        expect(Math.round(kotakRok.y), 'dan tepat di garis atas panel').toBe(
+            Math.round(panelKotak.y),
+        );
+        expect(Math.round(kotakRok.height), 'setebal radius sudut panel').toBe(16);
+
+        const sambungan = await sampelPiksel(page, {
+            x: Math.round(panelKotak.x) + 2,
+            y: Math.round(panelKotak.y) + 2,
+            width: 3,
+            height: 3,
+        });
+        expect(
+            sambungan,
+            'sambungan piring-panel putih mulus, tanpa gigitan di sudut seperti rujukan',
+        ).toBeGreaterThan(700);
 
         // the open tab is cut from the same cloth as the panel it owns - one plate,
         // rounded at the top only, so tab + rule + panel read as one object instead of a

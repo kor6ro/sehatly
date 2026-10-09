@@ -209,6 +209,22 @@ function navLinkClass({ isActive }: { isActive: boolean }): string {
  * edge instead - the words underlined with sixteen more pixels of ink on each side,
  * which reads as a bar rather than as an underline.
  *
+ * ## Why the plate carries a SKIRT
+ *
+ * The panel's top-left corner is rounded, like every other corner it has - the
+ * reference rounds it too, which is what shows when a tab away from the edge owns the
+ * menu ("Pria" in the visitor's picture: the panel's left edge curves back from the
+ * bar). The trouble is the tab that sits ON that edge. Its plate ends where the bar
+ * ends, the panel's corner then steps sixteen pixels inboard of the plate's straight
+ * left edge, and the two objects that are supposed to read as one white shape are
+ * joined by a bite. The reference has no bite: with "Wanita" open, the rows below the
+ * panel's top at x=293..312 are unbroken white all the way down.
+ *
+ * So the sixteen pixels belong to the open TAB, not to the panel: a skirt of the same
+ * `bg-popover` hangs from the plate over the corner while that panel is open, and
+ * disappears with it. The first tab thereby welds its own junction smooth, and a panel
+ * opened by a later tab keeps the curve everyone can see - which is both pictures.
+ *
  * `bg-popover` and not `bg-card` because the panel it has to match uses `bg-popover`;
  * they are the same colour in both themes today, and a tab that matched card while the
  * panel matched popover would split the moment they stopped being.
@@ -221,7 +237,7 @@ function navLinkClass({ isActive }: { isActive: boolean }): string {
  */
 function navTabClass({ isActive }: { isActive: boolean }): string {
     return cn(
-        'inline-flex items-center px-4 pt-2.5 pb-px text-xs font-semibold tracking-wide uppercase transition-colors',
+        'relative inline-flex items-center px-4 pt-2.5 pb-px text-xs font-semibold tracking-wide uppercase transition-colors',
         isActive ? 'rounded-t-2xl bg-popover text-foreground' : 'text-foreground/65 hover:text-foreground',
     );
 }
@@ -435,7 +451,23 @@ function NavPanelEntry({
                     hover.setOpen((nilai) => !nilai);
                 }}
             >
-                <span className={navTabRuleClass({ isActive: hover.open })}>{label}</span>
+                <span data-slot="nav-tab-garis" className={navTabRuleClass({ isActive: hover.open })}>
+                    {label}
+                </span>
+                {/*
+                    The plate's SKIRT - sixteen pixels of the same white running past the
+                    bar's bottom edge, which is the panel's own corner radius. It exists
+                    only while this panel is open, and it belongs to the TAB rather than
+                    to the panel: see the plate's docblock for why the reference needs it
+                    at the junction and does without it one tab further right.
+                */}
+                {hover.open ? (
+                    <span
+                        data-slot="nav-tab-rok"
+                        aria-hidden
+                        className="bg-popover pointer-events-none absolute inset-x-0 top-full h-4"
+                    />
+                ) : null}
             </button>
 
             {hover.open ? panel(hover) : null}
@@ -687,7 +719,7 @@ function PanelLayanan({ items, hover }: { items: NavItem[]; hover: NavHover }) {
         <div
             id="nav-layanan-panel"
             data-slot="nav-layanan-panel"
-            className="bg-popover text-popover-foreground absolute top-full right-0 left-0 z-50 rounded-tr-2xl rounded-b-2xl px-5 pt-6 pb-4 shadow-xl"
+            className="bg-popover text-popover-foreground absolute top-full right-0 left-0 z-50 rounded-t-2xl rounded-b-2xl px-5 pt-6 pb-4 shadow-xl"
         >
             {/*
                 The reference's title row: large word, blue "see all", nothing else.
@@ -976,7 +1008,7 @@ function PanelDirektori({ hover }: { hover: NavHover }) {
         <div
             id="nav-direktori-panel"
             data-slot="nav-direktori-panel"
-            className="bg-popover text-popover-foreground absolute top-full right-0 left-0 z-50 rounded-tr-2xl rounded-b-2xl px-5 pt-6 pb-4 shadow-xl"
+            className="bg-popover text-popover-foreground absolute top-full right-0 left-0 z-50 rounded-t-2xl rounded-b-2xl px-5 pt-6 pb-4 shadow-xl"
         >
             {/*
                 The reference's title row: one large word with a blue "see all" on its
