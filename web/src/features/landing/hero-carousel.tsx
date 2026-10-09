@@ -176,10 +176,28 @@ export function HeroCarousel() {
                                      */
                                     inert={!dipilih}
                                     className={cn(
-                                        'relative transition-opacity duration-500',
+                                        /**
+                                         * `invisible` is the half that makes the fade
+                                         * legal as well as pretty. An inactive slide is
+                                         * still LAYED OUT while it fades, and axe reads
+                                         * `opacity: 0` as rendered: it then finds two
+                                         * call-to-action pills stacked on the same pixel
+                                         * and calls it a target-size failure, and reads
+                                         * the one underneath as text with no background
+                                         * of its own. CSS holds `visibility` until the
+                                         * END of the transition, so the fade out still
+                                         * happens and the slide is genuinely hidden the
+                                         * moment it is over - which is also the truth
+                                         * `inert` and `aria-hidden` above are already
+                                         * telling. `motion-reduce` closes the last door:
+                                         * a visitor who asked the system for less motion
+                                         * gets the new slide without watching one fade
+                                         * into it.
+                                         */
+                                        'relative transition-[opacity,visibility] duration-500 motion-reduce:transition-none',
                                         dipilih
                                             ? 'opacity-100'
-                                            : 'pointer-events-none opacity-0',
+                                            : 'pointer-events-none invisible opacity-0',
                                     )}
                                 >
                                     {/**
@@ -301,7 +319,14 @@ export function HeroCarousel() {
                     </button>
                 </div>
 
-                <div className="mt-4 flex items-center justify-center gap-2">
+                {/**
+                 * The dots are 44px TARGETS painted as 10px dots, because `web/AGENTS.md`
+                 * asks for a 44px touch target and a 10px dot is not one - axe's
+                 * `target-size` rule said so on the first day the landing page was ever
+                 * scanned (the directory moved onto it, and brought the scan with it).
+                 * The visible mark is unchanged; only the area a finger can hit grew.
+                 */}
+                <div className="mt-2 flex items-center justify-center">
                     {slides.map((slide, indeks) => (
                         <button
                             key={slide.key}
@@ -309,13 +334,18 @@ export function HeroCarousel() {
                             aria-label={`Tampilkan slide ${indeks + 1}`}
                             aria-current={indeks === terpilih}
                             onClick={() => pindah(indeks)}
-                            className={cn(
-                                'size-2.5 rounded-full transition-all',
-                                indeks === terpilih
-                                    ? 'bg-primary w-6'
-                                    : 'bg-muted hover:bg-muted-foreground/40',
-                            )}
-                        />
+                            className="flex size-11 items-center justify-center rounded-full"
+                        >
+                            <span
+                                aria-hidden
+                                className={cn(
+                                    'h-2.5 rounded-full transition-all',
+                                    indeks === terpilih
+                                        ? 'bg-primary w-6'
+                                        : 'bg-muted w-2.5 hover:bg-muted-foreground/40',
+                                )}
+                            />
+                        </button>
                     ))}
                 </div>
             </div>

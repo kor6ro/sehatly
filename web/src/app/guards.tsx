@@ -1,4 +1,4 @@
-import { Link, Navigate, Outlet, useLocation } from 'react-router';
+import { Link, Navigate, Outlet, useLocation, useSearchParams } from 'react-router';
 import { getAccessToken } from '@/lib/token';
 import { EmptyState } from '@/components/states/empty-state';
 import { PageHeader } from '@/components/layout/page-header';
@@ -23,6 +23,8 @@ import { Button } from '@/components/ui/button';
  *
  * `DokterController` is public by the plan's instruction, and gating a pre-authentication
  * browse page behind a session is the mistake the controller's own docblock warns about.
+ * The directory is printed on the landing page these days, so it never reaches this gate
+ * in the first place - see {@link AlihDirektori} for the address it left behind.
  */
 export function RequireAuth() {
     const location = useLocation();
@@ -38,6 +40,35 @@ export function RequireAuth() {
     }
 
     return <Outlet />;
+}
+
+/**
+ * `/dokter` - the directory's old address, kept alive as an address and nothing else.
+ *
+ * The page it named is gone: its content - search, filters, sort, results - is printed
+ * inside the landing page by `DirektoriSection`. Deleting the URL outright would have been
+ * the cheaper move and the wrong one, because that address is the one thing that outlives
+ * the code: it sits in browser history, in saved bookmarks, and in every link written
+ * before the move, including the ones the app itself used to write.
+ *
+ * So carrying the parameter is the whole job here. `?search=rina` has to arrive as
+ * `?search=rina`, because that string is what the visitor actually asked for - a redirect
+ * that dropped it would answer a search with an unfiltered table. An address with no
+ * parameter becomes `?direktori=semua`, which opens the section with the whole table: the
+ * answer an address with no question was always giving.
+ */
+export function AlihDirektori() {
+    const [params] = useSearchParams();
+
+    const tujuan = new URLSearchParams();
+    for (const kunci of ['search', 'spesialisasi'] as const) {
+        const nilai = params.get(kunci);
+        if (nilai !== null) tujuan.set(kunci, nilai);
+    }
+
+    if ([...tujuan.keys()].length === 0) tujuan.set('direktori', 'semua');
+
+    return <Navigate to={`/?${tujuan.toString()}`} replace />;
 }
 
 /**

@@ -251,7 +251,7 @@ export function ObatSection() {
                     })}
                 </div>
 
-                <TautanBagian to="/dokter" label="Konsultasikan Kebutuhan Obatmu" />
+                <TautanBagian to="/?direktori=semua" label="Konsultasikan Kebutuhan Obatmu" />
             </Bagian>
         </section>
     );

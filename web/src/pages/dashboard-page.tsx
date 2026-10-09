@@ -206,7 +206,7 @@ export function DashboardPage() {
                         />
 
                         <NavLink
-                            to="/dokter"
+                            to="/?direktori=semua"
                             icon={<Stethoscope />}
                             label="Direktori dokter"
                         />

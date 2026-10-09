@@ -385,7 +385,7 @@ function AppSidebar() {
 
                             <SidebarMenu>
                                 <MenuLink
-                                    to="/dokter"
+                                    to="/?direktori=semua"
                                     icon={Stethoscope}
                                     label="Direktori dokter"
                                     pathname={pathname}
@@ -547,7 +547,7 @@ function AppSidebar() {
                             />
 
                             <MenuLink
-                                to="/dokter"
+                                to="/?direktori=semua"
                                 icon={Stethoscope}
                                 label="Direktori dokter"
                                 pathname={pathname}

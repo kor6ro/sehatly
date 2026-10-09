@@ -44,3 +44,26 @@ export async function expectNoA11yViolations(page: Page): Promise<void> {
     // rule and the count instead of "expected 0, received 3".
     expect(summary, JSON.stringify(summary, null, 2)).toEqual([]);
 }
+
+/**
+ * Put a page carrying auto-playing motion at REST before scanning it.
+ *
+ * The landing page's carousel cross-fades every few seconds, and axe measures whatever is
+ * on screen at that instant. A slide caught halfway through its 500ms transition is
+ * half-transparent: `color-contrast` then reads a white pill against whatever the
+ * gradient underneath happens to blend into, and fails a button that is perfectly legible
+ * the moment the transition is over. WCAG asks about the resting state, so the scan is
+ * taken there - hovering is the carousel's own pause (`onMouseEnter` sets `jeda`), and
+ * the wait is one transition longer than the slowest one.
+ *
+ * This is not a way to hide a violation: anything wrong at REST still fails here, and the
+ * hero's own tests scan this page without this step.
+ */
+export async function istirahatkanGerak(page: Page): Promise<void> {
+    const karusel = page.locator('[data-slot="hero-carousel"]');
+
+    if ((await karusel.count()) === 0) return;
+
+    await karusel.hover();
+    await page.waitForTimeout(700);
+}

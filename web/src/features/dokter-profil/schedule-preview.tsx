@@ -140,7 +140,7 @@ export function SchedulePreview({ dokterId }: { dokterId: string }) {
                                     variant="outline"
                                     className="min-h-11"
                                 >
-                                    <Link to="/dokter">Lihat profil lain</Link>
+                                    <Link to="/?direktori=semua">Lihat profil lain</Link>
                                 </Button>
 
                                 {/**

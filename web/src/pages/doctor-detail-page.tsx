@@ -102,7 +102,7 @@ export function DoctorDetailPage() {
                     <NotFoundState
                         action={
                             <Button asChild variant="outline" size="sm" className="min-h-11">
-                                <Link to="/dokter">
+                                <Link to="/?direktori=semua">
                                     <ArrowLeft />
 
                                     Kembali ke direktori
@@ -126,7 +126,7 @@ export function DoctorDetailPage() {
                 />
 
                 <Button asChild variant="outline" className="min-h-11 w-fit">
-                    <Link to="/dokter">
+                    <Link to="/?direktori=semua">
                         <ArrowLeft />
 
                         Kembali ke direktori
@@ -141,7 +141,7 @@ export function DoctorDetailPage() {
     return (
         <Halaman>
             <Button asChild variant="ghost" className="min-h-11 w-fit">
-                <Link to="/dokter">
+                <Link to="/?direktori=semua">
                     <ArrowLeft />
 
                     Kembali ke direktori

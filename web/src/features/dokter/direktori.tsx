@@ -29,9 +29,7 @@ import { isEmptyPage, isPastLastPage } from '@/lib/api/pagination';
 import { ApiError } from '@/lib/http';
 import type { DokterTipe, Spesialisasi } from '@/lib/api/types';
 import { cn } from '@/lib/utils';
-import { useDocumentTitle } from '@/hooks/use-document-title';
 import { useOnlineStatus } from '@/hooks/use-online-status';
-import { PageHeader } from '@/components/layout/page-header';
 import { Pagination } from '@/components/layout/pagination';
 import { OfflineBanner } from '@/components/offline-banner';
 import { SkeletonRows } from '@/components/states/loading-state';
@@ -49,26 +47,40 @@ import {
 import { Field, FieldInput } from '@/components/form/field';
 
 /**
- * `/dokter` - the public directory, readable with no session at all.
+ * The public doctor directory - the whole of the screen that used to live at `/dokter`,
+ * now printed INSIDE the landing page by `DirektoriSection`.
  *
- * ## Why this route is outside the auth guard
+ * ## Why it moved, and why nothing was trimmed on the way
+ *
+ * A visitor who types a doctor's name, or picks "Dokter Gigi" out of the header's rail, has
+ * asked ONE question. Sending them to a separate page answered it by handing them a new
+ * document, a new title, and a Back button to remember - so the page is gone and its
+ * CONTENT is this component: the search field, the type/biaya/rating filters, the sort, the
+ * count, the cards, the pagination, and every offline, empty and error state they were
+ * built with. This is not a reduced copy of that screen; it IS that screen, moved. The only
+ * thing left behind is the page chrome - `PageHeader` and the document title - because a
+ * heading inside the home page belongs to the home page, and `DirektoriSection` supplies it.
+ *
+ * ## Why it is still public
  *
  * `DokterController` states it directly: the directory is public, and putting
  * `permission:dokter.lihat` on it would answer 401 to every anonymous visitor because
  * `EnsurePermission` needs an authenticated principal - the opposite of what a
  * pre-authentication browse page needs. It would also lock out `perawat` and `kurir`, which
- * are real `users.tipe` values holding no role.
- *
- * So this screen is reachable signed-out, which is also what makes it the honest place to
- * demonstrate the 404 behaviour: no session is involved at all.
+ * are real `users.tipe` values holding no role. Living on the landing page changes none of
+ * that: the section renders for a signed-out visitor exactly as the page did, which is also
+ * what keeps the 404 behaviour demonstrable with no session involved at all.
  *
  * ## F03: the search is state, never a URL
  *
  * `web/ux/patterns/F03.md` §9 forbids a free-text doctor search in a shareable URL,
- * because "kanker" is a condition and a URL is copied into chats. The submitted query
- * therefore lives in `sessionStorage`, which survives the reload AC-1 requires without
- * putting the term in the address bar or the tab title. Filters stay in component state
- * (the §12 #5 URL-shareability decision is still open and this page does not take it).
+ * because "kanker" is a condition and a URL is copied into chats. The query typed INSIDE
+ * the directory therefore lives in `sessionStorage`, and comes back only on a RELOAD of
+ * the address it was typed on - the one case AC-1 asks it to survive. It is no longer the
+ * only voice: a search made in the header's bar does put `?search=` in the address, and
+ * `?direktori=semua` means "everything", so `bacaKueriTersimpan` stays out of the way
+ * whenever the URL is speaking. Filters stay in component state (the §12 #5
+ * URL-shareability decision is still open).
  *
  * ## Desktop filters are live, mobile filters are drafted
  *
@@ -103,8 +115,28 @@ const PILIHAN_KOSONG: PilihanFilter = {
     sort: DEFAULT_SORT,
 };
 
+/**
+ * The query a visitor typed survives a RELOAD of the address they typed it on - and
+ * nothing else brings it back.
+ *
+ * AC-1 asks for exactly that: F03 §9 keeps the free-text query out of the URL, so a
+ * reload would otherwise arrive with no memory of the question. But the directory now
+ * lives on the landing page, where one address is opened with several intents: "Lihat
+ * semua dokter", the drawer's entry and an empty search all arrive at `/?direktori=semua`,
+ * and so does the reload of a search made there. Restoring the query in every case would
+ * answer "show me everything" with a filter the visitor cannot see. A reload is the one
+ * moment where they are asking for the state they just had; a fresh load of an address
+ * may be asking for anything, and the URL - which now carries `?search=` when a search
+ * came from the bar - is the only thing allowed to speak for the rest.
+ */
 function bacaKueriTersimpan(): string {
     try {
+        const navigasi = performance.getEntriesByType('navigation')[0] as
+            | PerformanceNavigationTiming
+            | undefined;
+
+        if (navigasi?.type !== 'reload') return '';
+
         return window.sessionStorage.getItem(SIMPANAN_KUERI) ?? '';
     } catch {
         return '';
@@ -124,9 +156,7 @@ function simpanKueriTersimpan(kueri: string): void {
     }
 }
 
-export function DoctorDirectoryPage() {
-    useDocumentTitle('Direktori dokter | Sehatly');
-
+export function DirektoriDokter() {
     const online = useOnlineStatus();
 
     const [page, setPage] = useState(1);
@@ -422,11 +452,6 @@ export function DoctorDirectoryPage() {
 
     return (
         <>
-            <PageHeader
-                title="Direktori dokter"
-                description="Temukan dokter yang tepat, lalu pesan jadwal konsultasi."
-            />
-
             {/**
              * The wrapper carries the id the offline controls point at through
              * `aria-describedby`. `OfflineBanner` renders `null` while online, so the

@@ -157,25 +157,36 @@ const LAYANAN: NavItem[] = [
     },
 ];
 
-/** The one nav entry that needs no session at all. */
-const DIREKTORI = '/dokter';
+/**
+ * Where "the doctor directory" is now: a section of the LANDING PAGE, opened by a
+ * parameter. `/dokter` used to be a page of its own; it is retired, its address forwards
+ * here, and every link in the app that means "show me the doctors" points at this address
+ * instead of at a redirect.
+ *
+ * `?direktori=semua` opens the section with NO filter - the whole table - which is what
+ * "Lihat semua dokter" in the panel, the drawer's entry on a phone, and an empty search
+ * all mean. A pick or a query opens it filtered instead: see `pilihanSpesialisasi` and
+ * `pencarianDirektori`.
+ */
+const DIREKTORI = '/?direktori=semua';
 
 /**
  * Where a specialisation row and a "Sering dicari" shortcut point: the LANDING PAGE,
- * carrying the choice as `?spesialisasi=`, not the directory.
+ * carrying the choice as `?spesialisasi=`.
  *
  * Picking "Dokter Gigi" used to be a link into `/dokter` - a full page with its own
  * search, filters and pagination, in front of a visitor who had asked one question. The
  * destination is now this same route, so the panel closes, the page never reloads, and
- * `LandingPage` prints the six doctors that answer the question where the visitor
+ * `DirektoriSection` prints the doctors that answer the question where the visitor
  * already is. It stays a plain `<a href>` rather than a click handler: shareable,
  * Back-able, keyboard-reachable, and honest about where it goes.
- *
- * The directory is not cut off - `DokterPilihanSection` carries the one link out to
- * `/dokter?spesialisasi=…`, which is where the rest of the table lives.
  */
 const pilihanSpesialisasi = (kode: string) =>
     `/?spesialisasi=${encodeURIComponent(kode)}`;
+
+/** Where a search in the bar goes: the same section, showing one free-text query. */
+const pencarianDirektori = (kueri: string) =>
+    `/?search=${encodeURIComponent(kueri)}`;
 
 function navLinkClass({ isActive }: { isActive: boolean }): string {
     return cn(
@@ -715,12 +726,13 @@ function GridPromoPanel({
  *
  * ## Why the title row's "Lihat semua" is an anchor and not a route
  *
- * The directory's see-all points at `/dokter`, which has an index page. The services
- * have none - a `/layanan` URL would be a registered destination that resolves to
- * nothing - so this one jumps to `#solusi`, the landing's own six-tile section, which is
- * the index it is promising. The directory carries the sixth tile the rail deliberately
- * leaves out, which makes the jump a truthful "all of them" rather than one of the five
- * wearing a different hat.
+ * The directory's see-all opens its own section on this same page (`/?direktori=semua`),
+ * which is an index in the real sense: the whole table, with its search and its filters.
+ * The services have none - a `/layanan` URL would be a registered destination that
+ * resolves to nothing - so this one jumps to `#solusi`, the landing's own six-tile
+ * section, which is the index it is promising. The landing page carries the sixth tile the
+ * rail deliberately leaves out, which makes the jump a truthful "all of them" rather than
+ * one of the five wearing a different hat.
  *
  * Every destination is honest about what it is: a route registered in `app/router.tsx`
  * - a signed-out visitor who picks one still lands on `RequireAuth` and its `/login`, the
@@ -965,11 +977,13 @@ function NavDropdownLaci({
  *
  * ## Why it stopped being a link on the desktop
  *
- * As a `<NavLink>` the first pointer-down on this entry threw the visitor onto `/dokter`
- * - search, filters, result cards - before they knew what the directory held: the menu
- * WAS the destination instead of being the choice. Hovering now reveals the choices
- * first. The rules that keep it usable without a pointer (focus, Escape, the sheet) are
- * {@link NavPanelEntry}'s, not repeated here.
+ * As a `<NavLink>` the first pointer-down on this entry threw the visitor onto a full
+ * directory - search, filters, result cards - before they knew what it held: the menu WAS
+ * the destination instead of being the choice. The directory now lives as a section of
+ * this very page, so a link here would no longer leave the landing page at all - but the
+ * shape stands for its own reason: sixteen specialisations cannot be chosen from a single
+ * word. Hovering reveals the choices first. The rules that keep it usable without a
+ * pointer (focus, Escape, the sheet) are {@link NavPanelEntry}'s, not repeated here.
  *
  * ## Why the panel spans the bar instead of hugging the trigger
  *
@@ -1325,18 +1339,18 @@ function NavList({
 /**
  * The search field in the middle of the bar's FIRST row.
  *
- * ## Where a search goes, and why it is `/dokter`
+ * ## Where a search goes, and why it is the landing page's directory
  *
- * The directory is the only screen in the product that ANSWERS a query - it carries a
+ * The directory is the only part of the product that ANSWERS a query - it carries a
  * `search` box of its own, and `GET /dokter` takes `search` as a parameter - so a header
- * field searching anything else would be a field that pretends. The form navigates to
- * `/dokter?search=…`, and the directory seeds its own input from that parameter exactly
- * as it already seeds `?spesialisasi=` from the panel's rail: the URL states what the
- * page is showing, which is also what keeps the browser's Back button honest about where
- * a search came from.
+ * field searching anything else would be a field that pretends. The form opens the
+ * directory section of THIS page with `?search=…`, and `DirektoriDokter` seeds its own
+ * input from that parameter exactly as it seeds `?spesialisasi=` from the panel's rail:
+ * the URL states what the screen is showing, which is also what keeps the browser's Back
+ * button honest about where a search came from.
  *
- * An empty query goes to `/dokter` with NO parameter rather than to `?search=`: a
- * parameter carrying nothing is a URL claiming the visitor searched for the empty string.
+ * An empty query opens the section with `?direktori=semua` rather than with `?search=`:
+ * a parameter carrying nothing is a URL claiming the visitor searched for the empty string.
  *
  * ## Why it is a form and not a per-keystroke request
  *
@@ -1366,11 +1380,7 @@ function PencarianBar({
                 event.preventDefault();
 
                 const bersih = kueri.trim();
-                navigate(
-                    bersih === ''
-                        ? DIREKTORI
-                        : `${DIREKTORI}?search=${encodeURIComponent(bersih)}`,
-                );
+                navigate(bersih === '' ? DIREKTORI : pencarianDirektori(bersih));
                 onCari?.();
             }}
             className={cn(

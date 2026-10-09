@@ -1,7 +1,7 @@
 import { createBrowserRouter } from 'react-router';
 import { AppShell } from '@/app/app-shell';
 import { RouteErrorBoundary } from '@/app/error-boundary';
-import { NotFoundPage, RequireAuth } from '@/app/guards';
+import { AlihDirektori, NotFoundPage, RequireAuth } from '@/app/guards';
 import { RootLayout } from '@/app/root-layout';
 import { LandingPage } from '@/pages/landing-page';
 import { LoginPage } from '@/pages/login-page';
@@ -12,7 +12,6 @@ import { ProfilePage } from '@/pages/profile-page';
 import { DevicesPage } from '@/pages/devices-page';
 import { FamilyPage } from '@/pages/family-page';
 import { AllergyPage } from '@/pages/allergy-page';
-import { DoctorDirectoryPage } from '@/pages/doctor-directory-page';
 import { DoctorDetailPage } from '@/pages/doctor-detail-page';
 import { MyBookingsPage } from '@/pages/my-bookings-page';
 import { BookingCreatePage } from '@/pages/booking-create-page';
@@ -126,11 +125,23 @@ export const router = createBrowserRouter([
                 errorElement: <RouteErrorBoundary />,
             },
 
-            // Public, because `DokterController` is public by the plan's instruction.
+            /**
+             * The doctor directory's old address, kept as an address and nothing else.
+             *
+             * The page named by that path was deleted: its content - the
+             * search field, the type/biaya/rating filters, the sort, the count, the cards
+             * and the pagination - is printed on the landing page by `DirektoriSection`,
+             * which a pick in the header's panel opens with `?spesialisasi=` and a search
+             * in the bar opens with `?search=`. Dropping this entry instead would have
+             * turned a saved bookmark and every link the old code wrote into a 404, so the
+             * path stays and `AlihDirektori` forwards it with its parameter intact.
+             *
+             * `/dokter/:id` below is the detail page, which never moved: a doctor's
+             * profile is a destination of its own, and it is where a booking starts.
+             */
             {
                 path: '/dokter',
-                element: <DoctorDirectoryPage />,
-                errorElement: <RouteErrorBoundary />,
+                element: <AlihDirektori />,
             },
             {
                 path: '/dokter/:id',
@@ -139,8 +150,8 @@ export const router = createBrowserRouter([
             },
 
             /**
-             * F02's two static documents. They are public for the same reason `/dokter`
-             * is: registration links to them, and a prospective patient has no session
+             * F02's two static documents. They are public for the same reason the
+             * directory always was: registration links to them, and a prospective patient has no session
              * yet. No endpoint serves document text, so there is no fetch to fail and
              * nothing to gate.
              */
@@ -236,7 +247,7 @@ export const router = createBrowserRouter([
                             /**
                              * Module 2. All three sit inside `RequireAuth` and therefore
                              * inside `AppShell`, because all four booking endpoints
-                             * carry `auth:sanctum` and a `permission:` - unlike `/dokter`
+                             * carry `auth:sanctum` and a `permission:` - unlike `/dokter/:id`
                              * above, which is deliberately public.
                              *
                              * `/booking/:dokterId` carries the doctor's id as a `string`,
@@ -267,7 +278,7 @@ export const router = createBrowserRouter([
                                  * is a distinct route from `/dokter/:id` above - the
                                  * dashboard sits INSIDE `RequireAuth`/`AppShell`
                                  * because every endpoint behind it is authenticated,
-                                 * while `/dokter/:id` is the public directory.
+                                 * while `/dokter/:id` is a doctor's public profile.
                                  */
                                 path: '/dokter/dashboard',
                                 element: <DokterDashboardPage />,

@@ -1,6 +1,6 @@
 import { mkdirSync } from 'node:fs';
 import { expect, test, type Page, type Route } from '@playwright/test';
-import { expectNoA11yViolations } from './a11y';
+import { expectNoA11yViolations, istirahatkanGerak } from './a11y';
 
 /**
  * F03 (cari dokter dan filter) mocked end to end at 390x844 and 1280x900.
@@ -11,6 +11,15 @@ import { expectNoA11yViolations } from './a11y';
  * "Rina", eight results for one specialisation, zero results for a combined filter, a 500
  * on page three, and a count that changes while the request is still in flight. Mocking also
  * keeps the privacy fixture ("kanker") out of any real server.
+ *
+ * ## Where the tests open it
+ *
+ * The directory has no page of its own any more: it is a section of the landing page,
+ * opened by `?direktori=semua`, and `/dokter` forwards there carrying `?search=` and
+ * `?spesialisasi=`. So `bukaDirektori` opens `/?direktori=semua` - the address the app
+ * itself writes - and `f03-alamat-lama-mengalihkan-ke-beranda` locks the forward. Nothing
+ * else in these criteria knows the difference: every selector here was already the
+ * directory's own, and a section is allowed to use all of them.
  *
  * ## What the F03 backend commit unblocked
  *
@@ -361,10 +370,16 @@ function punyaPermintaan(
     return state.permintaanDokter.some((url) => cek(new URL(url).searchParams));
 }
 
+/**
+ * The directory as this spec finds it: a section of the LANDING PAGE, opened by
+ * `?direktori=semua`. `/dokter` is retired and forwards to exactly this address (see
+ * `AlihDirektori`), so the tests open the address the app itself writes; the forward has
+ * its own test below, `f03-alamat-lama-mengalihkan-ke-beranda`.
+ */
 async function bukaDirektori(page: Page, opsi: OpsiMock = {}): Promise<State> {
     const state = await pasangMock(page, opsi);
 
-    await page.goto('/dokter');
+    await page.goto('/?direktori=semua');
 
     await expect(page.locator('[data-slot="dokter-count"]')).toContainText(
         'dokter ditemukan.',
@@ -506,6 +521,47 @@ for (const vp of VIEWPORTS) {
         });
 
         test.setTimeout(60_000);
+
+        /**
+         * The promise that made deleting the page safe: the OLD address still works.
+         *
+         * `?search=` has to survive the forward, because that parameter is the visitor's
+         * question - a redirect that dropped it would answer a search with the whole
+         * table. A bare `/dokter` becomes `?direktori=semua`, which is the whole table:
+         * what an address carrying no question always showed.
+         */
+        test('f03-alamat-lama-mengalihkan-ke-beranda', async ({ page }) => {
+            const state = await pasangMock(page);
+
+            await page.goto('/dokter');
+
+            await expect(page).toHaveURL('/?direktori=semua');
+
+            await expect(page.locator('[data-slot="dokter-count"]')).toContainText(
+                'dokter ditemukan.',
+                { timeout: 15_000 },
+            );
+            await expect(
+                page.getByRole('heading', { name: 'Direktori Dokter', level: 2 }),
+            ).toBeVisible();
+
+            expect(
+                state.permintaanDokter.filter(
+                    (url) => new URL(url).searchParams.get('search') !== null,
+                ),
+            ).toHaveLength(0);
+
+            await page.goto('/dokter?search=Rina');
+
+            await expect(page).toHaveURL('/?search=Rina');
+
+            await expect(page.locator('[data-slot="dokter-cari"]')).toHaveValue('Rina');
+            await expect(page.locator('[data-slot="dokter-count"]')).toContainText(
+                '1 dokter ditemukan.',
+            );
+
+            await expectNoA11yViolations(page);
+        });
 
         test('f03-ac1-cari-submit', async ({ page }) => {
             const state = await bukaDirektori(page);
@@ -809,6 +865,7 @@ for (const vp of VIEWPORTS) {
                 '8 dokter ditemukan.',
             );
 
+            await istirahatkanGerak(page);
             await expectNoA11yViolations(page);
         });
 
@@ -1160,6 +1217,7 @@ for (const vp of VIEWPORTS) {
                 await expect(page.locator('[data-slot="dokter-count"]')).toContainText(
                     'dokter ditemukan.',
                 );
+                await istirahatkanGerak(page);
                 await expectNoA11yViolations(page);
             }
 
@@ -1184,7 +1242,10 @@ for (const vp of VIEWPORTS) {
                 '0 dokter ditemukan.',
             );
 
-            expect(await page.title()).toBe('Direktori dokter | Sehatly');
+            // The directory lives on the landing page now, so the title is the home
+            // page's - AC-13 asks that the QUERY stay out of the address bar and the
+            // tab, and a title that never carried it still does not.
+            expect(await page.title()).toBe('Beranda | Sehatly');
             expect(page.url()).not.toContain(KATA_UJI);
 
             const label = await page.evaluate(() =>

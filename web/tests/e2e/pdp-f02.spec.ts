@@ -816,7 +816,10 @@ for (const vp of VIEWPORTS) {
 
             await expectNoA11yViolations(page);
 
-            await page.goto('/dokter');
+            // The directory is still public after the move: it is a section of the
+            // landing page now, and a gate that had spread to it would have blocked a
+            // visitor's very first question instead of only the booking.
+            await page.goto('/?direktori=semua');
 
             await expect(page.locator('[data-slot="forbidden-state"]')).toHaveCount(0);
         });
