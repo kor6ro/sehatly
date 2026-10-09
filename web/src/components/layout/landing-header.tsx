@@ -160,6 +160,23 @@ const LAYANAN: NavItem[] = [
 /** The one nav entry that needs no session at all. */
 const DIREKTORI = '/dokter';
 
+/**
+ * Where a specialisation row and a "Sering dicari" shortcut point: the LANDING PAGE,
+ * carrying the choice as `?spesialisasi=`, not the directory.
+ *
+ * Picking "Dokter Gigi" used to be a link into `/dokter` - a full page with its own
+ * search, filters and pagination, in front of a visitor who had asked one question. The
+ * destination is now this same route, so the panel closes, the page never reloads, and
+ * `LandingPage` prints the six doctors that answer the question where the visitor
+ * already is. It stays a plain `<a href>` rather than a click handler: shareable,
+ * Back-able, keyboard-reachable, and honest about where it goes.
+ *
+ * The directory is not cut off - `DokterPilihanSection` carries the one link out to
+ * `/dokter?spesialisasi=…`, which is where the rest of the table lives.
+ */
+const pilihanSpesialisasi = (kode: string) =>
+    `/?spesialisasi=${encodeURIComponent(kode)}`;
+
 function navLinkClass({ isActive }: { isActive: boolean }): string {
     return cn(
         'inline-flex items-center rounded-lg px-3 py-2 text-[15px] font-medium transition-colors',
@@ -1113,7 +1130,7 @@ function PanelDirektori({ hover }: { hover: NavHover }) {
                                 return (
                                     <li key={baris.kode}>
                                         <Link
-                                            to={`/dokter?spesialisasi=${encodeURIComponent(baris.kode)}`}
+                                            to={pilihanSpesialisasi(baris.kode)}
                                             onClick={hover.tutup}
                                             onFocus={() => setSorot(i)}
                                             onMouseEnter={() => setSorot(i)}
@@ -1165,7 +1182,7 @@ function PanelDirektori({ hover }: { hover: NavHover }) {
                                 return (
                                     <li key={pintasan.label}>
                                         <Link
-                                            to={`/dokter?spesialisasi=${encodeURIComponent(master.kode)}`}
+                                            to={pilihanSpesialisasi(master.kode)}
                                             onClick={hover.tutup}
                                             className="hover:bg-secondary text-muted-foreground hover:text-foreground block rounded-md px-2 py-1.5 text-sm transition-colors"
                                         >

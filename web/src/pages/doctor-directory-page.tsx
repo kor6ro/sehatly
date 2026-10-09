@@ -10,18 +10,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
-import {
-    Award,
-    Check,
-    MessageSquare,
-    RefreshCw,
-    Search,
-    SlidersHorizontal,
-    Star,
-    Stethoscope,
-    Video,
-    X,
-} from 'lucide-react';
+import { Check, RefreshCw, Search, SlidersHorizontal, X } from 'lucide-react';
 import {
     cariMasterPopuler,
     DEFAULT_SORT,
@@ -35,9 +24,9 @@ import {
     type DokterFilters,
     type SortDokter,
 } from '@/lib/api/dokter';
+import { DoctorCard } from '@/components/dokter/doctor-card';
 import { isEmptyPage, isPastLastPage } from '@/lib/api/pagination';
 import { ApiError } from '@/lib/http';
-import { formatDecimal, formatRupiah } from '@/lib/format';
 import type { DokterTipe, Spesialisasi } from '@/lib/api/types';
 import { cn } from '@/lib/utils';
 import { useDocumentTitle } from '@/hooks/use-document-title';
@@ -50,7 +39,6 @@ import { EmptyState } from '@/components/states/empty-state';
 import { ErrorState } from '@/components/states/error-state';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import {
     Select,
     SelectContent,
@@ -1142,117 +1130,6 @@ function PanelFilterMobile({
                 </DialogPrimitive.Content>
             </DialogPrimitive.Portal>
         </DialogPrimitive.Root>
-    );
-}
-
-/**
- * One result card.
- *
- * The `Tersedia telemedisin` badge is drawn for every card because eligibility is enforced
- * server-side: `v_dokter_katalog` only publishes verified, active, STR-valid doctors with
- * `tersedia_telemedisin = 1`, so a card in this list cannot be anything else.
- *
- * `pengalaman_tahun` and `jumlah_ulasan` are the two fields the F03 backend commit added to
- * the list projection, and both are drawn **only when positive**. `DokterResource` int-casts
- * both, so a `NULL` column arrives as `0`; printing "0 tahun pengalaman" would present an
- * unfilled column as a fact, and "0 ulasan" would be a scoreboard for a doctor who has
- * simply not been reviewed. Omitting the badge is the honest reading of both zeros, and it
- * is one rule applied to both counts rather than two different policies.
- */
-function DoctorCard({
-    id,
-    nama,
-    tipe,
-    spesialisasi,
-    biaya,
-    rating,
-    konsultasi,
-    pengalaman,
-    ulasan,
-}: {
-    id: number;
-    nama: string;
-    tipe: DokterTipe;
-    /**
-     * The view's `GROUP_CONCAT` string, or `null`. It is `null` and not `[]` for a doctor
-     * with no `dokter_spesialisasi` row, so the card says "Spesialisasi belum dicatat"
-     * rather than rendering an empty list with no explanation.
-     */
-    spesialisasi: string | null;
-    biaya: number | string | null;
-    rating: number | string | null;
-    konsultasi: number;
-    /** `dokter.pengalaman_tahun`, `0` when unset. Optional so a stale cached row cannot crash the card. */
-    pengalaman?: number | null;
-    /** Recomputed review count from `ulasan_dokter`; `0` means no reviews yet. */
-    ulasan?: number | null;
-}) {
-    const pengalamanTampil =
-        typeof pengalaman === 'number' && pengalaman > 0 ? pengalaman : null;
-    const ulasanTampil = typeof ulasan === 'number' && ulasan > 0 ? ulasan : null;
-
-    return (
-        <Card className="h-full" data-slot="dokter-kartu">
-            <CardContent className="flex h-full flex-col gap-3">
-                <div className="flex flex-col gap-1">
-                    <Link
-                        to={`/dokter/${String(id)}`}
-                        className="text-base font-medium underline-offset-4 hover:underline"
-                    >
-                        {nama}
-                    </Link>
-
-                    <p className="text-muted-foreground text-sm">
-                        {labelTipeDokter(tipe)}
-                    </p>
-                </div>
-
-                <p className="text-sm">
-                    {spesialisasi === null || spesialisasi === ''
-                        ? 'Spesialisasi belum dicatat'
-                        : spesialisasi}
-                </p>
-
-                <div className="mt-auto flex flex-wrap items-center gap-2">
-                    <Badge variant="secondary" data-slot="dokter-biaya">
-                        Mulai {formatRupiah(biaya)}
-                    </Badge>
-
-                    <Badge variant="outline">
-                        <Star aria-hidden className="size-3" />
-
-                        {formatDecimal(rating, 2)}
-                    </Badge>
-
-                    {pengalamanTampil === null ? null : (
-                        <Badge variant="outline" data-slot="dokter-pengalaman">
-                            <Award aria-hidden className="size-3" />
-
-                            {`${String(pengalamanTampil)} tahun pengalaman`}
-                        </Badge>
-                    )}
-
-                    {ulasanTampil === null ? null : (
-                        <Badge variant="outline" data-slot="dokter-ulasan">
-                            <MessageSquare aria-hidden className="size-3" />
-
-                            {`${String(ulasanTampil)} ulasan`}
-                        </Badge>
-                    )}
-
-                    <Badge variant="outline">
-                        <Stethoscope aria-hidden className="size-3" />
-
-                        {`${String(konsultasi)} konsultasi`}
-                    </Badge>
-
-                    <Badge variant="outline" className="border-success/60">
-                        <Video aria-hidden className="text-success size-3" />
-                        Tersedia telemedisin
-                    </Badge>
-                </div>
-            </CardContent>
-        </Card>
     );
 }
 

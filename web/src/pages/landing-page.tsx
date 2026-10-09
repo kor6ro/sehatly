@@ -1,9 +1,11 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router';
 import { LandingHeader } from '@/components/layout/landing-header';
 import { LoginDialog } from '@/components/auth/login-dialog';
 import { Toaster } from '@/components/ui/sonner';
 import { useDocumentTitle } from '@/hooks/use-document-title';
 import { HeroCarousel } from '@/features/landing/hero-carousel';
+import { DokterPilihanSection } from '@/features/landing/dokter-pilihan';
 import { LandingFooter } from '@/features/landing/landing-footer';
 import {
     ArtikelSection,
@@ -51,6 +53,24 @@ export function LandingPage() {
     useDocumentTitle('Beranda | Sehatly');
 
     const [loginOpen, setLoginOpen] = useState(false);
+    const [params, setParams] = useSearchParams();
+
+    /**
+     * `?spesialisasi=` is this page's own state, not a filter aimed at another screen.
+     *
+     * The header's rail and its "Sering dicari" shortcuts point here (`/?spesialisasi=…`)
+     * rather than at `/dokter`, because a visitor who picks "Dokter Gigi" has asked one
+     * question and does not need the directory's search, sort and pagination to answer it.
+     * A query parameter rather than component state keeps the pick a real link: shareable,
+     * Back-able, and reachable with the keyboard like any other anchor.
+     */
+    const spesialisasi = params.get('spesialisasi');
+
+    const tutupPilihan = () => {
+        const berikut = new URLSearchParams(params);
+        berikut.delete('spesialisasi');
+        setParams(berikut);
+    };
 
     return (
         <div className="bg-background flex min-h-screen flex-col">
@@ -58,6 +78,8 @@ export function LandingPage() {
 
             <main className="flex-1">
                 <HeroCarousel />
+
+                <DokterPilihanSection kode={spesialisasi} onTutup={tutupPilihan} />
 
                 <SolusiSection />
                 <PromoSection />

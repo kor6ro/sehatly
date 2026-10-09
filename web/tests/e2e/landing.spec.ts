@@ -85,9 +85,12 @@ async function sampelPiksel(
  *    carries the tabs - uppercase, bare of chevrons, ruled underneath only while their
  *    panel is open, and starting on the same pixel as the wordmark. The search opens
  *    `/dokter?search=…` because the directory is the only screen that can answer a
- *    query, and the directory seeds its own field from that parameter the way it already
- *    seeds `?spesialisasi=` from the rail: a field pointing at a screen that ignored it
- *    would be a field that pretends, and the pretence would break nothing else here.
+ *    free-text query, and the directory seeds its own field from that parameter: a field
+ *    pointing at a screen that ignored it would be a field that pretends. The RAIL is the
+ *    other way round - a picked specialisation stays on this page (`/?spesialisasi=…`,
+ *    printed by `DokterPilihanSection`), because a visitor who chose "Dokter Gigi" asked
+ *    one question and should not be handed the directory's search, sort and pagination to
+ *    read the answer. The directory keeps its link, inside that section, already filtered.
  *    Below `md` the bar drops the field and the drawer carries its own copy of the same
  *    form, so "add a search" never quietly means "add a search to viewports 1024 and up".
  *
@@ -241,7 +244,7 @@ test.describe('Landing page (/)', () => {
      * Clicking a specialisation is the payoff: a pre-filtered directory, which is the
      * one promise the panel makes that the old link could not.
      */
-    test('f00-landing-nav-direktori-terbuka-saat-hover-lalu-membuka-direktori-terfilter', async ({
+    test('f00-landing-nav-direktori-pilihan-dokter-muncul-di-beranda', async ({
         page,
     }) => {
         await page.goto('/');
@@ -258,8 +261,10 @@ test.describe('Landing page (/)', () => {
         await expect(trigger).toHaveAttribute('aria-expanded', 'true');
         await expect(page).toHaveURL(/\/$/);
 
-        // Both kinds of choice the panel offers, before anything is clicked.
-        await expect(panel.locator('a[href^="/dokter?spesialisasi="]').first()).toBeVisible();
+        // Both kinds of choice the panel offers, before anything is clicked. The rail's
+        // rows address THIS page now: a picked specialisation is printed on the landing
+        // page, and the directory is one link away from inside that section.
+        await expect(panel.locator('a[href^="/?spesialisasi="]').first()).toBeVisible();
         await expect(
             panel.getByRole('link', { name: /Lihat semua dokter/ }),
         ).toBeVisible();
@@ -294,15 +299,54 @@ test.describe('Landing page (/)', () => {
         expect(terpotong).toEqual([]);
 
         // Into the panel: still open, still on `/`.
-        const pilihan = panel.locator('a[href^="/dokter?spesialisasi="]').first();
+        const pilihan = panel.locator('a[href^="/?spesialisasi="]').first();
+        const kode = new URLSearchParams(
+            (await pilihan.getAttribute('href'))?.split('?')[1] ?? '',
+        ).get('spesialisasi');
+
         await pilihan.hover();
         await expect(panel).toBeVisible();
         await expect(page).toHaveURL(/\/$/);
 
+        /**
+         * THE POINT OF THE CHANGE. Picking a specialisation used to be a link into
+         * `/dokter` - a page whose search, sort and pagination all answered questions the
+         * visitor had not asked. Now the address gains `?spesialisasi=`, the pathname
+         * stays `/`, and the section that prints the answer appears where the visitor
+         * already is.
+         */
         await pilihan.click();
 
-        await expect(page).toHaveURL(/\/dokter\?spesialisasi=/);
-        await expect(page.locator('[data-slot="dokter-chip"]')).toBeVisible();
+        await expect(page).toHaveURL(/\?spesialisasi=/);
+        expect(
+            new URL(page.url()).pathname,
+            'memilih spesialisasi tidak boleh pindah halaman',
+        ).toBe('/');
+
+        const seksi = page.locator('[data-slot="landing-dokter-pilihan"]');
+        await expect(seksi).toBeVisible();
+        await expect(seksi.getByRole('heading', { level: 2 })).toBeVisible();
+
+        /**
+         * The preview is one of two honest states - real cards, or the sentence saying
+         * there are none - because whether the fixture database holds doctors for this
+         * specialisation is not this test's to assume. What neither state may be is
+         * blank.
+         */
+        await expect(
+            seksi
+                .locator('[data-slot="dokter-kartu"]')
+                .first()
+                .or(seksi.getByText('Belum ada dokter terverifikasi')),
+        ).toBeVisible();
+
+        /**
+         * And the directory is still one click away, pre-filtered with the very same
+         * code: the preview promises six, the directory answers the rest of the table.
+         */
+        await expect(
+            seksi.locator('[data-slot="landing-dokter-pilihan-semua"]'),
+        ).toHaveAttribute('href', `/dokter?spesialisasi=${kode ?? ''}`);
     });
 
     /**
