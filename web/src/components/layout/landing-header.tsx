@@ -174,13 +174,14 @@ function navLinkClass({ isActive }: { isActive: boolean }): string {
  * buttons: small, uppercase, and carrying the underline that sits on the bar's own
  * bottom edge.
  *
- * Row two is 36px, which is measured rather than chosen: the reference's wordmark
- * centres on y=35 (so its row one is 70) and its open plate runs y=71 into the panel
- * at y=107. The padding below is what buys that number - `pt-2.5` + a 16px line +
- * `pb-2` + the 2px rule - and the bottom gap is counted WITH the rule so the word sits
- * centred in the plate rather than 2px high. 44px, which is what the natural `pt-3.5`
- * + `pb-3` gives, makes the header a stack taller than the one it is drawn from and
- * drops the panel's top edge 8px below the reference's.
+ * Row two is 36px, which is measured rather than chosen: in the reference the open
+ * plate runs y=71 down through its 4px rule at y=102..105, one lip of white at y=106,
+ * and the panel at y=107. `pt-2.5` + a 16px line + `pb-[5px]` + that 4px rule + a 1px
+ * lip reproduces those rows exactly - the last two living on the inner span, see
+ * {@link navTabRuleClass} - and with row one at 71 the header ends on 107, which is
+ * where the reference's panel begins. 44px, which is what the natural `pt-3.5` +
+ * `pb-3` gives, makes the header a stack taller than the one it is drawn from and
+ * pushes that edge down.
  *
  * ## Why `isActive` is the panel's `open`, not the route
  *
@@ -195,10 +196,18 @@ function navLinkClass({ isActive }: { isActive: boolean }): string {
  * While a panel is open the bar is behind the veil (see {@link LandingHeader}), and a
  * tab that is merely underlined would be a dark word floating in a grey field with a
  * white panel hanging below it - two objects that look unrelated. The reference cuts
- * the open tab out of the dim instead: a solid `bg-popover` rectangle, rounded at the
- * TOP only, carrying the black rule on its bottom edge. Tab, rule and panel are then
- * one white shape with a line drawn across it, which is what makes the menu read as a
- * single object rather than a label and a box.
+ * the open tab out of the dim instead: a solid `bg-popover` rectangle, rounded 16px at
+ * the TOP only - measured on the plate's first row, y=71, where its white begins 16px
+ * inside its left edge, which the `rounded-t-md` corner this started with would not do.
+ * Tab, rule and panel are then one white shape with a line drawn across it, which is
+ * what makes the menu read as a single object rather than a label and a box.
+ *
+ * The rule itself lives on an inner span ({@link navTabRuleClass}) rather than as this
+ * button's `border-b`, because in the reference the rule is exactly as wide as its
+ * WORDS: "Wanita" sets 309..364, its rule is drawn 309..364, and the plate around them
+ * runs 293..380. A border on the button would draw the line from plate edge to plate
+ * edge instead - the words underlined with sixteen more pixels of ink on each side,
+ * which reads as a bar rather than as an underline.
  *
  * `bg-popover` and not `bg-card` because the panel it has to match uses `bg-popover`;
  * they are the same colour in both themes today, and a tab that matched card while the
@@ -212,11 +221,22 @@ function navLinkClass({ isActive }: { isActive: boolean }): string {
  */
 function navTabClass({ isActive }: { isActive: boolean }): string {
     return cn(
-        'inline-flex items-center border-b-2 px-3 pb-2 pt-2.5 text-xs font-semibold tracking-wide uppercase transition-colors',
-        isActive
-            ? 'rounded-t-md border-foreground bg-popover text-foreground'
-            : 'border-transparent text-foreground/65 hover:text-foreground',
+        'inline-flex items-center px-4 pt-2.5 pb-px text-xs font-semibold tracking-wide uppercase transition-colors',
+        isActive ? 'rounded-t-2xl bg-popover text-foreground' : 'text-foreground/65 hover:text-foreground',
     );
+}
+
+/**
+ * The black rule under a tab's words. Two measurements decide it: the reference's rule
+ * is FOUR solid rows (y=102..105) with the line box ending at y=97, so `pb-[5px]` is
+ * the gap that keeps the ink off the letters; and it is exactly as wide as the words -
+ * drawn 309..364 under words set 309..364 - which is why it lives on this span rather
+ * than as the button's own border, where the plate's 16px of padding would be inked
+ * too. The button carries `pb-px` under all of this, the reference's single lip of
+ * white between the rule and the panel it belongs to.
+ */
+function navTabRuleClass({ isActive }: { isActive: boolean }): string {
+    return cn('border-b-4 pb-[5px]', isActive ? 'border-foreground' : 'border-transparent');
 }
 
 /**
@@ -415,7 +435,7 @@ function NavPanelEntry({
                     hover.setOpen((nilai) => !nilai);
                 }}
             >
-                {label}
+                <span className={navTabRuleClass({ isActive: hover.open })}>{label}</span>
             </button>
 
             {hover.open ? panel(hover) : null}
@@ -1239,7 +1259,15 @@ function NavList({
                         : navLinkClass({ isActive: false })
                 }
             >
-                Cek Kesehatan Mandiri
+                {/*
+                    The same inner span the two triggers use, so the anchor measures the
+                    36px they measure and the three entries sit on one baseline. On the
+                    sheet it carries no class at all: a rule there would read as a
+                    divider, which is the whole reason the sheet keeps `navLinkClass`.
+                */}
+                <span className={interaksi === 'hover' ? navTabRuleClass({ isActive: false }) : undefined}>
+                    Cek Kesehatan Mandiri
+                </span>
             </a>
         </nav>
     );
@@ -1622,7 +1650,7 @@ export function LandingHeader({ onMasuk }: { onMasuk: () => void }) {
             data-slot="landing-header"
             className="bg-card/95 border-b supports-[backdrop-filter]:bg-card/80 sticky top-0 z-40 w-full backdrop-blur"
         >
-            <div className="mx-auto grid h-16 max-w-[1280px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 md:h-[72px] md:gap-5 md:px-6">
+            <div className="mx-auto grid h-16 max-w-[1280px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 md:h-[71px] md:gap-5 md:px-6">
                 <Link
                     to="/"
                     className="flex shrink-0 items-center gap-2"
@@ -1767,18 +1795,21 @@ export function LandingHeader({ onMasuk }: { onMasuk: () => void }) {
                 is what makes "the panel is as wide as the bar" a testable claim rather
                 than a coincidence.
 
-                Its own padding is HALF of row one's, and that is arithmetic rather than
-                taste: row one puts the wordmark at `px-6`, and each tab carries its own
-                `px-3`, so `12 + 12` lands the first tab's first letter on exactly the
-                pixel the wordmark starts on. The panel's title is 4px inside that line
-                (`px-5` from the panel edge, which is the row's own edge), close enough to
-                read as one column down the page and not so close that the tab looks
-                welded to the heading it is hovering above. The reference hangs its tabs
-                a little further left than its logo does; ours sit on the logo instead.
+                Its own padding is NONE horizontally, and that is the reference's geometry
+                rather than a taste: there the tab plate (293..380), the rule under the
+                tab row (293..1590) and the panel (293..1590) all begin on one pixel, so
+                the open tab and the menu it owns are a single white shape descending
+                from the same edge. Even twelve pixels of padding here would put the
+                plate inboard of the panel and let the panel stick out past the
+                navigation's own effect on the left - a step in the silhouette the
+                reference does not have. Each tab keeps its own `px-4`, the reference's
+                16px inset, so its words sit 16px inside the plate while the wordmark
+                stays at row one's `px-6`: the tabs hang a little further left than the
+                logo, as they do there (309 against 324).
             */}
             <div
                 data-slot="landing-nav-baris"
-                className="relative mx-auto hidden max-w-[1280px] px-3 lg:block"
+                className="relative mx-auto hidden max-w-[1280px] lg:block"
             >
                 <NavList interaksi="hover" onStatusChange={laporkanPanel} />
             </div>

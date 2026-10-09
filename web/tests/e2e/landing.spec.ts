@@ -720,8 +720,9 @@ test.describe('Landing page (/)', () => {
      * Tabs: uppercase, 12px, no chevron (the reference's tabs are bare words), marked by
      * a bottom rule only while their panel is OPEN - which is the reference marking
      * "Wanita", and which React Router could not answer here since two of the three
-     * entries are not routes. The first tab's text starts on the pixel the wordmark
-     * starts on, so the two rows read as one column.
+     * entries are not routes. Two measurements of the reference itself: its plate and
+     * its panel begin on one pixel (293 and 293), and its rule is as wide as its words
+     * (309..364 under words set 309..364) rather than as wide as the plate around them.
      *
      * Pictures: squares of about a tenth of the panel's width in a 3x2 block. The
      * `aspect-[4/3]` they replaced stretched six cards across the whole right-hand zone
@@ -741,27 +742,53 @@ test.describe('Landing page (/)', () => {
             'tab rujukan tidak membawa chevron - garis bawahnya yang berbicara',
         ).toBe(0);
 
-        // the tab's first letter on the wordmark's first pixel
-        const teksKiri = await tab.evaluate((el) => {
-            const range = document.createRange();
-            range.selectNodeContents(el);
-            return Math.round(range.getBoundingClientRect().x);
-        });
-        const logo = await page
-            .getByRole('banner')
-            .getByRole('link', { name: 'Sehatly - beranda' })
-            .boundingBox();
-        expect(logo).not.toBeNull();
-        if (logo === null) {
+        /**
+         * THE PLATE'S EDGE, which is where the whole menu hangs from. In the reference
+         * the plate (293..380), the rule under the tab row (293..1590) and the panel
+         * (293..1590) all start on one pixel, so the open tab and its panel descend as
+         * a single white shape. Padding on row two would push the plate inboard of the
+         * panel and leave the panel sticking out past the navigation's own effect on the
+         * left - a step in the silhouette that is exactly what "the panel exceeds the
+         * navigation" looks like, and what this replaces the old wordmark alignment for.
+         */
+        const baris2 = page.locator('[data-slot="landing-nav-baris"]');
+        const barisKotak = await baris2.boundingBox();
+        const tabKotak = await tab.boundingBox();
+        expect(barisKotak, 'baris tab harus terukur').not.toBeNull();
+        expect(tabKotak, 'tab harus terukur').not.toBeNull();
+        if (barisKotak === null || tabKotak === null) {
             return;
         }
-        expect(Math.abs(teksKiri - Math.round(logo.x)), 'baris 1 dan 2 mulai di satu garis').toBeLessThanOrEqual(
-            2,
+        expect(
+            Math.abs(Math.round(tabKotak.x) - Math.round(barisKotak.x)),
+            'piring tab rata dengan tepi baris - panelnya menonjol kalau tidak',
+        ).toBeLessThanOrEqual(1);
+
+        // the rule is as wide as the WORDS: a border on the button itself would ink the
+        // whole plate, 16px of padding more on each side than the reference draws
+        const kata = await tab.evaluate((el) => {
+            const tanda = el.querySelector('span');
+            const teks = tanda === null ? null : tanda.firstChild;
+            if (teks === null) {
+                return 0;
+            }
+            const range = document.createRange();
+            range.selectNode(teks);
+            return Math.round(range.getBoundingClientRect().width);
+        });
+        const garisTab = tab.locator('span');
+        const garisLebar = await garisTab.evaluate((el) => Math.round(el.getBoundingClientRect().width));
+        expect(
+            Math.abs(garisLebar - kata),
+            `garis bawah selebar katanya sendiri (${garisLebar}px untuk ${kata}px teks)`,
+        ).toBeLessThanOrEqual(3);
+        expect(garisLebar, 'dan lebih sempit daripada piringnya').toBeLessThanOrEqual(
+            Math.round(tabKotak.width) - 16,
         );
 
         // the rule under a tab is transparent until its panel opens, and so is the plate
         // behind it: at rest the bar is just words on the header
-        expect(await tab.evaluate((el) => getComputedStyle(el).borderBottomColor)).toBe(
+        expect(await garisTab.evaluate((el) => getComputedStyle(el).borderBottomColor)).toBe(
             'rgba(0, 0, 0, 0)',
         );
         expect(
@@ -773,9 +800,25 @@ test.describe('Landing page (/)', () => {
 
         const panel = page.locator('[data-slot="nav-direktori-panel"]');
         await expect(panel).toBeVisible();
-        expect(await tab.evaluate((el) => getComputedStyle(el).borderBottomColor)).not.toBe(
-            'rgba(0, 0, 0, 0)',
-        );
+
+        // polled because `transition-colors` would otherwise be sampled mid-flight
+        await expect
+            .poll(() => garisTab.evaluate((el) => getComputedStyle(el).borderBottomColor), {
+                message: 'garis bawah tab baru terpasang setelah panelnya terbuka',
+            })
+            .not.toBe('rgba(0, 0, 0, 0)');
+
+        // and now the claim itself, on the open state: the panel starts on the plate's
+        // own left edge, so there is no step where the menu meets the navigation
+        const panelKotak = await panel.boundingBox();
+        expect(panelKotak, 'panel harus terukur').not.toBeNull();
+        if (panelKotak === null) {
+            return;
+        }
+        expect(
+            Math.abs(Math.round(panelKotak.x) - Math.round(tabKotak.x)),
+            'panel dan piringnya satu garis di tepi kiri - panel tidak boleh menonjol',
+        ).toBeLessThanOrEqual(1);
 
         // the open tab is cut from the same cloth as the panel it owns - one plate,
         // rounded at the top only, so tab + rule + panel read as one object instead of a
