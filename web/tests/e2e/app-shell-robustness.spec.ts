@@ -60,9 +60,8 @@ const PONSEL = { width: 390, height: 844 };
  * held back from the sidebar: it answers `tipe:dokter` only, so for this account it was a
  * link to a 403 card rather than a destination.
  *
- * The directory's entry stayed and changed address: `/dokter` is a retired page that now
- * forwards, and the sidebar writes the destination it forwards TO - `/?direktori=semua`,
- * a section of the landing page.
+ * The directory's entry stayed at the address it always had: `/dokter` is a page again,
+ * and the sidebar points straight at it - no forwarding address to write instead.
  */
 const TUJUAN_PASIEN: ReadonlyArray<string> = [
     '/dashboard',
@@ -71,7 +70,7 @@ const TUJUAN_PASIEN: ReadonlyArray<string> = [
     '/profil/alergi',
     '/profil/perangkat',
     '/profil/privasi',
-    '/?direktori=semua',
+    '/dokter',
     '/booking',
     '/konsultasi',
     '/rekam-medis',
@@ -84,13 +83,13 @@ const TUJUAN_PASIEN: ReadonlyArray<string> = [
 ];
 
 /**
- * The landing page is deliberately outside `AppShell` (see `router.tsx`), so a destination
- * on it has no sidebar by design and is excluded from the sweep that asserts one. The
- * doctor directory moved there, so its address - `/?direktori=semua`, which is what
- * `/dokter` forwards to - is this constant. F3-12 is a separate finding about that page's
- * own padding and is not this spec's to fix.
+ * The two public pages that are deliberately outside `AppShell` (see `router.tsx`), so a
+ * destination on them has no sidebar by design and is excluded from the sweep that
+ * asserts one: the landing page at `/`, and the doctor directory at `/dokter`, which
+ * carries the landing bar instead. F3-12 is a separate finding about that page's own
+ * padding and is not this spec's to fix.
  */
-const DI_LUAR_SHELL = '/?direktori=semua';
+const DI_LUAR_SHELL = '/dokter';
 
 /** The five links F3-06 named as hardcoded to id `1`, kept as the regression list. */
 const DULU_ID_SATU: ReadonlyArray<string> = [

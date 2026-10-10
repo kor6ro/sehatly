@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Navigate, useSearchParams } from 'react-router';
 import { LandingHeader } from '@/components/layout/landing-header';
 import { LoginDialog } from '@/components/auth/login-dialog';
 import { Toaster } from '@/components/ui/sonner';
@@ -28,12 +29,25 @@ import {
  * assume anything - it is the one screen a signed-out visitor, a patient, a doctor and an
  * admin can all read, so every door in the app now opens onto it instead of onto the
  * dashboard: OTP verification, the sign-in dialog, the sign-up completion form, and
- * `/login` itself when a session already exists. The doctor directory joined them last:
- * `/dokter` is retired, its address forwards here, and its content - search, filters,
- * results - is printed by `DirektoriSection` for as long as the URL asks for it.
+ * `/login` itself when a session already exists.
  *
  * The dashboard did not go away; it moved one menu entry away. `LandingHeader`'s account
  * pill carries it, which is also the only place a visitor learns that it exists.
+ *
+ * ## What it carries of the doctor directory
+ *
+ * Only the answer to a pick. `DirektoriSection` prints a specialisation's name, its
+ * count, its cards and a door to the rest, and only while `?spesialisasi=` says so; the
+ * whole directory - search, sixteen specialisations, type, sort - is `/dokter`, a page of
+ * its own whose doors are the navigation.
+ *
+ * The two addresses this page used to answer with, `/?direktori=semua` and `/?search=…`,
+ * still work and forward to that page, carrying their parameter with them. They are the
+ * addresses this very app used to write, so they sit in history, in bookmarks and in
+ * links people already sent: a redirect that dropped `?search=` would answer somebody's
+ * search with the whole table, which is worse than a 404 because it looks like an answer.
+ * `replace` is used so the old address is not left in history as a stop that bounces.
+ *
  *
  * ## Why the page owns the dialog
  *
@@ -54,6 +68,18 @@ export function LandingPage() {
     useDocumentTitle('Beranda | Sehatly');
 
     const [loginOpen, setLoginOpen] = useState(false);
+    const [params] = useSearchParams();
+
+    /**
+     * Read before anything renders, so an old address never paints a landing page that is
+     * about to leave: the visitor sees the directory, not a frame of the front page
+     * flashing behind it.
+     */
+    const alih = alihDirektoriLama(params);
+
+    if (alih !== null) {
+        return <Navigate to={alih} replace />;
+    }
 
     return (
         <div className="bg-background flex min-h-screen flex-col">
@@ -80,4 +106,41 @@ export function LandingPage() {
             <Toaster />
         </div>
     );
+}
+
+/**
+ * The two landing addresses that used to OPEND the directory section, turned into the
+ * address of the page the directory is now - `null` for every other landing URL.
+ *
+ * | old address | who wrote it | becomes |
+ * | --- | --- | --- |
+ * | `/?direktori=semua` | "Lihat semua dokter", the drawer, an empty search | `/dokter` |
+ * | `/?search=…` | the search pill in the bar, or on the phone | `/dokter?search=…` |
+ *
+ * `?spesialisasi=` deliberately stays put: a pick is answered ON this page by
+ * `DirektoriSection`, which is the whole reason a pick points here. It is carried along
+ * only when it arrives in company with one of the two above, because an old link could
+ * have written both, and a redirect that kept the query but dropped the filter would
+ * answer half a question.
+ *
+ * The `?search=` value is passed through rather than swallowed. §9 forbids this app from
+ * WRITING a free-text query into an address, and it never does any more - but dropping
+ * one that an older build already wrote would trade a privacy rule for a wrong answer:
+ * the visitor asked for "Rina" and would be shown everybody.
+ */
+function alihDirektoriLama(params: URLSearchParams): string | null {
+    if (!params.has('search') && !params.has('direktori')) {
+        return null;
+    }
+
+    const tujuan = new URLSearchParams();
+
+    for (const kunci of ['search', 'spesialisasi'] as const) {
+        const nilai = params.get(kunci);
+        if (nilai !== null) tujuan.set(kunci, nilai);
+    }
+
+    const tanya = tujuan.toString();
+
+    return tanya === '' ? '/dokter' : `/dokter?${tanya}`;
 }

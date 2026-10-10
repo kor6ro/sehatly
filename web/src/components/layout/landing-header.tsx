@@ -29,6 +29,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { logout } from '@/lib/api/auth';
 import { cariMasterPopuler, POPULER, spesialisasiOptions } from '@/lib/api/dokter';
+import { serahkanKueri } from '@/features/dokter/direktori';
 import { heroOptions } from '@/lib/api/hero';
 import { meOptions } from '@/lib/api/me';
 import { PROMO, SLIDE_HERO } from '@/features/landing/data';
@@ -158,35 +159,30 @@ const LAYANAN: NavItem[] = [
 ];
 
 /**
- * Where "the doctor directory" is now: a section of the LANDING PAGE, opened by a
- * parameter. `/dokter` used to be a page of its own; it is retired, its address forwards
- * here, and every link in the app that means "show me the doctors" points at this address
- * instead of at a redirect.
+ * Where "the doctor directory" is: `/dokter`, a page of its own.
  *
- * `?direktori=semua` opens the section with NO filter - the whole table - which is what
- * "Lihat semua dokter" in the panel, the drawer's entry on a phone, and an empty search
- * all mean. A pick or a query opens it filtered instead: see `pilihanSpesialisasi` and
- * `pencarianDirektori`.
+ * Every link in the app that means "show me the doctors" points here - "Lihat semua
+ * dokter" in the panel, the drawer's entry on a phone, the "Solusi" tiles, the footer -
+ * and so does an empty search in the bar. A pick is different: it is answered on the page
+ * the visitor is already reading, by `DirektoriSection`, so `pilihanSpesialisasi` below
+ * keeps pointing at the landing page.
  */
-const DIREKTORI = '/?direktori=semua';
+const DIREKTORI = '/dokter';
 
 /**
  * Where a specialisation row and a "Sering dicari" shortcut point: the LANDING PAGE,
  * carrying the choice as `?spesialisasi=`.
  *
- * Picking "Dokter Gigi" used to be a link into `/dokter` - a full page with its own
- * search, filters and pagination, in front of a visitor who had asked one question. The
- * destination is now this same route, so the panel closes, the page never reloads, and
- * `DirektoriSection` prints the doctors that answer the question where the visitor
- * already is. It stays a plain `<a href>` rather than a click handler: shareable,
- * Back-able, keyboard-reachable, and honest about where it goes.
+ * The choice answers itself where it was made: `DirektoriSection` prints the
+ * specialisation's name, how many doctors it has, up to eight cards and a door to the
+ * rest. The door is `Buka direktori lengkap`, which continues into
+ * `/dokter?spesialisasi=…` with the choice already applied - so the pick never has to
+ * choose between "answer me here" and "take me to the catalogue"; it gets both, in that
+ * order. It stays a plain `<a href>` rather than a click handler: shareable, Back-able,
+ * keyboard-reachable, and honest about where it goes.
  */
 const pilihanSpesialisasi = (kode: string) =>
     `/?spesialisasi=${encodeURIComponent(kode)}`;
-
-/** Where a search in the bar goes: the same section, showing one free-text query. */
-const pencarianDirektori = (kueri: string) =>
-    `/?search=${encodeURIComponent(kueri)}`;
 
 function navLinkClass({ isActive }: { isActive: boolean }): string {
     return cn(
@@ -726,11 +722,10 @@ function GridPromoPanel({
  *
  * ## Why the title row's "Lihat semua" is an anchor and not a route
  *
- * The directory's see-all opens its own section on this same page (`/?direktori=semua`),
- * which is an index in the real sense: the whole table, with its search and its filters.
- * The services have none - a `/layanan` URL would be a registered destination that
- * resolves to nothing - so this one jumps to `#solusi`, the landing's own six-tile
- * section, which is the index it is promising. The landing page carries the sixth tile the
+ * The directory's see-all IS a route (`/dokter`), which is an index in the real sense:
+ * the whole table, with its search and its filters. The services have none - a `/layanan`
+ * URL would be a registered destination that resolves to nothing - so this one jumps to
+ * `#solusi`, the landing's own six-tile section, which is the index it is promising. The landing page carries the sixth tile the
  * rail deliberately leaves out, which makes the jump a truthful "all of them" rather than
  * one of the five wearing a different hat.
  *
@@ -1055,7 +1050,14 @@ function PanelDirektori({ hover }: { hover: NavHover }) {
 
                 <Link
                     to={DIREKTORI}
-                    onClick={hover.tutup}
+                    onClick={() => {
+                        hover.tutup();
+                        // "Everything" has to be able to say so: a marker left behind by
+                        // a search that never completed would otherwise arrive with the
+                        // table already narrowed by a question this link promised to
+                        // drop. See `serahkanKueri`.
+                        serahkanKueri('');
+                    }}
                     className="text-primary inline-flex items-center gap-1 text-sm font-medium hover:underline"
                 >
                     Lihat semua dokter
@@ -1229,7 +1231,17 @@ function NavDirektori({
 }) {
     if (interaksi === 'sentuh') {
         return (
-            <NavLink to={DIREKTORI} className={navLinkClass} onClick={onNavigate}>
+            <NavLink
+                to={DIREKTORI}
+                className={navLinkClass}
+                onClick={() => {
+                    onNavigate?.();
+                    // Same promise as the panel's "Lihat semua dokter", one level down:
+                    // the drawer's entry means the whole directory, so it clears any
+                    // query a search in this same drawer left behind.
+                    serahkanKueri('');
+                }}
+            >
                 Direktori Dokter
             </NavLink>
         );
@@ -1339,18 +1351,23 @@ function NavList({
 /**
  * The search field in the middle of the bar's FIRST row.
  *
- * ## Where a search goes, and why it is the landing page's directory
+ * ## Where a search goes, and why the question is not in the address
  *
  * The directory is the only part of the product that ANSWERS a query - it carries a
  * `search` box of its own, and `GET /dokter` takes `search` as a parameter - so a header
- * field searching anything else would be a field that pretends. The form opens the
- * directory section of THIS page with `?search=…`, and `DirektoriDokter` seeds its own
- * input from that parameter exactly as it seeds `?spesialisasi=` from the panel's rail:
- * the URL states what the screen is showing, which is also what keeps the browser's Back
- * button honest about where a search came from.
+ * field searching anything else would be a field that pretends. The form opens `/dokter`,
+ * the page that answers.
  *
- * An empty query opens the section with `?direktori=semua` rather than with `?search=`:
- * a parameter carrying nothing is a URL claiming the visitor searched for the empty string.
+ * What it must not do is carry the question in the URL. F03 §9 forbids a free-text doctor
+ * query in a shareable address, because "kanker" is a condition and the address is the
+ * thing people paste into chats. So the query travels in `sessionStorage` instead - one
+ * write by {@link serahkanKueri}, one read by `DirektoriDokter`'s initializer - and the
+ * address the visitor lands on says `/dokter` and nothing else. This app never WRITES
+ * `?search=`; the older links that still carry it are read, not made.
+ *
+ * An empty query writes an EMPTY marker rather than no marker at all. "I searched for
+ * nothing" and "I never searched" have to be different answers, and only the first may
+ * clear a query the directory is already carrying.
  *
  * ## Why it is a form and not a per-keystroke request
  *
@@ -1379,8 +1396,8 @@ function PencarianBar({
             onSubmit={(event) => {
                 event.preventDefault();
 
-                const bersih = kueri.trim();
-                navigate(bersih === '' ? DIREKTORI : pencarianDirektori(bersih));
+                serahkanKueri(kueri.trim());
+                navigate(DIREKTORI);
                 onCari?.();
             }}
             className={cn(

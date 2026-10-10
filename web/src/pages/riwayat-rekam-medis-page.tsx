@@ -618,7 +618,7 @@ function BagianRekamMedis({
                 description="Rekam medis ditulis dokter setelah konsultasi. Mulai konsultasi untuk melihatnya di sini."
                 action={
                     <Button asChild className="min-h-11">
-                        <Link to="/?direktori=semua">Cari dokter</Link>
+                        <Link to="/dokter">Cari dokter</Link>
                     </Button>
                 }
             />

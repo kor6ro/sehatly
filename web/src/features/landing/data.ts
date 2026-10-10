@@ -65,8 +65,8 @@ export type Slide = {
  * The gradients are deliberately different hues: the carousel's dots are the only
  * indication that anything moved, so two slides that looked alike would make the control
  * look broken. Every `cta.to` is a destination a signed-out visitor can open - the
- * doctor directory's is a section of this same page (`/?direktori=semua`), and the two
- * guarded ones resolve through `RequireAuth` to the login dialog's own door.
+ * doctor directory is `/dokter`, a page of its own, and the two guarded ones resolve
+ * through `RequireAuth` to the login dialog's own door.
  */
 export const SLIDE_HERO: Slide[] = [
     {
@@ -75,7 +75,7 @@ export const SLIDE_HERO: Slide[] = [
         judul: 'Bingung Pilih Dokter?',
         deskripsi:
             'Ratusan dokter berlisensi dengan rating, pengalaman, dan ulasan pasien - pilih yang cocok tanpa perlu antre.',
-        cta: { label: 'Konsultasi dengan Dokter Pilihan!', to: '/?direktori=semua' },
+        cta: { label: 'Konsultasi dengan Dokter Pilihan!', to: '/dokter' },
         gradien: 'from-rose-500 via-rose-400 to-orange-400',
     },
     {
@@ -152,7 +152,7 @@ export const LAYANAN: Layanan[] = [
         judul: 'Direktori Dokter',
         deskripsi: 'Cari dokter spesialis berdasarkan kebutuhan',
         ikon: Stethoscope,
-        to: '/?direktori=semua',
+        to: '/dokter',
     },
     {
         judul: 'Pengingat Obat',
@@ -176,7 +176,7 @@ export const PROMO: Promo[] = [
         judul: 'Konsultasi Hemat',
         deskripsi: 'Tarif konsultasi chat dokter umum mulai Rp15.000.',
         cta: 'Pilih Dokter',
-        to: '/?direktori=semua',
+        to: '/dokter',
         gradien: 'from-rose-500 to-pink-500',
     },
     {
@@ -190,7 +190,7 @@ export const PROMO: Promo[] = [
         judul: 'Resep Langsung Diantar',
         deskripsi: 'Dari dokter ke pintumu, tanpa ribet ke apotek.',
         cta: 'Cara Kerjanya',
-        to: '/?direktori=semua',
+        to: '/dokter',
         gradien: 'from-emerald-500 to-teal-500',
     },
     {
@@ -393,7 +393,7 @@ export const FOOTER_KOLOM: FooterKolom[] = [
         tautan: [
             { label: 'Syarat & Ketentuan', to: '/syarat-ketentuan' },
             { label: 'Kebijakan Privasi', to: '/kebijakan-privasi' },
-            { label: 'Direktori Dokter', to: '/?direktori=semua' },
+            { label: 'Direktori Dokter', to: '/dokter' },
         ],
     },
     {

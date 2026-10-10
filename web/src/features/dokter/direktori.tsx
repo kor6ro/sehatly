@@ -49,19 +49,18 @@ import {
 import { Field, FieldInput } from '@/components/form/field';
 
 /**
- * The public doctor directory - the whole of the screen that used to live at `/dokter`,
- * now printed INSIDE the landing page by `DirektoriSection`.
+ * The public doctor directory - the whole of the body of the page at `/dokter`: the search
+ * field, the type/biaya/rating filters, the sort, the count, the cards, the pagination, and
+ * every offline, empty and error state they were built with.
  *
- * ## Why it moved, and why nothing was trimmed on the way
+ * ## Why it is one component and not a page plus a section
  *
- * A visitor who types a doctor's name, or picks "Dokter Gigi" out of the header's rail, has
- * asked ONE question. Sending them to a separate page answered it by handing them a new
- * document, a new title, and a Back button to remember - so the page is gone and its
- * CONTENT is this component: the search field, the type/biaya/rating filters, the sort, the
- * count, the cards, the pagination, and every offline, empty and error state they were
- * built with. This is not a reduced copy of that screen; it IS that screen, moved. The only
- * thing left behind is the page chrome - `PageHeader` and the document title - because a
- * heading inside the home page belongs to the home page, and `DirektoriSection` supplies it.
+ * This screen has been a page, then a section of the landing page, and now a page again.
+ * What never changed is this component. The landing page's `DirektoriSection` prints only
+ * the ANSWER to a pick - a heading, a count, a handful of cards and a door back here - so
+ * that a visitor who chose "Dokter Gigi" is not handed sixteen specialisations, a sort and
+ * three pages of pagination they never asked about. Two lists of doctors in one product
+ * would be two things to keep in step; there is one, and it is this.
  *
  * ## Why it is still public
  *
@@ -69,8 +68,8 @@ import { Field, FieldInput } from '@/components/form/field';
  * `permission:dokter.lihat` on it would answer 401 to every anonymous visitor because
  * `EnsurePermission` needs an authenticated principal - the opposite of what a
  * pre-authentication browse page needs. It would also lock out `perawat` and `kurir`, which
- * are real `users.tipe` values holding no role. Living on the landing page changes none of
- * that: the section renders for a signed-out visitor exactly as the page did, which is also
+ * are real `users.tipe` values holding no role. Nothing about the address changes that:
+ * the component renders for a signed-out visitor exactly as it always has, which is also
  * what keeps the 404 behaviour demonstrable with no session involved at all.
  *
  * ## F03: the search is state, never a URL
@@ -78,11 +77,13 @@ import { Field, FieldInput } from '@/components/form/field';
  * `web/ux/patterns/F03.md` §9 forbids a free-text doctor search in a shareable URL,
  * because "kanker" is a condition and a URL is copied into chats. The query typed INSIDE
  * the directory therefore lives in `sessionStorage`, and comes back only on a RELOAD of
- * the address it was typed on - the one case AC-1 asks it to survive. It is no longer the
- * only voice: a search made in the header's bar does put `?search=` in the address, and
- * `?direktori=semua` means "everything", so `bacaKueriTersimpan` stays out of the way
- * whenever the URL is speaking. Filters stay in component state (the §12 #5
- * URL-shareability decision is still open).
+ * this address - the one case AC-1 asks it to survive. A query typed in the header's bar
+ * does not travel through the URL either: `serahkanKueri` parks it in `sessionStorage`
+ * immediately before the navigation, and this component consumes it on mount, so the bar
+ * can open `/dokter` already filtered without ever writing the question into the address.
+ * `?search=` is read for the links old versions of this app wrote, and never written by
+ * this one. Filters stay in component state (the §12 #5 URL-shareability decision is still
+ * open).
  *
  * ## Desktop filters are live, mobile filters are drafted
  *
@@ -102,6 +103,15 @@ import { Field, FieldInput } from '@/components/form/field';
 const PER_HALAMAN = 12;
 const SEARCH_MAX = 150;
 const SIMPANAN_KUERI = 'sehatly.dokter.kueri';
+/**
+ * The one-shot marker a search in the header's bar leaves on the way to `/dokter`.
+ *
+ * It is a separate key from {@link SIMPANAN_KUERI} because the two answer different
+ * questions: this one means "somebody just arrived with THIS", that one means "this is
+ * what a reload of this address should restore". Conflating them would make the bar's
+ * empty submit - "everything" - indistinguishable from "there was never a query".
+ */
+const SIMPANAN_ANTAR = 'sehatly.dokter.kueri.antar';
 
 type PilihanFilter = {
     spesialisasi: string | undefined;
@@ -122,14 +132,14 @@ const PILIHAN_KOSONG: PilihanFilter = {
  * nothing else brings it back.
  *
  * AC-1 asks for exactly that: F03 §9 keeps the free-text query out of the URL, so a
- * reload would otherwise arrive with no memory of the question. But the directory now
- * lives on the landing page, where one address is opened with several intents: "Lihat
- * semua dokter", the drawer's entry and an empty search all arrive at `/?direktori=semua`,
- * and so does the reload of a search made there. Restoring the query in every case would
- * answer "show me everything" with a filter the visitor cannot see. A reload is the one
- * moment where they are asking for the state they just had; a fresh load of an address
- * may be asking for anything, and the URL - which now carries `?search=` when a search
- * came from the bar - is the only thing allowed to speak for the rest.
+ * reload would otherwise arrive with no memory of the question. But `/dokter` is opened
+ * with several intents: "Lihat semua dokter" in the panel, the drawer's entry on a phone
+ * and an empty search all arrive at this address, and so does the reload of a search made
+ * here. Restoring the query in every case would answer "show me everything" with a filter
+ * the visitor cannot see. A reload is the one moment where they are asking for the state
+ * they just had; a fresh load may be asking for anything, and the URL - which still
+ * carries `?search=` when an old link wrote it - is the only thing allowed to speak for
+ * the rest.
  */
 function bacaKueriTersimpan(): string {
     try {
@@ -158,22 +168,99 @@ function simpanKueriTersimpan(kueri: string): void {
     }
 }
 
+/**
+ * Hand a query from the header's search field to this component.
+ *
+ * F03 §9 is the reason this is a `sessionStorage` key rather than `?search=`: a free-text
+ * doctor query may be a condition, and the address of the page that ANSWERED it is the
+ * thing that gets pasted into a chat. So the bar writes the marker, then navigates to a
+ * bare `/dokter`, and this component's state initializer reads the marker once.
+ *
+ * It is a marker and not a setting: {@link habiskanKueriAntar} spends it on mount, so the
+ * next arrival at this address - a bookmark, the panel's "Lihat semua dokter", a Back
+ * button - starts from the whole table rather than from somebody else's question.
+ *
+ * `''` is a value here, not an absence. An empty submit in the bar means "everything", and
+ * it has to be able to say so.
+ */
+export function serahkanKueri(kueri: string): void {
+    try {
+        window.sessionStorage.setItem(SIMPANAN_ANTAR, kueri);
+    } catch {
+        // Storage refused (private mode, disabled cookies): the directory still opens, it
+        // simply arrives without the question the bar was carrying.
+    }
+}
+
+/**
+ * A read that does NOT spend the marker.
+ *
+ * React StrictMode invokes a `useState` initializer twice in development, so a read that
+ * removed the key in the same call would return the query the first time and `null` the
+ * second - and the committed state would be the one with nothing in it.
+ */
+function bacaKueriAntar(): string | null {
+    try {
+        return window.sessionStorage.getItem(SIMPANAN_ANTAR);
+    } catch {
+        return null;
+    }
+}
+
+/** Read the marker and clear it in the same call: a handoff happens exactly once. */
+function habiskanKueriAntar(): string | null {
+    const kueri = bacaKueriAntar();
+
+    if (kueri !== null) {
+        try {
+            window.sessionStorage.removeItem(SIMPANAN_ANTAR);
+        } catch {
+            // Same as above: failing to clear costs only the one-shot guarantee, and the
+            // marker is still read before it is written over.
+        }
+    }
+
+    return kueri;
+}
+
 export function DirektoriDokter() {
     const online = useOnlineStatus();
 
-    const [page, setPage] = useState(1);
-    const [search, setSearch] = useState(() => bacaKueriTersimpan());
-    const [submittedSearch, setSubmittedSearch] = useState(() => bacaKueriTersimpan());
     /**
-     * Seeded from `?spesialisasi=` so a link from the landing page's specialisation
-     * tiles opens the directory ALREADY filtered, instead of promising a filter it
-     * silently drops. It is a one-shot read: once the state exists, clearing the chip
-     * inside the page is what changes it - the URL is an entry point, not a second
-     * source of truth for the filter. An unknown `kode` is left in place on purpose: the
-     * API answers an empty page for it and the chip above the results can be removed,
-     * which is a better outcome than arriving with no filter at all.
+     * The query, seeded ONCE from whichever voice is speaking, in the order a visitor
+     * would want to be answered in:
+     *
+     * 1. the header's bar, which parked it in `sessionStorage` moments ago;
+     * 2. `?search=`, written by older versions of this app that put it in the address,
+     *    and still read so those links arrive filtered;
+     * 3. nothing at all - unless this is a RELOAD of an address a query was typed on.
+     *
+     * Read in one place so that two initializers cannot disagree about what was typed,
+     * and so that a reload never restores a query the URL has already replaced. It seeds
+     * both halves of the state on purpose: the box a visitor sees and the request the
+     * page fires must carry the same question, or the screen lies about what it asked.
      */
     const [searchParams] = useSearchParams();
+    const [kueriAwal] = useState(
+        () =>
+            bacaKueriAntar() ??
+            searchParams.get('search') ??
+            bacaKueriTersimpan(),
+    );
+
+    const [page, setPage] = useState(1);
+    const [search, setSearch] = useState(kueriAwal);
+    const [submittedSearch, setSubmittedSearch] = useState(kueriAwal);
+    /**
+     * Seeded from `?spesialisasi=` so the landing page's `Buka direktori lengkap` door -
+     * and any link an older build wrote - opens the directory ALREADY filtered, instead
+     * of promising a filter it silently drops. It is a one-shot read: once the state
+     * exists, clearing the chip inside the page is what changes it - the URL is an entry
+     * point, not a second source of truth for the filter. An unknown `kode` is left in
+     * place on purpose: the API answers an empty page for it and the chip above the
+     * results can be removed, which is a better outcome than arriving with no filter at
+     * all.
+     */
     const [spesialisasi, setSpesialisasi] = useState<string | undefined>(
         () => searchParams.get('spesialisasi') ?? undefined,
     );
@@ -185,29 +272,21 @@ export function DirektoriDokter() {
     const [draft, setDraft] = useState<PilihanFilter>(PILIHAN_KOSONG);
 
     /**
-     * `?search=` from OUTSIDE the page: the landing header's search field navigates here
-     * with the query in the URL, for the same reason `?spesialisasi=` arrives in it - the
-     * URL states what the page is showing, so Back returns to the search that produced it
-     * and a reload does not silently revert to whatever sessionStorage last held.
+     * Spending the handoff.
      *
-     * It wins over the stored value when both exist, and it re-runs only when the URL
-     * value CHANGES: clearing the box inside the page is untouched by it, because the
-     * effect keys on the parameter rather than on the state it writes. A visit with no
-     * parameter is a no-op, which is what keeps the pre-existing sessionStorage handoff
-     * exactly as it was.
+     * `kueriAwal` has only PEEKED the marker; this is where it is spent, so the next
+     * arrival at this address starts from the whole table instead of inheriting a
+     * question nobody asked. The value is copied into the reload store at the same time:
+     * AC-1 wants the query to survive a reload, and a reload of `/dokter` gets here with
+     * the marker already spent.
      */
-    const kueriUrl = searchParams.get('search');
-
     useEffect(() => {
-        if (kueriUrl === null) {
-            return;
-        }
+        const dariTangan = habiskanKueriAntar();
 
-        setSearch(kueriUrl);
-        setSubmittedSearch(kueriUrl);
-        simpanKueriTersimpan(kueriUrl);
-        resetToFirstPage();
-    }, [kueriUrl]);
+        if (dariTangan !== null) {
+            simpanKueriTersimpan(dariTangan);
+        }
+    }, []);
 
     const hasilRef = useRef<HTMLParagraphElement | null>(null);
     const pemicuFilterMobileRef = useRef<HTMLButtonElement | null>(null);

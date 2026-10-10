@@ -14,12 +14,12 @@ import { expectNoA11yViolations, istirahatkanGerak } from './a11y';
  *
  * ## Where the tests open it
  *
- * The directory has no page of its own any more: it is a section of the landing page,
- * opened by `?direktori=semua`, and `/dokter` forwards there carrying `?search=` and
- * `?spesialisasi=`. So `bukaDirektori` opens `/?direktori=semua` - the address the app
- * itself writes - and `f03-alamat-lama-mengalihkan-ke-beranda` locks the forward. Nothing
+ * The directory is a page again: `bukaDirektori` opens `/dokter`, which is where every
+ * door in the navigation points. The LANDING page keeps only the answer to a pick, and
+ * its two old addresses - `/?direktori=semua` and `/?search=…` - forward here carrying
+ * their parameter, which `f03-alamat-lama-beranda-mengalihkan-ke-dokter` locks. Nothing
  * else in these criteria knows the difference: every selector here was already the
- * directory's own, and a section is allowed to use all of them.
+ * directory's own.
  *
  * ## What the F03 backend commit unblocked
  *
@@ -371,15 +371,14 @@ function punyaPermintaan(
 }
 
 /**
- * The directory as this spec finds it: a section of the LANDING PAGE, opened by
- * `?direktori=semua`. `/dokter` is retired and forwards to exactly this address (see
- * `AlihDirektori`), so the tests open the address the app itself writes; the forward has
- * its own test below, `f03-alamat-lama-mengalihkan-ke-beranda`.
+ * The directory as this spec finds it: the page at `/dokter`, with the landing bar on top
+ * of it. The two landing addresses that used to open this screen forward here instead, and
+ * that forward has its own test below, `f03-alamat-lama-beranda-mengalihkan-ke-dokter`.
  */
 async function bukaDirektori(page: Page, opsi: OpsiMock = {}): Promise<State> {
     const state = await pasangMock(page, opsi);
 
-    await page.goto('/?direktori=semua');
+    await page.goto('/dokter');
 
     await expect(page.locator('[data-slot="dokter-count"]')).toContainText(
         'dokter ditemukan.',
@@ -523,38 +522,57 @@ for (const vp of VIEWPORTS) {
         test.setTimeout(60_000);
 
         /**
-         * The promise that made deleting the page safe: the OLD address still works.
+         * The address is a page again, and the two landing addresses that USED to open
+         * this screen still work.
          *
-         * `?search=` has to survive the forward, because that parameter is the visitor's
-         * question - a redirect that dropped it would answer a search with the whole
-         * table. A bare `/dokter` becomes `?direktori=semua`, which is the whole table:
-         * what an address carrying no question always showed.
+         * `/dokter` is the destination itself - no forward, no bounce, and the `h1` the
+         * document title promises. The landing page's old doors are the ones that
+         * redirect: `?direktori=semua` meant "the whole table", `?search=` was a
+         * question, and a redirect that dropped the question would answer a search with
+         * everybody - worse than a 404, because it looks like an answer.
          */
-        test('f03-alamat-lama-mengalihkan-ke-beranda', async ({ page }) => {
+        test('f03-alamat-lama-beranda-mengalihkan-ke-dokter', async ({ page }) => {
             const state = await pasangMock(page);
 
             await page.goto('/dokter');
 
-            await expect(page).toHaveURL('/?direktori=semua');
-
+            await expect(page).toHaveURL('/dokter');
             await expect(page.locator('[data-slot="dokter-count"]')).toContainText(
                 'dokter ditemukan.',
                 { timeout: 15_000 },
             );
             await expect(
-                page.getByRole('heading', { name: 'Direktori Dokter', level: 2 }),
+                page.getByRole('heading', { name: 'Direktori dokter', level: 1 }),
             ).toBeVisible();
+            await expect(page.locator('[data-slot="dokter-cari"]')).toHaveValue('');
 
+            // The address a search never travels through: no request carries one until
+            // the visitor types one.
             expect(
                 state.permintaanDokter.filter(
                     (url) => new URL(url).searchParams.get('search') !== null,
                 ),
             ).toHaveLength(0);
 
+            // A bookmark written by the build that had a `/dokter?search=` page.
             await page.goto('/dokter?search=Rina');
 
-            await expect(page).toHaveURL('/?search=Rina');
+            await expect(page.locator('[data-slot="dokter-cari"]')).toHaveValue('Rina');
+            await expect(page.locator('[data-slot="dokter-count"]')).toContainText(
+                '1 dokter ditemukan.',
+            );
 
+            // The landing page's two old doors, both of which forward here.
+            await page.goto('/?direktori=semua');
+
+            await expect(page).toHaveURL('/dokter');
+            await expect(page.locator('[data-slot="dokter-count"]')).toContainText(
+                'dokter ditemukan.',
+            );
+
+            await page.goto('/?search=Rina');
+
+            await expect(page).toHaveURL('/dokter?search=Rina');
             await expect(page.locator('[data-slot="dokter-cari"]')).toHaveValue('Rina');
             await expect(page.locator('[data-slot="dokter-count"]')).toContainText(
                 '1 dokter ditemukan.',
@@ -1242,10 +1260,10 @@ for (const vp of VIEWPORTS) {
                 '0 dokter ditemukan.',
             );
 
-            // The directory lives on the landing page now, so the title is the home
-            // page's - AC-13 asks that the QUERY stay out of the address bar and the
-            // tab, and a title that never carried it still does not.
-            expect(await page.title()).toBe('Beranda | Sehatly');
+            // AC-13 asks that the QUERY stay out of the address bar and the tab. The
+            // directory has a document title of its own again, and that title is the
+            // screen's name rather than anything the visitor typed into it.
+            expect(await page.title()).toBe('Direktori dokter | Sehatly');
             expect(page.url()).not.toContain(KATA_UJI);
 
             const label = await page.evaluate(() =>

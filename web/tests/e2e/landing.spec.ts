@@ -84,17 +84,16 @@ async function sampelPiksel(
  *    Row one carries the wordmark, the search pill and the account cluster; row two
  *    carries the tabs - uppercase, bare of chevrons, ruled underneath only while their
  *    panel is open, and starting on the same pixel as the wordmark. Both ways of asking
- *    land in the SAME place: the search opens the directory with `?search=…`, the rail
- *    with `/?spesialisasi=…`, and both are answered by `DirektoriSection` - the directory
- *    printed on the landing page in place of the retired `/dokter` page, carrying its
- *    search, filters, sort, count and pagination so nothing was lost in the move. The
- *    directory is the only part of the product that can answer a free-text query and it
- *    seeds its own field from that parameter: a field pointing at something that ignored
- *    it would be a field that pretends. A visitor who chose "Dokter Gigi" asked one
- *    question and should not have to read a different screen's search and sort to get the
- *    answer. Below `md` the bar drops the field and the drawer carries its own copy of
- *    the same form, so "add a search" never quietly means "add a search to viewports 1024
- *    and up".
+ *    are answered, but not in the same place, and that is the point. The search opens
+ *    `/dokter`, the page that can answer a free-text query, WITHOUT writing the question
+ *    into the address - F03 §9 keeps a free-text doctor search out of a URL people paste
+ *    into chats, so the handoff is `sessionStorage`. The rail asks one question and is
+ *    answered HERE, on this page, by `DirektoriSection`: the specialisation's name, how
+ *    many doctors it has, up to eight cards, and one door into `/dokter?spesialisasi=…`
+ *    for the rest. A visitor who chose "Dokter Gigi" asked one question and should not
+ *    have to read a different screen's search and sort to get the answer. Below `md` the
+ *    bar drops the field and the drawer carries its own copy of the same form, so "add a
+ *    search" never quietly means "add a search to viewports 1024 and up".
  *
  * 7. **An open panel takes the light with it - and the tab does not.** The reference
  *    dims the page behind its menu, because a white panel on a white page has no edge
@@ -244,8 +243,11 @@ test.describe('Landing page (/)', () => {
      *    would notice.
      *
      * Clicking a specialisation is the payoff: the address gains `?spesialisasi=` and the
-     * directory prints its answer HERE, on the page the visitor was already reading -
-     * which is the one promise the panel makes that the old link could not.
+     * landing page answers HERE, on the page the visitor was already reading - which is
+     * the one promise the panel makes that a link into a full directory could not. The
+     * answer is deliberately the ANSWER and not the directory: the name, the count, a few
+     * cards, and one door to `/dokter` for the rest. Sixteen specialisations and a sort
+     * control would be a screen for somebody who asked one question.
      */
     test('f00-landing-nav-direktori-pilihan-dokter-muncul-di-beranda', async ({
         page,
@@ -314,7 +316,13 @@ test.describe('Landing page (/)', () => {
          * visitor had not asked. Now the address gains `?spesialisasi=`, the pathname
          * stays `/`, and the section that prints the answer appears where the visitor
          * already is.
+         *
+         * The name is read BEFORE the click: picking closes the panel, and a locator
+         * into a menu that has closed waits for a menu that is not coming back.
          */
+        const namaDipilih = ((await pilihan.textContent()) ?? '').trim();
+        expect(namaDipilih.length).toBeGreaterThan(0);
+
         await pilihan.click();
 
         await expect(page).toHaveURL(/\?spesialisasi=/);
@@ -326,32 +334,35 @@ test.describe('Landing page (/)', () => {
         const seksi = page.locator('[data-slot="landing-direktori"]');
         await expect(seksi).toBeVisible();
         await expect(
-            seksi.getByRole('heading', { name: 'Direktori Dokter', level: 2 }),
-        ).toBeVisible();
-        await expect(
-            seksi.getByText('Temukan dokter yang tepat, lalu pesan jadwal konsultasi.'),
+            seksi.getByRole('heading', { name: namaDipilih, level: 2 }),
         ).toBeVisible();
 
         /**
-         * The section IS the directory, not a preview of it: the search field, the
-         * "Sering dicari" shortcuts and the filters that used to live on `/dokter` are
-         * here, because there is no other copy of them left in the product.
+         * The answer in full: how many, who, and the one door to the rest. The count is
+         * the same sentence the directory prints, so a number means the same thing on
+         * both surfaces - and it is a `role="status"` because it arrives after the cards
+         * do, and a screen reader that never heard the number would be reading a list
+         * nobody counted.
          */
-        await expect(seksi.locator('[data-slot="dokter-form-cari"]')).toBeVisible();
-        await expect(seksi.getByText('Sering dicari:')).toBeVisible();
-        await expect(seksi.locator('[data-slot="dokter-panel-filter"]')).toBeVisible();
+        await expect(seksi.locator('[data-slot="landing-direktori-jumlah"]')).toContainText(
+            'dokter ditemukan.',
+        );
+        await expect(seksi.locator('[data-slot="landing-direktori-tutup"]')).toBeVisible();
+        await expect(
+            seksi.getByRole('link', { name: 'Buka direktori lengkap' }),
+        ).toHaveAttribute('href', /^\/dokter\?spesialisasi=/);
 
         /**
          * And the answer is one of two honest states - real cards, or the sentence saying
-         * there are none - because whether the fixture database holds doctors for this
-         * specialisation is not this test's to assume. What neither state may be is blank.
+         * this specialisation has nobody in it right now - because whether the fixture
+         * database holds doctors for it is not this test's to assume. What neither state
+         * may be is blank.
          */
         await expect(
             seksi
                 .locator('[data-slot="dokter-kartu"]')
                 .first()
-                .or(seksi.getByText('Tidak ada dokter yang cocok.'))
-                .or(seksi.getByText('Belum ada dokter yang memenuhi syarat')),
+                .or(seksi.getByText('Belum ada dokter pada spesialisasi ini.')),
         ).toBeVisible();
     });
 
@@ -740,12 +751,17 @@ test.describe('Landing page (/)', () => {
      * the bar" assertion below: two rows of the same geometry, or the panels and the bar
      * disagree about where the page's centre is.
      *
-     * The search opens the directory section of THIS page with `?search=…`, because the
-     * directory is the ONLY part of the product that can answer a query - it has a
-     * `search` field of its own and `GET /dokter` takes the parameter - and the assertion
-     * that follows checks that field received the value. A header that searched something
-     * which ignored it would be a field that pretends, and the pretence would pass every
-     * other test in this file.
+     * The search opens `/dokter`, the page that answers, because the directory is the ONLY
+     * part of the product that can answer a query - it has a `search` field of its own and
+     * `GET /dokter` takes the parameter - and the assertion that follows checks that field
+     * received the value. A header that searched something which ignored it would be a
+     * field that pretends, and the pretence would pass every other test in this file.
+     *
+     * What the search does NOT do is put the question in the address. F03 §9 forbids a
+     * free-text doctor query in a shareable URL - "kanker" is a condition, and an address
+     * is what people paste into chats - so the handoff is `sessionStorage` and the URL the
+     * visitor lands on is bare. Both halves are asserted below: the address carries no
+     * query, and the directory's own field does.
      */
     test('f00-landing-bar-dua-baris-dengan-cari-membuka-direktori-terfilter', async ({ page }) => {
         await page.goto('/');
@@ -782,11 +798,11 @@ test.describe('Landing page (/)', () => {
         await kolom.fill('rina');
         await cari.getByRole('button', { name: 'Cari', exact: true }).click();
 
-        await expect(page).toHaveURL('/?search=rina');
+        await expect(page).toHaveURL('/dokter');
         expect(
-            new URL(page.url()).pathname,
-            'mencari tidak boleh pindah halaman: jawabannya dicetak di beranda',
-        ).toBe('/');
+            new URL(page.url()).search,
+            'kueri bebas teks tidak boleh ditulis ke URL (F03 §9)',
+        ).toBe('');
         await expect(
             page.locator('[data-slot="dokter-cari"]'),
             'direktori menerima kuerinya, bukan sekadar dibuka',
@@ -1275,11 +1291,12 @@ test.describe('Landing page (/)', () => {
 
         await laci.getByRole('link', { name: 'Direktori Dokter' }).click();
 
-        // The address the drawer writes is the landing page's own section, and the
-        // directory answers it here rather than on a page of its own.
-        await expect(page).toHaveURL('/?direktori=semua');
-        await expect(page.locator('[data-slot="landing-direktori"]')).toBeVisible();
+        // The drawer's entry is a plain route: `/dokter`, the directory page, with the
+        // landing bar still on top of it. Nothing forwards anything - the address the
+        // drawer writes is the address that answers.
+        await expect(page).toHaveURL('/dokter');
         await expect(page.locator('[data-slot="dokter-form-cari"]')).toBeVisible();
+        await expect(page.locator('[data-slot="dokter-count"]')).toBeVisible();
     });
 
     /**
@@ -1308,7 +1325,11 @@ test.describe('Landing page (/)', () => {
         await laci.getByRole('button', { name: 'Cari', exact: true }).click();
 
         await expect(laci, 'laci ikut tertutup di belakang navigasinya').toHaveCount(0);
-        await expect(page).toHaveURL('/?search=anak');
+        await expect(page).toHaveURL('/dokter');
+        expect(
+            new URL(page.url()).search,
+            'kueri bebas teks tidak boleh ditulis ke URL (F03 §9)',
+        ).toBe('');
         await expect(page.locator('[data-slot="dokter-cari"]')).toHaveValue('anak');
     });
 

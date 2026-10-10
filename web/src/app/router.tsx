@@ -1,7 +1,7 @@
 import { createBrowserRouter } from 'react-router';
 import { AppShell } from '@/app/app-shell';
 import { RouteErrorBoundary } from '@/app/error-boundary';
-import { AlihDirektori, NotFoundPage, RequireAuth } from '@/app/guards';
+import { NotFoundPage, RequireAuth } from '@/app/guards';
 import { RootLayout } from '@/app/root-layout';
 import { LandingPage } from '@/pages/landing-page';
 import { LoginPage } from '@/pages/login-page';
@@ -13,6 +13,7 @@ import { DevicesPage } from '@/pages/devices-page';
 import { FamilyPage } from '@/pages/family-page';
 import { AllergyPage } from '@/pages/allergy-page';
 import { DoctorDetailPage } from '@/pages/doctor-detail-page';
+import { DoctorDirectoryPage } from '@/pages/doctor-directory-page';
 import { MyBookingsPage } from '@/pages/my-bookings-page';
 import { BookingCreatePage } from '@/pages/booking-create-page';
 import { DoctorBookingsPage } from '@/pages/doctor-bookings-page';
@@ -126,22 +127,23 @@ export const router = createBrowserRouter([
             },
 
             /**
-             * The doctor directory's old address, kept as an address and nothing else.
+             * The doctor directory, as a page.
              *
-             * The page named by that path was deleted: its content - the
-             * search field, the type/biaya/rating filters, the sort, the count, the cards
-             * and the pagination - is printed on the landing page by `DirektoriSection`,
-             * which a pick in the header's panel opens with `?spesialisasi=` and a search
-             * in the bar opens with `?search=`. Dropping this entry instead would have
-             * turned a saved bookmark and every link the old code wrote into a 404, so the
-             * path stays and `AlihDirektori` forwards it with its parameter intact.
+             * Its content - the search field, the type/biaya/rating filters, the sort,
+             * the count, the cards and the pagination - is `DirektoriDokter`, and every
+             * door that means "show me the doctors" arrives here: the header bar's
+             * search, "Lihat semua dokter", the drawer's entry, the "Solusi" tiles and
+             * the footer. The landing page does not render it; a pick there answers
+             * itself with `DirektoriSection` and offers this address as the way to the
+             * rest.
              *
-             * `/dokter/:id` below is the detail page, which never moved: a doctor's
-             * profile is a destination of its own, and it is where a booking starts.
+             * `/dokter/:id` below is the detail page: a doctor's profile is a destination
+             * of its own, and it is where a booking starts.
              */
             {
                 path: '/dokter',
-                element: <AlihDirektori />,
+                element: <DoctorDirectoryPage />,
+                errorElement: <RouteErrorBoundary />,
             },
             {
                 path: '/dokter/:id',
