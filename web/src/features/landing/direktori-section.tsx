@@ -36,11 +36,17 @@ const PER_HALAMAN_JAWABAN = 8;
  *
  * ## When it is on screen
  *
- * Only while `?spesialisasi=` says so, which keeps a plain `/` the page it was before any
- * of this existed - the carousel and the seven sections, nothing else. The parameter is a
- * parameter and not component state on purpose: the pick stays a plain `<a>`, so it can be
- * shared, reached with the keyboard, answered by the Back button, and read by the router
- * - which is also what lets the header's rail keep writing the address it always did.
+ * Only while `?spesialisasi=` says so - and then it is ALL that is on screen. `LandingPage`
+ * hides the carousel and the seven sections underneath it while a pick is active, so this
+ * section's `bg-muted` band runs from under the bar straight to the footer, and a plain
+ * `/` is the page it was before any of this existed. The band keeps its border and its
+ * grey on purpose: it is a panel of answers either way, so it does not need a second
+ * flavour for being alone.
+ *
+ * The choice is a URL parameter and not component state on purpose: the pick stays a plain
+ * `<a>`, so it can be shared, reached with the keyboard, answered by the Back button, and
+ * read by the router - which is also what lets the header's rail keep writing the address
+ * it always did.
  *
  * `?search=` and `?direktori=semua` are no longer read here at all. They are forwarders
  * now: `LandingPage` sends both to `/dokter` before this component can render, because a

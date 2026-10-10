@@ -248,6 +248,14 @@ test.describe('Landing page (/)', () => {
      * answer is deliberately the ANSWER and not the directory: the name, the count, a few
      * cards, and one door to `/dokter` for the rest. Sixteen specialisations and a sort
      * control would be a screen for somebody who asked one question.
+     *
+     * While the answer is on screen it is ALL that is on screen: the bar and the footer
+     * stay, the carousel and the seven sections underneath it do not render at all. A
+     * pick is one question, and a rotating promotion over the top of its answer is not
+     * part of it - on a phone it also decides whether the answer sits under the bar or a
+     * full screen lower. The test asserts the body is GONE from the DOM rather than
+     * merely hidden, because a `display:none` section is still reachable by a screen
+     * reader and by a keyboard, and then `Tutup` puts the whole page back.
      */
     test('f00-landing-nav-direktori-pilihan-dokter-muncul-di-beranda', async ({
         page,
@@ -338,6 +346,18 @@ test.describe('Landing page (/)', () => {
         ).toBeVisible();
 
         /**
+         * THE OTHER HALF OF THE CHANGE. The answer does not sit ON a landing page - while
+         * a pick is on screen the landing page IS the answer. The bar and the footer stay
+         * (they carry this app's navigation, so the screen is never a dead end), and the
+         * carousel plus the sections below it are not in the DOM at all.
+         */
+        await expect(page.locator('[data-slot="landing-header"]')).toBeVisible();
+        await expect(page.locator('[data-slot="landing-footer"]')).toBeVisible();
+        await expect(page.locator('[data-slot="hero-carousel"]')).toHaveCount(0);
+        await expect(page.locator('#solusi')).toHaveCount(0);
+        await expect(page.locator('#cek-mandiri')).toHaveCount(0);
+
+        /**
          * The answer in full: how many, who, and the one door to the rest. The count is
          * the same sentence the directory prints, so a number means the same thing on
          * both surfaces - and it is a `role="status"` because it arrives after the cards
@@ -364,6 +384,19 @@ test.describe('Landing page (/)', () => {
                 .first()
                 .or(seksi.getByText('Belum ada dokter pada spesialisasi ini.')),
         ).toBeVisible();
+
+        /**
+         * And it was a HIDE, not a detour. `Tutup` costs one click and the whole landing
+         * page comes back - so a pick made out of curiosity is free, which is what makes
+         * it worth offering sixteen of them in a menu.
+         */
+        await seksi.locator('[data-slot="landing-direktori-tutup"]').click();
+
+        await expect(page).toHaveURL(/\/$/);
+        await expect(page.locator('[data-slot="landing-direktori"]')).toHaveCount(0);
+        await expect(page.locator('[data-slot="hero-carousel"]')).toBeVisible();
+        await expect(page.locator('#solusi')).toBeVisible();
+        await expect(page.locator('[data-slot="landing-footer"]')).toBeVisible();
     });
 
     /**
