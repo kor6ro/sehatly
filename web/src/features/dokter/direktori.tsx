@@ -10,7 +10,8 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
-import { Check, RefreshCw, Search, SlidersHorizontal, X } from 'lucide-react';
+import { Check, RefreshCw, Search, SlidersHorizontal, Video, X } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import {
     cariMasterPopuler,
     DEFAULT_SORT,
@@ -25,6 +26,8 @@ import {
     type SortDokter,
 } from '@/lib/api/dokter';
 import { DoctorCard } from '@/components/dokter/doctor-card';
+import { IKON_BAWAAN, IKON_SPESIALISASI } from '@/features/landing/ikon-spesialis';
+import { RelMenggulir } from '@/features/landing/rel-menggulir';
 import { isEmptyPage, isPastLastPage } from '@/lib/api/pagination';
 import { ApiError } from '@/lib/http';
 import type { DokterTipe, Spesialisasi } from '@/lib/api/types';
@@ -36,7 +39,6 @@ import { SkeletonRows } from '@/components/states/loading-state';
 import { EmptyState } from '@/components/states/empty-state';
 import { ErrorState } from '@/components/states/error-state';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import {
     Select,
     SelectContent,
@@ -267,10 +269,12 @@ export function DirektoriDokter() {
         telemedisinOnly;
 
     const jumlah = meta?.total;
-    const teksJumlah =
-        list.isFetching || jumlah === undefined
-            ? 'Menghitung hasil…'
-            : `${jumlah} dokter ditemukan.`;
+    /**
+     * One flag for "the number is not known yet", so the count sentence cannot be spelled
+     * differently by the live region and by the emphasis on its number below.
+     */
+    const menghitung = list.isFetching || jumlah === undefined;
+    const teksJumlah = menghitung ? 'Menghitung hasil…' : `${jumlah} dokter ditemukan.`;
 
     /**
      * Sort is deliberately NOT part of this comparison. It does not change `meta.total`,
@@ -450,8 +454,26 @@ export function DirektoriDokter() {
 
     const nonaktif = !online;
 
+    /**
+     * One applier for every desktop constraint control - the panel's groups and the
+     * toolbar's sort both land here, so a value can never be committed by one of them and
+     * forgotten by the other. The mobile sheet has its own commit (`terapkanDraft`)
+     * because it drafts a whole set at once.
+     */
+    function terapkanFilter(next: PilihanFilter): void {
+        if (nonaktif) {
+            return;
+        }
+
+        setSpesialisasi(next.spesialisasi);
+        setTipe(next.tipe);
+        setTelemedisinOnly(next.telemedisin);
+        setSort(next.sort);
+        resetToFirstPage();
+    }
+
     return (
-        <>
+        <div className="flex flex-col gap-5">
             {/**
              * The wrapper carries the id the offline controls point at through
              * `aria-describedby`. `OfflineBanner` renders `null` while online, so the
@@ -461,64 +483,78 @@ export function DirektoriDokter() {
                 <OfflineBanner message="Anda sedang offline. Pencarian dan filter tidak dikirim sampai koneksi kembali." />
             </div>
 
-            <Card>
-                <CardContent className="flex flex-col gap-3">
-                    <form
-                        onSubmit={kirimPencarian}
-                        className="flex flex-col gap-3"
-                        data-slot="dokter-form-cari"
+            {/**
+             * The search desk: the two ways to ask - a name typed here, or one of the four
+             * shortcuts the API's own `POPULER` table publishes - side by side on one raised
+             * surface, so the question gets asked before the answers start.
+             *
+             * F03 §4.3 fixes this copy and the redesign keeps all of it: the label is
+             * `sr-only` (`hideLabel`) because the heading over the section already says
+             * "Cari dokter" out loud, and the hint stays under the field. What changed is
+             * the shape - a 48 px pill with the magnifier inside it and the submit button
+             * on its end - and what moved away is the sixteen-row filter list that used to
+             * sit in this same block and make it read as a form to fill in.
+             */}
+            <div className="border-border bg-card rounded-xl border p-4 md:p-6">
+                <form
+                    onSubmit={kirimPencarian}
+                    className="flex flex-col gap-4"
+                    data-slot="dokter-form-cari"
+                >
+                    <Field
+                        label="Cari dokter"
+                        hideLabel
+                        hint="Cari berdasarkan nama. Untuk spesialisasi, pilih filter di bawah."
+                        className="w-full"
                     >
-                        <Field
-                            label="Cari dokter"
-                            hint="Cari berdasarkan nama. Untuk spesialisasi, pilih filter di bawah."
-                            className="max-w-xl"
-                        >
-                            <div className="flex items-center gap-2">
-                                <div className="relative min-w-0 flex-1">
-                                    <FieldInput
-                                        value={search}
-                                        autoComplete="off"
-                                        maxLength={SEARCH_MAX}
-                                        placeholder="Nama dokter (contoh: dr. Rina)"
-                                        className="h-11 pr-11"
-                                        data-slot="dokter-cari"
-                                        onChange={(event) => {
-                                            setSearch(event.target.value);
-                                        }}
-                                    />
+                        <div className="flex items-center gap-2">
+                            <div className="relative min-w-0 flex-1">
+                                <Search
+                                    aria-hidden
+                                    className="text-muted-foreground pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2"
+                                />
 
-                                    {search === '' ? null : (
-                                        <button
-                                            type="button"
-                                            aria-label="Hapus pencarian"
-                                            onClick={hapusPencarian}
-                                            className="text-muted-foreground hover:text-foreground focus-visible:ring-ring absolute inset-y-0 right-0 flex min-h-11 min-w-11 items-center justify-center rounded-md focus-visible:ring-2"
-                                        >
-                                            <X aria-hidden className="size-4" />
-                                        </button>
-                                    )}
-                                </div>
+                                <FieldInput
+                                    value={search}
+                                    autoComplete="off"
+                                    maxLength={SEARCH_MAX}
+                                    placeholder="Nama dokter (contoh: dr. Rina)"
+                                    className="h-12 rounded-full pr-12 pl-12"
+                                    data-slot="dokter-cari"
+                                    onChange={(event) => {
+                                        setSearch(event.target.value);
+                                    }}
+                                />
 
-                                <Button
-                                    type="submit"
-                                    className="h-11"
-                                    data-slot="dokter-cari-submit"
-                                    aria-disabled={nonaktif}
-                                    aria-describedby={
-                                        nonaktif ? 'dokter-alasan-offline' : undefined
-                                    }
-                                >
-                                    <Search aria-hidden />
-                                    Cari
-                                </Button>
+                                {search === '' ? null : (
+                                    <button
+                                        type="button"
+                                        aria-label="Hapus pencarian"
+                                        onClick={hapusPencarian}
+                                        className="text-muted-foreground hover:text-foreground focus-visible:ring-ring absolute inset-y-0 right-0 flex min-h-11 min-w-11 items-center justify-center rounded-full focus-visible:ring-2"
+                                    >
+                                        <X aria-hidden className="size-4" />
+                                    </button>
+                                )}
                             </div>
-                        </Field>
-                    </form>
 
-                    <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-muted-foreground text-sm">
-                            Sering dicari:
-                        </span>
+                            <Button
+                                type="submit"
+                                className="h-12 shrink-0 rounded-full px-5"
+                                data-slot="dokter-cari-submit"
+                                aria-disabled={nonaktif}
+                                aria-describedby={
+                                    nonaktif ? 'dokter-alasan-offline' : undefined
+                                }
+                            >
+                                <Search aria-hidden />
+                                Cari
+                            </Button>
+                        </div>
+                    </Field>
+
+                    <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-sm">
+                        <span className="font-medium">Sering dicari:</span>
 
                         {POPULER.map((pintasan) => {
                             const master = cariMasterPopuler(
@@ -532,7 +568,7 @@ export function DirektoriDokter() {
                                     key={pintasan.label}
                                     type="button"
                                     variant="secondary"
-                                    className="h-11"
+                                    className="h-11 rounded-full"
                                     data-slot="dokter-pintasan"
                                     disabled={mati}
                                     aria-disabled={mati}
@@ -547,32 +583,36 @@ export function DirektoriDokter() {
                             );
                         })}
                     </div>
-                </CardContent>
-            </Card>
+                </form>
+            </div>
 
-            <div className="grid items-start gap-6 md:grid-cols-[17rem_minmax(0,1fr)]">
+            <div className="grid items-start gap-6 md:grid-cols-[18rem_minmax(0,1fr)]">
                 <aside
                     aria-label="Filter dokter"
                     data-slot="dokter-panel-filter"
                     className="hidden md:block"
                 >
-                    <div className="bg-card md:sticky md:top-4 flex flex-col gap-4 rounded-lg border p-4">
-                        <h2 className="text-base font-semibold">Filter</h2>
+                    {/**
+                     * The constraint panel, restyled from a form into a facet column: the
+                     * sixteen specialisations become an icon rail with its own scroll
+                     * (bounded here rather than on a phone, where the sheet scrolls on its
+                     * own), and the short "Tipe dokter" list becomes chips that wrap - a
+                     * seven-row radio wall next to a sixteen-row one is two walls.
+                     */}
+                    <div className="border-border bg-card md:sticky md:top-4 flex flex-col gap-5 rounded-xl border p-5">
+                        <h2 className="flex items-center gap-2 text-base font-semibold">
+                            <SlidersHorizontal
+                                aria-hidden
+                                className="text-muted-foreground size-4"
+                            />
+                            Filter
+                        </h2>
 
                         <FilterIsi
                             idPrefix="panel"
+                            tampilkanUrutkan={false}
                             nilai={{ spesialisasi, tipe, telemedisin: telemedisinOnly, sort }}
-                            onUbah={(next) => {
-                                if (nonaktif) {
-                                    return;
-                                }
-
-                                setSpesialisasi(next.spesialisasi);
-                                setTipe(next.tipe);
-                                setTelemedisinOnly(next.telemedisin);
-                                setSort(next.sort);
-                                resetToFirstPage();
-                            }}
+                            onUbah={terapkanFilter}
                             nonaktif={nonaktif}
                             statusSpesialisasi={spesialisasiList.status}
                             barisSpesialisasi={daftarSpesialisasi}
@@ -583,13 +623,13 @@ export function DirektoriDokter() {
                     </div>
                 </aside>
 
-                <div className="flex min-w-0 flex-col gap-3">
-                    <div className="border-border bg-background sticky top-2 z-20 -mx-1 flex flex-wrap items-center gap-2 border-b px-1 py-2 md:hidden">
+                <div className="flex min-w-0 flex-col gap-4">
+                    <div className="border-border bg-muted sticky top-2 z-20 -mx-1 flex flex-wrap items-center gap-2 border-b px-1 py-2 md:hidden">
                         <Button
                             ref={pemicuFilterMobileRef}
                             type="button"
                             variant="outline"
-                            className="h-11"
+                            className="h-11 rounded-full"
                             data-slot="dokter-filter-button"
                             aria-disabled={nonaktif}
                             aria-describedby={
@@ -604,20 +644,52 @@ export function DirektoriDokter() {
                         </Button>
                     </div>
 
-                    {list.isError ? null : (
-                        <div className="flex flex-wrap items-center justify-between gap-2">
+                    {/**
+                     * What am I looking at, and in what order - one line, because the two
+                     * answers belong together. `Urutkan` is not a constraint: it reorders
+                     * the rows without removing one, which is why it moved out of the
+                     * panel (where a reader had to scroll past sixteen specialisations to
+                     * reach it) to the results it governs. The mobile sheet keeps its own
+                     * copy so a draft commits the sort together with the rest.
+                     */}
+                    <div className="border-border flex flex-wrap items-center justify-between gap-3 border-b pb-4">
+                        {list.isError ? null : (
                             <p
                                 ref={hasilRef}
                                 tabIndex={-1}
                                 role="status"
                                 aria-live="polite"
                                 data-slot="dokter-count"
-                                className="focus-visible:ring-ring rounded-md text-sm font-medium focus-visible:ring-2"
+                                className="text-muted-foreground focus-visible:ring-ring rounded-md text-sm focus-visible:ring-2"
                             >
-                                {teksJumlah}
+                                {menghitung ? (
+                                    teksJumlah
+                                ) : (
+                                    <>
+                                        <span className="text-foreground font-semibold tabular-nums">
+                                            {String(jumlah)}
+                                        </span>{' '}
+                                        dokter ditemukan.
+                                    </>
+                                )}
                             </p>
+                        )}
+
+                        <div
+                            className={cn('hidden md:block', list.isError && 'ml-auto')}
+                        >
+                            <UrutkanGrup
+                                nilai={{
+                                    spesialisasi,
+                                    tipe,
+                                    telemedisin: telemedisinOnly,
+                                    sort,
+                                }}
+                                onUbah={terapkanFilter}
+                                nonaktif={nonaktif}
+                            />
                         </div>
-                    )}
+                    </div>
 
                     {chipAktif.length === 0 ? null : (
                         <div
@@ -629,7 +701,7 @@ export function DirektoriDokter() {
                                     key={chip.kunci}
                                     type="button"
                                     variant="secondary"
-                                    className="min-h-11"
+                                    className="min-h-11 rounded-full"
                                     data-slot="dokter-chip"
                                     aria-label={`Hapus filter ${chip.label}`}
                                     aria-disabled={nonaktif}
@@ -646,7 +718,7 @@ export function DirektoriDokter() {
                             <Button
                                 type="button"
                                 variant="ghost"
-                                className="min-h-11"
+                                className="min-h-11 rounded-full"
                                 data-slot="dokter-hapus-semua"
                                 aria-disabled={nonaktif}
                                 onClick={hapusSemuaFilter}
@@ -823,7 +895,7 @@ export function DirektoriDokter() {
                     <div className="flex flex-col gap-2">
                         <Button
                             type="button"
-                            className="h-11 w-full"
+                            className="h-11 w-full rounded-full"
                             aria-disabled={nonaktif}
                             disabled={
                                 nonaktif || teksTampilkan === 'Menghitung hasil…'
@@ -836,7 +908,7 @@ export function DirektoriDokter() {
                         <Button
                             type="button"
                             variant="ghost"
-                            className="h-11 w-full"
+                            className="h-11 w-full rounded-full"
                             aria-disabled={nonaktif}
                             onClick={hapusSemuaFilter}
                         >
@@ -859,7 +931,7 @@ export function DirektoriDokter() {
                     }}
                 />
             </PanelFilterMobile>
-        </>
+        </div>
     );
 }
 
@@ -873,10 +945,21 @@ export function DirektoriDokter() {
  * single `tersedia_telemedisin` checkbox because the backend has no `tipe_layanan` filter
  * yet - the pattern's "Kunjungan klinik" option is deferred with it.
  *
+ * ## Why the two lists are drawn differently
+ *
+ * Sixteen specialisations and seven types are not the same shape of list. The long one is
+ * an icon rail with its own scroll - a wall of sixteen 44 px rows would push everything
+ * below it off the panel - and the short one is chips that wrap, because seven more rows
+ * would make two walls. Neither is a `<select>`: the endpoint takes one value per group and
+ * a visitor comparing "Spesialis Anak" with "Spesialis Penyakit Dalam" is reading the
+ * options, not recalling them.
+ *
  * `Urutkan` is the one non-constraint group, so it is the kit's `Select` rather than a
- * radio list: it changes neither the result set nor the chip row, only the order. It sits in
- * the shared body so the desktop panel applies it live and the mobile sheet drafts it with
- * the other values, which is what keeps the sheet's apply flow at three taps.
+ * radio list: it changes neither the result set nor the chip row, only the order. It is no
+ * longer rendered here on the desktop - the panel holds constraints and the results
+ * toolbar holds the sort - but the mobile sheet still drafts it with the other values,
+ * which is what keeps that sheet's apply flow at three taps. `tampilkanUrutkan` is how the
+ * one body serves both places without the two drifting.
  */
 function FilterIsi({
     nilai,
@@ -886,6 +969,7 @@ function FilterIsi({
     statusSpesialisasi,
     barisSpesialisasi,
     onMuatUlangSpesialisasi,
+    tampilkanUrutkan = true,
 }: {
     nilai: PilihanFilter;
     onUbah: (next: PilihanFilter) => void;
@@ -894,20 +978,24 @@ function FilterIsi({
     statusSpesialisasi: 'pending' | 'error' | 'success';
     barisSpesialisasi: ReadonlyArray<Spesialisasi>;
     onMuatUlangSpesialisasi: () => void;
+    /** The sheet renders the sort with the constraints it drafts; the panel does not. */
+    tampilkanUrutkan?: boolean;
 }) {
     return (
         <div className="flex flex-col gap-5">
-            <fieldset className="flex flex-col gap-0.5">
-                <legend className="mb-1 text-sm font-semibold">Spesialisasi</legend>
+            <fieldset className="flex flex-col gap-2">
+                <legend className="text-muted-foreground mb-1 text-xs font-semibold tracking-wide uppercase">
+                    Spesialisasi
+                </legend>
 
                 {statusSpesialisasi === 'pending' ? (
-                    <p className="text-muted-foreground px-2 text-sm">
+                    <p className="text-muted-foreground px-1 text-sm">
                         Memuat spesialisasi…
                     </p>
                 ) : null}
 
                 {statusSpesialisasi === 'error' ? (
-                    <div className="flex flex-col gap-2 px-2 py-1">
+                    <div className="flex flex-col gap-2 px-1 py-1">
                         <p className="text-destructive text-sm">
                             Daftar spesialisasi belum dapat dimuat.
                         </p>
@@ -926,111 +1014,175 @@ function FilterIsi({
 
                 {statusSpesialisasi === 'success' &&
                 barisSpesialisasi.length === 0 ? (
-                    <p className="text-muted-foreground px-2 text-sm">
+                    <p className="text-muted-foreground px-1 text-sm">
                         Belum ada data spesialisasi.
                     </p>
                 ) : null}
 
-                {barisSpesialisasi.map((row) => (
-                    <FilterChoice
-                        key={row.id}
-                        type="radio"
-                        name={`${idPrefix}-spesialisasi`}
-                        value={row.kode}
-                        label={row.nama}
-                        checked={nilai.spesialisasi === row.kode}
-                        disabled={nonaktif}
-                        onPilih={() => {
-                            onUbah({ ...nilai, spesialisasi: row.kode });
-                        }}
-                    />
-                ))}
+                {/**
+                 * The rail is `RelMenggulir` rather than a plain `overflow-y-auto` box for
+                 * the reason the header's catalog rail is: this browser reserves no space
+                 * for a native scrollbar, so sixteen rows in a window that fits six read
+                 * as a list that simply ENDS at six. On a phone there is no window here at
+                 * all - the sheet scrolls - and the component then draws no thumb.
+                 */}
+                <RelMenggulir
+                    slot={`${idPrefix}-spesialisasi-rel`}
+                    label="Daftar spesialisasi"
+                    className="-mx-1 px-1 md:max-h-72 md:pr-4"
+                >
+                    {barisSpesialisasi.map((row) => (
+                        <li key={row.id}>
+                            <FilterChoice
+                                type="radio"
+                                name={`${idPrefix}-spesialisasi`}
+                                value={row.kode}
+                                label={row.nama}
+                                ikon={IKON_SPESIALISASI[row.kode] ?? IKON_BAWAAN}
+                                bentuk="baris"
+                                checked={nilai.spesialisasi === row.kode}
+                                disabled={nonaktif}
+                                onPilih={() => {
+                                    onUbah({ ...nilai, spesialisasi: row.kode });
+                                }}
+                            />
+                        </li>
+                    ))}
+                </RelMenggulir>
             </fieldset>
 
-            <fieldset className="flex flex-col gap-0.5">
-                <legend className="mb-1 text-sm font-semibold">Tipe dokter</legend>
+            <fieldset className="flex flex-col gap-2">
+                <legend className="text-muted-foreground mb-1 text-xs font-semibold tracking-wide uppercase">
+                    Tipe dokter
+                </legend>
 
-                {TIPE_DOKTER.map((value) => (
-                    <FilterChoice
-                        key={value}
-                        type="radio"
-                        name={`${idPrefix}-tipe`}
-                        value={value}
-                        label={labelTipeDokter(value)}
-                        checked={nilai.tipe === value}
-                        disabled={nonaktif}
-                        onPilih={() => {
-                            onUbah({ ...nilai, tipe: value });
-                        }}
-                    />
-                ))}
+                <div className="flex flex-wrap gap-2">
+                    {TIPE_DOKTER.map((value) => (
+                        <FilterChoice
+                            key={value}
+                            type="radio"
+                            name={`${idPrefix}-tipe`}
+                            value={value}
+                            label={labelTipeDokter(value)}
+                            bentuk="pil"
+                            checked={nilai.tipe === value}
+                            disabled={nonaktif}
+                            onPilih={() => {
+                                onUbah({ ...nilai, tipe: value });
+                            }}
+                        />
+                    ))}
+                </div>
             </fieldset>
 
-            <fieldset className="flex flex-col gap-0.5">
-                <legend className="mb-1 text-sm font-semibold">Layanan</legend>
+            <fieldset className="flex flex-col gap-2">
+                <legend className="text-muted-foreground mb-1 text-xs font-semibold tracking-wide uppercase">
+                    Layanan
+                </legend>
 
-                <FilterChoice
-                    type="checkbox"
-                    name={`${idPrefix}-layanan`}
-                    value="telemedisin"
-                    label="Telemedisin"
-                    checked={nilai.telemedisin}
-                    disabled={nonaktif}
-                    onPilih={() => {
-                        onUbah({ ...nilai, telemedisin: !nilai.telemedisin });
-                    }}
-                />
+                <div className="flex flex-wrap gap-2">
+                    <FilterChoice
+                        type="checkbox"
+                        name={`${idPrefix}-layanan`}
+                        value="telemedisin"
+                        label="Telemedisin"
+                        ikon={Video}
+                        bentuk="pil"
+                        checked={nilai.telemedisin}
+                        disabled={nonaktif}
+                        onPilih={() => {
+                            onUbah({ ...nilai, telemedisin: !nilai.telemedisin });
+                        }}
+                    />
+                </div>
 
-                <p className="text-muted-foreground px-2 text-sm">
+                <p className="text-muted-foreground text-xs">
                     Hanya dokter yang tersedia untuk konsultasi online.
                 </p>
             </fieldset>
 
-            <fieldset className="flex flex-col gap-0.5" data-slot="dokter-urutkan-grup">
-                <legend className="mb-1 text-sm font-semibold">Urutkan</legend>
-
-                <Select
-                    value={nilai.sort}
-                    disabled={nonaktif}
-                    onValueChange={(value) => {
-                        onUbah({ ...nilai, sort: value as SortDokter });
-                    }}
-                >
-                    <SelectTrigger
-                        aria-label="Urutkan"
-                        data-slot="dokter-urutkan"
-                        className="h-11 w-full"
-                    >
-                        <SelectValue />
-                    </SelectTrigger>
-
-                    <SelectContent>
-                        {SORT_DOKTER.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                                {option.label}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-            </fieldset>
+            {tampilkanUrutkan ? (
+                <UrutkanGrup nilai={nilai} onUbah={onUbah} nonaktif={nonaktif} />
+            ) : null}
         </div>
     );
 }
 
 /**
- * One filter option: a full-row hit area with a real `input` under it.
+ * `Urutkan` - the one control in this feature that is not a constraint.
+ *
+ * It lives in its own component because it is now rendered TWICE, never visible twice: the
+ * results toolbar owns it on a desktop, the mobile sheet owns it while drafting. Both
+ * instances keep the `Select` with `aria-label="Urutkan"`, so a reader meets the same name
+ * wherever the order is changed, and the display:none half is not in the accessibility
+ * tree for a role query to find.
+ */
+function UrutkanGrup({
+    nilai,
+    onUbah,
+    nonaktif,
+}: {
+    nilai: PilihanFilter;
+    onUbah: (next: PilihanFilter) => void;
+    nonaktif: boolean;
+}) {
+    return (
+        <fieldset className="flex flex-col gap-1.5" data-slot="dokter-urutkan-grup">
+            <legend className="text-muted-foreground mb-1.5 text-xs font-semibold tracking-wide uppercase">
+                Urutkan
+            </legend>
+
+            <Select
+                value={nilai.sort}
+                disabled={nonaktif}
+                onValueChange={(value) => {
+                    onUbah({ ...nilai, sort: value as SortDokter });
+                }}
+            >
+                <SelectTrigger
+                    aria-label="Urutkan"
+                    data-slot="dokter-urutkan"
+                    className="h-11 w-full md:w-56"
+                >
+                    <SelectValue />
+                </SelectTrigger>
+
+                <SelectContent>
+                    {SORT_DOKTER.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+        </fieldset>
+    );
+}
+
+/**
+ * One filter option: a full hit area with a real `input` under it.
  *
  * The input is stretched across the label at zero opacity rather than rendered at
  * `size-4`, because WCAG 2.2's target size applies to the interactive element itself and a
  * 16 px checkbox inside a 44 px label still measures as 16 px. The visible box is
- * `aria-hidden` decoration that follows the input's `checked` state and draws the group's
- * focus ring via `peer-focus-visible`.
+ * `aria-hidden` decoration that follows the input's `checked` state, so selection is never
+ * carried by colour alone: the filled dot and the tick are the second channel, and the
+ * label is the third.
+ *
+ * Two shapes, one control. `baris` is the rail - a quiet full-width row for the list long
+ * enough to need its own scroll, carrying the specialisation's glyph beside its name.
+ * `pil` is the chip - a bounded pill for the short lists that wrap. They differ in paint
+ * only: the input, the accessible name, the 44 px target and the focus ring are the same
+ * control underneath, which is why one component can draw a specialisation, a doctor type
+ * and the telemedisin checkbox without three copies of the checked-state rules.
  */
 function FilterChoice({
     type,
     name,
     value,
     label,
+    ikon: Ikon,
+    bentuk = 'baris',
     checked,
     disabled,
     onPilih,
@@ -1039,6 +1191,9 @@ function FilterChoice({
     name: string;
     value: string;
     label: string;
+    /** The specialisation's glyph, `aria-hidden`: the label beside it is the name. */
+    ikon?: LucideIcon;
+    bentuk?: 'baris' | 'pil';
     checked: boolean;
     disabled: boolean;
     onPilih: () => void;
@@ -1046,7 +1201,17 @@ function FilterChoice({
     return (
         <label
             className={cn(
-                'hover:bg-accent has-[:focus-visible]:ring-ring relative flex min-h-11 cursor-pointer items-center gap-3 rounded-md px-2 has-[:focus-visible]:ring-2',
+                'has-[:focus-visible]:ring-ring relative flex min-h-11 cursor-pointer items-center gap-2.5 transition-colors duration-150 has-[:focus-visible]:ring-2',
+                bentuk === 'pil'
+                    ? 'rounded-full border px-3.5 py-1.5'
+                    : 'rounded-md border border-transparent px-2',
+                checked
+                    ? bentuk === 'pil'
+                        ? 'border-primary bg-secondary font-medium text-secondary-foreground'
+                        : 'bg-secondary font-medium text-secondary-foreground'
+                    : bentuk === 'pil'
+                      ? 'border-border bg-background hover:bg-accent'
+                      : 'hover:bg-accent',
                 disabled && 'cursor-not-allowed opacity-50',
             )}
         >
@@ -1077,7 +1242,19 @@ function FilterChoice({
                 ) : null}
             </span>
 
-            <span className="text-sm">{label}</span>
+            {Ikon === undefined ? null : (
+                <Ikon
+                    aria-hidden
+                    className={cn(
+                        'size-4 shrink-0',
+                        checked
+                            ? 'text-secondary-foreground'
+                            : 'text-muted-foreground',
+                    )}
+                />
+            )}
+
+            <span className="text-sm leading-tight">{label}</span>
         </label>
     );
 }

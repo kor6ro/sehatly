@@ -7,8 +7,9 @@ import type { DokterTipe } from '@/lib/api/types';
 import { formatDecimal, formatRupiah } from '@/lib/format';
 
 /**
- * One doctor card, shared by the directory at `/dokter` and the landing page's
- * {@link ../features/landing/dokter-pilihan | picked-specialisation section}.
+ * One doctor card, shared by every surface that prints a directory row: the section on the
+ * landing page (`features/dokter/direktori.tsx`, which used to be the page at `/dokter`)
+ * and the "Spesialis Anak" style pick in `DirektoriSection`.
  *
  * It used to live at the bottom of `doctor-directory-page.tsx`, which was honest while
  * that page was the only screen that could show a doctor. The landing page now prints the

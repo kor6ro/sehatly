@@ -80,10 +80,10 @@ export function DirektoriSection() {
             ref={ref}
             id="direktori"
             data-slot="landing-direktori"
-            className="scroll-mt-28 w-full"
+            className="border-border scroll-mt-28 w-full border-y bg-muted"
         >
-            <div className="mx-auto w-full max-w-[1280px] px-4 py-10 md:px-6">
-                <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="mx-auto w-full max-w-[1280px] px-4 py-10 md:px-6 md:py-14">
+                <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                         <h2 className="text-2xl leading-snug font-bold md:text-3xl">
                             Direktori Dokter
@@ -96,8 +96,9 @@ export function DirektoriSection() {
 
                     <Button
                         type="button"
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
+                        className="rounded-full"
                         onClick={tutup}
                         aria-label="Tutup direktori dokter"
                         data-slot="landing-direktori-tutup"
@@ -107,7 +108,7 @@ export function DirektoriSection() {
                     </Button>
                 </div>
 
-                <div className="mt-5">
+                <div className="mt-6">
                     <DirektoriDokter
                         key={`${spesialisasi ?? ''}|${pencarian ?? ''}`}
                     />
