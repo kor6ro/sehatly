@@ -252,8 +252,8 @@ export function DirektoriDokter() {
     const [search, setSearch] = useState(kueriAwal);
     const [submittedSearch, setSubmittedSearch] = useState(kueriAwal);
     /**
-     * Seeded from `?spesialisasi=` so the landing page's `Buka direktori lengkap` door -
-     * and any link an older build wrote - opens the directory ALREADY filtered, instead
+     * Seeded from `?spesialisasi=` so the landing page's breadcrumb door - and any link
+     * an older build wrote - opens the directory ALREADY filtered, instead
      * of promising a filter it silently drops. It is a one-shot read: once the state
      * exists, clearing the chip inside the page is what changes it - the URL is an entry
      * point, not a second source of truth for the filter. An unknown `kode` is left in

@@ -173,13 +173,13 @@ const DIREKTORI = '/dokter';
  * Where a specialisation row and a "Sering dicari" shortcut point: the LANDING PAGE,
  * carrying the choice as `?spesialisasi=`.
  *
- * The choice answers itself where it was made: `DirektoriSection` prints the
- * specialisation's name, how many doctors it has, up to eight cards and a door to the
- * rest. The door is `Buka direktori lengkap`, which continues into
- * `/dokter?spesialisasi=…` with the choice already applied - so the pick never has to
- * choose between "answer me here" and "take me to the catalogue"; it gets both, in that
- * order. It stays a plain `<a href>` rather than a click handler: shareable, Back-able,
- * keyboard-reachable, and honest about where it goes.
+ * The choice answers itself where it was made: `DirektoriSection` prints a breadcrumb,
+ * the specialisation's name, how many doctors it has and up to eight cards. The middle
+ * crumb, `Direktori Dokter`, continues into `/dokter?spesialisasi=…` with the choice
+ * already applied - so the pick never has to choose between "answer me here" and "take me
+ * to the catalogue"; it gets both, in that order. It stays a plain `<a href>` rather than
+ * a click handler: shareable, Back-able, keyboard-reachable, and honest about where it
+ * goes.
  */
 const pilihanSpesialisasi = (kode: string) =>
     `/?spesialisasi=${encodeURIComponent(kode)}`;

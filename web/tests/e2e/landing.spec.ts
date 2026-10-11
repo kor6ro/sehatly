@@ -88,12 +88,12 @@ async function sampelPiksel(
  *    `/dokter`, the page that can answer a free-text query, WITHOUT writing the question
  *    into the address - F03 §9 keeps a free-text doctor search out of a URL people paste
  *    into chats, so the handoff is `sessionStorage`. The rail asks one question and is
- *    answered HERE, on this page, by `DirektoriSection`: the specialisation's name, how
- *    many doctors it has, up to eight cards, and one door into `/dokter?spesialisasi=…`
- *    for the rest. A visitor who chose "Dokter Gigi" asked one question and should not
- *    have to read a different screen's search and sort to get the answer. Below `md` the
- *    bar drops the field and the drawer carries its own copy of the same form, so "add a
- *    search" never quietly means "add a search to viewports 1024 and up".
+ *    answered HERE, on this page, by `DirektoriSection`: a breadcrumb, the
+ *    specialisation's name, how many doctors it has, and up to eight cards. A visitor
+ *    who chose "Dokter Gigi" asked one question and should not have to read a different
+ *    screen's search and sort to get the answer. Below `md` the bar drops the field and
+ *    the drawer carries its own copy of the same form, so "add a search" never quietly
+ *    means "add a search to viewports 1024 and up".
  *
  * 7. **An open panel takes the light with it - and the tab does not.** The reference
  *    dims the page behind its menu, because a white panel on a white page has no edge
@@ -249,13 +249,17 @@ test.describe('Landing page (/)', () => {
      * cards, and one door to `/dokter` for the rest. Sixteen specialisations and a sort
      * control would be a screen for somebody who asked one question.
      *
-     * While the answer is on screen it is ALL that is on screen: the bar and the footer
-     * stay, the carousel and the seven sections underneath it do not render at all. A
-     * pick is one question, and a rotating promotion over the top of its answer is not
-     * part of it - on a phone it also decides whether the answer sits under the bar or a
-     * full screen lower. The test asserts the body is GONE from the DOM rather than
-     * merely hidden, because a `display:none` section is still reachable by a screen
-     * reader and by a keyboard, and then `Tutup` puts the whole page back.
+     * The pick view is a category page: banner, breadcrumb, answer - and then it stops.
+     * The bar, the carousel and the footer stay (they carry this app's navigation, so the
+     * screen is never a dead end); the seven sections below the answer do not render at
+     * all, because nobody reading "Spesialis Anak, 1 dokter ditemukan." was also asking
+     * about promos. The test asserts they are GONE from the DOM rather than merely
+     * hidden, because a `display:none` section is still reachable by a screen reader and
+     * by a keyboard - and then it walks the breadcrumb back to the whole page.
+     *
+     * The breadcrumb is also the answer's only in-band exit now: `Tutup` (X-button and
+     * all) and `Buka direktori lengkap` are gone, so the test asserts that neither has
+     * quietly come back.
      */
     test('f00-landing-nav-direktori-pilihan-dokter-muncul-di-beranda', async ({
         page,
@@ -347,30 +351,45 @@ test.describe('Landing page (/)', () => {
 
         /**
          * THE OTHER HALF OF THE CHANGE. The answer does not sit ON a landing page - while
-         * a pick is on screen the landing page IS the answer. The bar and the footer stay
-         * (they carry this app's navigation, so the screen is never a dead end), and the
-         * carousel plus the sections below it are not in the DOM at all.
+         * a pick is on screen the landing page IS the answer. The bar, the banner and the
+         * footer stay; only the seven sections below the answer are out of the DOM.
          */
         await expect(page.locator('[data-slot="landing-header"]')).toBeVisible();
+        await expect(page.locator('[data-slot="hero-carousel"]')).toBeVisible();
         await expect(page.locator('[data-slot="landing-footer"]')).toBeVisible();
-        await expect(page.locator('[data-slot="hero-carousel"]')).toHaveCount(0);
         await expect(page.locator('#solusi')).toHaveCount(0);
         await expect(page.locator('#cek-mandiri')).toHaveCount(0);
 
         /**
-         * The answer in full: how many, who, and the one door to the rest. The count is
-         * the same sentence the directory prints, so a number means the same thing on
-         * both surfaces - and it is a `role="status"` because it arrives after the cards
-         * do, and a screen reader that never heard the number would be reading a list
-         * nobody counted.
+         * The breadcrumb, which replaced `Tutup` and `Buka direktori lengkap`: `Home` back
+         * to the landing page, `Direktori Dokter` into `/dokter` with the choice still
+         * applied, and the specialisation as the current page rather than a link. It is
+         * asserted as a real `<nav aria-label>` reached through its data-slot, so a stack
+         * of divs that merely reads "Home / ..." would not satisfy it.
+         */
+        const krikib = page.locator('[data-slot="landing-krikib"]');
+        await expect(krikib).toBeVisible();
+        await expect(krikib.getByRole('link', { name: 'Home' })).toHaveAttribute('href', '/');
+        await expect(
+            krikib.getByRole('link', { name: 'Direktori Dokter' }),
+        ).toHaveAttribute('href', /^\/dokter\?spesialisasi=/);
+        await expect(krikib.locator('[aria-current="page"]')).toHaveText(namaDipilih);
+
+        /**
+         * The answer in full: how many, who. The count is the same sentence the
+         * directory prints, so a number means the same thing on both surfaces - and it is
+         * a `role="status"` because it arrives after the cards do, and a screen reader
+         * that never heard the number would be reading a list nobody counted.
          */
         await expect(seksi.locator('[data-slot="landing-direktori-jumlah"]')).toContainText(
             'dokter ditemukan.',
         );
-        await expect(seksi.locator('[data-slot="landing-direktori-tutup"]')).toBeVisible();
+
+        // And the two buttons that used to be the answer's exits are really gone.
+        await expect(page.getByRole('button', { name: 'Tutup' })).toHaveCount(0);
         await expect(
-            seksi.getByRole('link', { name: 'Buka direktori lengkap' }),
-        ).toHaveAttribute('href', /^\/dokter\?spesialisasi=/);
+            page.getByRole('link', { name: 'Buka direktori lengkap' }),
+        ).toHaveCount(0);
 
         /**
          * And the answer is one of two honest states - real cards, or the sentence saying
@@ -386,15 +405,15 @@ test.describe('Landing page (/)', () => {
         ).toBeVisible();
 
         /**
-         * And it was a HIDE, not a detour. `Tutup` costs one click and the whole landing
-         * page comes back - so a pick made out of curiosity is free, which is what makes
-         * it worth offering sixteen of them in a menu.
+         * And it was a HIDE, not a detour: `Home` in the breadcrumb costs one click and
+         * the whole landing page comes back - so a pick made out of curiosity is free,
+         * which is what makes it worth offering sixteen of them in a menu.
          */
-        await seksi.locator('[data-slot="landing-direktori-tutup"]').click();
+        await krikib.getByRole('link', { name: 'Home' }).click();
 
         await expect(page).toHaveURL(/\/$/);
         await expect(page.locator('[data-slot="landing-direktori"]')).toHaveCount(0);
-        await expect(page.locator('[data-slot="hero-carousel"]')).toBeVisible();
+        await expect(page.locator('[data-slot="landing-krikib"]')).toHaveCount(0);
         await expect(page.locator('#solusi')).toBeVisible();
         await expect(page.locator('[data-slot="landing-footer"]')).toBeVisible();
     });

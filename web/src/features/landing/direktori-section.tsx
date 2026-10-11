@@ -1,11 +1,9 @@
 import { useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router';
-import { X } from 'lucide-react';
 import { DEFAULT_SORT, dokterOptions, spesialisasiOptions } from '@/lib/api/dokter';
 import { DoctorCard } from '@/components/dokter/doctor-card';
 import { IKON_BAWAAN, IKON_SPESIALISASI } from '@/features/landing/ikon-spesialis';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
 /** How many of the answer's cards the landing page prints - two rows of four, no more. */
@@ -31,17 +29,33 @@ const PER_HALAMAN_JAWABAN = 8;
  * 2. **how many** - the same `{n} dokter ditemukan.` sentence the directory prints, so a
  *    number means the same thing on both surfaces;
  * 3. **who** - up to eight cards, in the same `DoctorCard` the directory uses;
- * 4. **the rest** - one door, `Buka direktori lengkap`, into `/dokter?spesialisasi=…`
- *    with the choice already applied.
+ * 4. **where this sits** - a breadcrumb over all of it, `Home / Direktori Dokter / {nama}`.
+ *
+ * ## Why a breadcrumb instead of two buttons
+ *
+ * This used to end in a row of exits: `Tutup` carrying an X, and `Buka direktori lengkap`
+ * into the directory. Both are gone, and the breadcrumb carries what they carried between
+ * them. `Home` is the way back to the whole landing page - that was `Tutup`'s job.
+ * `Direktori Dokter` opens `/dokter?spesialisasi=…` with the choice already applied -
+ * that was `Buka direktori lengkap`'s job, label and all. Two exits, both phrased as
+ * places rather than as commands bolted onto an answer.
+ *
+ * They were removable because neither was ever the only way out: the sticky bar above
+ * carries `Direktori Dokter`, the sixteen-row panel and every other door in the app, so a
+ * band that offers none of its own is not a band that traps anybody. The trail is here to
+ * SAY where the visitor is - which is what a breadcrumb is for - not to be the last exit
+ * in the building.
  *
  * ## When it is on screen
  *
- * Only while `?spesialisasi=` says so - and then it is ALL that is on screen. `LandingPage`
- * hides the carousel and the seven sections underneath it while a pick is active, so this
- * section's `bg-muted` band runs from under the bar straight to the footer, and a plain
- * `/` is the page it was before any of this existed. The band keeps its border and its
- * grey on purpose: it is a panel of answers either way, so it does not need a second
- * flavour for being alone.
+ * Only while `?spesialisasi=` says so. The carousel stays: the pick view is a page in its
+ * own right, and a category page whose banner sits above its breadcrumb is the shape this
+ * reference uses. The seven sections BELOW this one do not render at all, though - nobody
+ * reading "Spesialis Anak, 1 dokter ditemukan." was also asking about promos and the
+ * medical dictionary - and a plain `/` renders them exactly as it always did.
+ *
+ * The band keeps its `bg-muted` and its borders either way: it is a panel of answers
+ * standing on its own white, so it needs no second flavour for being alone.
  *
  * The choice is a URL parameter and not component state on purpose: the pick stays a plain
  * `<a>`, so it can be shared, reached with the keyboard, answered by the Back button, and
@@ -53,7 +67,7 @@ const PER_HALAMAN_JAWABAN = 8;
  * free-text question and "the whole table" are what a PAGE is for.
  */
 export function DirektoriSection() {
-    const [params, setParams] = useSearchParams();
+    const [params] = useSearchParams();
     const ref = useRef<HTMLElement | null>(null);
 
     const kode = params.get('spesialisasi');
@@ -77,10 +91,15 @@ export function DirektoriSection() {
     });
 
     /**
-     * The pick happens in a panel fixed to the top of a tall page, so the answer would
-     * otherwise land below the fold. `scroll-mt-28` on the section is the matching half:
-     * the bar is 107px tall, and a section scrolled flush to the top would hide its own
-     * heading under it.
+     * The pick happens in a panel fixed to the top of a tall page, and the pick view now
+     * opens with the carousel - so without this the click would appear to do nothing at
+     * all, since the carousel is the same carousel `/` was already showing. What gets
+     * scrolled to is the BREADCRUMB rather than the band: arriving on the trail puts
+     * "where am I", the heading and the cards in one frame, with the banner one flick up
+     * instead of a screen away.
+     *
+     * `scroll-mt-28` is the matching half of the 107px sticky bar - flush to the top and
+     * the trail would sit underneath it.
      */
     useEffect(() => {
         if (kode === null) return;
@@ -90,12 +109,7 @@ export function DirektoriSection() {
 
     if (kode === null) return null;
 
-    const tutup = () => {
-        const berikut = new URLSearchParams(params);
-        berikut.delete('spesialisasi');
-        setParams(berikut);
-    };
-
+    const nama = baris?.nama ?? kode;
     const total = hasil.data?.meta?.total;
     const teksJumlah = hasil.isPending
         ? 'Menghitung hasil…'
@@ -106,14 +120,64 @@ export function DirektoriSection() {
     const rows = hasil.data?.data.dokter ?? [];
 
     return (
-        <section
-            ref={ref}
-            id="direktori"
-            data-slot="landing-direktori"
-            className="border-border scroll-mt-28 w-full border-y bg-muted"
-        >
-            <div className="mx-auto w-full max-w-[1280px] px-4 py-10 md:px-6 md:py-14">
-                <div className="flex flex-wrap items-start justify-between gap-3">
+        <>
+            {/**
+             * The trail, and the first thing in the pick view after the banner. It is
+             * what the scroll effect above lands on, which is why it - and not the band
+             * - carries `scroll-mt-28`.
+             *
+             * `Home` is what `Tutup` was: one click back to the whole landing page,
+             * which the sticky bar does not itself offer. `Direktori Dokter` is what
+             * `Buka direktori lengkap` was, X-button and all, and it keeps the choice
+             * as `?spesialisasi=` so the directory opens already narrowed instead of
+             * promising a filter it silently drops. The last crumb is the page, so it is
+             * not a link.
+             */}
+            <nav
+                ref={ref}
+                aria-label="Breadcrumb"
+                data-slot="landing-krikib"
+                className="bg-background scroll-mt-28 w-full"
+            >
+                <ol className="mx-auto flex w-full max-w-[1280px] flex-wrap items-center gap-x-2 gap-y-1 px-4 py-3 text-sm md:px-6">
+                    <li className="flex items-center gap-2">
+                        <Link
+                            to="/"
+                            className="text-muted-foreground hover:text-foreground underline-offset-4 hover:underline"
+                        >
+                            Home
+                        </Link>
+                        <span aria-hidden className="text-muted-foreground/50">
+                            /
+                        </span>
+                    </li>
+
+                    <li className="flex items-center gap-2">
+                        <Link
+                            to={`/dokter?spesialisasi=${encodeURIComponent(kode)}`}
+                            className="text-muted-foreground hover:text-foreground underline-offset-4 hover:underline"
+                        >
+                            Direktori Dokter
+                        </Link>
+                        <span aria-hidden className="text-muted-foreground/50">
+                            /
+                        </span>
+                    </li>
+
+                    <li>
+                        <span aria-current="page" className="text-foreground font-medium">
+                            {nama}
+                        </span>
+                    </li>
+                </ol>
+            </nav>
+
+            <section
+                id="direktori"
+                data-slot="landing-direktori"
+                className="border-border w-full border-y bg-muted"
+            >
+                <div className="mx-auto w-full max-w-[1280px] px-4 py-10 md:px-6 md:py-14">
                     <div className="flex min-w-0 items-center gap-3">
                         {/**
                          * The specialisation's own glyph, never a generic one: a mark
@@ -128,7 +192,7 @@ export function DirektoriSection() {
 
                         <div className="min-w-0">
                             <h2 className="text-2xl leading-snug font-bold md:text-3xl">
-                                {baris?.nama ?? kode}
+                                {nama}
                             </h2>
 
                             <p
@@ -142,89 +206,56 @@ export function DirektoriSection() {
                         </div>
                     </div>
 
-                    <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="rounded-full"
-                        onClick={tutup}
-                        aria-label="Tutup pilihan spesialisasi"
-                        data-slot="landing-direktori-tutup"
-                    >
-                        <X aria-hidden className="size-4" />
-                        Tutup
-                    </Button>
+                    <div className="mt-6">
+                        {hasil.isPending ? (
+                            <ul
+                                aria-hidden
+                                className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
+                            >
+                                {Array.from({ length: 4 }, (_, i) => (
+                                    <li key={i}>
+                                        <Skeleton className="h-56 rounded-xl" />
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : hasil.isError ? (
+                            <p className="text-muted-foreground text-sm">
+                                Gagal memuat daftar dokter. Periksa koneksi lalu coba
+                                lagi.
+                            </p>
+                        ) : rows.length === 0 ? (
+                            /**
+                             * The honest empty answer, and the one a visitor on THIS page is
+                             * asking for: not "no filter matched" - they applied no filter -
+                             * but "this specialisation has nobody in it right now". The
+                             * seeded fixture genuinely has no dentist, so this state is the
+                             * one a reader of `/?spesialisasi=GIGI` will meet.
+                             */
+                            <p className="text-muted-foreground text-sm">
+                                Belum ada dokter pada spesialisasi ini.
+                            </p>
+                        ) : (
+                            <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                                {rows.map((row) => (
+                                    <li key={row.id}>
+                                        <DoctorCard
+                                            id={row.id}
+                                            nama={row.nama_lengkap}
+                                            tipe={row.tipe}
+                                            spesialisasi={row.spesialisasi}
+                                            biaya={row.biaya_konsultasi_online}
+                                            rating={row.rating_rata_rata}
+                                            konsultasi={row.jumlah_konsultasi}
+                                            pengalaman={row.pengalaman_tahun}
+                                            ulasan={row.jumlah_ulasan}
+                                        />
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
                 </div>
-
-                <div className="mt-6">
-                    {hasil.isPending ? (
-                        <ul
-                            aria-hidden
-                            className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
-                        >
-                            {Array.from({ length: 4 }, (_, i) => (
-                                <li key={i}>
-                                    <Skeleton className="h-56 rounded-xl" />
-                                </li>
-                            ))}
-                        </ul>
-                    ) : hasil.isError ? (
-                        <p className="text-muted-foreground text-sm">
-                            Gagal memuat daftar dokter. Periksa koneksi lalu coba lagi.
-                        </p>
-                    ) : rows.length === 0 ? (
-                        /**
-                         * The honest empty answer, and the one a visitor on THIS page is
-                         * asking for: not "no filter matched" - they applied no filter -
-                         * but "this specialisation has nobody in it right now". The
-                         * seeded fixture genuinely has no dentist, so this state is the
-                         * one a reader of `/?spesialisasi=GIGI` will meet.
-                         */
-                        <p className="text-muted-foreground text-sm">
-                            Belum ada dokter pada spesialisasi ini.
-                        </p>
-                    ) : (
-                        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                            {rows.map((row) => (
-                                <li key={row.id}>
-                                    <DoctorCard
-                                        id={row.id}
-                                        nama={row.nama_lengkap}
-                                        tipe={row.tipe}
-                                        spesialisasi={row.spesialisasi}
-                                        biaya={row.biaya_konsultasi_online}
-                                        rating={row.rating_rata_rata}
-                                        konsultasi={row.jumlah_konsultasi}
-                                        pengalaman={row.pengalaman_tahun}
-                                        ulasan={row.jumlah_ulasan}
-                                    />
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                </div>
-
-                {/**
-                 * The one door out of the answer. It carries `?spesialisasi=` so the
-                 * directory opens already filtered: the visitor's choice is not
-                 * re-asked on the other side, which is the whole reason this band can
-                 * be this short.
-                 */}
-                <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-                    <p className="text-muted-foreground max-w-xl text-sm">
-                        Pencarian, filter, urutan, dan seluruh daftar dokter ada di
-                        direktori lengkap.
-                    </p>
-
-                    <Button asChild className="rounded-full">
-                        <Link
-                            to={`/dokter?spesialisasi=${encodeURIComponent(kode)}`}
-                        >
-                            Buka direktori lengkap
-                        </Link>
-                    </Button>
-                </div>
-            </div>
-        </section>
+            </section>
+        </>
     );
 }

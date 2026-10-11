@@ -36,18 +36,18 @@ import {
  *
  * ## What it carries of the doctor directory
  *
- * Only the answer to a pick - and, while a pick is active, ONLY that.
+ * Only the answer to a pick - and, while a pick is active, the answer with nothing below
+ * it.
  *
- * `DirektoriSection` prints a specialisation's name, its count, up to eight cards and a
- * door to the rest. When `?spesialisasi=` says so, the rest of this page does not render
- * at all: the carousel and the seven sections below it make way for the answer, because a
- * visitor who chose "Dokter Gigi" asked ONE question, and a rotating promotion over the
- * top of the answer is not part of it. On a phone that is the difference between the
- * answer sitting under the bar and the answer sitting a full screen lower.
+ * `DirektoriSection` prints a breadcrumb, a specialisation's name, its count and up to
+ * eight cards. The carousel above it stays: a category page with a banner over its trail
+ * is the shape this reference uses. The seven sections BELOW it do not render at all,
+ * though - a visitor who chose "Dokter Gigi" asked ONE question, and the promo strip, the
+ * medical dictionary and the self-check tiles that follow the answer are not part of it.
  *
- * The bar and the footer stay. They carry this app's navigation, so the screen is never a
- * dead end, and both `Tutup` in the answer and the browser's Back button restore the
- * whole page unchanged - the body is HIDDEN, not thrown away, which is what keeps
+ * What never goes is the bar. It carries this app's navigation, so the screen is never a
+ * dead end, and the body is HIDDEN rather than thrown away: `Home` in the breadcrumb or
+ * the browser's Back button restores the whole page unchanged, which is what keeps
  * `/?spesialisasi=GIGI` a state of this route rather than a second route wearing `/` as a
  * disguise.
  *
@@ -94,9 +94,10 @@ export function LandingPage() {
     }
 
     /**
-     * Whether this address is ANSWERING a pick. The whole landing body is conditional on
-     * it - see the docblock above - and `DirektoriSection` reads the same parameter for
-     * itself, so the two cannot disagree about whether a pick is on screen.
+     * Whether this address is ANSWERING a pick. Only the seven sections below the answer
+     * are conditional on it - see the docblock above - and `DirektoriSection` reads the
+     * same parameter for itself, so the two cannot disagree about whether a pick is on
+     * screen.
      */
     const dipilih = params.get('spesialisasi') !== null;
 
@@ -105,20 +106,23 @@ export function LandingPage() {
             <LandingHeader onMasuk={() => setLoginOpen(true)} />
 
             <main className="flex-1">
-                {dipilih ? (
-                    /**
-                     * A pick gets the screen. Nothing else is rendered, not even in
-                     * skeleton form: a half-drawn "Solusi Kesehatan" under an answer the
-                     * visitor did not ask for is worse than none, and remounting it on
-                     * `Tutup` costs nothing.
-                     */
-                    <DirektoriSection />
-                ) : (
+                {/**
+                 * The banner is above the pick as well as above a plain `/`: on `/` it
+                 * leads into the answer, and on a pick it is the top of the category
+                 * page the visitor has just opened - `DirektoriSection` scrolls to its
+                 * breadcrumb, so the click still lands on the answer rather than on a
+                 * carousel that looks unchanged.
+                 */}
+                <HeroCarousel />
+
+                <DirektoriSection />
+
+                {/**
+                 * Everything else makes way for an answer nobody asked it about, and
+                 * remounting it costs nothing.
+                 */}
+                {!dipilih && (
                     <>
-                        <HeroCarousel />
-
-                        <DirektoriSection />
-
                         <SolusiSection />
                         <PromoSection />
                         <ObatSection />
