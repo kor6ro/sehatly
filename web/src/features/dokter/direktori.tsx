@@ -670,9 +670,19 @@ export function DirektoriDokter() {
 
     /**
      * The headline over the answer. A pick names itself - "Spesialis Anak" - and an
-     * unfiltered visit gets the F03 §4.3 copy verbatim, so the sentence is the same one
-     * the standalone directory used to print and a screen reader hears the same words it
-     * always did.
+     * unfiltered visit gets the F03 §4.3 heading, so the words are the same ones the
+     * standalone directory used to print and a screen reader hears what it always did.
+     *
+     * The §4.3 description under it is GONE, and that was the decision, not an oversight.
+     * It read "Temukan dokter yang tepat, lalu pesan jadwal konsultasi." under BOTH
+     * headings, so once a visitor had picked a specialisation the sentence said nothing
+     * the pick had not already said - two lines of marketing on a phone, above a list
+     * that had already announced itself. A headline that names the answer does not also
+     * have to sell it. Recorded in §12 butir 8(e).
+     *
+     * The size came down with it. `text-4xl` was right when this block was a poster over
+     * a page's only content; it is a label over a shortlist now, and the cards below are
+     * the thing worth the pixels.
      */
     const judul = spesialisasiTerpilih ?? 'Direktori dokter';
 
@@ -682,17 +692,13 @@ export function DirektoriDokter() {
             aria-labelledby="landing-direktori-judul"
             className="mx-auto flex w-full max-w-[1280px] flex-col gap-5 px-4 pt-6 pb-16 md:px-6"
         >
-            <header className="flex flex-col gap-2">
+            <header>
                 <h1
                     id="landing-direktori-judul"
-                    className="text-foreground text-3xl font-bold tracking-tight md:text-4xl"
+                    className="text-foreground text-2xl font-semibold tracking-tight"
                 >
                     {judul}
                 </h1>
-
-                <p className="text-muted-foreground max-w-2xl text-base md:text-lg">
-                    Temukan dokter yang tepat, lalu pesan jadwal konsultasi.
-                </p>
             </header>
 
             {/**
@@ -997,13 +1003,19 @@ function UrutkanGrup({
                  * `data-[size=default]:h-9`: an attribute variant is generated after a
                  * plain `h-11`, so the same specificity later in the sheet wins and the
                  * kit's 36px would silently take over. This is the only control that
-                 * arranges the rows now, and F03 §8 asks for a 44px target on it.
+                 * arranges the rows, and F03 §8 asks for a 44px target on it.
+                 *
+                 * No width either. It used to be `w-full md:w-56`, which on a phone made
+                 * it a full-width bordered box occupying a row of its own - the loudest
+                 * thing on a screen of three doctors, for a control that only REORDERS
+                 * what is already chosen. Shrink-wrapped and right-aligned on the count's
+                 * own line, it is the same control at the volume it deserves.
                  */}
                 <SelectTrigger
                     aria-label="Urutkan"
                     data-slot="dokter-urutkan"
                     aria-describedby={nonaktif ? 'dokter-alasan-offline' : undefined}
-                    className="h-11! w-full md:w-56"
+                    className="h-11!"
                 >
                     <SelectValue />
                 </SelectTrigger>
