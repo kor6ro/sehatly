@@ -985,7 +985,7 @@ for (const vp of VIEWPORTS) {
             await expect(tidakDitemukan).toBeVisible();
             await expect(tidakDitemukan.getByText('Profil tidak tersedia')).toBeVisible();
             await expect(
-                page.getByRole('link', { name: 'Kembali ke direktori' }),
+                page.getByRole('link', { name: 'Kembali ke beranda' }),
             ).toBeVisible();
             await expect(page.getByRole('button', { name: 'Coba lagi' })).toHaveCount(0);
 
@@ -1163,8 +1163,13 @@ for (const vp of VIEWPORTS) {
                 const cta = await page
                     .locator('[data-slot="cta-pesan-jadwal"]')
                     .boundingBox();
+                /**
+                 * The way out of a profile. It used to say "direktori" because there was
+                 * a directory page to go back to; now that the answer lives on the front
+                 * page, the door is the front page, and it is labelled as such.
+                 */
                 const kembali = await page
-                    .getByRole('link', { name: 'Kembali ke direktori' })
+                    .getByRole('link', { name: 'Kembali ke beranda' })
                     .boundingBox();
 
                 expect(cta?.height ?? 0).toBeGreaterThanOrEqual(44);

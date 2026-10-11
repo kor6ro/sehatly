@@ -96,7 +96,7 @@ export function BookingCreatePage() {
                         detail="Profil dokter ini tidak tersedia di direktori, sehingga booking tidak dapat dibuat."
                         action={
                             <Button asChild variant="outline" size="sm">
-                                <Link to="/dokter">
+                                <Link to="/?semua=1">
                                     <ArrowLeft />
 
                                     Kembali ke direktori

@@ -7,17 +7,14 @@ import type { DokterTipe } from '@/lib/api/types';
 import { formatDecimal, formatRupiah } from '@/lib/format';
 
 /**
- * One doctor card, shared by every surface that prints a directory row: the section on the
- * landing page (`features/dokter/direktori.tsx`, which used to be the page at `/dokter`)
- * and the "Spesialis Anak" style pick in `DirektoriSection`.
+ * One doctor card, shared by every surface that prints a directory row.
  *
  * It used to live at the bottom of `doctor-directory-page.tsx`, which was honest while
- * that page was the only screen that could show a doctor. The landing page now prints the
- * same rows when a visitor picks a specialisation out of the header's rail, and a second
- * copy of this card is the exact drift this codebase keeps refusing: two cards that agree
- * today and disagree the first time a badge rule changes. So the card moved here, with its
- * `data-slot` and its props untouched - every selector the directory's tests use still
- * finds it.
+ * that page was the only screen that could show a doctor. The landing page prints the same
+ * rows now, and a second copy of this card is the exact drift this codebase keeps
+ * refusing: two cards that agree today and disagree the first time a badge rule changes.
+ * So the card moved here, with its `data-slot` and its props untouched - every selector
+ * the directory's tests use still finds it.
  *
  * ## The `Tersedia telemedisin` badge is drawn for every card
  *
@@ -44,6 +41,7 @@ export function DoctorCard({
     konsultasi,
     pengalaman,
     ulasan,
+    ke = `/dokter/${String(id)}`,
 }: {
     id: number;
     nama: string;
@@ -61,6 +59,17 @@ export function DoctorCard({
     pengalaman?: number | null;
     /** Recomputed review count from `ulasan_dokter`; `0` means no reviews yet. */
     ulasan?: number | null;
+    /**
+     * Where the name goes. It defaults to `/dokter/{id}`, the profile as a page of its
+     * own - which is where a card is reached from OUTSIDE the landing page (the booking
+     * flow, a notification) has to point, because there is no list to come back to there.
+     *
+     * The landing page passes something else: `/?dokter={id}` plus whatever filters the
+     * visitor is standing in, so the profile opens IN PLACE and the list is one click
+     * behind it. Same card, same `data-slot`, two destinations - which is the whole
+     * reason the destination is a prop and not a hard-coded path.
+     */
+    ke?: string;
 }) {
     const pengalamanTampil =
         typeof pengalaman === 'number' && pengalaman > 0 ? pengalaman : null;
@@ -71,7 +80,7 @@ export function DoctorCard({
             <CardContent className="flex h-full flex-col gap-3">
                 <div className="flex flex-col gap-1">
                     <Link
-                        to={`/dokter/${String(id)}`}
+                        to={ke}
                         className="text-base font-medium underline-offset-4 hover:underline"
                     >
                         {nama}

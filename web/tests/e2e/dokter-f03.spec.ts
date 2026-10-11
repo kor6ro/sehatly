@@ -1,5 +1,11 @@
 import { mkdirSync } from 'node:fs';
-import { expect, test, type Page, type Route } from '@playwright/test';
+import {
+    expect,
+    test,
+    type Locator,
+    type Page,
+    type Route,
+} from '@playwright/test';
 import { expectNoA11yViolations, istirahatkanGerak } from './a11y';
 
 /**
@@ -14,12 +20,15 @@ import { expectNoA11yViolations, istirahatkanGerak } from './a11y';
  *
  * ## Where the tests open it
  *
- * The directory is a page again: `bukaDirektori` opens `/dokter`, which is where every
- * door in the navigation points. The LANDING page keeps only the answer to a pick, and
- * its two old addresses - `/?direktori=semua` and `/?search=…` - forward here carrying
- * their parameter, which `f03-alamat-lama-beranda-mengalihkan-ke-dokter` locks. Nothing
- * else in these criteria knows the difference: every selector here was already the
- * directory's own.
+ * There is no `/dokter` page any more. `bukaDirektori` opens `/?semua=1` - the landing
+ * page showing the directory with nothing applied - and every door in the navigation
+ * writes that address. The consequence that shapes every selector below is that ASKING
+ * and ANSWERING now live on separate surfaces: a constraint is picked in the header (its
+ * hover panel on a desktop, the drawer on a phone) and the answer under the headline
+ * carries no picker of its own. It carries what was picked (the chips), how many matched
+ * (the count), who (the cards), in what order (`Urutkan`) and the way out. The one
+ * leftover of the old address, `/dokter`, is a redirect to `/?semua=1` and has its own
+ * test, `f03-alamat-lama-beranda-mengalihkan-ke-dokter`.
  *
  * ## What the F03 backend commit unblocked
  *
@@ -371,14 +380,14 @@ function punyaPermintaan(
 }
 
 /**
- * The directory as this spec finds it: the page at `/dokter`, with the landing bar on top
- * of it. The two landing addresses that used to open this screen forward here instead, and
- * that forward has its own test below, `f03-alamat-lama-beranda-mengalihkan-ke-dokter`.
+ * The directory as this spec finds it: the LANDING page with the directory open and
+ * nothing applied. `?semua=1` is the address every door in the navigation writes, and
+ * `/dokter` redirects to it - see `f03-alamat-lama-beranda-mengalihkan-ke-dokter`.
  */
 async function bukaDirektori(page: Page, opsi: OpsiMock = {}): Promise<State> {
     const state = await pasangMock(page, opsi);
 
-    await page.goto('/dokter');
+    await page.goto('/?semua=1');
 
     await expect(page.locator('[data-slot="dokter-count"]')).toContainText(
         'dokter ditemukan.',
@@ -388,90 +397,135 @@ async function bukaDirektori(page: Page, opsi: OpsiMock = {}): Promise<State> {
     return state;
 }
 
-async function cariDokter(page: Page, kueri: string): Promise<void> {
-    const input = page.locator('[data-slot="dokter-cari"]');
-
-    await input.fill(kueri);
-    await input.press('Enter');
-}
-
-async function pilihSpesialisasi(page: Page, vp: Vp, nama: string): Promise<void> {
+/**
+ * The one search field: in the bar on a desktop, inside the drawer on a phone. The
+ * answer under it has none, because a form beneath a result list is a second place to
+ * ask the same question.
+ */
+async function kolomCari(page: Page, vp: Vp): Promise<Locator> {
     if (vp.nama === 'mobile') {
-        await page.locator('[data-slot="dokter-filter-button"]').click();
+        const laci = page.locator('[role="dialog"]');
 
-        await page
-            .locator('[data-slot="sheet-content"]')
-            .getByRole('radio', { name: nama })
-            .click();
+        // Reuses an already-open drawer rather than toggling it shut: a test that needs
+        // the field twice (AC-9 does, before and after the connection comes back) must
+        // not depend on whether the first submit closed it.
+        if ((await laci.count()) === 0) {
+            await page.getByRole('button', { name: 'Buka menu navigasi' }).click();
 
-        const tampilkan = page.getByRole('button', { name: /^Tampilkan \d+ hasil$/ });
+            await expect(laci).toBeVisible();
+        }
 
-        await expect(tampilkan).toBeEnabled();
-        await tampilkan.click();
-
-        return;
+        return laci.getByRole('searchbox', { name: 'Cari dokter' });
     }
 
-    await page
-        .locator('[data-slot="dokter-panel-filter"]')
-        .getByRole('radio', { name: nama })
-        .click();
-}
-
-async function pilihTipe(page: Page, vp: Vp, nama: string): Promise<void> {
-    if (vp.nama === 'mobile') {
-        await page.locator('[data-slot="dokter-filter-button"]').click();
-
-        await page
-            .locator('[data-slot="sheet-content"]')
-            .getByRole('radio', { name: nama })
-            .click();
-
-        const tampilkan = page.getByRole('button', { name: /^Tampilkan \d+ hasil$/ });
-
-        await expect(tampilkan).toBeEnabled();
-        await tampilkan.click();
-
-        return;
-    }
-
-    await page
-        .locator('[data-slot="dokter-panel-filter"]')
-        .getByRole('radio', { name: nama })
-        .click();
-}
-
-async function pilihTelemedisin(page: Page, vp: Vp): Promise<void> {
-    if (vp.nama === 'mobile') {
-        await page.locator('[data-slot="dokter-filter-button"]').click();
-
-        await page
-            .locator('[data-slot="sheet-content"]')
-            .getByRole('checkbox', { name: 'Telemedisin' })
-            .click();
-
-        const tampilkan = page.getByRole('button', { name: /^Tampilkan \d+ hasil$/ });
-
-        await expect(tampilkan).toBeEnabled();
-        await tampilkan.click();
-
-        return;
-    }
-
-    await page
-        .locator('[data-slot="dokter-panel-filter"]')
-        .getByRole('checkbox', { name: 'Telemedisin' })
-        .click();
+    return page
+        .locator('[data-slot="landing-cari"]:visible')
+        .getByRole('searchbox', { name: 'Cari dokter' });
 }
 
 /**
- * Opens the shared `Urutkan` select and picks `label`. The mobile caller must have the
- * sheet open (it is the only visible `Urutkan` there); the desktop caller uses the panel.
+ * Closing the phone drawer. No-op on a desktop, where the bar has no drawer to close.
  *
- * Selection is driven by keyboard, not by a coordinate click: the sheet sits at the bottom
- * of a 390 px viewport, so Radix clamps the listbox and a forced click on a partially
- * scrolled option can land on its neighbour. Typing the option's own label uses Radix's
- * typeahead, and it is also the keyboard check F03 §8 asks of this control.
+ * Tests that reach past the drawer for something in the answer behind it need this: a
+ * click that lands on the scrim closes the sheet, and Radix unmounts the drawer's copy of
+ * the search bar on the way out - taking the typed term with it, because that term is
+ * component state and state belongs to the instance.
+ */
+async function tutupLaci(page: Page, vp: Vp): Promise<void> {
+    if (vp.nama !== 'mobile') {
+        return;
+    }
+
+    const laci = page.locator('[role="dialog"]');
+
+    if ((await laci.count()) === 0) {
+        return;
+    }
+
+    await page.keyboard.press('Escape');
+
+    await expect(laci).toHaveCount(0);
+}
+
+async function cariDokter(page: Page, vp: Vp, kueri: string): Promise<void> {
+    const kolom = await kolomCari(page, vp);
+
+    await kolom.fill(kueri);
+    await kolom.press('Enter');
+
+    /**
+     * The term never reaches the address (F03 §9), so "the search happened" has exactly
+     * one visible witness: the chip. Waiting on it is what stops every assertion below
+     * from reading the answer to the question the visitor had asked BEFORE typing.
+     */
+    await expect(
+        page.locator('[data-slot="dokter-chip"]').filter({ hasText: kueri }),
+    ).toHaveCount(1);
+}
+
+/**
+ * Where a constraint is chosen - the header's hover panel on a desktop, the same choices
+ * inside the drawer on a phone. The answer no longer has a picker to drive, so these
+ * helpers use the surface a real visitor would use rather than editing the address.
+ */
+async function panelPilihan(page: Page, vp: Vp): Promise<Locator> {
+    if (vp.nama === 'mobile') {
+        await page.getByRole('button', { name: 'Buka menu navigasi' }).click();
+
+        const laci = page.locator('[role="dialog"]');
+
+        await expect(laci).toBeVisible();
+
+        return laci.locator('[data-slot="nav-direktori-laci"]');
+    }
+
+    await page.getByRole('button', { name: 'Direktori Dokter' }).hover();
+
+    const panel = page.locator('[data-slot="nav-direktori-panel"]');
+
+    await expect(panel).toBeVisible();
+
+    return panel;
+}
+
+/**
+ * Pick one thing by name. A row is a plain `<a href>`, so the click navigates (no reload)
+ * and the drawer or panel closes itself on the way out - asserted rather than assumed,
+ * because an overlay left open over the answer it just opened is the defect that made
+ * these two surfaces separate in the first place.
+ */
+async function pilihTautan(page: Page, vp: Vp, nama: string): Promise<void> {
+    const panel = await panelPilihan(page, vp);
+
+    await panel.getByRole('link', { name: nama }).click();
+
+    await expect(page.locator('[data-slot="landing-direktori"]')).toBeVisible();
+    await expect(page.locator('[role="dialog"]')).toHaveCount(0);
+    await expect(page.locator('[data-slot="nav-direktori-panel"]')).toHaveCount(0);
+}
+
+async function pilihSpesialisasi(page: Page, vp: Vp, nama: string): Promise<void> {
+    await pilihTautan(page, vp, nama);
+}
+
+async function pilihTipe(page: Page, vp: Vp, nama: string): Promise<void> {
+    await pilihTautan(page, vp, nama);
+}
+
+async function pilihTelemedisin(page: Page, vp: Vp): Promise<void> {
+    await pilihTautan(page, vp, 'Telemedisin');
+}
+
+/**
+ * Opens the shared `Urutkan` select and picks `label`. The control sits beside the count
+ * on both viewports now - there is no sheet to have drafted it in first, because a draft
+ * that only "Tampilkan" can commit is a control that costs two taps to do the thing the
+ * one visible control already does.
+ *
+ * Selection is driven by keyboard, not by a coordinate click: on a phone the select sits
+ * at the top of a scrolling list, so Radix clamps the listbox and a forced click on a
+ * partially scrolled option can land on its neighbour. Typing the option's own label uses
+ * Radix's typeahead, and it is also the keyboard check F03 §8 asks of this control.
  */
 async function pilihOpsiUrutkan(page: Page, label: string): Promise<void> {
     const pemicu = page.getByRole('combobox', { name: 'Urutkan' });
@@ -522,21 +576,22 @@ for (const vp of VIEWPORTS) {
         test.setTimeout(60_000);
 
         /**
-         * The address is a page again, and the two landing addresses that USED to open
-         * this screen still work.
+         * The address the app wrote for years still answers, and it answers with the
+         * directory rather than a 404 or the marketing sections.
          *
-         * `/dokter` is the destination itself - no forward, no bounce, and the `h1` the
-         * document title promises. The landing page's old doors are the ones that
-         * redirect: `?direktori=semua` meant "the whole table", `?search=` was a
-         * question, and a redirect that dropped the question would answer a search with
-         * everybody - worse than a 404, because it looks like an answer.
+         * `/dokter` is a redirect to `/?semua=1`, and every parameter is carried across:
+         * a `?spesialisasi=` bookmark means the same thing on both addresses, and `search`
+         * is carried too because F03 §9 forbids this app from WRITING a free-text query
+         * into an address - dropping one an older build already wrote would trade that
+         * rule for a wrong answer. `?direktori=semua`, which this app's own navigation
+         * used to write, becomes `?semua=1`.
          */
         test('f03-alamat-lama-beranda-mengalihkan-ke-dokter', async ({ page }) => {
             const state = await pasangMock(page);
 
             await page.goto('/dokter');
 
-            await expect(page).toHaveURL('/dokter');
+            await expect(page).toHaveURL('/?semua=1');
             await expect(page.locator('[data-slot="dokter-count"]')).toContainText(
                 'dokter ditemukan.',
                 { timeout: 15_000 },
@@ -544,7 +599,6 @@ for (const vp of VIEWPORTS) {
             await expect(
                 page.getByRole('heading', { name: 'Direktori dokter', level: 1 }),
             ).toBeVisible();
-            await expect(page.locator('[data-slot="dokter-cari"]')).toHaveValue('');
 
             // The address a search never travels through: no request carries one until
             // the visitor types one.
@@ -554,29 +608,34 @@ for (const vp of VIEWPORTS) {
                 ),
             ).toHaveLength(0);
 
-            // A bookmark written by the build that had a `/dokter?search=` page.
-            await page.goto('/dokter?search=Rina');
+            // A bookmark written by the build that had a `/dokter` page with filters.
+            await page.goto('/dokter?spesialisasi=SP.A');
 
-            await expect(page.locator('[data-slot="dokter-cari"]')).toHaveValue('Rina');
+            await expect(page).toHaveURL('/?spesialisasi=SP.A');
+            await expect(
+                page.getByRole('heading', { name: 'Spesialis Anak', level: 1 }),
+            ).toBeVisible();
             await expect(page.locator('[data-slot="dokter-count"]')).toContainText(
-                '1 dokter ditemukan.',
+                '8 dokter ditemukan.',
             );
 
-            // The landing page's two old doors, both of which forward here.
+            // The landing page's own old door.
             await page.goto('/?direktori=semua');
 
-            await expect(page).toHaveURL('/dokter');
+            await expect(page).toHaveURL('/?semua=1');
             await expect(page.locator('[data-slot="dokter-count"]')).toContainText(
                 'dokter ditemukan.',
             );
 
+            // A question an older build wrote into the address keeps its answer.
             await page.goto('/?search=Rina');
 
-            await expect(page).toHaveURL('/dokter?search=Rina');
-            await expect(page.locator('[data-slot="dokter-cari"]')).toHaveValue('Rina');
             await expect(page.locator('[data-slot="dokter-count"]')).toContainText(
                 '1 dokter ditemukan.',
             );
+            await expect(
+                page.locator('[data-slot="dokter-chip"]').filter({ hasText: 'Rina' }),
+            ).toHaveCount(1);
 
             await expectNoA11yViolations(page);
         });
@@ -588,20 +647,15 @@ for (const vp of VIEWPORTS) {
                 '12 dokter ditemukan.',
             );
 
-            await expect(page.getByText('Sering dicari:')).toBeVisible();
-            await expect(page.getByRole('button', { name: 'Dokter Anak' })).toBeVisible();
+            // Asking happens in the header now. A search field beneath a result list is a
+            // second place to ask the same question, and the "Sering dicari" shortcuts
+            // that used to sit beside it moved into the same panel as the filters.
             await expect(
-                page.getByRole('button', { name: 'Dokter Kandungan' }),
-            ).toBeVisible();
-            await expect(
-                page.getByRole('button', { name: 'Dokter Penyakit Dalam' }),
-            ).toBeVisible();
-            await expect(page.getByRole('button', { name: 'Dokter Gigi' })).toBeVisible();
+                page.locator('[data-slot="landing-direktori"] form'),
+            ).toHaveCount(0);
+            await expect(page.getByText('Sering dicari:')).toHaveCount(0);
 
-            await expect(page.locator('[data-slot="dokter-form-cari"]')).toBeInViewport();
-            await expect(page.locator('[data-slot="dokter-cari-submit"]')).toBeInViewport();
-
-            await cariDokter(page, 'Rina');
+            await cariDokter(page, vp, 'Rina');
 
             await expect(page.locator('[data-slot="dokter-count"]')).toContainText(
                 '1 dokter ditemukan.',
@@ -610,6 +664,12 @@ for (const vp of VIEWPORTS) {
             await expect(
                 page.locator('[data-slot="dokter-kartu"]').first(),
             ).toContainText('dr. Rina Wulandari, Sp.A');
+
+            // The term faces the visitor as a chip they can take off - there is no field
+            // down here to read it back from.
+            await expect(
+                page.locator('[data-slot="dokter-chip"]').filter({ hasText: 'Rina' }),
+            ).toHaveCount(1);
 
             const pencarian = state.permintaanDokter.filter((url) =>
                 new URL(url).searchParams.get('search') === 'Rina',
@@ -624,7 +684,9 @@ for (const vp of VIEWPORTS) {
 
             await page.reload();
 
-            await expect(page.locator('[data-slot="dokter-cari"]')).toHaveValue('Rina');
+            await expect(
+                page.locator('[data-slot="dokter-chip"]').filter({ hasText: 'Rina' }),
+            ).toHaveCount(1);
             await expect(page.locator('[data-slot="dokter-count"]')).toContainText(
                 '1 dokter ditemukan.',
             );
@@ -633,62 +695,34 @@ for (const vp of VIEWPORTS) {
             await expectNoA11yViolations(page);
         });
 
-        test('f03-ac2-filter-sheet', async ({ page }) => {
+        /**
+         * AC-2 used to be "a filter sheet on a phone", because the constraints lived on
+         * the directory and a phone had no room for a sidebar. They live in the header
+         * now - its hover panel on a desktop, the same rows inside the drawer on a phone
+         * - so what is left to prove is the part that actually matters: a pick made there
+         * is obeyed down here, and this answer holds no picker that could contradict it.
+         */
+        test('f03-ac2-filter-dipilih-di-navbar', async ({ page }) => {
             const state = await bukaDirektori(page);
 
-            if (vp.nama === 'mobile') {
-                const tombol = page.locator('[data-slot="dokter-filter-button"]');
+            await expect(page.locator('[data-slot="dokter-panel-filter"]')).toHaveCount(0);
+            await expect(page.locator('[data-slot="dokter-filter-button"]')).toHaveCount(0);
+            await expect(
+                page.locator('[data-slot="landing-direktori"] form'),
+            ).toHaveCount(0);
 
-                await expect(tombol).toBeVisible();
-                await expect(tombol).toContainText('Filter');
+            await pilihSpesialisasi(page, vp, 'Spesialis Anak');
 
-                // Tap 1: open the sheet.
-                await tombol.click();
-
-                const sheet = page.locator('[data-slot="sheet-content"]');
-
-                await expect(sheet).toBeVisible();
-                await expect(
-                    sheet.getByRole('heading', { name: 'Filter' }),
-                ).toBeVisible();
-
-                // The results behind the sheet stay rendered and visible.
-                await expect(
-                    page.locator('[data-slot="dokter-kartu"]').first(),
-                ).toBeVisible();
-
-                // Tap 2: choose one value.
-                await sheet.getByRole('radio', { name: 'Spesialis Anak' }).click();
-
-                const tampilkan = page.getByRole('button', {
-                    name: /^Tampilkan \d+ hasil$/,
-                });
-
-                await expect(tampilkan).toHaveText('Tampilkan 8 hasil');
-
-                await simpanGambar(page, vp, 'sheet');
-
-                // Tap 3: apply.
-                await tampilkan.click();
-
-                await expect(tombol).toContainText('Filter · 1');
-            } else {
-                const panel = page.locator('[data-slot="dokter-panel-filter"]');
-
-                await expect(panel).toBeVisible();
-                await expect(panel.getByText('Filter', { exact: true })).toBeVisible();
-
-                await panel.getByRole('radio', { name: 'Spesialis Anak' }).click();
-
-                await expect(page.locator('[data-slot="dokter-chip"]')).toHaveCount(1);
-
-                await simpanGambar(page, vp, 'terfilter');
-            }
-
+            await expect(page).toHaveURL('/?spesialisasi=SP.A');
+            await expect(
+                page.getByRole('heading', { name: 'Spesialis Anak', level: 1 }),
+            ).toBeVisible();
             await expect(page.locator('[data-slot="dokter-count"]')).toContainText(
                 '8 dokter ditemukan.',
             );
-            await expect(page.getByRole('button', { name: 'Hapus filter Spesialis Anak' })).toBeVisible();
+            await expect(
+                page.getByRole('button', { name: 'Hapus filter Spesialis Anak' }),
+            ).toBeVisible();
 
             expect(
                 punyaPermintaan(
@@ -696,6 +730,8 @@ for (const vp of VIEWPORTS) {
                     (params) => params.get('spesialisasi') === 'SP.A',
                 ),
             ).toBe(true);
+
+            await simpanGambar(page, vp, 'terfilter');
 
             await expectNoA11yViolations(page);
         });
@@ -796,28 +832,11 @@ for (const vp of VIEWPORTS) {
                 expect(new URL(url).searchParams.get('sort')).toBeNull();
             }
 
-            // `Biaya terendah` -> `sort=biaya_asc`, ascending by the published fee.
-            if (vp.nama === 'mobile') {
-                await page.locator('[data-slot="dokter-filter-button"]').click();
-
-                // Tap 2 of the sheet flow: choose the option (tap 1 opened the sheet).
-                await pilihOpsiUrutkan(page, 'Biaya terendah');
-
-                // Drafting a sort must not cost a request; only `Tampilkan` applies it.
-                expect(state.permintaanDokter.length).toBe(1);
-
-                await simpanGambar(page, vp, 'sheet-urutkan', false);
-
-                // Tap 3: apply.
-                const tampilkan = page.getByRole('button', {
-                    name: /^Tampilkan \d+ hasil$/,
-                });
-
-                await expect(tampilkan).toBeEnabled();
-                await tampilkan.click();
-            } else {
-                await pilihOpsiUrutkan(page, 'Biaya terendah');
-            }
+            // `Biaya terendah` -> `sort=biaya_asc`, ascending by the published fee. There
+            // is no draft to commit: `Urutkan` sits beside the count on both viewports and
+            // costs exactly one request, which is the whole of AC-5's "one change, one
+            // fetch" clause.
+            await pilihOpsiUrutkan(page, 'Biaya terendah');
 
             const jumlahPermintaanAsc = (): number =>
                 state.permintaanDokter.filter(
@@ -853,20 +872,7 @@ for (const vp of VIEWPORTS) {
                 )
                 .toBe(true);
 
-            if (vp.nama === 'mobile') {
-                await page.locator('[data-slot="dokter-filter-button"]').click();
-            }
-
             await pilihOpsiUrutkan(page, 'Rating tertinggi');
-
-            if (vp.nama === 'mobile') {
-                const tampilkan = page.getByRole('button', {
-                    name: /^Tampilkan \d+ hasil$/,
-                });
-
-                await expect(tampilkan).toBeEnabled();
-                await tampilkan.click();
-            }
 
             await expect
                 .poll(() =>
@@ -895,7 +901,7 @@ for (const vp of VIEWPORTS) {
             await expect(count).toHaveAttribute('role', 'status');
             await expect(count).toContainText('12 dokter ditemukan.');
 
-            await cariDokter(page, 'tidakada');
+            await cariDokter(page, vp, 'tidakada');
 
             // While the filter request is in flight the count must not show the old number.
             await expect(count).toContainText('Menghitung hasil…');
@@ -955,7 +961,7 @@ for (const vp of VIEWPORTS) {
         test('f03-ac8-500', async ({ page }) => {
             const state = await bukaDirektori(page, { dokter: banyakDokter(30) });
 
-            await cariDokter(page, 'Anak');
+            await cariDokter(page, vp, 'Anak');
             await pilihSpesialisasi(page, vp, 'Spesialis Anak');
 
             await expect(page.locator('[data-slot="dokter-count"]')).toContainText(
@@ -979,11 +985,15 @@ for (const vp of VIEWPORTS) {
             await expect(galat.getByRole('button', { name: 'Coba lagi' })).toBeVisible();
 
             // Chips, query and current page survive the failure.
-            await expect(page.locator('[data-slot="dokter-chip"]')).toHaveCount(1);
-            await expect(page.locator('[data-slot="dokter-chip"]')).toContainText(
-                'Spesialis Anak',
-            );
-            await expect(page.locator('[data-slot="dokter-cari"]')).toHaveValue('Anak');
+            await expect(page.locator('[data-slot="dokter-chip"]')).toHaveCount(2);
+            await expect(
+                page.locator('[data-slot="dokter-chip"]').filter({ hasText: 'Mencari' }),
+            ).toHaveCount(1);
+            await expect(
+                page
+                    .locator('[data-slot="dokter-chip"]')
+                    .filter({ hasText: 'Spesialis Anak' }),
+            ).toHaveCount(1);
 
             const sebelumRetry = state.permintaanDokter.length;
 
@@ -1016,53 +1026,92 @@ for (const vp of VIEWPORTS) {
         test('f03-ac9-offline', async ({ page, context }) => {
             const state = await bukaDirektori(page);
 
-            await page.locator('[data-slot="dokter-cari"]').fill('Rina');
+            await pilihSpesialisasi(page, vp, 'Spesialis Anak');
+
+            await expect(page.locator('[data-slot="dokter-count"]')).toContainText(
+                '8 dokter ditemukan.',
+            );
+
+            // The term is typed into the header's field - it never reaches the address,
+            // and offline it never reaches a request either.
+            const kolom = await kolomCari(page, vp);
+
+            await kolom.fill('Rina');
 
             await context.setOffline(true);
 
             await expect(page.getByTestId('offline-banner')).toBeVisible();
 
             const sebelum = state.permintaanDokter.length;
-            const cari = page.locator('[data-slot="dokter-cari-submit"]');
 
-            await expect(cari).toHaveAttribute('aria-disabled', 'true');
-            await expect(cari).toHaveAttribute(
+            await kolom.press('Enter');
+
+            await page.waitForTimeout(500);
+
+            /**
+             * Submitting sends nothing and navigates nowhere. A term that cannot be
+             * answered must not be the reason the address changes, or the visitor comes
+             * back online looking at a screen whose question they can no longer see.
+             */
+            expect(state.permintaanDokter.length).toBe(sebelum);
+            await expect(kolom).toHaveValue('Rina');
+
+            /**
+             * On a phone the term was typed into the DRAWER's copy of the bar. The forced
+             * click below would land on the drawer's scrim, close the sheet, and take the
+             * typed term with it - the field is state, and state belongs to the instance.
+             * Close it first, the way a visitor reading the answer would.
+             */
+            await tutupLaci(page, vp);
+
+            // The controls the answer still carries are inert and point at the reason.
+            const chip = page.locator('[data-slot="dokter-chip"]').first();
+
+            await expect(chip).toHaveAttribute('aria-disabled', 'true');
+            await expect(chip).toHaveAttribute(
+                'aria-describedby',
+                'dokter-alasan-offline',
+            );
+
+            const urutkan = page.locator('[data-slot="dokter-urutkan"]');
+
+            await expect(urutkan).toBeDisabled();
+            await expect(urutkan).toHaveAttribute(
                 'aria-describedby',
                 'dokter-alasan-offline',
             );
 
             // Playwright treats `aria-disabled` as non-actionable, but the criterion is
             // exactly that the handler is reachable and still sends nothing.
-            await cari.click({ force: true });
+            await chip.click({ force: true });
 
-            if (vp.nama === 'mobile') {
-                const tombol = page.locator('[data-slot="dokter-filter-button"]');
-
-                await expect(tombol).toHaveAttribute('aria-disabled', 'true');
-                await tombol.click({ force: true });
-
-                await expect(page.locator('[data-slot="sheet-content"]')).toHaveCount(0);
-            }
-
-            await page.waitForTimeout(500);
+            await page.waitForTimeout(300);
 
             expect(state.permintaanDokter.length).toBe(sebelum);
-            await expect(page.locator('[data-slot="dokter-cari"]')).toHaveValue('Rina');
 
             await simpanGambar(page, vp, 'offline');
 
             await context.setOffline(false);
 
             await expect(page.getByTestId('offline-banner')).toHaveCount(0);
-            await expect(cari).not.toHaveAttribute('aria-disabled', 'true');
+            await expect(chip).not.toHaveAttribute('aria-disabled', 'true');
+            await expect(urutkan).not.toBeDisabled();
 
-            await cari.click();
+            // Re-opened and re-typed: a drawer that was closed starts with an empty
+            // field, which is right - the question is not its to remember. What AC-9 is
+            // about is whether the term is SENT once the connection is back, and that is
+            // exactly what the poll below watches for.
+            const kolomAkhir = await kolomCari(page, vp);
+
+            await kolomAkhir.fill('Rina');
+            await kolomAkhir.press('Enter');
 
             await expect
                 .poll(
                     () =>
                         state.permintaanDokter.some(
-                            (url) => new URL(url).searchParams.get('search') === 'Rina',
+                            (url) =>
+                                new URL(url).searchParams.get('search') === 'Rina',
                         ),
                     { timeout: 10_000 },
                 )
@@ -1117,8 +1166,10 @@ for (const vp of VIEWPORTS) {
             state.halamanKosong = true;
 
             // A different query key, because page 2 of the previous filter set is still
-            // fresh in the React Query cache and would not refetch.
-            await cariDokter(page, 'Contoh');
+            // fresh in the React Query cache and would not refetch. The search carries
+            // the specialisation with it: a term is a narrower question about the same
+            // shortlist, not a new one.
+            await cariDokter(page, vp, 'Contoh');
 
             await expect(page.locator('[data-slot="dokter-count"]')).toContainText(
                 '14 dokter ditemukan.',
@@ -1135,9 +1186,14 @@ for (const vp of VIEWPORTS) {
                 .click();
 
             await expect(page.locator('[data-slot="dokter-kartu"]')).toHaveCount(12);
-            await expect(page.locator('[data-slot="dokter-chip"]')).toContainText(
-                'Spesialis Anak',
-            );
+
+            // The specialisation the search carried survives too - it is still the same
+            // shortlist, only narrower by name.
+            await expect(
+                page
+                    .locator('[data-slot="dokter-chip"]')
+                    .filter({ hasText: 'Spesialis Anak' }),
+            ).toHaveCount(1);
 
             await expectNoA11yViolations(page);
         });
@@ -1189,59 +1245,30 @@ for (const vp of VIEWPORTS) {
             ]) {
                 await page.setViewportSize(ukuran);
 
-                if (ukuran.width === 390) {
-                    const tombol = page.locator('[data-slot="dokter-filter-button"]');
-                    const kotakTombol = await tombol.boundingBox();
-                    const kotakCari = await page
-                        .locator('[data-slot="dokter-cari-submit"]')
-                        .boundingBox();
-
-                    expect(kotakTombol?.height ?? 0).toBeGreaterThanOrEqual(44);
-                    expect(kotakCari?.height ?? 0).toBeGreaterThanOrEqual(44);
-
-                    await tombol.click();
-
-                    const sheet = page.locator('[data-slot="sheet-content"]');
-
-                    await expect(sheet).toBeVisible();
-                    await expect(sheet.locator(':focus')).toHaveCount(1);
-
-                    for (let index = 0; index < 8; index += 1) {
-                        await page.keyboard.press('Tab');
-                    }
-
-                    expect(
-                        await page.evaluate(() => {
-                            const isi = document.querySelector(
-                                '[data-slot="sheet-content"]',
-                            );
-
-                            return (
-                                isi !== null &&
-                                document.activeElement !== null &&
-                                isi.contains(document.activeElement)
-                            );
-                        }),
-                    ).toBe(true);
-
-                    await expectNoA11yViolations(page);
-
-                    await page.keyboard.press('Escape');
-
-                    await expect(sheet).toHaveCount(0);
-                    await expect(tombol).toBeFocused();
-                }
-
                 await expect(page.locator('[data-slot="dokter-count"]')).toContainText(
                     'dokter ditemukan.',
                 );
+
+                // The one control that arranges the rows keeps a 44px target at every
+                // width, because it is now the only control of its kind on the screen -
+                // there is no sheet hiding a second copy.
+                const kotakUrutkan = await page
+                    .locator('[data-slot="dokter-urutkan"]')
+                    .boundingBox();
+
+                expect(kotakUrutkan?.height ?? 0).toBeGreaterThanOrEqual(44);
+
                 await istirahatkanGerak(page);
                 await expectNoA11yViolations(page);
             }
 
-            await page.setViewportSize({ width: 1280, height: 900 });
+            await page.setViewportSize({ width: 390, height: 844 });
 
-            await pilihSpesialisasi(page, { nama: 'desktop', width: 1280, height: 900 }, 'Spesialis Anak');
+            await pilihSpesialisasi(
+                page,
+                { nama: 'mobile', width: 390, height: 844 },
+                'Spesialis Anak',
+            );
 
             const kotakChip = await page
                 .locator('[data-slot="dokter-chip"]')
@@ -1249,30 +1276,55 @@ for (const vp of VIEWPORTS) {
                 .boundingBox();
 
             expect(kotakChip?.height ?? 0).toBeGreaterThanOrEqual(44);
+
+            await istirahatkanGerak(page);
+            await expectNoA11yViolations(page);
         });
 
         test('f03-ac13-privasi', async ({ page }) => {
             await bukaDirektori(page);
 
-            await cariDokter(page, KATA_UJI);
+            await cariDokter(page, vp, KATA_UJI);
 
             await expect(page.locator('[data-slot="dokter-count"]')).toContainText(
                 '0 dokter ditemukan.',
             );
 
-            // AC-13 asks that the QUERY stay out of the address bar and the tab. The
-            // directory has a document title of its own again, and that title is the
-            // screen's name rather than anything the visitor typed into it.
-            expect(await page.title()).toBe('Direktori dokter | Sehatly');
+            /**
+             * AC-13 asks that the QUERY stay out of the address bar and out of the tab.
+             * The directory is a section of the landing page now, so its title is the
+             * landing page's own - the name of the screen rather than anything the
+             * visitor typed into it.
+             */
+            expect(await page.title()).toBe('Beranda | Sehatly');
             expect(page.url()).not.toContain(KATA_UJI);
 
+            /**
+             * And the term is not written into any label either. The controls that NAME
+             * the filter they remove are the one place it is meant to be written down -
+             * "Hapus filter" without its subject is a button nobody can tell apart from
+             * its neighbour - and they are not shareable. Every OTHER label on the screen
+             * stays silent about the question.
+             */
             const label = await page.evaluate(() =>
-                Array.from(document.querySelectorAll('[aria-label]')).map((element) =>
-                    (element.getAttribute('aria-label') ?? '').toLowerCase(),
-                ),
+                Array.from(document.querySelectorAll('[aria-label]'))
+                    .filter(
+                        (element) =>
+                            !(element.getAttribute('aria-label') ?? '').startsWith(
+                                'Hapus filter',
+                            ),
+                    )
+                    .map((element) =>
+                        (element.getAttribute('aria-label') ?? '').toLowerCase(),
+                    ),
             );
 
             expect(label.some((teks) => teks.includes(KATA_UJI))).toBe(false);
+
+            await expect(page.locator('[data-slot="dokter-chip"]')).toHaveCount(1);
+            await expect(
+                page.locator('[data-slot="dokter-chip"]').first(),
+            ).toContainText(KATA_UJI);
 
             await expect(page.locator('[data-sonner-toast]')).toHaveCount(0);
             await expect(page.getByText('Tidak ada dokter yang cocok.')).toBeVisible();

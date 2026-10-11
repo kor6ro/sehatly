@@ -115,7 +115,7 @@ export function MyBookingsPage() {
             headerDescription="Semua booking pada akun ini."
             headerAction={
                 <Button asChild variant="outline">
-                    <Link to="/dokter">
+                    <Link to="/?semua=1">
                         <Stethoscope />
 
                         Booking dokter baru

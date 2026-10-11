@@ -278,10 +278,12 @@ test.describe('Landing page (/)', () => {
         await expect(trigger).toHaveAttribute('aria-expanded', 'true');
         await expect(page).toHaveURL(/\/$/);
 
-        // Both kinds of choice the panel offers, before anything is clicked. The rail's
-        // rows address THIS page now: a picked specialisation is printed on the landing
-        // page, and the directory is one link away from inside that section.
+        // All three kinds of choice the panel offers, before anything is clicked. The
+        // rail's rows address THIS page now: a picked constraint is answered on the
+        // landing page, and the whole directory is one link away from inside that answer.
         await expect(panel.locator('a[href^="/?spesialisasi="]').first()).toBeVisible();
+        await expect(panel.locator('a[href^="/?tipe="]').first()).toBeVisible();
+        await expect(panel.getByRole('link', { name: 'Telemedisin' })).toBeVisible();
         await expect(
             panel.getByRole('link', { name: /Lihat semua dokter/ }),
         ).toBeVisible();
@@ -326,8 +328,8 @@ test.describe('Landing page (/)', () => {
          * THE POINT OF THE CHANGE. Picking a specialisation used to be a link into
          * `/dokter` - a page whose search, sort and pagination all answered questions the
          * visitor had not asked. Now the address gains `?spesialisasi=`, the pathname
-         * stays `/`, and the section that prints the answer appears where the visitor
-         * already is.
+         * stays `/`, and the directory itself appears where the visitor already is: same
+         * filters, same sort, same cards, same pagination, one page fewer to reach them.
          *
          * The name is read BEFORE the click: picking closes the panel, and a locator
          * into a menu that has closed waits for a menu that is not coming back.
@@ -346,7 +348,7 @@ test.describe('Landing page (/)', () => {
         const seksi = page.locator('[data-slot="landing-direktori"]');
         await expect(seksi).toBeVisible();
         await expect(
-            seksi.getByRole('heading', { name: namaDipilih, level: 2 }),
+            seksi.getByRole('heading', { name: namaDipilih, level: 1 }),
         ).toBeVisible();
 
         /**
@@ -362,26 +364,26 @@ test.describe('Landing page (/)', () => {
 
         /**
          * The breadcrumb, which replaced `Tutup` and `Buka direktori lengkap`: `Home` back
-         * to the landing page, `Direktori Dokter` into `/dokter` with the choice still
-         * applied, and the specialisation as the current page rather than a link. It is
-         * asserted as a real `<nav aria-label>` reached through its data-slot, so a stack
-         * of divs that merely reads "Home / ..." would not satisfy it.
+         * to the front page, `Direktori Dokter` into `/?semua=1` - the same directory with
+         * nothing applied - and the specialisation as the current page rather than a link.
+         * It is asserted as a real `<nav aria-label>` reached through its data-slot, so a
+         * stack of divs that merely reads "Home / ..." would not satisfy it.
          */
         const krikib = page.locator('[data-slot="landing-krikib"]');
         await expect(krikib).toBeVisible();
         await expect(krikib.getByRole('link', { name: 'Home' })).toHaveAttribute('href', '/');
         await expect(
-            krikib.getByRole('link', { name: 'Direktori Dokter' }),
-        ).toHaveAttribute('href', /^\/dokter\?spesialisasi=/);
+            krikib.getByRole('link', { name: 'Direktori dokter' }),
+        ).toHaveAttribute('href', '/?semua=1');
         await expect(krikib.locator('[aria-current="page"]')).toHaveText(namaDipilih);
 
         /**
          * The answer in full: how many, who. The count is the same sentence the
-         * directory prints, so a number means the same thing on both surfaces - and it is
-         * a `role="status"` because it arrives after the cards do, and a screen reader
-         * that never heard the number would be reading a list nobody counted.
+         * directory always printed, so a number means the same thing it always did - and
+         * it is a `role="status"` because it arrives after the cards do, and a screen
+         * reader that never heard the number would be reading a list nobody counted.
          */
-        await expect(seksi.locator('[data-slot="landing-direktori-jumlah"]')).toContainText(
+        await expect(seksi.locator('[data-slot="dokter-count"]')).toContainText(
             'dokter ditemukan.',
         );
 
@@ -392,16 +394,16 @@ test.describe('Landing page (/)', () => {
         ).toHaveCount(0);
 
         /**
-         * And the answer is one of two honest states - real cards, or the sentence saying
-         * this specialisation has nobody in it right now - because whether the fixture
-         * database holds doctors for it is not this test's to assume. What neither state
-         * may be is blank.
+         * And the answer is one of two honest states - real cards, or the pinned F03
+         * sentence saying nothing here matches - because whether the fixture database
+         * holds doctors for the specialisation this menu happened to pick is not this
+         * test's to assume. What neither state may be is blank.
          */
         await expect(
             seksi
                 .locator('[data-slot="dokter-kartu"]')
                 .first()
-                .or(seksi.getByText('Belum ada dokter pada spesialisasi ini.')),
+                .or(seksi.getByText('Tidak ada dokter yang cocok.')),
         ).toBeVisible();
 
         /**
@@ -850,15 +852,23 @@ test.describe('Landing page (/)', () => {
         await kolom.fill('rina');
         await cari.getByRole('button', { name: 'Cari', exact: true }).click();
 
-        await expect(page).toHaveURL('/dokter');
+        await expect(page).toHaveURL('/');
         expect(
             new URL(page.url()).search,
             'kueri bebas teks tidak boleh ditulis ke URL (F03 §9)',
         ).toBe('');
+
+        /**
+         * The directory ANSWERS rather than merely opening: it is rendered on this
+         * address, and the question it is obeying is shown as a removable chip. That chip
+         * is the only place the term may appear at all - it was never written into the
+         * address, so there is nowhere else for it to be.
+         */
         await expect(
-            page.locator('[data-slot="dokter-cari"]'),
+            page.locator('[data-slot="landing-direktori"]'),
             'direktori menerima kuerinya, bukan sekadar dibuka',
-        ).toHaveValue('rina');
+        ).toBeVisible();
+        await expect(page.getByRole('button', { name: /Mencari "rina"/i })).toBeVisible();
     });
 
     /**
@@ -1343,11 +1353,11 @@ test.describe('Landing page (/)', () => {
 
         await laci.getByRole('link', { name: 'Direktori Dokter' }).click();
 
-        // The drawer's entry is a plain route: `/dokter`, the directory page, with the
-        // landing bar still on top of it. Nothing forwards anything - the address the
-        // drawer writes is the address that answers.
-        await expect(page).toHaveURL('/dokter');
-        await expect(page.locator('[data-slot="dokter-form-cari"]')).toBeVisible();
+        // The drawer's entry is a plain route to the answer itself: `/?semua=1` is the
+        // directory with nothing applied. There is no `/dokter` page for it to land on
+        // any more - that address redirects here, which `f03-alamat-lama` locks.
+        await expect(page).toHaveURL('/?semua=1');
+        await expect(laci, 'laci ikut tertutup di belakang navigasinya').toHaveCount(0);
         await expect(page.locator('[data-slot="dokter-count"]')).toBeVisible();
     });
 
@@ -1377,12 +1387,21 @@ test.describe('Landing page (/)', () => {
         await laci.getByRole('button', { name: 'Cari', exact: true }).click();
 
         await expect(laci, 'laci ikut tertutup di belakang navigasinya').toHaveCount(0);
-        await expect(page).toHaveURL('/dokter');
+        await expect(page).toHaveURL('/');
         expect(
             new URL(page.url()).search,
             'kueri bebas teks tidak boleh ditulis ke URL (F03 §9)',
         ).toBe('');
-        await expect(page.locator('[data-slot="dokter-cari"]')).toHaveValue('anak');
+
+        // The answer opens where the visitor already is, because the term was parked in
+        // `sessionStorage` - and it faces them as a chip they can take off, not as a
+        // field under the result reading the question back.
+        await expect(page.locator('[data-slot="dokter-count"]')).toContainText(
+            'dokter ditemukan.',
+        );
+        await expect(
+            page.locator('[data-slot="dokter-chip"]').filter({ hasText: 'anak' }),
+        ).toHaveCount(1);
     });
 
     test('f00-landing-pill-akun-menggantikan-masuk-setelah-sesi-terpasang', async ({ page }) => {

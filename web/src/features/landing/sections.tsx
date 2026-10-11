@@ -125,7 +125,8 @@ function TautanBagian({ to, label }: { to: string; label: string }) {
  * "Solusi Kesehatan di Tanganmu" - six service cards, six real routes.
  *
  * Not filtered by account type: every one of these destinations already resolves its own
- * refusal (`RequireAuth` for the guarded five, nothing for `/dokter`), so hiding a card
+ * refusal (`RequireAuth` for the guarded five, nothing for the directory - which is this
+ * very page), so hiding a card
  * from a visitor who has not signed in would remove the only thing on the page telling
  * them what the product does.
  */
@@ -251,7 +252,7 @@ export function ObatSection() {
                     })}
                 </div>
 
-                <TautanBagian to="/dokter" label="Konsultasikan Kebutuhan Obatmu" />
+                <TautanBagian to="/?semua=1" label="Konsultasikan Kebutuhan Obatmu" />
             </Bagian>
         </section>
     );

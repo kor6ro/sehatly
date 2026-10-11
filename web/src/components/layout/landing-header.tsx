@@ -7,7 +7,7 @@ import {
     type PointerEvent as ReactPointerEvent,
     type ReactNode,
 } from 'react';
-import { Link, NavLink, useNavigate } from 'react-router';
+import { Link, NavLink, useNavigate, useSearchParams } from 'react-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
     ArrowRight,
@@ -23,12 +23,20 @@ import {
     Search,
     Settings,
     ShoppingBag,
+    Stethoscope,
     Tag,
     UserRound,
+    Video,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { logout } from '@/lib/api/auth';
-import { cariMasterPopuler, POPULER, spesialisasiOptions } from '@/lib/api/dokter';
+import {
+    cariMasterPopuler,
+    labelTipeDokter,
+    POPULER,
+    spesialisasiOptions,
+    TIPE_DOKTER,
+} from '@/lib/api/dokter';
 import { serahkanKueri } from '@/features/dokter/direktori';
 import { heroOptions } from '@/lib/api/hero';
 import { meOptions } from '@/lib/api/me';
@@ -159,30 +167,94 @@ const LAYANAN: NavItem[] = [
 ];
 
 /**
- * Where "the doctor directory" is: `/dokter`, a page of its own.
+ * Where "the doctor directory" is: not a page any more, but this page with nothing
+ * applied.
  *
- * Every link in the app that means "show me the doctors" points here - "Lihat semua
- * dokter" in the panel, the drawer's entry on a phone, the "Solusi" tiles, the footer -
- * and so does an empty search in the bar. A pick is different: it is answered on the page
- * the visitor is already reading, by `DirektoriSection`, so `pilihanSpesialisasi` below
- * keeps pointing at the landing page.
+ * `/?semua=1` is what every door meaning "all the doctors" writes - "Lihat semua
+ * dokter" in the panel, the drawer's entry on a phone, the error recovery inside the
+ * rail - and it is where the old `/dokter` address lands now that the directory has
+ * stopped being a route of its own. The marker is not decoration: `/` with no
+ * parameters is the marketing sections, so a link that promised the whole table and
+ * delivered a bare address would answer "everything" with a hero picture.
+ *
+ * A PICK is different. It is answered where it was made, carrying `?spesialisasi=` or
+ * `?tipe=` or `?telemedisin=` instead of this, and `tautanPilihan` below is what
+ * keeps a second pick from silently dropping the first.
  */
-const DIREKTORI = '/dokter';
+const DIREKTORI = '/?semua=1';
 
 /**
- * Where a specialisation row and a "Sering dicari" shortcut point: the LANDING PAGE,
+ * Where a specialisation row and a "Sering dicari" shortcut point: the landing page,
  * carrying the choice as `?spesialisasi=`.
  *
- * The choice answers itself where it was made: `DirektoriSection` prints a breadcrumb,
- * the specialisation's name, how many doctors it has and up to eight cards. The middle
- * crumb, `Direktori Dokter`, continues into `/dokter?spesialisasi=…` with the choice
- * already applied - so the pick never has to choose between "answer me here" and "take me
- * to the catalogue"; it gets both, in that order. It stays a plain `<a href>` rather than
- * a click handler: shareable, Back-able, keyboard-reachable, and honest about where it
- * goes.
+ * The choice answers itself where it was made. `DirektoriDokter` reads the parameter as
+ * state, so the request is already filtered before it fires, and the breadcrumb above it
+ * keeps the choice applied while offering `/?semua=1` as the way out. It stays a plain
+ * `<a href>` rather than a click handler: shareable, Back-able, keyboard-reachable, and
+ * honest about where it goes.
  */
-const pilihanSpesialisasi = (kode: string) =>
-    `/?spesialisasi=${encodeURIComponent(kode)}`;
+const pilihanSpesialisasi = (kode: string, searchParams: URLSearchParams) =>
+    tautanPilihan(searchParams, { spesialisasi: kode });
+
+/**
+ * The two answers the panel used to keep exclusively at `/dokter`.
+ *
+ * A doctor type and a telemedisin-only search are constraints like any other, and a
+ * constraint the header can offer has to be a constraint the header can write. They are
+ * parameters, not handlers, for the same reason every other row is: the reference menu
+ * that shapes this panel is made of links, and a menu that only sometimes navigates is a
+ * menu the keyboard and the "open in new tab" cannot use.
+ */
+const pilihanTipe = (tipe: string, searchParams: URLSearchParams) =>
+    tautanPilihan(searchParams, { tipe });
+
+const pilihanTelemedisin = (searchParams: URLSearchParams) =>
+    tautanPilihan(searchParams, { telemedisin: '1' });
+
+/**
+ * A row's href, carrying the constraints the visitor has ALREADY picked.
+ *
+ * The panel is a menu of plain `<a href>`s, and a link that replaces the whole query can
+ * only ever hold one thing: choose "Spesialis Anak" and then "Telemedisin" and the first
+ * one is quietly gone, so a directory narrowed by two constraints would exist only in an
+ * address somebody typed by hand. Overwriting the key this row owns and leaving the rest
+ * alone turns the menu into a facet menu the way the reference catalogue works - and it
+ * is the only route by which an EMPTY intersection (AC-7's "Spesialis Anak" plus a type
+ * that has none) can be reached from the interface at all. `/?semua=1`, "Lihat semua
+ * dokter", is still the row that drops every one of them.
+ *
+ * `dokter` is dropped on purpose: a pick is a question about the LIST, and a profile left
+ * open above the answer would hide the very thing the click asked to see. The three keys
+ * are written in a fixed order so the same choice always produces the same address - a
+ * link people compare by eye as often as they click it.
+ */
+function tautanPilihan(
+    searchParams: URLSearchParams,
+    pilih: Record<string, string | null>,
+): string {
+    const nilai: Record<string, string | null> = {
+        spesialisasi: searchParams.get('spesialisasi'),
+        tipe: searchParams.get('tipe'),
+        telemedisin: searchParams.get('telemedisin'),
+        ...pilih,
+    };
+
+    const urut = new URLSearchParams();
+
+    for (const kunci of ['spesialisasi', 'tipe', 'telemedisin'] as const) {
+        const isi = nilai[kunci];
+
+        if (isi !== null && isi !== '') {
+            urut.set(kunci, isi);
+        }
+    }
+
+    const kueri = urut.toString();
+
+    // Unreachable - every row sets a key of its own - but "nothing applied" has to be
+    // `?semua=1` rather than `/`, which is the marketing sections.
+    return kueri === '' ? DIREKTORI : `/?${kueri}`;
+}
 
 function navLinkClass({ isActive }: { isActive: boolean }): string {
     return cn(
@@ -966,6 +1038,105 @@ function NavDropdownLaci({
 }
 
 /**
+ * The drawer's copy of the directory panel - a phone has no pointer, so the hover panel
+ * that carries these choices on a desktop simply does not exist there.
+ *
+ * This is the same trade the drawer's `PencarianBar` makes, and for the same reason: the
+ * answer moved onto the landing page, and if the only way to ASK on a phone were a filter
+ * panel printed under that answer, then a phone visitor would be shown sixteen
+ * specialisations they had just been told not to need. Every row is a plain `<a>` into
+ * `/?…`, the same address the desktop panel writes, so the two surfaces cannot end up
+ * answering different questions.
+ *
+ * `RelMenggulir` bounds it the way the panel's rail is bounded: sixteen rows, seven more
+ * and a link would push "Keluar" off a 844 px screen.
+ */
+function PilihDokterLaci({ tutup }: { tutup: () => void }) {
+    const [searchParams] = useSearchParams();
+    const spesialisasi = useQuery(spesialisasiOptions());
+    const daftar = spesialisasi.data?.data.spesialisasi ?? [];
+
+    const judul =
+        'text-foreground flex items-center gap-1.5 text-sm font-semibold';
+    const baris =
+        'hover:bg-secondary text-muted-foreground hover:text-foreground flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition-colors';
+
+    return (
+        <div className="flex flex-col gap-4 px-4 pb-2" data-slot="nav-direktori-laci">
+            <div className="min-w-0">
+                <p className={judul}>
+                    <Stethoscope aria-hidden="true" className="size-4" />
+                    Spesialisasi
+                </p>
+
+                <ul className="mt-1.5 grid max-h-[16rem] gap-0.5 overflow-y-auto">
+                    {daftar.map((item) => {
+                        const Ikon = IKON_SPESIALISASI[item.kode] ?? IKON_BAWAAN;
+
+                        return (
+                            <li key={item.kode}>
+                                <Link
+                                    to={pilihanSpesialisasi(item.kode, searchParams)}
+                                    onClick={tutup}
+                                    className={baris}
+                                >
+                                    <Ikon
+                                        aria-hidden="true"
+                                        className="text-foreground/70 size-4 shrink-0"
+                                    />
+
+                                    <span className="min-w-0">{item.nama}</span>
+                                </Link>
+                            </li>
+                        );
+                    })}
+                </ul>
+            </div>
+
+            <div className="min-w-0">
+                <p className={judul}>
+                    <Video aria-hidden="true" className="size-4" />
+                    Mode konsultasi
+                </p>
+
+                <ul className="mt-1.5 grid gap-0.5">
+                    <li>
+                        <Link
+                            to={pilihanTelemedisin(searchParams)}
+                            onClick={tutup}
+                            className={baris}
+                        >
+                            Telemedisin
+                        </Link>
+                    </li>
+                </ul>
+            </div>
+
+            <div className="min-w-0">
+                <p className={judul}>
+                    <UserRound aria-hidden="true" className="size-4" />
+                    Tipe dokter
+                </p>
+
+                <ul className="mt-1.5 grid gap-0.5">
+                    {TIPE_DOKTER.map((tipe) => (
+                        <li key={tipe}>
+                            <Link
+                                to={pilihanTipe(tipe, searchParams)}
+                                onClick={tutup}
+                                className={baris}
+                            >
+                                {labelTipeDokter(tipe)}
+                            </Link>
+                        </li>
+                    ))}
+                </ul>
+            </div>
+        </div>
+    );
+}
+
+/**
  * The directory's panel, in the Zalora desktop-menu shape: three zones side by side
  * under the title row - a scrolling icon rail of every specialisation, a column of
  * shortcuts, and a grid of pictures.
@@ -1025,6 +1196,7 @@ function NavDropdownLaci({
  * it just opened is a menu the visitor has to dismiss twice.
  */
 function PanelDirektori({ hover }: { hover: NavHover }) {
+    const [searchParams] = useSearchParams();
     const spesialisasi = useQuery(spesialisasiOptions());
     const daftar = spesialisasi.data?.data.spesialisasi ?? [];
     const kartu = useKartuPanel();
@@ -1146,7 +1318,7 @@ function PanelDirektori({ hover }: { hover: NavHover }) {
                                 return (
                                     <li key={baris.kode}>
                                         <Link
-                                            to={pilihanSpesialisasi(baris.kode)}
+                                            to={pilihanSpesialisasi(baris.kode, searchParams)}
                                             onClick={hover.tutup}
                                             onFocus={() => setSorot(i)}
                                             onMouseEnter={() => setSorot(i)}
@@ -1173,11 +1345,58 @@ function PanelDirektori({ hover }: { hover: NavHover }) {
                     ) : null}
                 </div>
 
-                {/* Zone 2 - the shortcuts, the same data the body of the landing page
-                    publishes. The service links moved to the Layanan panel: a visitor
-                    hovering the DIRECTORY is choosing a doctor, and a column of
-                    appointment links beside them answers a question nobody asked. */}
-                <div data-slot="nav-direktori-pintasan" className="grid min-w-0 gap-5">
+                {/* Zone 2 - two kinds of answer. "Tipe dokter" and "Telemedisin" are the
+                    constraints that used to live only inside `/dokter`, a page that no
+                    longer exists: a filter the visitor cannot see is a filter they cannot
+                    choose, and this panel is the only place asking happens. "Sering
+                    dicari" is the shortcut column, unchanged. The service links stayed in
+                    the Layanan panel: a visitor hovering the DIRECTORY is choosing a
+                    doctor, and a column of appointment links beside them answers a
+                    question nobody asked. */}
+                <div
+                    data-slot="nav-direktori-pintasan"
+                    className="grid min-w-0 gap-5 max-h-[22rem] overflow-y-auto rounded lg:max-h-[min(35rem,calc(100vh_-_16rem))]"
+                >
+                    <div className="min-w-0">
+                        <p className="text-foreground flex items-center gap-1.5 text-sm font-semibold">
+                            <Stethoscope aria-hidden="true" className="size-4" />
+                            Tipe dokter
+                        </p>
+
+                        <ul className="mt-1.5 grid gap-0.5">
+                            {TIPE_DOKTER.map((tipe) => (
+                                <li key={tipe}>
+                                    <Link
+                                        to={pilihanTipe(tipe, searchParams)}
+                                        onClick={hover.tutup}
+                                        className="hover:bg-secondary text-muted-foreground hover:text-foreground block rounded-md px-2 py-1.5 text-sm transition-colors"
+                                    >
+                                        {labelTipeDokter(tipe)}
+                                    </Link>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+
+                    <div className="min-w-0">
+                        <p className="text-foreground flex items-center gap-1.5 text-sm font-semibold">
+                            <Video aria-hidden="true" className="size-4" />
+                            Mode konsultasi
+                        </p>
+
+                        <ul className="mt-1.5 grid gap-0.5">
+                            <li>
+                                <Link
+                                    to={pilihanTelemedisin(searchParams)}
+                                    onClick={hover.tutup}
+                                    className="hover:bg-secondary text-muted-foreground hover:text-foreground block rounded-md px-2 py-1.5 text-sm transition-colors"
+                                >
+                                    Telemedisin
+                                </Link>
+                            </li>
+                        </ul>
+                    </div>
+
                     <div className="min-w-0">
                         <p className="text-foreground flex items-center gap-1.5 text-sm font-semibold">
                             <Search aria-hidden="true" className="size-4" />
@@ -1198,7 +1417,7 @@ function PanelDirektori({ hover }: { hover: NavHover }) {
                                 return (
                                     <li key={pintasan.label}>
                                         <Link
-                                            to={pilihanSpesialisasi(master.kode)}
+                                            to={pilihanSpesialisasi(master.kode, searchParams)}
                                             onClick={hover.tutup}
                                             className="hover:bg-secondary text-muted-foreground hover:text-foreground block rounded-md px-2 py-1.5 text-sm transition-colors"
                                         >
@@ -1353,16 +1572,16 @@ function NavList({
  *
  * ## Where a search goes, and why the question is not in the address
  *
- * The directory is the only part of the product that ANSWERS a query - it carries a
- * `search` box of its own, and `GET /dokter` takes `search` as a parameter - so a header
- * field searching anything else would be a field that pretends. The form opens `/dokter`,
- * the page that answers.
+ * The directory is the only part of the product that ANSWERS a query - `GET /dokter`
+ * takes `search` as a parameter - so a header field searching anything else would be a
+ * field that pretends. The form opens `/`, the address that renders the directory when it
+ * has a question to answer.
  *
  * What it must not do is carry the question in the URL. F03 §9 forbids a free-text doctor
  * query in a shareable address, because "kanker" is a condition and the address is the
  * thing people paste into chats. So the query travels in `sessionStorage` instead - one
  * write by {@link serahkanKueri}, one read by `DirektoriDokter`'s initializer - and the
- * address the visitor lands on says `/dokter` and nothing else. This app never WRITES
+ * address the visitor lands on says `/` and nothing else. This app never WRITES
  * `?search=`; the older links that still carry it are read, not made.
  *
  * An empty query writes an EMPTY marker rather than no marker at all. "I searched for
@@ -1387,6 +1606,7 @@ function PencarianBar({
     onCari?: () => void;
 }) {
     const navigate = useNavigate();
+    const [params] = useSearchParams();
     const [kueri, setKueri] = useState('');
 
     return (
@@ -1396,8 +1616,44 @@ function PencarianBar({
             onSubmit={(event) => {
                 event.preventDefault();
 
+                /**
+                 * Offline, the term cannot go anywhere. Sending it would be worse than
+                 * ignoring it: the answer would render a failure the visitor never asked
+                 * for, and the banner on that answer (F03 AC-9) says in as many words
+                 * that nothing is sent until the connection is back.
+                 */
+                if (!navigator.onLine) {
+                    return;
+                }
+
+                // The query never reaches the address (F03 §9); `/` knows a directory is
+                // what should be answering because the term is parked in `sessionStorage`.
                 serahkanKueri(kueri.trim());
-                navigate(DIREKTORI);
+
+                /**
+                 * The constraints already applied are CARRIED, because a search is a
+                 * narrower question about the same shortlist rather than a new one. They
+                 * are the same three keys, in the same order, as `tautanPilihan` writes -
+                 * dropping them here would make the term the only thing the answer obeys,
+                 * and "Spesialis Anak" then a doctor's name would answer with everybody of
+                 * that name instead of that specialisation's.
+                 */
+                const berikut = new URLSearchParams();
+
+                for (const kunci of ['spesialisasi', 'tipe', 'telemedisin'] as const) {
+                    const nilai = params.get(kunci);
+
+                    if (nilai !== null && nilai !== '') {
+                        berikut.set(kunci, nilai);
+                    }
+                }
+
+                // No constraints means this was the front page, and it stays the front
+                // page - `?semua=1` is the DIRECTORY with nothing applied, which is a
+                // different screen than the one a search from `/` should land on.
+                const kueriBaru = berikut.toString();
+
+                navigate(kueriBaru === '' ? '/' : `/?${kueriBaru}`);
                 onCari?.();
             }}
             className={cn(
@@ -1838,6 +2094,8 @@ export function LandingHeader({ onMasuk }: { onMasuk: () => void }) {
                                     setOpen(false);
                                 }}
                             />
+
+                            <PilihDokterLaci tutup={() => setOpen(false)} />
 
                             <ActionButtons
                                 className="mt-auto px-4 pb-4"

@@ -1,24 +1,17 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router';
-import { ArrowLeft, Video } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { dokterDetailOptions } from '@/lib/api/dokter';
 import { ApiError } from '@/lib/http';
-import { formatWaktu } from '@/lib/format';
 import { useDocumentTitle } from '@/hooks/use-document-title';
 import { useOnlineStatus } from '@/hooks/use-online-status';
 import { PageHeader } from '@/components/layout/page-header';
 import { OfflineBanner } from '@/components/offline-banner';
 import { SkeletonRows } from '@/components/states/loading-state';
-import { EmptyState } from '@/components/states/empty-state';
 import { ErrorState, NotFoundState } from '@/components/states/error-state';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CredentialPanel } from '@/features/dokter-profil/credential-panel';
-import { DoctorProfileHero } from '@/features/dokter-profil/doctor-profile-hero';
-import { ReviewsBlock } from '@/features/dokter-profil/reviews-block';
-import { SchedulePreview } from '@/features/dokter-profil/schedule-preview';
+import { ProfilDokterIsi } from '@/features/dokter-profil/profil-dokter-isi';
 
 /**
  * `/dokter/:id` - one doctor's public profile, with no session required.
@@ -102,10 +95,10 @@ export function DoctorDetailPage() {
                     <NotFoundState
                         action={
                             <Button asChild variant="outline" size="sm" className="min-h-11">
-                                <Link to="/dokter">
+                                <Link to="/">
                                     <ArrowLeft />
 
-                                    Kembali ke direktori
+                                    Kembali ke beranda
                                 </Link>
                             </Button>
                         }
@@ -126,10 +119,10 @@ export function DoctorDetailPage() {
                 />
 
                 <Button asChild variant="outline" className="min-h-11 w-fit">
-                    <Link to="/dokter">
+                    <Link to="/">
                         <ArrowLeft />
 
-                        Kembali ke direktori
+                        Kembali ke beranda
                     </Link>
                 </Button>
             </Halaman>
@@ -141,10 +134,10 @@ export function DoctorDetailPage() {
     return (
         <Halaman>
             <Button asChild variant="ghost" className="min-h-11 w-fit">
-                <Link to="/dokter">
+                <Link to="/">
                     <ArrowLeft />
 
-                    Kembali ke direktori
+                    Kembali ke beranda
                 </Link>
             </Button>
 
@@ -156,63 +149,13 @@ export function DoctorDetailPage() {
             {/**
              * The wrapper carries the id the offline CTA points at through
              * `aria-describedby`. `OfflineBanner` renders `null` while online, so the
-             * wrapper is empty then and the attribute is only set offline - the same
-             * pattern the public directory uses.
+             * wrapper is empty then and the attribute is only set offline.
              */}
             <div id="dokter-alasan-offline">
                 <OfflineBanner message="Anda sedang offline. Jadwal dan pemesanan tidak dikirim sampai koneksi kembali." />
             </div>
 
-            <DoctorProfileHero dokter={dokter} online={online} />
-
-            <SchedulePreview dokterId={String(dokter.id)} />
-
-            <CredentialPanel dokter={dokter} />
-
-            <ReviewsBlock dokterId={String(dokter.id)} />
-
-            <Card>
-                <CardHeader>
-                    <CardTitle className="text-base">Tentang dokter</CardTitle>
-                </CardHeader>
-
-                <CardContent>
-                    {dokter.bio === null || dokter.bio === '' ? (
-                        <EmptyState
-                            compact
-                            title="Bio belum diisi"
-                            description="Dokter ini belum menambahkan deskripsi singkat pada profilnya."
-                        />
-                    ) : (
-                        <p className="text-base leading-relaxed">{dokter.bio}</p>
-                    )}
-                </CardContent>
-            </Card>
-
-            <Card>
-                <CardHeader>
-                    <CardTitle className="text-base">Informasi lain</CardTitle>
-                </CardHeader>
-
-                <CardContent className="flex flex-col gap-4">
-                    {dokter.tersedia_telemedisin ? (
-                        <Badge variant="outline" className="border-success/60 w-fit">
-                            <Video aria-hidden className="text-success" />
-
-                            Tersedia telemedisin
-                        </Badge>
-                    ) : null}
-
-                    {/**
-                     * One cell now. The rating and review count moved to the reviews
-                     * block, which reads them from `/ulasan` - the only source that is
-                     * recomputed from `ulasan_dokter`.
-                     */}
-                    <dl className="grid gap-4 sm:grid-cols-3">
-                        <Cell label="Terdaftar" value={formatWaktu(dokter.dibuat_at)} />
-                    </dl>
-                </CardContent>
-            </Card>
+            <ProfilDokterIsi dokter={dokter} online={online} />
         </Halaman>
     );
 }
@@ -227,15 +170,5 @@ function Halaman({ children }: { children: ReactNode }) {
         <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 p-4 md:p-6">
             {children}
         </main>
-    );
-}
-
-function Cell({ label, value }: { label: string; value: string }) {
-    return (
-        <div className="flex flex-col gap-0.5">
-            <dt className="text-muted-foreground text-xs">{label}</dt>
-
-            <dd className="text-sm font-medium">{value}</dd>
-        </div>
     );
 }

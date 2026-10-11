@@ -1,7 +1,7 @@
 import { createBrowserRouter } from 'react-router';
 import { AppShell } from '@/app/app-shell';
 import { RouteErrorBoundary } from '@/app/error-boundary';
-import { NotFoundPage, RequireAuth } from '@/app/guards';
+import { NotFoundPage, RequireAuth, AlihHalamanDokter } from '@/app/guards';
 import { RootLayout } from '@/app/root-layout';
 import { LandingPage } from '@/pages/landing-page';
 import { LoginPage } from '@/pages/login-page';
@@ -13,7 +13,6 @@ import { DevicesPage } from '@/pages/devices-page';
 import { FamilyPage } from '@/pages/family-page';
 import { AllergyPage } from '@/pages/allergy-page';
 import { DoctorDetailPage } from '@/pages/doctor-detail-page';
-import { DoctorDirectoryPage } from '@/pages/doctor-directory-page';
 import { MyBookingsPage } from '@/pages/my-bookings-page';
 import { BookingCreatePage } from '@/pages/booking-create-page';
 import { DoctorBookingsPage } from '@/pages/doctor-bookings-page';
@@ -127,22 +126,23 @@ export const router = createBrowserRouter([
             },
 
             /**
-             * The doctor directory, as a page.
+             * The doctor directory's OLD address, and one doctor's public profile.
              *
-             * Its content - the search field, the type/biaya/rating filters, the sort,
-             * the count, the cards and the pagination - is `DirektoriDokter`, and every
-             * door that means "show me the doctors" arrives here: the header bar's
-             * search, "Lihat semua dokter", the drawer's entry, the "Solusi" tiles and
-             * the footer. The landing page does not render it; a pick there answers
-             * itself with `DirektoriSection` and offers this address as the way to the
-             * rest.
+             * `/dokter` is a redirect now: the directory - filters, sort, cards,
+             * pagination - is the answer to a pick made in the header, and it lives on
+             * `/`, where the pick was asked. The address stays registered because this
+             * app's own navigation wrote it for years and a link that 404'd would be the
+             * worst answer to a question that still has one.
              *
              * `/dokter/:id` below is the detail page: a doctor's profile is a destination
-             * of its own, and it is where a booking starts.
+             * of its own, and it is where a booking starts. It stays because the cards
+             * reached from OUTSIDE the list - a booking, a notification - have no list to
+             * come back to. A card picked out of the answer opens `/?dokter={id}` instead,
+             * in place.
              */
             {
                 path: '/dokter',
-                element: <DoctorDirectoryPage />,
+                element: <AlihHalamanDokter />,
                 errorElement: <RouteErrorBoundary />,
             },
             {
