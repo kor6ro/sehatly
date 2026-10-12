@@ -669,37 +669,36 @@ export function DirektoriDokter() {
               spesialisasi);
 
     /**
-     * The headline over the answer. A pick names itself - "Spesialis Anak" - and an
-     * unfiltered visit gets the F03 §4.3 heading, so the words are the same ones the
-     * standalone directory used to print and a screen reader hears what it always did.
+     * The headline over the answer, and it exists ONLY when a pick named it.
      *
-     * The §4.3 description under it is GONE, and that was the decision, not an oversight.
-     * It read "Temukan dokter yang tepat, lalu pesan jadwal konsultasi." under BOTH
-     * headings, so once a visitor had picked a specialisation the sentence said nothing
-     * the pick had not already said - two lines of marketing on a phone, above a list
-     * that had already announced itself. A headline that names the answer does not also
-     * have to sell it. Recorded in §12 butir 8(e).
+     * An unfiltered visit used to print the §4.3 fallback `Direktori dokter` over three
+     * doctors, and that was the product owner's call in October 2026 to take it out: a
+     * visitor who has chosen nothing did not need to be told the word "directory" by the
+     * screen that is currently being one, and the sentence cost a whole line above a list
+     * of three. What remains is the one headline that carries information - the name of
+     * what they picked, which is also what every card under it is scoped to.
      *
-     * The size came down with it. `text-4xl` was right when this block was a poster over
-     * a page's only content; it is a label over a shortlist now, and the cards below are
-     * the thing worth the pixels.
+     * The section still needs a name for assistive technology whether or not the heading
+     * is there, so `aria-label` takes over on the visits that have no headline to point
+     * at. Recorded in §12 butir 8(g).
      */
-    const judul = spesialisasiTerpilih ?? 'Direktori dokter';
-
     return (
         <section
             data-slot="landing-direktori"
-            aria-labelledby="landing-direktori-judul"
+            aria-labelledby={
+                spesialisasiTerpilih ? 'landing-direktori-judul' : undefined
+            }
+            aria-label={spesialisasiTerpilih ? undefined : 'Direktori dokter'}
             className="mx-auto flex w-full max-w-[1280px] flex-col gap-5 px-4 pt-6 pb-16 md:px-6"
         >
-            <header>
+            {spesialisasiTerpilih === null ? null : (
                 <h1
                     id="landing-direktori-judul"
                     className="text-foreground text-2xl font-semibold tracking-tight"
                 >
-                    {judul}
+                    {spesialisasiTerpilih}
                 </h1>
-            </header>
+            )}
 
             {/**
              * The wrapper carries the id the offline controls point at through

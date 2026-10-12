@@ -508,13 +508,13 @@ async function pilihSpesialisasi(page: Page, vp: Vp, nama: string): Promise<void
     await pilihTautan(page, vp, nama);
 }
 
-async function pilihTipe(page: Page, vp: Vp, nama: string): Promise<void> {
-    await pilihTautan(page, vp, nama);
-}
-
-async function pilihTelemedisin(page: Page, vp: Vp): Promise<void> {
-    await pilihTautan(page, vp, 'Telemedisin');
-}
+/**
+ * `pilihTipe` and `pilihTelemedisin` used to live here and have no caller any more: the
+ * panel and the drawer offer ONE kind of choice now. A doctor type and telemedisin can
+ * still be reached by typing `?tipe=` or `?telemedisin=` into the address - the answer
+ * reads both - but nothing in the interface offers them, so there is nothing for a test
+ * to click.
+ */
 
 /**
  * Opens the shared `Urutkan` select and picks `label`. The control sits beside the count
@@ -596,9 +596,15 @@ for (const vp of VIEWPORTS) {
                 'dokter ditemukan.',
                 { timeout: 15_000 },
             );
-            await expect(
-                page.getByRole('heading', { name: 'Direktori dokter', level: 1 }),
-            ).toBeVisible();
+            // No headline over an unfiltered visit. The section is NAMED - assistive
+            // technology still gets "Direktori dokter" through `aria-label` - but it is
+            // not printed, because a screen that has to tell somebody looking at a list
+            // of doctors that they are looking at a list of doctors is a line of ink
+            // with nothing to say.
+            const seksi = page.locator('[data-slot="landing-direktori"]');
+
+            await expect(seksi).toHaveAttribute('aria-label', 'Direktori dokter');
+            await expect(seksi.locator('h1')).toHaveCount(0);
 
             // The address a search never travels through: no request carries one until
             // the visitor types one.
@@ -739,8 +745,16 @@ for (const vp of VIEWPORTS) {
         test('f03-ac3-chip-hapus', async ({ page }) => {
             await bukaDirektori(page);
 
+            /**
+             * Two chips, and the second one has to come from the SEARCH: the panel and
+             * the drawer write specialisations only now, so a term typed into the
+             * header's bar is the one other constraint a visitor can still earn. Every
+             * Anak doctor in the fixture is named "…, Sp.A" and no other row is, so the
+             * intersection is the same eight - which is also what keeps the page tall
+             * enough for the scroll check below to mean anything.
+             */
             await pilihSpesialisasi(page, vp, 'Spesialis Anak');
-            await pilihTelemedisin(page, vp);
+            await cariDokter(page, vp, 'Sp.A');
 
             const chips = page.locator('[data-slot="dokter-chip"]');
 
@@ -761,7 +775,7 @@ for (const vp of VIEWPORTS) {
             // A JS click keeps the scroll position under the test's control; a real click
             // would auto-scroll the chip into view first and hide the behaviour under test.
             await page
-                .getByRole('button', { name: 'Hapus filter Telemedisin' })
+                .getByRole('button', { name: 'Hapus filter Mencari "Sp.A"' })
                 .evaluate((element) => {
                     (element as HTMLButtonElement).click();
                 });
@@ -791,7 +805,7 @@ for (const vp of VIEWPORTS) {
             const state = await bukaDirektori(page);
 
             await pilihSpesialisasi(page, vp, 'Spesialis Anak');
-            await pilihTelemedisin(page, vp);
+            await cariDokter(page, vp, 'Sp.A');
 
             const chips = page.locator('[data-slot="dokter-chip"]');
 
@@ -914,8 +928,14 @@ for (const vp of VIEWPORTS) {
         test('f03-ac7-zero-result', async ({ page }) => {
             await bukaDirektori(page);
 
+            /**
+             * A specialisation and a term that matches none of its doctors. It used to be
+             * two picks from the panel - a specialisation plus a type that has none of
+             * them - and the panel writes specialisations only now, so the second half of
+             * an empty intersection has to come from the search.
+             */
             await pilihSpesialisasi(page, vp, 'Spesialis Anak');
-            await pilihTipe(page, vp, 'Psikolog');
+            await cariDokter(page, vp, 'tidakada');
 
             await expect(page.getByText('Tidak ada dokter yang cocok.')).toBeVisible();
             await expect(
@@ -935,7 +955,7 @@ for (const vp of VIEWPORTS) {
 
             await simpanGambar(page, vp, 'nol-hasil');
 
-            // Removing ONE chip leaves the other filter in place.
+            // Removing ONE chip leaves the other constraint in place.
             await page
                 .getByRole('button', { name: 'Hapus filter Spesialis Anak' })
                 .last()
@@ -944,7 +964,7 @@ for (const vp of VIEWPORTS) {
             const chips = page.locator('[data-slot="dokter-chip"]');
 
             await expect(chips).toHaveCount(1);
-            await expect(chips).toContainText('Psikolog');
+            await expect(chips).toContainText('tidakada');
             await expect(page.getByText('Tidak ada dokter yang cocok.')).toBeVisible();
 
             // `Lihat semua dokter` clears everything and restores the default list.

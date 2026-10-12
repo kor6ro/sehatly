@@ -26,17 +26,10 @@ import {
     Stethoscope,
     Tag,
     UserRound,
-    Video,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { logout } from '@/lib/api/auth';
-import {
-    cariMasterPopuler,
-    labelTipeDokter,
-    POPULER,
-    spesialisasiOptions,
-    TIPE_DOKTER,
-} from '@/lib/api/dokter';
+import { spesialisasiOptions } from '@/lib/api/dokter';
 import { serahkanKueri } from '@/features/dokter/direktori';
 import { heroOptions } from '@/lib/api/hero';
 import { meOptions } from '@/lib/api/me';
@@ -197,19 +190,15 @@ const pilihanSpesialisasi = (kode: string, searchParams: URLSearchParams) =>
     tautanPilihan(searchParams, { spesialisasi: kode });
 
 /**
- * The two answers the panel used to keep exclusively at `/dokter`.
+ * The two answers that used to sit beside this one - a doctor type, and telemedisin
+ * alone - had wrappers here once and have none now: nothing in the header offers them
+ * any more.
  *
- * A doctor type and a telemedisin-only search are constraints like any other, and a
- * constraint the header can offer has to be a constraint the header can write. They are
- * parameters, not handlers, for the same reason every other row is: the reference menu
- * that shapes this panel is made of links, and a menu that only sometimes navigates is a
- * menu the keyboard and the "open in new tab" cannot use.
+ * `tautanPilihan` still PRESERVES both when it writes a row, deliberately. A menu
+ * stopping the offer of a choice is not the same as the product starting to break a
+ * link: `/?spesialisasi=SP.A&telemedisin=1` written by hand, or by the build that
+ * offered it, must still narrow by both when it is opened.
  */
-const pilihanTipe = (tipe: string, searchParams: URLSearchParams) =>
-    tautanPilihan(searchParams, { tipe });
-
-const pilihanTelemedisin = (searchParams: URLSearchParams) =>
-    tautanPilihan(searchParams, { telemedisin: '1' });
 
 /**
  * A row's href, carrying the constraints the visitor has ALREADY picked.
@@ -218,10 +207,14 @@ const pilihanTelemedisin = (searchParams: URLSearchParams) =>
  * only ever hold one thing: choose "Spesialis Anak" and then "Telemedisin" and the first
  * one is quietly gone, so a directory narrowed by two constraints would exist only in an
  * address somebody typed by hand. Overwriting the key this row owns and leaving the rest
- * alone turns the menu into a facet menu the way the reference catalogue works - and it
- * is the only route by which an EMPTY intersection (AC-7's "Spesialis Anak" plus a type
- * that has none) can be reached from the interface at all. `/?semua=1`, "Lihat semua
- * dokter", is still the row that drops every one of them.
+ * alone turns the menu into a facet menu the way the reference catalogue works. That
+ * clause is what used to make an EMPTY intersection reachable from the interface at all -
+ * AC-7's "Spesialis Anak" plus a type that has none - and it cannot be reached that way
+ * any more, because the only rows the panel writes are specialisations and a
+ * specialisation always contains itself. The merging stays regardless: it is what lets a
+ * second pick land BESIDE the first rather than on top of it, and it is why an address
+ * already carrying `tipe` or `telemedisin` keeps narrowing when a specialisation is added
+ * to it. The way out is the chips' "Hapus semua filter", which writes `/?semua=1`.
  *
  * `dokter` is dropped on purpose: a pick is a question about the LIST, and a profile left
  * open above the answer would hide the very thing the click asked to see. The three keys
@@ -1093,53 +1086,24 @@ function PilihDokterLaci({ tutup }: { tutup: () => void }) {
                 </ul>
             </div>
 
-            <div className="min-w-0">
-                <p className={judul}>
-                    <Video aria-hidden="true" className="size-4" />
-                    Mode konsultasi
-                </p>
-
-                <ul className="mt-1.5 grid gap-0.5">
-                    <li>
-                        <Link
-                            to={pilihanTelemedisin(searchParams)}
-                            onClick={tutup}
-                            className={baris}
-                        >
-                            Telemedisin
-                        </Link>
-                    </li>
-                </ul>
-            </div>
-
-            <div className="min-w-0">
-                <p className={judul}>
-                    <UserRound aria-hidden="true" className="size-4" />
-                    Tipe dokter
-                </p>
-
-                <ul className="mt-1.5 grid gap-0.5">
-                    {TIPE_DOKTER.map((tipe) => (
-                        <li key={tipe}>
-                            <Link
-                                to={pilihanTipe(tipe, searchParams)}
-                                onClick={tutup}
-                                className={baris}
-                            >
-                                {labelTipeDokter(tipe)}
-                            </Link>
-                        </li>
-                    ))}
-                </ul>
-            </div>
+            {/*
+                The drawer used to carry the panel's other two groups - "Mode konsultasi"
+                and "Tipe dokter" - under this list, and dropped them with it. A drawer is
+                one column, so they arrived as fourteen more rows beneath sixteen: the same
+                "narrow it" choice, offered twice, on the smallest screen there is.
+            */}
         </div>
     );
 }
 
 /**
- * The directory's panel, in the Zalora desktop-menu shape: three zones side by side
- * under the title row - a scrolling icon rail of every specialisation, a column of
- * shortcuts, and a grid of pictures.
+ * The directory's panel, in the Zalora desktop-menu shape: two zones side by side
+ * under the title row - a scrolling icon rail of every specialisation, and a grid of
+ * pictures.
+ *
+ * It had a middle column until October 2026, holding "Tipe dokter", "Mode konsultasi"
+ * and "Sering dicari". It is gone; the note where that zone used to be says why, and
+ * what still survives of it in the addresses the panel writes.
  *
  * ## Why it stopped being a link on the desktop
  *
@@ -1174,13 +1138,15 @@ function PilihDokterLaci({ tutup }: { tutup: () => void }) {
  *   to the `<ul>` rather than to the zone, so the wrapper the thumb is measured against
  *   is the same box the grey block paints. A bar floating a centimetre to the left of
  *   the edge it is supposed to be riding looks like a second, broken scrollbar.
- * - **The middle is one column of shortcuts**: "Sering dicari" resolves `POPULER`
- *   against the very table the rail just read, so a shortcut whose code no longer exists
- *   is skipped rather than offered against a filter that returns nothing. The services
- *   that used to sit beside it moved to the Layanan panel, where they are a menu of
- *   their own: a directory that pads its columns with appointment links is a directory
- *   that has lost track of what it is a directory of.
- * - **The pictures (right) are the panel's photography**, and `GET /hero` is the
+ * - **The middle column is gone** (October 2026). It held "Tipe dokter", "Mode
+ *   konsultasi" and "Sering dicari", and all four of its groups were the same act the
+ *   rail already performs - narrow the answer - offered in a second dialect beside it.
+ *   The shortcuts were the plainest case: every one resolves to a specialisation, so
+ *   they were the rail again, spelled in words. The two real constraints went with them,
+ *   which is the one part of this worth arguing about: `?tipe=` and `?telemedisin=` are
+ *   still read by the answer and still preserved by {@link tautanPilihan}, so an address
+ *   that carries them keeps narrowing - the panel simply no longer offers them.
+ * - **The pictures are the panel's photography**, and `GET /hero` is the
  *   product's only public source of it: an admin's slide, with its own image and alt
  *   text, comes first and keeps `data-slot="nav-promo"` so the picture is still a link to
  *   the campaign. The grid is SIX tiles - the reference menu's 3x2, not a ragged row - so
@@ -1209,37 +1175,21 @@ function PanelDirektori({ hover }: { hover: NavHover }) {
             className="bg-popover text-popover-foreground absolute top-full right-0 left-0 z-50 rounded-t-2xl rounded-b-2xl px-5 pt-6 pb-4 shadow-xl"
         >
             {/*
-                The reference's title row: one large word with a blue "see all" on its
-                baseline, and nothing else. The deck this used to carry is gone with it -
-                a menu that explains itself under its own title is copy written for a
-                screenshot rather than for a visitor who is already looking at sixteen
-                choices.
+                The title row, and only the title. "Lihat semua dokter" used to sit on
+                its baseline, blue, beside the one large word; it is gone with the rest of
+                the exits, because the visitor's way in is a specialisation, not a request
+                to be shown the whole table first. The deck this used to carry went with
+                it earlier - a menu that explains itself under its own title is copy
+                written for a screenshot rather than for a visitor who is already looking
+                at sixteen choices.
             */}
-            <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
-                <p className="text-foreground text-[1.5rem] leading-10 font-normal">
-                    Direktori Dokter
-                </p>
-
-                <Link
-                    to={DIREKTORI}
-                    onClick={() => {
-                        hover.tutup();
-                        // "Everything" has to be able to say so: a marker left behind by
-                        // a search that never completed would otherwise arrive with the
-                        // table already narrowed by a question this link promised to
-                        // drop. See `serahkanKueri`.
-                        serahkanKueri('');
-                    }}
-                    className="text-primary inline-flex items-center gap-1 text-sm font-medium hover:underline"
-                >
-                    Lihat semua dokter
-                    <ArrowRight className="size-4" />
-                </Link>
-            </div>
+            <p className="text-foreground text-[1.5rem] leading-10 font-normal">
+                Direktori Dokter
+            </p>
 
             <div
                 data-slot="nav-direktori-zona"
-                className="mt-3 grid items-start gap-6 lg:grid-cols-[minmax(0,20rem)_minmax(0,16rem)_minmax(0,1fr)] lg:gap-7"
+                className="mt-3 grid items-start gap-6 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] lg:gap-7"
             >
                 {/* Zone 1 - the rail: the whole table, one row per specialisation, and
                     no visible heading above it - the reference's rail starts at its
@@ -1345,90 +1295,24 @@ function PanelDirektori({ hover }: { hover: NavHover }) {
                     ) : null}
                 </div>
 
-                {/* Zone 2 - two kinds of answer. "Tipe dokter" and "Telemedisin" are the
-                    constraints that used to live only inside `/dokter`, a page that no
-                    longer exists: a filter the visitor cannot see is a filter they cannot
-                    choose, and this panel is the only place asking happens. "Sering
-                    dicari" is the shortcut column, unchanged. The service links stayed in
-                    the Layanan panel: a visitor hovering the DIRECTORY is choosing a
-                    doctor, and a column of appointment links beside them answers a
-                    question nobody asked. */}
-                <div
-                    data-slot="nav-direktori-pintasan"
-                    className="grid min-w-0 gap-5 max-h-[22rem] overflow-y-auto rounded lg:max-h-[min(35rem,calc(100vh_-_16rem))]"
-                >
-                    <div className="min-w-0">
-                        <p className="text-foreground flex items-center gap-1.5 text-sm font-semibold">
-                            <Stethoscope aria-hidden="true" className="size-4" />
-                            Tipe dokter
-                        </p>
+                {/*
+                    Zone 2 is GONE. It held three columns - "Tipe dokter", "Mode
+                    konsultasi" and "Sering dicari" - and the call in October 2026 was
+                    that a panel of choices should offer ONE kind of choice (recorded,
+                    with the consequences, in F03 §12 butir 8(h)). A visitor
+                    hovering the directory is choosing a doctor, and a doctor is chosen by
+                    what they specialise in; a doctor type and a mode of consultation were
+                    two more ways to say "narrow it", printed beside a list that already
+                    narrows it.
 
-                        <ul className="mt-1.5 grid gap-0.5">
-                            {TIPE_DOKTER.map((tipe) => (
-                                <li key={tipe}>
-                                    <Link
-                                        to={pilihanTipe(tipe, searchParams)}
-                                        onClick={hover.tutup}
-                                        className="hover:bg-secondary text-muted-foreground hover:text-foreground block rounded-md px-2 py-1.5 text-sm transition-colors"
-                                    >
-                                        {labelTipeDokter(tipe)}
-                                    </Link>
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
+                    "Sering dicari" went with them for the same reason: all four shortcuts
+                    resolve to a specialisation, so it was a second copy of the rail on the
+                    left, spelled in words instead of drawn as icons.
 
-                    <div className="min-w-0">
-                        <p className="text-foreground flex items-center gap-1.5 text-sm font-semibold">
-                            <Video aria-hidden="true" className="size-4" />
-                            Mode konsultasi
-                        </p>
-
-                        <ul className="mt-1.5 grid gap-0.5">
-                            <li>
-                                <Link
-                                    to={pilihanTelemedisin(searchParams)}
-                                    onClick={hover.tutup}
-                                    className="hover:bg-secondary text-muted-foreground hover:text-foreground block rounded-md px-2 py-1.5 text-sm transition-colors"
-                                >
-                                    Telemedisin
-                                </Link>
-                            </li>
-                        </ul>
-                    </div>
-
-                    <div className="min-w-0">
-                        <p className="text-foreground flex items-center gap-1.5 text-sm font-semibold">
-                            <Search aria-hidden="true" className="size-4" />
-                            Sering dicari
-                        </p>
-
-                        <ul className="mt-1.5 grid gap-0.5">
-                            {POPULER.map((pintasan) => {
-                                const master = cariMasterPopuler(
-                                    daftar,
-                                    pintasan.kataKunci,
-                                );
-
-                                // Absent from the reference table = not offered, rather
-                                // than offered against a code that no longer exists.
-                                if (master === undefined) return null;
-
-                                return (
-                                    <li key={pintasan.label}>
-                                        <Link
-                                            to={pilihanSpesialisasi(master.kode, searchParams)}
-                                            onClick={hover.tutup}
-                                            className="hover:bg-secondary text-muted-foreground hover:text-foreground block rounded-md px-2 py-1.5 text-sm transition-colors"
-                                        >
-                                            {pintasan.label}
-                                        </Link>
-                                    </li>
-                                );
-                            })}
-                        </ul>
-                    </div>
-                </div>
+                    The parameters survive being hand-typed - `tautanPilihan` still
+                    preserves `tipe` and `telemedisin` - because a menu that stops offering
+                    a choice is not a reason to start breaking an address.
+                */}
 
                 {/* Zone 3 - the picture grid, which is where the panel's photographs
                     live; no heading, because the reference menu has none over its tiles */}

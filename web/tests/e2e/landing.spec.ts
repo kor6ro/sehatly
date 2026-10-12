@@ -278,15 +278,20 @@ test.describe('Landing page (/)', () => {
         await expect(trigger).toHaveAttribute('aria-expanded', 'true');
         await expect(page).toHaveURL(/\/$/);
 
-        // All three kinds of choice the panel offers, before anything is clicked. The
-        // rail's rows address THIS page now: a picked constraint is answered on the
-        // landing page, and the whole directory is one link away from inside that answer.
+        /**
+         * ONE kind of choice, and only one: the rail. "Tipe dokter", "Mode konsultasi",
+         * "Sering dicari" and the "Lihat semua dokter" on the title's baseline were all
+         * taken out in October 2026 - a panel printed beside a list of sixteen should not
+         * also be a second dialect of "narrow it". So from here on the assertions are the
+         * negative ones: what the panel no longer offers is now the contract.
+         */
         await expect(panel.locator('a[href^="/?spesialisasi="]').first()).toBeVisible();
-        await expect(panel.locator('a[href^="/?tipe="]').first()).toBeVisible();
-        await expect(panel.getByRole('link', { name: 'Telemedisin' })).toBeVisible();
+        await expect(panel.locator('a[href^="/?tipe="]')).toHaveCount(0);
+        await expect(panel.getByRole('link', { name: 'Telemedisin' })).toHaveCount(0);
         await expect(
             panel.getByRole('link', { name: /Lihat semua dokter/ }),
-        ).toBeVisible();
+        ).toHaveCount(0);
+        await expect(panel.getByText('Sering dicari')).toHaveCount(0);
 
         /**
          * The panel is sized by the HEADER BAR, not by the trigger: its containing block
@@ -435,7 +440,15 @@ test.describe('Landing page (/)', () => {
      * would satisfy a naive "is it visible" check while looking nothing like the
      * reference: the column count is computed from the box.
      */
-    test('f00-landing-nav-direktori-tiga-zona-ala-menu-katalog', async ({ page }) => {
+    /**
+     * The catalogue-menu shape, now two columns rather than three.
+     *
+     * The middle zone - "Tipe dokter", "Mode konsultasi", "Sering dicari" - went in
+     * October 2026, so this test was renamed with it: a name promising three zones is a
+     * name that lies to whoever runs it next. What it still checks is the shape itself,
+     * and the two negatives at the end are now part of the contract.
+     */
+    test('f00-landing-nav-direktori-dua-zona-ala-menu-katalog', async ({ page }) => {
         await page.goto('/');
 
         // the section this shape was moved OUT of is gone from the page body
@@ -447,12 +460,12 @@ test.describe('Landing page (/)', () => {
         await page.getByRole('button', { name: 'Direktori Dokter' }).hover();
         await expect(panel).toBeVisible();
 
-        // the three zones are three COLUMNS, side by side
+        // the zones are COLUMNS, side by side
         const zona = panel.locator('[data-slot="nav-direktori-zona"]');
         const kolom = await zona.evaluate((el) =>
             getComputedStyle(el).gridTemplateColumns.split(' ').length,
         );
-        expect(kolom, 'tiga zona harus sejajar, bukan menumpuk').toBe(3);
+        expect(kolom, 'zona harus sejajar, bukan menumpuk').toBe(2);
 
         // Zone 1 - the rail: the whole table, line art on every row, and it scrolls
         const daftar = zona.locator('[data-slot="nav-direktori-spesialisasi"]');
@@ -586,13 +599,16 @@ test.describe('Landing page (/)', () => {
             .poll(() => daftar.evaluate((el) => el.scrollTop))
             .toBeGreaterThan(0);
 
-        // Zone 2 - the shortcuts. The services column moved to the Layanan panel: a
-        // visitor hovering "Direktori Dokter" is choosing a DOCTOR, and a column of
-        // appointment links beside the specialties answers a question they did not ask.
-        const pintasan = zona.locator('[data-slot="nav-direktori-pintasan"]');
-        await expect(pintasan.getByText('Sering dicari')).toBeVisible();
-        await expect(pintasan.getByText('Layanan', { exact: true })).toHaveCount(0);
-        expect(await pintasan.locator('a').count()).toBeGreaterThanOrEqual(4);
+        /**
+         * Zone 2 is GONE, and these negatives are what is left of it. It held "Tipe
+         * dokter", "Mode konsultasi" and "Sering dicari" - three more ways to say "narrow
+         * it", printed beside a list that already narrows it, with the shortcuts being
+         * the rail a second time in words instead of icons.
+         */
+        await expect(
+            zona.locator('[data-slot="nav-direktori-pintasan"]'),
+        ).toHaveCount(0);
+        await expect(panel.getByRole('link', { name: 'Telemedisin' })).toHaveCount(0);
 
         // Zone 3 - the picture grid: exactly six tiles in the reference's 3x2, the
         // admin's photograph first (which is the `nav-promo` contract the mega-panel
@@ -1321,11 +1337,22 @@ test.describe('Landing page (/)', () => {
         await trigger.focus();
         await expect(panel).toBeVisible();
 
-        // Tab lands inside the panel, on the link that leads to the whole directory.
+        /**
+         * Wait for the rail before pressing Tab, and this is not politeness: the rail is
+         * the only content in the panel that comes from `GET /spesialisasi`, and the
+         * panel's first focusable IS its first row. Press Tab while the panel is still
+         * showing eight skeletons and the key flies through an empty block to the
+         * picture grid, where focus then stays even after the rows arrive - the menu
+         * would look broken to a keyboard user and would read as broken here too. The
+         * claim under test is about tab order once there is something to tab through.
+         */
+        await expect(panel.locator('a[href^="/?spesialisasi="]').first()).toBeVisible();
+
+        // Tab lands inside the panel, on the first specialisation in the rail. It used to
+        // land on "Lihat semua dokter", which was the title row's link and is gone; the
+        // rail is the way in now, and it is the first thing the keyboard meets.
         await page.keyboard.press('Tab');
-        await expect(
-            panel.getByRole('link', { name: /Lihat semua dokter/ }),
-        ).toBeFocused();
+        await expect(panel.locator('a[href^="/?spesialisasi="]').first()).toBeFocused();
 
         await page.keyboard.press('Escape');
 
