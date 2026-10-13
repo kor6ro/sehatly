@@ -387,7 +387,7 @@ function AppSidebar() {
                                 <MenuLink
                                     to="/?semua=1"
                                     icon={Stethoscope}
-                                    label="Direktori dokter"
+                                    label="Dokter Terdekat"
                                     pathname={pathname}
                                     onNavigate={tutupDrawer}
                                 />
@@ -549,7 +549,7 @@ function AppSidebar() {
                             <MenuLink
                                 to="/?semua=1"
                                 icon={Stethoscope}
-                                label="Direktori dokter"
+                                label="Dokter Terdekat"
                                 pathname={pathname}
                                 onNavigate={tutupDrawer}
                             />

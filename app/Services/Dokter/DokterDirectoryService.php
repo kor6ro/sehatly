@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Services\Dokter;
 
 use App\Models\Dokter;
+use App\Models\DokterFaskes;
+use App\Models\Faskes;
 use App\Models\MasterSpesialisasi;
 use App\Models\UlasanDokter;
 use App\Support\Dokter\StrBerlaku;
@@ -14,6 +16,7 @@ use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
+use InvalidArgumentException;
 
 /**
  * The public doctor directory: one place where "may this doctor be shown to a
@@ -291,18 +294,47 @@ class DokterDirectoryService
     public const SEARCH_MAX = 150;
 
     /**
-     * The closed `?sort=` vocabulary F03 §4.4 approves, in the order it names it.
+     * The closed `?sort=` vocabulary, in the order F03 §4.4 names it with the
+     * one addition appended.
      *
      * `relevan` is first because it is the default, and {@see IndexDokterRequest}
      * publishes this list verbatim as the query parameter's `enum`, so the
      * generated contract and this constant cannot disagree.
      *
+     * **`terdekat` is not in F03 §4.4 and is recorded as a deviation in §12.**
+     * It is the first value here that needs anything from the request besides
+     * itself - a position, in `lat`/`lng` - and the first that can put a row
+     * LAST for a reason other than its own merit: a doctor who practises nowhere
+     * has no distance to measure and is ordered below every doctor who does.
+     * {@see IndexDokterRequest} refuses the sort without a position for exactly
+     * that reason.
+     *
      * @var list<string>
      */
-    public const SORT_VALUES = ['relevan', 'rating', 'pengalaman', 'biaya_asc', 'biaya_desc', 'ulasan'];
+    public const SORT_VALUES = ['relevan', 'rating', 'pengalaman', 'biaya_asc', 'biaya_desc', 'ulasan', 'terdekat'];
 
     /** The default sort: the pre-F03 order, unchanged. */
     public const SORT_DEFAULT = 'relevan';
+
+    /**
+     * The Haversine distance in kilometres from the request's position to a
+     * doctor's primary venue, as a correlated scalar subquery over three `?`.
+     *
+     * Read with {@see applyJarak()}, which is the only caller and the only place
+     * the bindings are bound. It lives here as a constant so the SELECT column and
+     * nothing else can ever quote a second copy of the formula.
+     *
+     * @var string
+     */
+    private const JARAK_KM_SQL = '(SELECT 6371 * ACOS(LEAST(1.0, GREATEST(-1.0, '
+        .'COS(RADIANS(?)) * COS(RADIANS(f.latitude)) '
+        .'* COS(RADIANS(f.longitude) - RADIANS(?)) '
+        .'+ SIN(RADIANS(?)) * SIN(RADIANS(f.latitude))))) '
+        .'FROM dokter_faskes df '
+        .'INNER JOIN faskes f ON f.id = df.faskes_id '
+        .'WHERE df.dokter_id = v_dokter_katalog.dokter_id '
+        .'ORDER BY df.is_utama DESC, df.faskes_id ASC '
+        .'LIMIT 1)';
 
     /**
      * `$ulasan` is F04's aggregate service, asked for the page's recomputed review
@@ -346,6 +378,8 @@ class DokterDirectoryService
         $this->applySpesialisasi($query, $filters);
         $this->applySearch($query, $filters);
         $this->applyTersediaTelemedisin($query, $filters);
+        // Before `applySort`, because the sort orders BY the column this adds.
+        $this->applyJarak($query, $filters);
         $this->applySort($query, $filters);
 
         $halaman = $query
@@ -353,6 +387,7 @@ class DokterDirectoryService
             ->withQueryString();
 
         $this->lampirkanJumlahUlasan($halaman->getCollection());
+        $this->lampirkanFaskes($halaman->getCollection());
 
         return $halaman;
     }
@@ -675,6 +710,19 @@ class DokterDirectoryService
     {
         $sort = (string) ($filters['sort'] ?? self::SORT_DEFAULT);
 
+        /**
+         * The FormRequest already refuses this over HTTP, so this is not a guard
+         * against a visitor - it is a guard against the next caller in this
+         * codebase. Without it the failure would be MySQL's `Unknown column
+         * 'jarak_km' in 'order clause'`, which names an implementation detail
+         * instead of the missing argument.
+         */
+        if ($sort === 'terdekat' && $this->koordinat($filters) === null) {
+            throw new InvalidArgumentException(
+                '?sort=terdekat needs a position: pass both `lat` and `lng`, or sort another way.',
+            );
+        }
+
         match ($sort) {
             'rating' => $query
                 ->orderByDesc($this->subqueryRataRataUlasan())
@@ -692,11 +740,117 @@ class DokterDirectoryService
             'biaya_desc' => $query
                 ->orderByDesc('v_dokter_katalog.biaya_konsultasi_online')
                 ->orderBy('v_dokter_katalog.dokter_id'),
+            'terdekat' => $query
+                /**
+                 * `jarak_km IS NULL` first, and that is load-bearing rather than
+                 * defensive. MySQL sorts NULL **first** under ASC, because NULL is
+                 * lower than every number - so a plain `ORDER BY jarak_km ASC` would
+                 * open a list ordered by proximity with the doctor who practises
+                 * nowhere, which is the exact opposite of what the visitor asked for
+                 * and the one order they cannot correct from the page.
+                 *
+                 * `IS NULL` reads as `1` for a doctor with no venue and `0` for one
+                 * with a distance, so ascending puts the measurable rows first and the
+                 * unmeasurable rows last, where they belong.
+                 */
+                ->orderByRaw('jarak_km IS NULL')
+                ->orderBy('jarak_km')
+                ->orderBy('v_dokter_katalog.dokter_id'),
             default => $query
                 ->orderByDesc('v_dokter_katalog.rating_rata_rata')
                 ->orderByDesc('v_dokter_katalog.jumlah_konsultasi')
                 ->orderBy('v_dokter_katalog.dokter_id'),
         };
+    }
+
+    /**
+     * The caller's position, or `null` when the request carries none.
+     *
+     * A half pair reads as no pair. Both {@see applyJarak()}, which measures, and
+     * {@see applySort()}, which orders, ask this one question, and neither may
+     * answer it from a single axis: a longitude on its own is a position anywhere
+     * along a line of latitude that spans the planet, so "nearest" computed from
+     * it is not an approximation of an answer, it is a different question's
+     * answer wearing this one's label.
+     *
+     * @param  array<string, mixed>  $filters
+     * @return array{lat: float, lng: float}|null
+     */
+    private function koordinat(array $filters): ?array
+    {
+        $lat = $filters['lat'] ?? null;
+        $lng = $filters['lng'] ?? null;
+
+        if ($lat === null || $lng === null || $lat === '' || $lng === '') {
+            return null;
+        }
+
+        return ['lat' => (float) $lat, 'lng' => (float) $lng];
+    }
+
+    /**
+     * `jarak_km`: the distance in kilometres from the caller's position to the
+     * doctor's primary venue, added as one more selected column.
+     *
+     * Nothing happens when the request carries no position, so a directory sorted
+     * some other way is byte-identical to what it was before `terdekat` existed.
+     *
+     * ## A subquery in the SELECT, and not a join
+     *
+     * `dokter_faskes` is a pivot with a composite `PRIMARY KEY (dokter_id,
+     * faskes_id)` (`:452`-`:455`), so a doctor practising at three places is three
+     * rows. A `JOIN` here would triple that doctor in the result, triple their
+     * card in the page, and turn `paginate()`'s total into a count of
+     * affiliations rather than of doctors. A correlated scalar subquery returns
+     * exactly one value per row however many venues exist - which is the same
+     * reason `sort=rating` builds its average the same way.
+     *
+     * ## Which venue gets measured
+     *
+     * **The primary one**: `ORDER BY df.is_utama DESC, df.faskes_id ASC LIMIT 1`.
+     * Not "the nearest of their several venues", and that is a decision rather
+     * than a shortcut - it is written up as an open question in F03 §12, because
+     * a doctor whose main clinic is 10 km away but whose evening clinic is 1 km
+     * away is measured at 10 km and shown at 10 km.
+     *
+     * The reason for choosing it is that {@see lampirkanFaskes()} then picks the
+     * same row by the same ordering and prints its name beside the number, so a
+     * card can never show "1,2 km" under the name of a building somewhere else.
+     * Finding "the nearest" instead would have bought a truer figure at the cost
+     * of a second spelling of the Haversine formula in PHP, and that second copy
+     * would be the one with no test.
+     *
+     * ## The two cases that must return NULL, not a number
+     *
+     * **A venue with no coordinates.** `faskes.latitude` is nullable (`:393`), the
+     * apotek in the fixture has none, and `RADIANS(NULL)` is NULL with `GREATEST`,
+     * `LEAST` and `ACOS` each propagating it. An address without a pin on a map
+     * is a real practice with an unknown distance - printing it as `0` or sorting
+     * it as nearest would both be lies.
+     *
+     * **`ACOS` outside `[-1, 1]`.** Two positions metres apart can produce a
+     * cosine of `1.0000000000002` through rounding, and MySQL returns NULL for
+     * `ACOS` beyond its domain - which would silently turn "the clinic next door"
+     * into "no distance at all", and only for the pairs that are closest
+     * together. The clamp makes the worst case a slightly flat `0` instead.
+     *
+     * @param  array<string, mixed>  $filters
+     */
+    private function applyJarak(Builder $query, array $filters): void
+    {
+        $posisi = $this->koordinat($filters);
+
+        if ($posisi === null) {
+            return;
+        }
+
+        // Three bindings: the patient's latitude is needed twice (once to scale
+        // their own cosine, once for the sine term) and their longitude once.
+        $query->selectRaw(self::JARAK_KM_SQL.' AS jarak_km', [
+            $posisi['lat'],
+            $posisi['lng'],
+            $posisi['lat'],
+        ]);
     }
 
     /**
@@ -764,6 +918,70 @@ class DokterDirectoryService
 
         foreach ($dokter as $baris) {
             $baris->setAttribute('jumlah_ulasan', $jumlah[(int) $baris->dokter_id] ?? 0);
+        }
+    }
+
+    /**
+     * Attach `faskes_utama` - the one venue {@see applyJarak()} measured to - to
+     * every row of one page.
+     *
+     * Called AFTER `paginate()` for the same two reasons as
+     * {@see lampirkanJumlahUlasan()}: only the rows actually returned need it, and
+     * the page's own plan is then untouched. Two queries cover a page of any size
+     * (the affiliations, then the facilities they point at), where the alternative
+     * is a `belongsTo` reached from the resource and that is an N+1 on an
+     * endpoint anybody on the internet can page through.
+     *
+     * ## The ordering is the same rule, not a coincidence
+     *
+     * `is_utama DESC, faskes_id ASC` is spelled out in {@see JARAK_KM_SQL} as
+     * well. Two independent rules for "which of a doctor's venues is *the* venue"
+     * would eventually disagree, and the symptom would be a card printing "1,2 km"
+     * under the name of a building somewhere else - a lie about the one thing this
+     * feature exists to tell the truth about.
+     *
+     * ## Nothing is filtered, for the same reason the detail endpoint filters nothing
+     *
+     * `status_aktif` is published rather than acted on
+     * ({@see DokterDetailResource::faskes()}), so a withdrawn affiliation stays
+     * visible and is distinguishable from "never affiliated". Applying that column
+     * here and not there would leave one doctor with two different addresses
+     * depending on which page you asked.
+     *
+     * A doctor with no `dokter_faskes` row at all gets `null`, which is the honest
+     * answer and is what puts them last under `?sort=terdekat`: an online-only
+     * doctor has no place to be nearest.
+     *
+     * @param  Collection<int, DokterKatalog>  $dokter
+     */
+    private function lampirkanFaskes(Collection $dokter): void
+    {
+        if ($dokter->isEmpty()) {
+            return;
+        }
+
+        $afiliansi = DokterFaskes::query()
+            ->with('faskes:id,nama,tipe,alamat,latitude,longitude,status_aktif')
+            ->whereIn('dokter_id', $dokter->map(static fn (DokterKatalog $baris): int => (int) $baris->dokter_id)->all())
+            ->orderByDesc('is_utama')
+            ->orderBy('faskes_id')
+            ->get()
+            ->groupBy(static fn (DokterFaskes $baris): int => (int) $baris->dokter_id);
+
+        foreach ($dokter as $baris) {
+            $utama = $afiliansi->get((int) $baris->dokter_id)?->first();
+            $faskes = $utama?->faskes;
+
+            $baris->setAttribute('faskes_utama', $faskes instanceof Faskes ? [
+                'faskes_id' => $utama->faskes_id,
+                'is_utama' => (bool) $utama->is_utama,
+                'status_aktif' => (bool) $utama->status_aktif,
+                'nama' => $faskes->nama,
+                'tipe' => $faskes->tipe,
+                'alamat' => $faskes->alamat,
+                'latitude' => $faskes->latitude,
+                'longitude' => $faskes->longitude,
+            ] : null);
         }
     }
 }

@@ -76,6 +76,36 @@ export function formatDecimal(value: Decimal, digits = 1): string {
 }
 
 /**
+ * A distance in kilometres, restated in metres below one.
+ *
+ * `jarak_km` arrives already rounded to whole metres by `DokterResource`, so this is
+ * presentation only and never re-measures anything.
+ *
+ * Below a kilometre the figure changes unit: `0,4 km` makes the reader do arithmetic to
+ * learn it is four hundred metres, and `400 m` simply says so. Above a kilometre one
+ * decimal place is enough - the Haversine over `DECIMAL(10,8)` inputs is far more precise
+ * than anybody's sense of "nearby", and the second decimal is noise.
+ *
+ * `null` in, `null` out, and never `'-'`: a missing distance is a real state with a
+ * sentence of its own on the card, not a blank where a number should be.
+ */
+export function formatJarak(kilometer: Decimal): string | null {
+    const jarak = toNumber(kilometer);
+
+    if (jarak === null) {
+        return null;
+    }
+
+    if (jarak < 1) {
+        return `${new Intl.NumberFormat('id-ID', {
+            maximumFractionDigits: 0,
+        }).format(Math.round(jarak * 1000))} m`;
+    }
+
+    return `${formatDecimal(jarak, 1)} km`;
+}
+
+/**
  * A `TIME` column, published as `H:i:s` and never zone-shifted.
  *
  * ## Why this is not `formatWaktu`

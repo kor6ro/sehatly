@@ -45,38 +45,47 @@ export function RequireAuth() {
 }
 
 /**
- * `/dokter` - the address of the page the directory used to be, now a door into the
+ * `/dokter` - the address of the page the doctor screen used to be, now a door into the
  * landing page that answers the same question.
  *
- * The directory moved to `/` because the whole thing - the filters, the sort, the cards,
- * the pagination - is the ANSWER to a pick made in the header, and an answer belongs on
- * the page that was asked. This address keeps working because it is the one this app's own
- * navigation wrote for years: it sits in history, in bookmarks and in links people already
- * sent, and a link that 404'd would be the worst possible answer to a working question.
+ * The screen moved to `/` because the whole thing - the heading, the count, the cards - is
+ * the ANSWER to a pick made in the header, and an answer belongs on the page that was
+ * asked. This address keeps working because it is the one this app's own navigation wrote
+ * for years: it sits in history, in bookmarks and in links people already sent, and a link
+ * that 404'd would be the worst possible answer to a working question.
  *
- * Every parameter is carried across. `spesialisasi`, `tipe` and `telemedisin` mean the same
- * thing on both addresses; `search` is carried too, because F03 §9 forbids this app from
- * WRITING a free-text query into an address and dropping one an older build already wrote
- * would trade a privacy rule for a wrong answer. With none of them present, `?semua=1` is
- * added so the visitor still lands on the directory rather than on the marketing sections.
+ * Four kinds of parameter, handled in the order they matter:
+ *
+ * | parameter | what happens | why |
+ * | --- | --- | --- |
+ * | `dokter` | goes to `/dokter/{id}` instead | a profile is a page of its own now, and forwarding it into the list would show the list with the question the visitor asked dropped on the floor |
+ * | `spesialisasi` | carried across | the only filter the answer still reads, and it means the same thing on both addresses |
+ * | `search` | carried across | F03 §9 forbids this app from WRITING a free-text query into an address; dropping one an older build already wrote would trade that privacy rule for a wrong answer |
+ * | `tipe`, `telemedisin` | dropped, not carried | nothing offers them and `DirektoriDokter` no longer reads them, so carrying them would produce `/?tipe=…`, an address whose parameter narrows nothing and which this page therefore renders as the marketing sections - a redirect that answers half a question |
+ *
+ * With no constraint left, `?semua=1` is added so the visitor still lands on the answer
+ * rather than on the marketing sections.
  *
  * `replace` is used so the old address is not left in history as a stop that bounces.
  */
 export function AlihHalamanDokter() {
     const [params] = useSearchParams();
 
-    const berikut = new URLSearchParams(params);
+    const dokter = params.get('dokter');
 
-    const adaPilihan =
-        berikut.has('spesialisasi') ||
-        berikut.has('tipe') ||
-        berikut.has('telemedisin');
-
-    if (!adaPilihan) {
-        berikut.set('semua', '1');
+    if (dokter !== null && dokter !== '') {
+        return <Navigate to={`/dokter/${dokter}`} replace />;
     }
 
+    const berikut = new URLSearchParams(params);
+
     berikut.delete('dokter');
+    berikut.delete('tipe');
+    berikut.delete('telemedisin');
+
+    if (!berikut.has('spesialisasi')) {
+        berikut.set('semua', '1');
+    }
 
     return <Navigate to={`/?${berikut.toString()}`} replace />;
 }

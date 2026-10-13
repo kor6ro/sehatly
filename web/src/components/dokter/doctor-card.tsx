@@ -1,10 +1,10 @@
-import { Award, MessageSquare, Star, Stethoscope, Video } from 'lucide-react';
+import { Award, MapPin, MessageSquare, Star, Stethoscope, Video } from 'lucide-react';
 import { Link } from 'react-router';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { labelTipeDokter } from '@/lib/api/dokter';
-import type { DokterTipe } from '@/lib/api/types';
-import { formatDecimal, formatRupiah } from '@/lib/format';
+import type { Decimal, DokterFaskesUtama, DokterTipe } from '@/lib/api/types';
+import { formatDecimal, formatJarak, formatRupiah } from '@/lib/format';
 
 /**
  * One doctor card, shared by every surface that prints a directory row.
@@ -13,8 +13,33 @@ import { formatDecimal, formatRupiah } from '@/lib/format';
  * that page was the only screen that could show a doctor. The landing page prints the same
  * rows now, and a second copy of this card is the exact drift this codebase keeps
  * refusing: two cards that agree today and disagree the first time a badge rule changes.
- * So the card moved here, with its `data-slot` and its props untouched - every selector
- * the directory's tests use still finds it.
+ * So the card moved here, with its `data-slot` untouched - every selector the directory's
+ * tests use still finds it.
+ *
+ * ## The name opens the profile as a page of its own
+ *
+ * `/dokter/{id}`. The landing page used to pass `/?dokter={id}` so the profile opened in
+ * place under the list, and that is what the `ke` prop existed for; the October 2026
+ * redesign sends every card to the page instead, so the prop is gone rather than left
+ * taking a value it is always given. The profile page carries the about text, the
+ * specialisations, the education, the venues with their coordinates, the reviews and the
+ * schedule - which is more than a column beside a list has room for, and it is an address
+ * a patient can send to somebody.
+ *
+ * ## The venue is drawn for every card, and its absence is drawn too
+ *
+ * `faskes_utama` is the one venue `jarak_km` was measured to, published by
+ * `DokterResource`. Three states, all of them real and all of them printed rather than
+ * skipped:
+ *
+ * | card shows | what it means |
+ * | --- | --- |
+ * | name, address and a distance | a practice at a known place, and how far |
+ * | name and address, no distance | a real practice whose venue has no map pin - an address you can reach, a distance nobody can compute |
+ * | `Tanpa tempat praktik — lewat chat & video` | an online-only doctor: no `dokter_faskes` row at all |
+ *
+ * A card that printed only the third state's rows, or that silently dropped the second,
+ * would make a real practice look like it did not exist.
  *
  * ## The `Tersedia telemedisin` badge is drawn for every card
  *
@@ -41,7 +66,8 @@ export function DoctorCard({
     konsultasi,
     pengalaman,
     ulasan,
-    ke = `/dokter/${String(id)}`,
+    faskes,
+    jarak,
 }: {
     id: number;
     nama: string;
@@ -59,28 +85,25 @@ export function DoctorCard({
     pengalaman?: number | null;
     /** Recomputed review count from `ulasan_dokter`; `0` means no reviews yet. */
     ulasan?: number | null;
-    /**
-     * Where the name goes. It defaults to `/dokter/{id}`, the profile as a page of its
-     * own - which is where a card is reached from OUTSIDE the landing page (the booking
-     * flow, a notification) has to point, because there is no list to come back to there.
-     *
-     * The landing page passes something else: `/?dokter={id}` plus whatever filters the
-     * visitor is standing in, so the profile opens IN PLACE and the list is one click
-     * behind it. Same card, same `data-slot`, two destinations - which is the whole
-     * reason the destination is a prop and not a hard-coded path.
-     */
-    ke?: string;
+    /** The doctor's primary venue, or `null` for an online-only doctor. */
+    faskes?: DokterFaskesUtama | null;
+    /** Kilometres from the reader's position. `null` when no position was asked for, or the venue has no pin. */
+    jarak?: Decimal;
 }) {
     const pengalamanTampil =
         typeof pengalaman === 'number' && pengalaman > 0 ? pengalaman : null;
     const ulasanTampil = typeof ulasan === 'number' && ulasan > 0 ? ulasan : null;
+    const jarakTampil =
+        faskes === null || faskes === undefined
+            ? null
+            : formatJarak(jarak ?? null);
 
     return (
         <Card className="h-full" data-slot="dokter-kartu">
             <CardContent className="flex h-full flex-col gap-3">
                 <div className="flex flex-col gap-1">
                     <Link
-                        to={ke}
+                        to={`/dokter/${String(id)}`}
                         className="text-base font-medium underline-offset-4 hover:underline"
                     >
                         {nama}
@@ -96,6 +119,52 @@ export function DoctorCard({
                         ? 'Spesialisasi belum dicatat'
                         : spesialisasi}
                 </p>
+
+                {/**
+                 * The venue, and this is the row the redesigned home page is built around:
+                 * a patient picking a surgeon is asking "who is near me, and where do they
+                 * practise" - a name with no building behind it answers half the question.
+                 */}
+                <div className="flex items-start gap-2" data-slot="dokter-lokasi">
+                    <MapPin
+                        aria-hidden
+                        className="text-muted-foreground mt-0.5 size-4 shrink-0"
+                    />
+
+                    <div className="min-w-0">
+                        {faskes === null || faskes === undefined ? (
+                            <p className="text-muted-foreground text-sm">
+                                Tanpa tempat praktik — lewat chat &amp; video
+                            </p>
+                        ) : (
+                            <>
+                                <p className="text-sm font-medium">
+                                    {faskes.nama ?? 'Tempat praktik belum dicatat'}
+                                </p>
+
+                                {faskes.alamat === null || faskes.alamat === '' ? null : (
+                                    <p className="text-muted-foreground text-xs">
+                                        {faskes.alamat}
+                                    </p>
+                                )}
+
+                                {/**
+                                 * Absent, not `0`, and not a dash. A venue with no map pin
+                                 * has a real address and an unknowable distance, and the
+                                 * card says the address because that is the half it knows.
+                                 */}
+                                {jarakTampil === null ? null : (
+                                    <p
+                                        className="text-muted-foreground text-xs"
+                                        data-slot="dokter-jarak"
+                                    >
+                                        {`${jarakTampil} dari lokasimu`}
+                                    </p>
+                                )}
+                            </>
+                        )}
+                    </div>
+                </div>
 
                 <div className="mt-auto flex flex-wrap items-center gap-2">
                     <Badge variant="secondary" data-slot="dokter-biaya">

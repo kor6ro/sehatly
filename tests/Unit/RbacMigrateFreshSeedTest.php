@@ -224,7 +224,7 @@ class RbacMigrateFreshSeedTest extends TestCase
 
     public function test_the_todo_18_development_fixtures_still_land(): void
     {
-        // The 7 tables DevFixtureSeeder writes.
+        // The 8 tables DevFixtureSeeder writes.
         //
         // **CHANGED BY F3-02.** This used to assert exact table COUNTS - 5 users,
         // 2 patients, 3 doctors, 2 facilities, 4 specialisation links - and those
@@ -259,6 +259,25 @@ class RbacMigrateFreshSeedTest extends TestCase
         $this->assertSame(
             ['FASKES-DEV-001', 'FASKES-DEV-002'],
             DB::table('faskes')->whereIn('kode_faskes', ['FASKES-DEV-001', 'FASKES-DEV-002'])->orderBy('kode_faskes')->pluck('kode_faskes')->all(),
+        );
+
+        // The `dokter_faskes` links, by the same natural keys rather than by
+        // count - and they are the load-bearing ones. This table is the ONLY
+        // path from a doctor to a coordinate, so a link that failed to land is
+        // indistinguishable from an online-only doctor: the distance sort would
+        // quietly bury the two doctors who do have a practice, and nothing else
+        // on any screen would look wrong.
+        $this->assertSame(
+            ['STR-DEV-0001|FASKES-DEV-001', 'STR-DEV-0002|FASKES-DEV-002'],
+            DB::table('dokter_faskes')
+                ->join('dokter', 'dokter.id', '=', 'dokter_faskes.dokter_id')
+                ->join('faskes', 'faskes.id', '=', 'dokter_faskes.faskes_id')
+                ->where('dokter.nomor_str', 'like', 'STR-DEV-%')
+                ->orderBy('dokter.nomor_str')
+                ->selectRaw("CONCAT(dokter.nomor_str, '|', faskes.kode_faskes) AS kunci")
+                ->get()
+                ->pluck('kunci')
+                ->all(),
         );
 
         // The two tables no other seeder writes, so the counts still hold as

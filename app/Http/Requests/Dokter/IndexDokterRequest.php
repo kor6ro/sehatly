@@ -22,7 +22,27 @@ use Illuminate\Validation\Rule;
  * | `spesialisasi` | 16 codes or their ids | `master_spesialisasi.kode` / `.id` at `:404` / `:403` |
  * | `search` | free text over `users.nama_lengkap` | `VARCHAR(150) NOT NULL` at `:135` |
  * | `tersedia_telemedisin` | a boolean | `TINYINT(1) NOT NULL DEFAULT 1` at `:426` |
- * | `sort` | 6 values | F03 §4.4's approved list, {@see DokterDirectoryService::SORT_VALUES} |
+ * | `sort` | 7 values | F03 §4.4's approved six plus `terdekat`, {@see DokterDirectoryService::SORT_VALUES} - the seventh is a §12 butir 8(i) deviation |
+ * | `lat`, `lng` | a WGS-84 pair, each bounded by its own axis | `faskes.latitude` `DECIMAL(10,8)` / `.longitude` `DECIMAL(11,8)` at `:393`/`:394` - the column's own precision is the reason a coordinate out of that range cannot correspond to any row |
+ *
+ * **`lat`/`lng` exist only to be ordered by, and they are required exactly when
+ * they are.** `required_if:sort,terdekat` refuses `?sort=terdekat` without a
+ * position rather than falling back to `relevan`: a caller asking for "nearest"
+ * and silently receiving "most reviewed" has been told a lie it cannot detect,
+ * and this endpoint is unauthenticated, so there is no session whose saved
+ * location could stand in for the missing pair. The reverse is not an error -
+ * a coordinate with no `sort=terdekat` is simply unused, and it is left in the
+ * query string so a client that holds a position can keep holding it while it
+ * sorts some other way.
+ *
+ * `required_with` closes the half-pair: a latitude and a longitude are one
+ * position, and measuring a distance from an axis alone is not an approximation,
+ * it is a different question.
+ *
+ * **A coordinate never reaches the URL of the answer the patient sees** - that
+ * is F03 §9's rule for free text, and it applies to a position for the same
+ * reason. It travels on this endpoint's query string only, which is a request
+ * the client makes, never an address it shares.
  *
  * `sort` is the one row with no DDL behind it, so the contract is F03 §4.4
  * itself. Its vocabulary lives on the service as a constant that this rule and
@@ -100,6 +120,25 @@ class IndexDokterRequest extends FormRequest
                 'nullable',
                 'string',
                 Rule::in(DokterDirectoryService::SORT_VALUES),
+            ],
+            // Ordered BEFORE `nullable`: `nullable` short-circuits every later rule
+            // on a null value, so placing it first would let `?sort=terdekat&lat=`
+            // through as "present but null" - which is the exact request this pair
+            // exists to refuse.
+            'lat' => [
+                'required_if:sort,terdekat',
+                'required_with:lng',
+                'nullable',
+                'numeric',
+                'min:-90',
+                'max:90',
+            ],
+            'lng' => [
+                'required_with:lat',
+                'nullable',
+                'numeric',
+                'min:-180',
+                'max:180',
             ],
             'page' => ['nullable', 'integer', 'min:1'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:'.DokterDirectoryService::PER_PAGE_MAX],

@@ -235,8 +235,13 @@ function direktoriTambahPendidikan(Dokter $dokter, string $jenjang, string $inst
  *
  * `faskes.tipe` is the five-value ENUM at `:365` and `kode_faskes` is
  * `VARCHAR(20) NULL UNIQUE` (`:362`).
+ *
+ * Coordinates default to NULL because `latitude`/`longitude` are nullable
+ * (`:393`-`:394`) and because "a facility with no map pin" is a state
+ * `?sort=terdekat` has to survive, not an oversight to paper over. A caller
+ * that wants a mappable venue passes one.
  */
-function direktoriFaskes(string $nama): Faskes
+function direktoriFaskes(string $nama, ?string $lat = null, ?string $lng = null): Faskes
 {
     $faskes = new Faskes;
     $faskes->kode_faskes = 'FASKES-TEST-'.Str::upper(Str::random(6));
@@ -244,10 +249,31 @@ function direktoriFaskes(string $nama): Faskes
     $faskes->tipe = 'klinik';
     $faskes->alamat = 'Jl. Uji Coba No. 1, Jakarta';
     $faskes->akreditasi = 'utama';
+    $faskes->latitude = $lat;
+    $faskes->longitude = $lng;
     $faskes->status_aktif = true;
     $faskes->save();
 
     return $faskes;
+}
+
+/**
+ * Link a doctor to a facility, honouring the composite `PRIMARY KEY (dokter_id,
+ * faskes_id)` (`:452`-`:455`).
+ *
+ * Written through the query builder for the same reason
+ * {@see direktoriSambungSpesialisasi()} is: these tests measure the directory, not
+ * the write path. `is_utama` defaults to true because it is the row the distance
+ * is measured to, and a test that wants "one of several venues" sets it per call.
+ */
+function direktoriSambungFaskes(Dokter $dokter, int $faskesId, bool $utama = true, bool $aktif = true): void
+{
+    DB::table('dokter_faskes')->insert([
+        'dokter_id' => $dokter->getKey(),
+        'faskes_id' => $faskesId,
+        'is_utama' => $utama,
+        'status_aktif' => $aktif,
+    ]);
 }
 
 /**
@@ -845,8 +871,10 @@ test('per_page defaults to 15 and 100 is accepted', function (): void {
 | The binding contract is `web/ux/patterns/F03.md` §4.4. Two owner decisions
 | shape every assertion below:
 |
-| 1. `?sort=` is a closed six-value vocabulary; anything else is a 422, never a
-|    silent fallback.
+| 1. `?sort=` is a closed vocabulary; anything outside it is a 422, never a
+|    silent fallback. F03 §4.4 names six values, and `terdekat` is a seventh
+|    recorded as a deviation in §12 - it is the first of them that needs
+|    anything besides itself to answer.
 | 2. `jumlah_ulasan` -- both the sort key and the published field -- is
 |    RECOMPUTED from `ulasan_dokter`. The stored `dokter.jumlah_ulasan` and
 |    `dokter.rating_rata_rata` are set to decoy values in every test here and
@@ -857,11 +885,17 @@ test('per_page defaults to 15 and 100 is accepted', function (): void {
 |
 */
 
-test('?sort= accepts the six approved values and rejects every other string', function (): void {
+test('?sort= accepts every approved value and rejects every other string', function (): void {
     direktoriDokter(direktoriUser('Sort Diterima'));
 
     foreach (DokterDirectoryService::SORT_VALUES as $sort) {
-        $this->getJson('/api/v1/dokter?sort='.$sort)->assertOk();
+        // `terdekat` is the one value that cannot answer without a position, so
+        // it is asked with one. That it is refused WITHOUT one is the separate
+        // assertion in the block below, not an exception to this loop.
+        $url = '/api/v1/dokter?sort='.$sort
+            .($sort === 'terdekat' ? '&lat=-6.2&lng=106.8' : '');
+
+        $this->getJson($url)->assertOk();
     }
 
     // `terbaru` is F04's review-list vocabulary (`IndexUlasanDokterRequest`),
@@ -1022,13 +1056,16 @@ test('the recomputed count is ONE batched query: the query count does not grow w
     $jumlahEmpat = count(DB::getQueryLog());
     DB::disableQueryLog();
 
-    // The pagination count, the page SELECT, and ONE grouped COUNT for the
-    // page's ids: three, whether the page holds one doctor or four with eight
-    // reviews. A per-row aggregate would make the second number grow with the
-    // page, which is the N+1 this pins shut.
+    // The pagination count, the page SELECT, ONE grouped COUNT for the page's
+    // ids, and ONE `dokter_faskes` lookup for the page's venues: four, whether
+    // the page holds one doctor or four with eight reviews. A per-row aggregate
+    // would make the second number grow with the page, which is the N+1 this
+    // pins shut. The venue lookup is batched the same way and is absent from the
+    // count only because no fixture here practises anywhere - it is one query
+    // for the page, not one per doctor.
     expect($halamanSatu->getCollection())->toHaveCount(1)
         ->and($halamanEmpat->getCollection())->toHaveCount(4)
-        ->and($jumlahSatu)->toBe(3)
+        ->and($jumlahSatu)->toBe(4)
         ->and($jumlahEmpat)->toBe($jumlahSatu);
 });
 
@@ -1063,6 +1100,198 @@ test('the batched count follows the page, not the first page', function (): void
         ->and($pertama['data']['dokter'][0]['jumlah_ulasan'])->toBe(2)
         ->and($kedua['data']['dokter'][0]['id'])->toBe((int) $satu->getKey())
         ->and($kedua['data']['dokter'][0]['jumlah_ulasan'])->toBe(1);
+});
+
+/*
+|--------------------------------------------------------------------------
+| `?sort=terdekat`: a distance, measured once, from one position
+|--------------------------------------------------------------------------
+|
+| Recorded as a deviation from F03 §4.4 in §12: `terdekat` is a seventh sort
+| value the pattern does not name, and the first one that cannot answer without
+| anything besides itself. Three properties are pinned here, in this order:
+|
+| 1. it REFUSES to answer without a position, rather than falling back to the
+|    default order - which would hand "nearest" a list sorted by reviews;
+| 2. the number it prints describes the SAME building it names;
+| 3. a doctor it cannot measure is LAST, not first, and not absent.
+|
+*/
+
+test('?sort=terdekat without a position is a 422, never a silent fallback', function (): void {
+    $dokter = direktoriDokter(direktoriUser('Terdekat Tanpa Posisi'));
+    direktoriSambungFaskes($dokter, (int) direktoriFaskes('Tempat Terdekat', '-6.24', '106.81')->getKey());
+
+    // The half-pair and the missing pair each name the key that is wrong, and
+    // `?sort=terdekat&lat=` - present but empty - is refused as firmly as an
+    // absent one, which is why `required_if` is ordered ahead of `nullable`.
+    foreach ([
+        'sort=terdekat' => ['lat'],
+        'sort=terdekat&lat=-6.24' => ['lng'],
+        'sort=terdekat&lng=106.80' => ['lat'],
+        'sort=terdekat&lat=' => ['lat'],
+    ] as $query => $kunci) {
+        $this->getJson('/api/v1/dokter?'.$query)
+            ->assertStatus(422)
+            ->assertJsonPath('success', false)
+            ->assertJsonStructure(['message', 'errors' => $kunci]);
+    }
+
+    // The fallback this refuses to make: `relevan` sorts by stored rating and
+    // consultation count, and a caller asking for "nearest" who silently
+    // receives that list cannot tell it was substituted.
+    expect($this->getJson('/api/v1/dokter?sort=relevan')->assertOk()->json('meta.total'))
+        ->toBe($this->getJson('/api/v1/dokter')->assertOk()->json('meta.total'));
+});
+
+test('?sort=terdekat orders by distance to the primary venue, unmeasurable doctors last', function (): void {
+    $jauh = direktoriDokter(direktoriUser('Urut Jauh'));
+    $dekat = direktoriDokter(direktoriUser('Urut Dekat'));
+    $tanpaPin = direktoriDokter(direktoriUser('Urut Tanpa Pin'));
+    $daring = direktoriDokter(direktoriUser('Urut Daring'));
+
+    // ~27 km north and ~1 km east of the patient standing at (-6.24, 106.80).
+    // The two are far enough apart that the assertion is the ORDER, not the
+    // arithmetic - no test here depends on the Haversine being exact to a metre.
+    direktoriSambungFaskes($jauh, (int) direktoriFaskes('Tempat Jauh', '-6.00', '106.80')->getKey());
+    direktoriSambungFaskes($dekat, (int) direktoriFaskes('Tempat Dekat', '-6.24', '106.81')->getKey());
+    // A real practice with no coordinates: measurable address, unmeasurable
+    // distance.
+    direktoriSambungFaskes($tanpaPin, (int) direktoriFaskes('Tempat Tanpa Pin')->getKey());
+    // No `dokter_faskes` row at all: an online-only doctor has no place to be
+    // nearest, which is why they cannot win this sort at all.
+
+    $baris = $this->getJson('/api/v1/dokter?sort=terdekat&lat=-6.24&lng=106.80')
+        ->assertOk()
+        ->json('data.dokter');
+
+    $urutan = array_column($baris, 'nama_lengkap');
+
+    expect($urutan)->toBe([
+        'Urut Dekat',
+        'Urut Jauh',
+        'Urut Tanpa Pin',
+        'Urut Daring',
+    ])
+        // Both measured rows carry a real figure, and the nearer one is smaller.
+        ->and($baris[0]['jarak_km'])->toBeLessThan($baris[1]['jarak_km'])
+        ->and($baris[0]['jarak_km'])->toBeGreaterThan(0);
+
+    // The last two tie on "cannot be measured" and separate on `dokter_id ASC`,
+    // which is the same tiebreaker every other sort here uses. `null` is the
+    // answer in both, and `null` is not `0`.
+    expect($baris[2]['jarak_km'])->toBeNull()
+        ->and($baris[3]['jarak_km'])->toBeNull()
+        ->and($baris[3]['faskes_utama'])->toBeNull()
+        ->and($baris[2]['faskes_utama']['nama'])->toBe('Tempat Tanpa Pin');
+
+    // The pinless doctor keeps the venue the patient would have to visit - a
+    // distance of "we do not know" is not a reason to hide a real address.
+    expect($baris[0]['faskes_utama']['nama'])->toBe('Tempat Dekat')
+        ->and($baris[1]['faskes_utama']['nama'])->toBe('Tempat Jauh');
+});
+
+test('the distance measures the SAME venue the card names, not the nearest one', function (): void {
+    $dokter = direktoriDokter(direktoriUser('Urut Banyak Tempat'));
+    $utama = direktoriFaskes('Tempat Utama', '-6.00', '106.80');       // ~27 km
+    $cabang = direktoriFaskes('Tempat Cabang', '-6.24', '106.81');     // ~1 km
+
+    direktoriSambungFaskes($dokter, (int) $utama->getKey(), true);
+    direktoriSambungFaskes($dokter, (int) $cabang->getKey(), false);
+
+    $baris = $this->getJson('/api/v1/dokter?sort=terdekat&lat=-6.24&lng=106.80')
+        ->assertOk()
+        ->json('data.dokter.0');
+
+    // Both venues exist and the second is the nearer one, so a patient standing
+    // 1 km from a branch and 27 km from the head office is told 27 km - and told
+    // which building that is. The alternative, "nearest of their several", prints
+    // 1 km over the head office's name unless a second copy of the formula in
+    // PHP happens to agree with MySQL's.
+    expect($baris['faskes_utama']['nama'])->toBe('Tempat Utama')
+        ->and($baris['jarak_km'])->toBeGreaterThan(20)
+        ->and($baris['faskes_utama']['is_utama'])->toBeTrue()
+        ->and($baris['faskes_utama']['latitude'])->toBe('-6.00000000');
+});
+
+test('the order follows the position: the same list sorted from the other end', function (): void {
+    $utara = direktoriDokter(direktoriUser('Jarak Utara'));
+    $selatan = direktoriDokter(direktoriUser('Jarak Selatan'));
+
+    direktoriSambungFaskes($utara, (int) direktoriFaskes('Di Utara', '-5.00', '106.80')->getKey());
+    direktoriSambungFaskes($selatan, (int) direktoriFaskes('Di Selatan', '-7.50', '106.80')->getKey());
+
+    $dariSelatan = $this->getJson('/api/v1/dokter?sort=terdekat&lat=-7.00&lng=106.80')
+        ->assertOk()->json('data.dokter');
+    $dariUtara = $this->getJson('/api/v1/dokter?sort=terdekat&lat=-5.50&lng=106.80')
+        ->assertOk()->json('data.dokter');
+
+    // A constant - a distance computed once and reused, or a fixed order with a
+    // number pasted on - would answer the same both times. The reversal is what
+    // makes the figure a measurement.
+    expect(array_column($dariSelatan, 'nama_lengkap'))->toBe(['Jarak Selatan', 'Jarak Utara'])
+        ->and(array_column($dariUtara, 'nama_lengkap'))->toBe(['Jarak Utara', 'Jarak Selatan'])
+        ->and($dariSelatan[0]['jarak_km'])->toBeLessThan($dariSelatan[1]['jarak_km']);
+});
+
+test('without a position the distance is null and the default order is untouched', function (): void {
+    $b = direktoriDokter(direktoriUser('Tanpa Posisi B'), ['rating_rata_rata' => '4.50']);
+    $a = direktoriDokter(direktoriUser('Tanpa Posisi A'), ['rating_rata_rata' => '4.90']);
+
+    direktoriSambungFaskes($a, (int) direktoriFaskes('Tempat A', '-6.24', '106.81')->getKey());
+
+    // `relevan` orders by the STORED rating, so the two doctors' rows differ and
+    // a reordering would be visible. `?sort=rating` would not show one: it orders
+    // by the recomputed average, which is NULL for both here.
+    $bukan = $this->getJson('/api/v1/dokter?sort=relevan&lat=-6.24&lng=106.80')->assertOk()->json();
+    $polos = $this->getJson('/api/v1/dokter')->assertOk()->json();
+
+    // A position with no `sort=terdekat` is measured and published but never
+    // ordered by: `A` is 1 km away and is still first because its stored rating
+    // is the higher one. That is why adding this sort changed no response a
+    // caller had not asked for.
+    //
+    // With no position at all every row is `null` - the distance is absent, not
+    // zero, and `faskes_utama` is still there, so the address survives the
+    // measurement that could not be made.
+    expect(direktoriIds($bukan))->toBe([(int) $a->getKey(), (int) $b->getKey()])
+        ->and(direktoriIds($polos))->toBe(direktoriIds($bukan))
+        ->and($bukan['data']['dokter'][0]['faskes_utama']['nama'])->toBe('Tempat A')
+        ->and($bukan['data']['dokter'][0]['jarak_km'])->toBeGreaterThan(0)
+        ->and($polos['data']['dokter'][0]['jarak_km'])->toBeNull();
+});
+
+test('the emitted ORDER BY puts the unmeasurable rows LAST, before it puts them in order', function (): void {
+    // Load-bearing for the same reason the tiebreaker assertion is: MySQL sorts
+    // NULL **first** under ASC, because NULL is lower than every number. A plain
+    // `ORDER BY jarak_km ASC` therefore opens a list ordered by proximity with
+    // the doctor who practises nowhere - the one row that is furthest from what
+    // the patient asked for. `jarak_km IS NULL` reads 1 for those rows and 0 for
+    // the rest, so ascending moves them to the bottom.
+    //
+    // One eligible row, and load-bearing for the same reason as the tiebreaker
+    // assertion: `Builder::paginate()` short-circuits to `newCollection()` when
+    // the count is zero, so with no doctors the page SELECT is **never issued**
+    // and there is no ORDER BY in the log to read.
+    direktoriDokter(direktoriUser('Order Jarak'));
+
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+
+    app(DokterDirectoryService::class)->list(['sort' => 'terdekat', 'lat' => '-6.24', 'lng' => '106.80']);
+
+    $sql = mb_strtolower(implode(' ', array_column(DB::getQueryLog(), 'query')));
+    DB::disableQueryLog();
+
+    expect($sql)->toContain('order by jarak_km is null, `jarak_km` asc')
+        ->and(strpos($sql, 'jarak_km is null'))
+        ->toBeLessThan(strpos($sql, '`jarak_km` asc'));
+
+    // And the alias is built from a position on every page, not stored anywhere:
+    // the round trip through the request is what puts it on the query.
+    expect($sql)->toContain('acos')
+        ->and($sql)->toContain('from `dokter_faskes`')
+        ->and($sql)->toContain('limit 1');
 });
 
 /*

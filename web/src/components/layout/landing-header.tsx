@@ -92,7 +92,7 @@ import { cn } from '@/lib/utils';
  *   `RequireAuth`, which hands them to `/login` - the correct outcome, reached through
  *   the router rather than through a link that goes nowhere.
  * - The nav shows its content before it asks for a click. Both entries with something
- *   behind them - "Direktori Dokter" and "Layanan Kesehatan" - expand under a pointer
+ *   behind them - "Dokter Terdekat" and "Layanan Kesehatan" - expand under a pointer
  *   instead of waiting to be clicked, so the visitor can see what is on offer without
  *   already knowing where it leads. Nothing is reachable only that way: the same panels
  *   open on click and on Enter, and the mobile sheet keeps the links it had.
@@ -121,7 +121,7 @@ type NavItem = {
  * `description` is what the sheet reads and the bar does not: with no columns to fill on
  * a phone, the row explains itself instead.
  *
- * "Direktori Dokter" is deliberately NOT here. The bar gives it its own entry two items
+ * "Dokter Terdekat" is deliberately NOT here. The bar gives it its own entry two items
  * to the left, so listing it would print one destination twice inside a single nav - a
  * menu pointing at itself. The landing page can afford to show it as a sixth "Solusi"
  * tile; a bar with three doors cannot.
@@ -177,8 +177,8 @@ const LAYANAN: NavItem[] = [
 const DIREKTORI = '/?semua=1';
 
 /**
- * Where a specialisation row and a "Sering dicari" shortcut point: the landing page,
- * carrying the choice as `?spesialisasi=`.
+ * Where a specialisation row points: the landing page, carrying the choice as
+ * `?spesialisasi=`.
  *
  * The choice answers itself where it was made. `DirektoriDokter` reads the parameter as
  * state, so the request is already filtered before it fires, and the breadcrumb above it
@@ -190,36 +190,20 @@ const pilihanSpesialisasi = (kode: string, searchParams: URLSearchParams) =>
     tautanPilihan(searchParams, { spesialisasi: kode });
 
 /**
- * The two answers that used to sit beside this one - a doctor type, and telemedisin
- * alone - had wrappers here once and have none now: nothing in the header offers them
- * any more.
+ * A row's href, carrying the specialisation the visitor has ALREADY picked, if any.
  *
- * `tautanPilihan` still PRESERVES both when it writes a row, deliberately. A menu
- * stopping the offer of a choice is not the same as the product starting to break a
- * link: `/?spesialisasi=SP.A&telemedisin=1` written by hand, or by the build that
- * offered it, must still narrow by both when it is opened.
- */
-
-/**
- * A row's href, carrying the constraints the visitor has ALREADY picked.
+ * The panel is a menu of plain `<a href>`s, so a link that replaced the whole query could
+ * only ever hold one thing. The only constraint this menu writes now is `spesialisasi` -
+ * one facet, so the merge below is a single overwrite - but the shape stays a merge
+ * rather than a replacement because that is what stops a future second constraint from
+ * silently dropping the first.
  *
- * The panel is a menu of plain `<a href>`s, and a link that replaces the whole query can
- * only ever hold one thing: choose "Spesialis Anak" and then "Telemedisin" and the first
- * one is quietly gone, so a directory narrowed by two constraints would exist only in an
- * address somebody typed by hand. Overwriting the key this row owns and leaving the rest
- * alone turns the menu into a facet menu the way the reference catalogue works. That
- * clause is what used to make an EMPTY intersection reachable from the interface at all -
- * AC-7's "Spesialis Anak" plus a type that has none - and it cannot be reached that way
- * any more, because the only rows the panel writes are specialisations and a
- * specialisation always contains itself. The merging stays regardless: it is what lets a
- * second pick land BESIDE the first rather than on top of it, and it is why an address
- * already carrying `tipe` or `telemedisin` keeps narrowing when a specialisation is added
- * to it. The way out is the chips' "Hapus semua filter", which writes `/?semua=1`.
+ * `?tipe=` and `?telemedisin=` are dropped rather than preserved. Nothing offers them
+ * any more and the answer no longer applies them, so keeping them in the address would
+ * leave a parameter that narrows nothing - a link that lies about what it is showing.
  *
  * `dokter` is dropped on purpose: a pick is a question about the LIST, and a profile left
- * open above the answer would hide the very thing the click asked to see. The three keys
- * are written in a fixed order so the same choice always produces the same address - a
- * link people compare by eye as often as they click it.
+ * open above the answer would hide the very thing the click asked to see.
  */
 function tautanPilihan(
     searchParams: URLSearchParams,
@@ -227,24 +211,19 @@ function tautanPilihan(
 ): string {
     const nilai: Record<string, string | null> = {
         spesialisasi: searchParams.get('spesialisasi'),
-        tipe: searchParams.get('tipe'),
-        telemedisin: searchParams.get('telemedisin'),
         ...pilih,
     };
 
     const urut = new URLSearchParams();
+    const isi = nilai.spesialisasi;
 
-    for (const kunci of ['spesialisasi', 'tipe', 'telemedisin'] as const) {
-        const isi = nilai[kunci];
-
-        if (isi !== null && isi !== '') {
-            urut.set(kunci, isi);
-        }
+    if (isi !== null && isi !== '') {
+        urut.set('spesialisasi', isi);
     }
 
     const kueri = urut.toString();
 
-    // Unreachable - every row sets a key of its own - but "nothing applied" has to be
+    // Unreachable - every row sets the key of its own - but "nothing applied" has to be
     // `?semua=1` rather than `/`, which is the marketing sections.
     return kueri === '' ? DIREKTORI : `/?${kueri}`;
 }
@@ -769,7 +748,7 @@ function GridPromoPanel({
  * something. The rail now prints `items` - the SAME five the sheet lists - one row per
  * service, so the two surfaces offer one menu rather than two that drift.
  *
- * ## Why "Direktori Dokter" is not on that rail
+ * ## Why "Dokter Terdekat" is not on that rail
  *
  * The landing's "Solusi Kesehatan di Tanganmu" section has six tiles; this rail has five
  * rows, and the one left out is the directory. The bar already gives it its own entry two
@@ -1184,7 +1163,7 @@ function PanelDirektori({ hover }: { hover: NavHover }) {
                 at sixteen choices.
             */}
             <p className="text-foreground text-[1.5rem] leading-10 font-normal">
-                Direktori Dokter
+                Dokter Terdekat
             </p>
 
             <div
@@ -1345,14 +1324,14 @@ function NavDirektori({
                     serahkanKueri('');
                 }}
             >
-                Direktori Dokter
+                Dokter Terdekat
             </NavLink>
         );
     }
 
     return (
         <NavPanelEntry
-            label="Direktori Dokter"
+            label="Dokter Terdekat"
             idPanel="nav-direktori-panel"
             panel={(hover) => <PanelDirektori hover={hover} />}
             onStatusChange={onStatusChange}
@@ -1515,21 +1494,24 @@ function PencarianBar({
                 serahkanKueri(kueri.trim());
 
                 /**
-                 * The constraints already applied are CARRIED, because a search is a
-                 * narrower question about the same shortlist rather than a new one. They
-                 * are the same three keys, in the same order, as `tautanPilihan` writes -
-                 * dropping them here would make the term the only thing the answer obeys,
-                 * and "Spesialis Anak" then a doctor's name would answer with everybody of
-                 * that name instead of that specialisation's.
+                 * The specialisation already applied is CARRIED, because a search is a
+                 * narrower question about the same shortlist rather than a new one. It is
+                 * the same single key `tautanPilihan` writes above - dropping it would
+                 * make the term the only thing the answer obeys, and "Spesialis Anak"
+                 * then a doctor's name would answer with everybody of that name instead
+                 * of that specialisation's.
+                 *
+                 * `tipe` and `telemedisin` are deliberately NOT carried. They are the two
+                 * parameters `tautanPilihan` stopped writing for the same reason, and
+                 * forwarding a stale one here would only ever produce the address
+                 * `LandingPage` renders as the marketing sections - a search that narrows
+                 * to nothing.
                  */
                 const berikut = new URLSearchParams();
+                const spesialisasi = params.get('spesialisasi');
 
-                for (const kunci of ['spesialisasi', 'tipe', 'telemedisin'] as const) {
-                    const nilai = params.get(kunci);
-
-                    if (nilai !== null && nilai !== '') {
-                        berikut.set(kunci, nilai);
-                    }
+                if (spesialisasi !== null && spesialisasi !== '') {
+                    berikut.set('spesialisasi', spesialisasi);
                 }
 
                 // No constraints means this was the front page, and it stays the front

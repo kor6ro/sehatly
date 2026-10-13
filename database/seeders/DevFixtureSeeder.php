@@ -60,7 +60,7 @@ use RuntimeException;
  *
  * | Rows | Source |
  * | --- | --- |
- * | 3 `users`, 2 `pasien`, 2 `faskes`, 3 `dokter`, 4 `dokter_spesialisasi` | **fixture** - invented for development |
+ * | 3 `users`, 2 `pasien`, 2 `faskes`, 3 `dokter`, 4 `dokter_spesialisasi`, 2 `dokter_faskes` | **fixture** - invented for development |
  * | 3 `lab_paket_item` | **fixture** - but the *package names* and the `LAB-*` codes are the DDL's, and every code was verified to exist |
  * | 2 `obat_interaksi` | **fixture** - but the two drug pairs are the plan's, and both drug names are the DDL's |
  *
@@ -184,6 +184,7 @@ class DevFixtureSeeder extends Seeder
         $this->seedFaskes();
         $this->seedUsersAndPatients();
         $this->seedDoctors();
+        $this->seedDokterFaskes();
         $this->seedLabPaketItem();
         $this->seedObatInteraksi();
     }
@@ -576,6 +577,73 @@ class DevFixtureSeeder extends Seeder
         // behaviour - there is nothing to update, because the row is already the
         // row this seeder would have written.
         DB::table('dokter_spesialisasi')->insertOrIgnore($insert);
+    }
+
+    /**
+     * The two `dokter_faskes` links that put the doctors at the facilities
+     * {@see seedFaskes} wrote.
+     *
+     * This table has been empty since it was created. `seedFaskes()`'s own
+     * docblock promises "two facilities, so `dokter_faskes` has something to point
+     * at", and nothing ever pointed - which is invisible on every other screen and
+     * fatal on one: `dokter_faskes` is the ONLY path from a doctor to a
+     * coordinate, so a directory that sorts by distance had nothing to sort and
+     * every request for `?sort=terdekat` returned a list ordered by nothing.
+     *
+     * ## Why STR-DEV-0002 gets the laboratory
+     *
+     * Not because a dermatologist practises at a laboratory. It is the second
+     * facility that HAS coordinates, and the fixture needs the two listed doctors
+     * at DIFFERENT places: both at `-6.20000000` would tie every distance to the
+     * same number and `dokter_id` would break the tie, so the test would stay green
+     * while proving the sort does nothing. 0.01 degree of longitude is about 1.1 km
+     * here, which is enough for the order to flip as the patient moves.
+     *
+     * `STR-DEV-0003` is deliberately left unlinked, along with
+     * `DemoDataSeeder`'s doctor: the first is not in `v_dokter_katalog` at all, so
+     * a row for it would be read by nobody, and the second is the fixture's
+     * online-only doctor. A doctor with no `dokter_faskes` row practises nowhere,
+     * can only be reached by chat and video, and has to sort BELOW every doctor
+     * who does - and that rule needs one row absent or it can never fire.
+     *
+     * `insertOrIgnore` because the composite `PRIMARY KEY (dokter_id, faskes_id)`
+     * rebuilds the same rows on every run and there is nothing to update.
+     */
+    private function seedDokterFaskes(): void
+    {
+        $dokterIds = DB::table('dokter')->pluck('id', 'nomor_str');
+        $faskesIds = DB::table('faskes')->pluck('id', 'kode_faskes');
+
+        $links = [
+            ['dokter' => 'STR-DEV-0001', 'faskes' => 'FASKES-DEV-001'],
+            ['dokter' => 'STR-DEV-0002', 'faskes' => 'FASKES-DEV-002'],
+        ];
+
+        $insert = [];
+
+        foreach ($links as $link) {
+            $dokterId = $dokterIds[$link['dokter']] ?? null;
+            $faskesId = $faskesIds[$link['faskes']] ?? null;
+
+            // A dangling link would look like a doctor with no facility rather than
+            // like a broken fixture, and the distance sort would silently drop them.
+            if ($dokterId === null) {
+                throw new RuntimeException('DevFixtureSeeder: no dokter row for '.$link['dokter'].'. Run seedDoctors() first.');
+            }
+
+            if ($faskesId === null) {
+                throw new RuntimeException('DevFixtureSeeder: no faskes row for '.$link['faskes'].'. Run seedFaskes() first.');
+            }
+
+            $insert[] = [
+                'dokter_id' => $dokterId,
+                'faskes_id' => $faskesId,
+                'is_utama' => 1,
+                'status_aktif' => 1,
+            ];
+        }
+
+        DB::table('dokter_faskes')->insertOrIgnore($insert);
     }
 
     /**

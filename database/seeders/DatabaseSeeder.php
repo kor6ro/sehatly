@@ -92,7 +92,7 @@ use Illuminate\Support\Facades\DB;
  * | 8 | {@see LabSeeder} | yes - 6 codes, 3 names | `lab_paket_item.tindakan_id`/`paket_id` (FKs `:872`-`:873`) |
  * | 9 | {@see ArtikelKategoriSeeder} | no | `artikel.kategori_id` (FK `:1089`); `artikel` is never seeded |
  * | 10 | {@see RbacSeeder} | no | `role_permissions` (FKs `:167`-`:168`), `user_roles` (FK `:176`) |
- * | **11** | **{@see DevFixtureSeeder}** | - | **must be last**: it reads 2, 3, 7 and 8 back and writes `users`, `pasien`, `faskes`, `dokter`, `dokter_spesialisasi`, `lab_paket_item`, `obat_interaksi` |
+ * | **11** | **{@see DevFixtureSeeder}** | - | **must be last**: it reads 2, 3, 7 and 8 back and writes `users`, `pasien`, `faskes`, `dokter`, `dokter_spesialisasi`, `dokter_faskes`, `lab_paket_item`, `obat_interaksi` |
  * | **12** | **{@see DemoDataSeeder}** | `OBT-0002`, `OBT-0005`, `UMUM`, kode `31` | `users`, `user_roles`, `pasien`, `dokter`, `dokter_spesialisasi`, `dokter_jadwal`, `faskes`, `apotek_stok`, `pasien_alergi` - the three accounts the four unreachable journeys need, plus the schedule, pharmacy and stock that have no public API at all |
  *
  * `RbacSeeder` sits between the two groups because it has no dependency on either:
@@ -110,9 +110,9 @@ use Illuminate\Support\Facades\DB;
  * | --- | --- | --- |
  * | `telemedicine_test.sql` section `[16]` (9 seeders) | 15 | **151** |
  * | {@see RbacSeeder} (no DDL source) | 3 | **98** |
- * | {@see DevFixtureSeeder} (no DDL source) | 7 | **25** |
+ * | {@see DevFixtureSeeder} (no DDL source) | 8 | **27** |
  * | {@see DemoDataSeeder} (no DDL source) | 9 | **22** |
- * | **total written** | **31** | **296** |
+ * | **total written** | **32** | **298** |
  *
  * **The 26th owned table, `user_roles`, is written by nobody in this tree.** It is
  * listed in `SEEDED_TABLES` so a re-seed clears a developer's manual grants, and
@@ -133,9 +133,9 @@ use Illuminate\Support\Facades\DB;
  *
  * The **151** is derived by parsing the DDL's own INSERT tuples - 15 statements,
  * one per table - and every per-table count is recorded in the individual
- * seeder's docblock. The **25** fixture rows are 5 `users` (three doctor accounts
+ * seeder's docblock. The **27** fixture rows are 5 `users` (three doctor accounts
  * and two patient accounts), 2 `pasien`, 2 `faskes`, 3 `dokter`,
- * 4 `dokter_spesialisasi`, **7** `lab_paket_item` and 2 `obat_interaksi` - note the
+ * 4 `dokter_spesialisasi`, 2 `dokter_faskes`, **7** `lab_paket_item` and 2 `obat_interaksi` - note the
  * `users` count is **5, not 3**, because `dokter.user_id` is `NOT NULL UNIQUE`
  * with a real foreign key to `users(id)` (`:411`, `:433`) and a doctor is not a
  * patient. The **98** RBAC rows are 5 `roles`, 24 `permissions` and 69
@@ -149,7 +149,7 @@ use Illuminate\Support\Facades\DB;
  * attributed 3 rows to `lab_paket_item`. **`DevFixtureSeeder`'s package map links
  * seven kode** - three to `Medical Check Up Dasar`, two to `Cek Gula & Kolesterol`
  * and two to `Fungsi Hati Lengkap` - so the measured `COUNT(*)` is 7, and
- * 151 + 25 + 98 = 274. The stale "3" also survives in
+ * 151 + 27 + 98 = 276. The stale "3" also survives in
  * {@see LabSeeder}'s docblock and in {@see DevFixtureSeeder}'s; both are left alone
  * here because they are not this todo's files, and both are recorded in
  * `.omo/evidence/task-4-sehatly.md`. Nothing in the **code** was wrong: only the

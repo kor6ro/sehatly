@@ -208,7 +208,7 @@ export function DashboardPage() {
                         <NavLink
                             to="/?semua=1"
                             icon={<Stethoscope />}
-                            label="Direktori dokter"
+                            label="Dokter Terdekat"
                         />
                     </CardContent>
                 </Card>

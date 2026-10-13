@@ -126,19 +126,19 @@ export const router = createBrowserRouter([
             },
 
             /**
-             * The doctor directory's OLD address, and one doctor's public profile.
+             * The doctor screen's OLD address, and one doctor's public profile.
              *
-             * `/dokter` is a redirect now: the directory - filters, sort, cards,
-             * pagination - is the answer to a pick made in the header, and it lives on
-             * `/`, where the pick was asked. The address stays registered because this
-             * app's own navigation wrote it for years and a link that 404'd would be the
-             * worst answer to a question that still has one.
+             * `/dokter` is a redirect now: the answer - heading, count, cards - is the
+             * response to a pick made in the header, and it lives on `/`, where the pick
+             * was asked. The address stays registered because this app's own navigation
+             * wrote it for years and a link that 404'd would be the worst answer to a
+             * question that still has one.
              *
-             * `/dokter/:id` below is the detail page: a doctor's profile is a destination
-             * of its own, and it is where a booking starts. It stays because the cards
-             * reached from OUTSIDE the list - a booking, a notification - have no list to
-             * come back to. A card picked out of the answer opens `/?dokter={id}` instead,
-             * in place.
+             * `/dokter/:id` below is the ONLY place a profile can open, and every card in
+             * the answer links here. It used to be reachable only from outside the list -
+             * a booking, a notification - because a card opened `/?dokter={id}` in place
+             * instead; the October 2026 redesign gives the profile a page of its own, which
+             * is what gives a patient something they can send to somebody.
              */
             {
                 path: '/dokter',

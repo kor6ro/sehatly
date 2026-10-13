@@ -254,6 +254,24 @@ export type DokterRingkas = {
     jumlah_konsultasi: number;
     /** A constant in this projection: a row here is `terverifikasi` by construction. */
     status_verifikasi: string;
+    /**
+     * Kilometres from the caller's position to {@link faskes_utama}, rounded to whole metres.
+     *
+     * **`null` unless the request was `?sort=terdekat&lat=…&lng=…`.** That is the only way
+     * to ask for a distance, so on every other query this is `null` for every row - and
+     * `null` again for a doctor whose venue has no map pin. It is never `0`: zero means
+     * "you are standing on it", and neither of those two cases says that.
+     */
+    jarak_km: number | null;
+    /**
+     * The venue `jarak_km` measures. **`null` for a doctor with no `dokter_faskes` row** -
+     * an online-only doctor has no place to be nearest, which is why they sort last under
+     * `?sort=terdekat` rather than disappearing.
+     *
+     * When the venue exists but has no coordinates, this is present and `jarak_km` is not:
+     * a real address a patient would have to reach, whose distance is simply unknown.
+     */
+    faskes_utama: DokterFaskesUtama | null;
 };
 
 export type DokterSpesialisasi = {
@@ -287,6 +305,33 @@ export type DokterFaskes = {
     tipe: string | null;
     kelas_rs: string | null;
     alamat: string | null;
+    /**
+     * `faskes.latitude` / `.longitude` (`DECIMAL(10,8)` / `DECIMAL(11,8)`), reached
+     * through `Faskes`'s `decimal:8` cast - so they are **strings, and `null` for a
+     * facility with no map pin**. Parse them before doing arithmetic; they are published
+     * so a reader can see the building a distance was measured to, not so a client
+     * recomputes one.
+     */
+    latitude: string | null;
+    longitude: string | null;
+};
+
+/**
+ * The one venue {@link DokterRingkas.jarak_km} was measured to, as the list publishes it.
+ *
+ * Narrower than {@link DokterFaskes} on purpose: a card needs a name, an address and a pin,
+ * not the facility's code or its hospital class - those are what the detail page is for.
+ */
+export type DokterFaskesUtama = {
+    faskes_id: number;
+    is_utama: boolean;
+    /** Published and deliberately not acted on, matching the detail endpoint. */
+    status_aktif: boolean;
+    nama: string | null;
+    tipe: string | null;
+    alamat: string | null;
+    latitude: string | null;
+    longitude: string | null;
 };
 
 export type DokterDetail = {

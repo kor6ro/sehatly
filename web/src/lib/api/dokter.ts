@@ -41,15 +41,31 @@ export type DokterFilters = {
     tersedia_telemedisin?: boolean;
     /** The result order. Omitted on the wire for {@link DEFAULT_SORT} - see {@link fetchDokter}. */
     sort?: SortDokter;
+    /**
+     * The reader's position, and the only thing that makes `sort: 'terdekat'` legal.
+     *
+     * `IndexDokterRequest` refuses `?sort=terdekat` without both halves - a 422 naming
+     * `errors.lat` - rather than falling back to the default order, because a caller
+     * asking for "nearest" and quietly receiving "most reviewed" cannot detect the
+     * substitution. So the two are typed together here and {@link fetchDokter} sends them
+     * together or not at all: there is no combination in which this client asks for a
+     * distance it cannot measure.
+     */
+    lat?: number;
+    lng?: number;
 };
 
 /**
  * `?sort=`, transcribed from `DokterDirectoryService::SORT_VALUES`.
  *
- * The six values are a closed vocabulary the server validates with `Rule::in`, so a client
- * that only ever sends these cannot reach a 422 on `sort`. `relevan` is the server's own
- * default: the pre-F03 order (`rating_rata_rata DESC`, `jumlah_konsultasi DESC`) and the
+ * The seven values are a closed vocabulary the server validates with `Rule::in`, so a
+ * client that only ever sends these cannot reach a 422 on `sort`. `relevan` is the server's
+ * own default: the pre-F03 order (`rating_rata_rata DESC`, `jumlah_konsultasi DESC`) and the
  * value a client must NOT send to get it - see {@link fetchDokter}.
+ *
+ * `terdekat` is the one member that needs anything besides itself, and it is the only one
+ * the redesigned home page sends. F03 §4.4 names six values; this seventh is recorded as a
+ * deviation in §12 butir 8(i).
  */
 export type SortDokter =
     | 'relevan'
@@ -57,26 +73,11 @@ export type SortDokter =
     | 'pengalaman'
     | 'biaya_asc'
     | 'biaya_desc'
-    | 'ulasan';
+    | 'ulasan'
+    | 'terdekat';
 
 /** The default order, and the one value `fetchDokter` leaves off the query string. */
 export const DEFAULT_SORT: SortDokter = 'relevan';
-
-/**
- * The `Urutkan` control's options, in F03 §4.3's order and its exact copy.
- *
- * Declared as one list rather than as JSX literals so the six labels exist once: the
- * desktop panel and the mobile sheet share the control, and a label that drifted between
- * them would be two different vocabularies for one choice.
- */
-export const SORT_DOKTER: ReadonlyArray<{ value: SortDokter; label: string }> = [
-    { value: 'relevan', label: 'Paling relevan' },
-    { value: 'rating', label: 'Rating tertinggi' },
-    { value: 'pengalaman', label: 'Pengalaman terlama' },
-    { value: 'biaya_asc', label: 'Biaya terendah' },
-    { value: 'biaya_desc', label: 'Biaya tertinggi' },
-    { value: 'ulasan', label: 'Ulasan terbanyak' },
-];
 
 /** `dokter.tipe`, the seven-value ENUM at `telemedicine_test.sql:412`. */
 export const TIPE_DOKTER: ReadonlyArray<DokterTipe> = [
@@ -137,10 +138,25 @@ export function cariMasterPopuler(
  *
  * `sort` is dropped from the query string when it is `relevan` (the default), because
  * `IndexDokterRequest` documents that `relevan` IS the pre-F03 server order: sending it
- * would be a no-op that changes only the URL. F03 AC-5 allows either spelling and this
- * client takes the one that keeps the default request byte-identical to the old one.
+ * would be a no-op that changes only the URL.
+ *
+ * ## `terdekat` and the position are sent as one thing, or not at all
+ *
+ * The server refuses `?sort=terdekat` without `lat`/`lng`, so the pair is assembled here
+ * rather than at the call site: a half position reads as no position, and the request
+ * falls back to {@link DEFAULT_SORT} instead of being sent into a 422. That is the same
+ * rule the server applies to a half pair, applied before the request leaves the browser -
+ * so the one thing this client can never do is ask for a distance it cannot measure.
  */
 export async function fetchDokter(filters: DokterFilters) {
+    const adaPosisi =
+        typeof filters.lat === 'number' && typeof filters.lng === 'number';
+
+    const sort: SortDokter =
+        filters.sort === 'terdekat' && !adaPosisi
+            ? DEFAULT_SORT
+            : (filters.sort ?? DEFAULT_SORT);
+
     return request<{ dokter: DokterRingkas[] }>('dokter', {
         searchParams: {
             page: filters.page,
@@ -155,9 +171,10 @@ export async function fetchDokter(filters: DokterFilters) {
             ...(filters.tersedia_telemedisin === undefined
                 ? {}
                 : { tersedia_telemedisin: filters.tersedia_telemedisin }),
-            ...(filters.sort === undefined || filters.sort === DEFAULT_SORT
-                ? {}
-                : { sort: filters.sort }),
+            ...(sort === DEFAULT_SORT ? {} : { sort }),
+            ...(sort === 'terdekat' && adaPosisi
+                ? { lat: filters.lat, lng: filters.lng }
+                : {}),
         },
     });
 }

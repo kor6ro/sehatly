@@ -2147,11 +2147,13 @@ export interface components {
          * @description Request body for operations validated by `App\Http\Requests\Dokter\IndexDokterRequest`. The properties below are read from that class's `rules()` at generation time.
          */
         IndexDokterRequestBody: {
+            lat: number;
+            lng: number;
             page?: number;
             per_page?: number;
             search?: string;
             /** @enum {string} */
-            sort?: "relevan" | "rating" | "pengalaman" | "biaya_asc" | "biaya_desc" | "ulasan";
+            sort?: "relevan" | "rating" | "pengalaman" | "biaya_asc" | "biaya_desc" | "ulasan" | "terdekat";
             spesialisasi?: string;
             tersedia_telemedisin?: boolean;
             /** @enum {string} */

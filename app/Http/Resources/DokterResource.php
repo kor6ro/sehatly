@@ -84,6 +84,26 @@ class DokterResource extends JsonResource
      * the F03 backend report; republishing it belongs with the same decision for the
      * detail resource's counters.
      *
+     * ## The two keys `?sort=terdekat` adds
+     *
+     * | field | source |
+     * | --- | --- |
+     * | `jarak_km` | the `jarak_km` SELECT alias {@see DokterDirectoryService::applyJarak()} adds, **`null` whenever the request carried no position** - and so `null` for every row of a directory sorted any other way |
+     * | `faskes_utama` | attached per page by {@see DokterDirectoryService::lampirkanFaskes()}; `null` for a doctor with no `dokter_faskes` row |
+     *
+     * **`null` is a real answer in both, and the reason they are `null` together.**
+     * `faskes_utama` is the venue `jarak_km` was measured to, so a doctor who
+     * practises nowhere has neither, and a doctor whose only venue has no map
+     * pin has the venue but no number. Publishing the venue independently of the
+     * distance is what lets a card say "Praktik di X — jaraknya belum tersedia"
+     * instead of dropping a real practice off the list.
+     *
+     * **The distance is rounded to three decimals** - whole metres - because the
+     * Haversine over `DECIMAL(10,8)` inputs produces a double with far more digits
+     * than a satellite gives, and the fifteenth of a metre is not information. The
+     * rounding happens here and never in {@see DokterDirectoryService::applySort()},
+     * so two venues a centimetre apart still order correctly.
+     *
      * @return array<string, mixed>
      */
     public function toArray(Request $request): array
@@ -99,6 +119,24 @@ class DokterResource extends JsonResource
             'jumlah_ulasan' => (int) $this->resource->jumlah_ulasan,
             'jumlah_konsultasi' => $this->resource->jumlah_konsultasi,
             'status_verifikasi' => 'terverifikasi',
+            'jarak_km' => $this->jarak(),
+            'faskes_utama' => $this->resource->getAttribute('faskes_utama'),
         ];
+    }
+
+    /**
+     * `jarak_km` as a number rounded to whole metres, or `null`.
+     *
+     * `getAttribute()` rather than a property read, because the alias is a SELECT
+     * column and the attribute is one Laravel adds after `paginate()` - a property
+     * read on a `DokterKatalog` that was never asked for a distance would be a
+     * `null` either way, but the explicit call records that this is a real
+     * attribute and not a missing one.
+     */
+    private function jarak(): ?float
+    {
+        $jarak = $this->resource->getAttribute('jarak_km');
+
+        return $jarak === null ? null : round((float) $jarak, 3);
     }
 }

@@ -1,8 +1,11 @@
 import { Link } from 'react-router';
-import { useQuery } from '@tanstack/react-query';
-import { spesialisasiOptions } from '@/lib/api/dokter';
 
-/** One crumb. The last one carries no `to`: it is the page, not a way out of it. */
+/**
+ * One crumb. The last one carries no `to`: it is the page, not a way out of it.
+ *
+ * The doctor trail does not use that - both of its nodes are doors, because the heading
+ * below it is what names the current page.
+ */
 type Butir = { label: string; to?: string };
 
 /**
@@ -61,40 +64,45 @@ export function Jejak({ butir }: { butir: ReadonlyArray<Butir> }) {
 }
 
 /**
- * The trail over the directory: `Home / Direktori dokter / Spesialis Anak`.
+ * The trail over the answer: `Home / Dokter Terdekat`.
  *
  * ## What replaced the two buttons
  *
  * The answer used to end in `Tutup` (with its X) and `Buka direktori lengkap`. Both are
  * this, phrased as places rather than as commands: `Home` is the way back to the whole
- * landing page, and `Direktori dokter` is this answer with nothing applied - the door out
- * of a filter, which is what `Buka direktori lengkap` was.
+ * landing page, and `Dokter Terdekat` is this answer with nothing applied - the door out
+ * of a specialisation, which is what `Buka direktori lengkap` was.
  *
- * `Home` and `Direktori dokter` are two different addresses on purpose. `/` is the front
- * page; `/?semua=1` is the directory with nothing applied, which is the state "Hapus
- * semua filter" and "Lihat semua dokter" both land on. Collapsing them would mean that
- * clearing the last filter quietly threw the visitor back to the marketing sections.
+ * `Home` and `Dokter Terdekat` are two different addresses on purpose. `/` is the front
+ * page; `/?semua=1` is every doctor, nearest first, which is what a visitor arrives at
+ * from the header and what a search or a specialisation can be cleared back to.
+ * Collapsing them would mean that leaving a specialisation quietly threw the visitor back
+ * to the marketing sections.
+ *
+ * ## It stops at two nodes, and the picked specialisation is NOT one of them
+ *
+ * It used to end in the chosen specialisation, which put the same words twice on one
+ * screen: the `<h1>` above the answer already names what was picked, and a breadcrumb whose
+ * last node restates the heading is a second caption for the same fact. The heading is the
+ * louder of the two and carries the count underneath it, so the trail only needs to say
+ * how the visitor got here - which is what a breadcrumb is for.
+ *
+ * ## It takes no arguments, because there is nothing left to read
+ *
+ * It used to look the specialisation's name up in `master-spesialisasi` in order to print
+ * the node this version deleted. With that node gone, the two labels are constants and the
+ * trail needs no request at all - one less thing that can fail while the answer beside it
+ * is still loading.
  *
  * They were removable because neither was ever the only way out: the sticky bar above
- * carries the whole app. The trail is here to SAY where the visitor is - which is what a
- * breadcrumb is for - not to be the last exit in the building.
+ * carries the whole app. The trail is here to SAY where the visitor is, not to be the last
+ * exit in the building.
  */
-export function JejakDokter({ params }: { params: URLSearchParams }) {
-    const master = useQuery(spesialisasiOptions());
-
-    const kode = params.get('spesialisasi');
-    const nama = (master.data?.data.spesialisasi ?? []).find(
-        (row) => row.kode === kode,
-    )?.nama;
-
+export function JejakDokter() {
     const butir: Array<Butir> = [
         { label: 'Home', to: '/' },
-        { label: 'Direktori dokter', to: '/?semua=1' },
+        { label: 'Dokter Terdekat', to: '/?semua=1' },
     ];
-
-    if (kode !== null) {
-        butir.push({ label: nama ?? kode });
-    }
 
     return <Jejak butir={butir} />;
 }

@@ -150,6 +150,14 @@ class DokterDetailResource extends JsonResource
      * omitted here: nothing in the plan's field list for this endpoint includes them,
      * and a facility's phone number belongs to the facility's own page.
      *
+     * `latitude`/`longitude` are published because the directory now measures a
+     * distance from them ({@see DokterDirectoryService::applyJarak()}), and a number
+     * with no way to see which building it describes is half an answer. Both are the
+     * `DECIMAL(10,8)`/`DECIMAL(11,8)` columns at `:393`/`:394` reached through
+     * `Faskes`'s `decimal:8` cast, so they arrive as strings and `null` when the
+     * facility has no map pin - which is a real state, and the reason a doctor can be
+     * listed without a distance at all.
+     *
      * @return array<string, mixed>
      */
     private function faskes(DokterFaskes $row): array
@@ -165,6 +173,8 @@ class DokterDetailResource extends JsonResource
             'tipe' => $faskes instanceof Faskes ? $faskes->tipe : null,
             'kelas_rs' => $faskes instanceof Faskes ? $faskes->kelas_rs : null,
             'alamat' => $faskes instanceof Faskes ? $faskes->alamat : null,
+            'latitude' => $faskes instanceof Faskes ? $faskes->latitude : null,
+            'longitude' => $faskes instanceof Faskes ? $faskes->longitude : null,
         ];
     }
 

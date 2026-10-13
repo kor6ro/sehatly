@@ -2219,6 +2219,8 @@ class IndexDokterRequestBody {
   /// NO required field (the reference endpoints read their rules off the route name, so
   /// several are parameterless on some paths) would otherwise have uninitialised finals.
   const IndexDokterRequestBody({
+    required this.lat,
+    required this.lng,
     this.page,
     this.perPage,
     this.search,
@@ -2227,6 +2229,12 @@ class IndexDokterRequestBody {
     this.tersediaTelemedisin,
     this.tipe,
   });
+
+  /// `lat`.
+  final Object? lat;
+
+  /// `lng`.
+  final Object? lng;
 
   /// `page`.
   final int? page;
@@ -2262,6 +2270,7 @@ class IndexDokterRequestBody {
     'biaya_asc',
     'biaya_desc',
     'ulasan',
+    'terdekat',
   };
 
   /// The values the server accepts for `tipe`, read from its `Rule::in`.
@@ -2282,6 +2291,8 @@ class IndexDokterRequestBody {
 
   /// The declared field names, required first, then optional.
   static const List<String> fields = <String>[
+    'lat',
+    'lng',
     'page',
     'per_page',
     'search',
@@ -2302,6 +2313,8 @@ class IndexDokterRequestBody {
   /// explicit `null` for a `sometimes` field is not the same request as omitting it.
   Map<String, Object?> toJson() {
     return <String, Object?>{
+      if (lat != null) 'lat': lat,
+      if (lng != null) 'lng': lng,
       if (page != null) 'page': page,
       if (perPage != null) 'per_page': perPage,
       if (search != null) 'search': search,

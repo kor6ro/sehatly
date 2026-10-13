@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+﻿import { expect, test, type Page } from '@playwright/test';
 import { daftarDanMasuk } from './akun';
 
 /**
@@ -65,7 +65,7 @@ async function sampelPiksel(
  *    chevron - whose menu carries the one route (`/dashboard`) that moved out of reach,
  *    the patient-only `/profil`, and the sign-out that puts the pill back to "Masuk".
  *
- * 4. **The nav shows its content before it asks for a click.** "Direktori Dokter" is
+ * 4. **The nav shows its content before it asks for a click.** "Dokter Terdekat" is
  *    no longer a link on the desktop bar but a hover panel of pre-filtered choices, and
  *    "Layanan Kesehatan" opens on hover instead of on a click. Nothing there may be
  *    hover-ONLY: the keyboard and the mobile sheet keep their own way in, which is what
@@ -231,7 +231,7 @@ test.describe('Landing page (/)', () => {
      *
      * Two things are being pinned down here, and either one can regress silently:
      *
-     * 1. Hovering "Direktori Dokter" OPENS it and does not navigate. Before this, the
+     * 1. Hovering "Dokter Terdekat" OPENS it and does not navigate. Before this, the
      *    entry was a plain `<NavLink>`, so the first pointer-down threw the visitor onto
      *    a full directory - search, filters, results - before they knew what it held. The
      *    panel has to be visible without any click, and the URL has to be untouched
@@ -246,8 +246,9 @@ test.describe('Landing page (/)', () => {
      * landing page answers HERE, on the page the visitor was already reading - which is
      * the one promise the panel makes that a link into a full directory could not. The
      * answer is deliberately the ANSWER and not the directory: the name, the count, a few
-     * cards, and one door to `/dokter` for the rest. Sixteen specialisations and a sort
-     * control would be a screen for somebody who asked one question.
+     * cards, and one door - the breadcrumb's `Dokter Terdekat` - to everything for the
+     * rest. Sixteen specialisations and a sort control would be a screen for somebody who
+     * asked one question.
      *
      * The pick view is a category page: banner, breadcrumb, answer - and then it stops.
      * The bar, the carousel and the footer stay (they carry this app's navigation, so the
@@ -267,7 +268,7 @@ test.describe('Landing page (/)', () => {
         await page.goto('/');
 
         const panel = page.locator('[data-slot="nav-direktori-panel"]');
-        const trigger = page.getByRole('button', { name: 'Direktori Dokter' });
+        const trigger = page.getByRole('button', { name: 'Dokter Terdekat' });
 
         await expect(panel).toHaveCount(0);
 
@@ -333,8 +334,10 @@ test.describe('Landing page (/)', () => {
          * THE POINT OF THE CHANGE. Picking a specialisation used to be a link into
          * `/dokter` - a page whose search, sort and pagination all answered questions the
          * visitor had not asked. Now the address gains `?spesialisasi=`, the pathname
-         * stays `/`, and the directory itself appears where the visitor already is: same
-         * filters, same sort, same cards, same pagination, one page fewer to reach them.
+         * stays `/`, and the answer itself appears where the visitor already is: same
+         * header, same count, same cards, one page fewer to reach them. The sort and the
+         * pagination did not follow - the October 2026 rombak took both away, and
+         * `f03-ac2-pilihan-di-navbar` is where their absence is the contract.
          *
          * The name is read BEFORE the click: picking closes the panel, and a locator
          * into a menu that has closed waits for a menu that is not coming back.
@@ -369,27 +372,46 @@ test.describe('Landing page (/)', () => {
 
         /**
          * The breadcrumb, which replaced `Tutup` and `Buka direktori lengkap`: `Home` back
-         * to the front page, `Direktori Dokter` into `/?semua=1` - the same directory with
-         * nothing applied - and the specialisation as the current page rather than a link.
-         * It is asserted as a real `<nav aria-label>` reached through its data-slot, so a
-         * stack of divs that merely reads "Home / ..." would not satisfy it.
+         * to the front page and `Dokter Terdekat` into `/?semua=1` - every doctor, nearest
+         * first. It stops at two nodes because the `<h1>` above the answer already names
+         * what was picked, and a breadcrumb whose last node restates the heading is a
+         * second caption for the same fact.
+         *
+         * Asserted as a real `<nav aria-label>` reached through its data-slot, so a stack
+         * of divs that merely reads "Home / ..." would not satisfy it.
          */
         const krikib = page.locator('[data-slot="landing-krikib"]');
+
         await expect(krikib).toBeVisible();
-        await expect(krikib.getByRole('link', { name: 'Home' })).toHaveAttribute('href', '/');
+        await expect(krikib.getByRole('link', { name: 'Home' })).toHaveAttribute(
+            'href',
+            '/',
+        );
         await expect(
-            krikib.getByRole('link', { name: 'Direktori dokter' }),
+            krikib.getByRole('link', { name: 'Dokter Terdekat' }),
         ).toHaveAttribute('href', '/?semua=1');
-        await expect(krikib.locator('[aria-current="page"]')).toHaveText(namaDipilih);
+        await expect(krikib.locator('a')).toHaveCount(2);
+        await expect(krikib.locator('[aria-current="page"]')).toHaveCount(0);
 
         /**
-         * The answer in full: how many, who. The count is the same sentence the
-         * directory always printed, so a number means the same thing it always did - and
-         * it is a `role="status"` because it arrives after the cards do, and a screen
-         * reader that never heard the number would be reading a list nobody counted.
+         * The answer in full: how many, in what order. One sentence now carries both,
+         * because with a distance on every card a bare count would be a number without a
+         * cause - and it is a `role="status"` because it arrives after the cards do, and a
+         * screen reader that never heard the number would be reading a list nobody
+         * counted.
+         *
+         * The wording names whichever state the BROWSER put this page in: this suite runs
+         * against a plain-HTTP host, so Chromium refuses `navigator.geolocation` outright
+         * ("Only secure origins are allowed") whatever the permission says, and the count
+         * reads the refusal branch. The grant branch cannot be asserted here at all - it is
+         * `f03-ac5-terdekat-dengan-posisi`, which answers with a fixture because the
+         * browser on this origin never will.
          */
         await expect(seksi.locator('[data-slot="dokter-count"]')).toContainText(
-            'dokter ditemukan.',
+            'dokter',
+        );
+        await expect(seksi.locator('[data-slot="dokter-count"]')).toContainText(
+            'lokasi tidak aktif — tanpa urutan jarak',
         );
 
         // And the two buttons that used to be the answer's exits are really gone.
@@ -402,13 +424,15 @@ test.describe('Landing page (/)', () => {
          * And the answer is one of two honest states - real cards, or the pinned F03
          * sentence saying nothing here matches - because whether the fixture database
          * holds doctors for the specialisation this menu happened to pick is not this
-         * test's to assume. What neither state may be is blank.
+         * test's to assume. What neither state may be is blank. The empty copy is
+         * reached through `EmptyState`'s own slot rather than by its words, because the
+         * sentence is one of three and which one appears depends on what was picked.
          */
         await expect(
             seksi
                 .locator('[data-slot="dokter-kartu"]')
                 .first()
-                .or(seksi.getByText('Tidak ada dokter yang cocok.')),
+                .or(seksi.locator('[data-slot="empty-state"]')),
         ).toBeVisible();
 
         /**
@@ -457,7 +481,7 @@ test.describe('Landing page (/)', () => {
         ).toHaveCount(0);
 
         const panel = page.locator('[data-slot="nav-direktori-panel"]');
-        await page.getByRole('button', { name: 'Direktori Dokter' }).hover();
+        await page.getByRole('button', { name: 'Dokter Terdekat' }).hover();
         await expect(panel).toBeVisible();
 
         // the zones are COLUMNS, side by side
@@ -541,7 +565,7 @@ test.describe('Landing page (/)', () => {
             .poll(() => batang(0), { message: 'baris pertama melepas bar saat pointer berpindah' })
             .toBe('rgba(0, 0, 0, 0)');
 
-        await panel.getByText('Direktori Dokter', { exact: true }).hover();
+        await panel.getByText('Dokter Terdekat', { exact: true }).hover();
         await expect
             .poll(() => batang(0), {
                 message: 'bar kembali ke baris pertama saat pointer keluar dari rel',
@@ -793,7 +817,7 @@ test.describe('Landing page (/)', () => {
             'layanan tidak boleh tercetak dua kali',
         ).toBe(1);
         expect(
-            await panel.getByRole('link', { name: 'Direktori Dokter', exact: true }).count(),
+            await panel.getByRole('link', { name: 'Dokter Terdekat', exact: true }).count(),
             'direktori sudah punya pintu sendiri di bar',
         ).toBe(0);
 
@@ -821,17 +845,16 @@ test.describe('Landing page (/)', () => {
      * the bar" assertion below: two rows of the same geometry, or the panels and the bar
      * disagree about where the page's centre is.
      *
-     * The search opens `/dokter`, the page that answers, because the directory is the ONLY
-     * part of the product that can answer a query - it has a `search` field of its own and
-     * `GET /dokter` takes the parameter - and the assertion that follows checks that field
-     * received the value. A header that searched something which ignored it would be a
+     * The search opens `/`, the address that renders the doctor answer when it has a
+     * question to answer, because the header is the ONLY place that asks - `GET /dokter`
+     * takes `search`, and a header that searched something which ignored it would be a
      * field that pretends, and the pretence would pass every other test in this file.
      *
      * What the search does NOT do is put the question in the address. F03 §9 forbids a
      * free-text doctor query in a shareable URL - "kanker" is a condition, and an address
      * is what people paste into chats - so the handoff is `sessionStorage` and the URL the
      * visitor lands on is bare. Both halves are asserted below: the address carries no
-     * query, and the directory's own field does.
+     * query, and the answer's count line does.
      */
     test('f00-landing-bar-dua-baris-dengan-cari-membuka-direktori-terfilter', async ({ page }) => {
         await page.goto('/');
@@ -876,15 +899,24 @@ test.describe('Landing page (/)', () => {
 
         /**
          * The directory ANSWERS rather than merely opening: it is rendered on this
-         * address, and the question it is obeying is shown as a removable chip. That chip
-         * is the only place the term may appear at all - it was never written into the
-         * address, so there is nowhere else for it to be.
+         * address, and the question it is obeying is printed in the count sentence - the
+         * only place the term appears at all, since it was never written into the
+         * address. The removable chip this test used to watch for was deleted by the
+         * rombak along with every other filter control, so the witness moved to the one
+         * line that still carries the term.
          */
         await expect(
             page.locator('[data-slot="landing-direktori"]'),
             'direktori menerima kuerinya, bukan sekadar dibuka',
         ).toBeVisible();
-        await expect(page.getByRole('button', { name: /Mencari "rina"/i })).toBeVisible();
+        await expect(
+            page.locator('[data-slot="dokter-count"]'),
+            'kueri muncul di kalimat jumlah, bukan di alamat',
+        ).toContainText(' untuk "rina"');
+        await expect(
+            page.locator('[data-slot="dokter-chip"]'),
+            'tak ada lagi chip sisa dari rombak',
+        ).toHaveCount(0);
     });
 
     /**
@@ -907,7 +939,7 @@ test.describe('Landing page (/)', () => {
     test('f00-landing-nav-tab-alas-menu-bar-dan-gambar-persegi', async ({ page }) => {
         await page.goto('/');
 
-        const tab = page.getByRole('button', { name: 'Direktori Dokter' });
+        const tab = page.getByRole('button', { name: 'Dokter Terdekat' });
         await expect(tab).toBeVisible();
 
         expect(await tab.evaluate((el) => getComputedStyle(el).textTransform)).toBe('uppercase');
@@ -1056,7 +1088,7 @@ test.describe('Landing page (/)', () => {
         ).toBe('0px');
 
         // the title row is a display word, not a label
-        const judul = panel.getByText('Direktori Dokter', { exact: true });
+        const judul = panel.getByText('Dokter Terdekat', { exact: true });
         expect(parseFloat(await judul.evaluate((el) => getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(
             24,
         );
@@ -1117,7 +1149,7 @@ test.describe('Landing page (/)', () => {
         const tiraiHalaman = page.locator('[data-slot="landing-tirai-halaman"]');
         const panel = page.locator('[data-slot="nav-direktori-panel"]');
         const baris2 = page.locator('[data-slot="landing-nav-baris"]');
-        const tab = page.getByRole('button', { name: 'Direktori Dokter' });
+        const tab = page.getByRole('button', { name: 'Dokter Terdekat' });
 
         await expect(tiraiBar).toHaveCSS('opacity', '0');
         await expect(tiraiHalaman).toHaveCSS('opacity', '0');
@@ -1292,11 +1324,11 @@ test.describe('Landing page (/)', () => {
     test('f00-landing-nav-mega-menampilkan-kartu-promo-bergambar', async ({ page }) => {
         await page.goto('/');
 
-        for (const nama of ['Direktori Dokter', 'Layanan Kesehatan']) {
+        for (const nama of ['Dokter Terdekat', 'Layanan Kesehatan']) {
             await page.getByRole('button', { name: nama }).hover();
 
             const panel = page.locator(
-                nama === 'Direktori Dokter'
+                nama === 'Dokter Terdekat'
                     ? '[data-slot="nav-direktori-panel"]'
                     : '[data-slot="nav-layanan-panel"]',
             );
@@ -1331,7 +1363,7 @@ test.describe('Landing page (/)', () => {
     test('f00-landing-nav-direktori-dibuka-keyboard-dan-ditutup-escape', async ({ page }) => {
         await page.goto('/');
 
-        const trigger = page.getByRole('button', { name: 'Direktori Dokter' });
+        const trigger = page.getByRole('button', { name: 'Dokter Terdekat' });
         const panel = page.locator('[data-slot="nav-direktori-panel"]');
 
         await trigger.focus();
@@ -1375,10 +1407,10 @@ test.describe('Landing page (/)', () => {
 
         const laci = page.locator('[role="dialog"]');
         await expect(
-            laci.getByRole('button', { name: 'Direktori Dokter' }),
+            laci.getByRole('button', { name: 'Dokter Terdekat' }),
         ).toHaveCount(0);
 
-        await laci.getByRole('link', { name: 'Direktori Dokter' }).click();
+        await laci.getByRole('link', { name: 'Dokter Terdekat' }).click();
 
         // The drawer's entry is a plain route to the answer itself: `/?semua=1` is the
         // directory with nothing applied. There is no `/dokter` page for it to land on
@@ -1421,14 +1453,14 @@ test.describe('Landing page (/)', () => {
         ).toBe('');
 
         // The answer opens where the visitor already is, because the term was parked in
-        // `sessionStorage` - and it faces them as a chip they can take off, not as a
-        // field under the result reading the question back.
+        // `sessionStorage` - and it faces the visitor in the count line, not in a field
+        // under the result reading the question back. The chip that used to be the
+        // witness went with the rest of the removable controls in October 2026; this
+        // sentence is what replaced it, and it was already there.
         await expect(page.locator('[data-slot="dokter-count"]')).toContainText(
-            'dokter ditemukan.',
+            ' untuk "anak"',
         );
-        await expect(
-            page.locator('[data-slot="dokter-chip"]').filter({ hasText: 'anak' }),
-        ).toHaveCount(1);
+        await expect(page.locator('[data-slot="dokter-chip"]')).toHaveCount(0);
     });
 
     test('f00-landing-pill-akun-menggantikan-masuk-setelah-sesi-terpasang', async ({ page }) => {
