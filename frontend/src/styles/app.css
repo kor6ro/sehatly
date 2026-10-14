@@ -1,0 +1,224 @@
+@import 'tailwindcss';
+
+@import 'tw-animate-css';
+
+/* Todo 5 replaced the two Laravel-side `@source` globs (`../views` and the
+   framework pagination views) with this single source root: those paths do not
+   exist under `frontend/`, and the relocated kit lives at `../components/ui`. */
+@source '../';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+    --font-sans:
+        'Instrument Sans', ui-sans-serif, system-ui, sans-serif,
+        'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
+        'Noto Color Emoji';
+
+    --radius-lg: var(--radius);
+    --radius-md: calc(var(--radius) - 2px);
+    --radius-sm: calc(var(--radius) - 4px);
+
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+
+    --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
+
+    --color-success: var(--success);
+    --color-success-foreground: var(--success-foreground);
+
+    --color-warning: var(--warning);
+    --color-warning-foreground: var(--warning-foreground);
+
+    --color-success-subtle: var(--success-subtle);
+    --color-success-subtle-foreground: var(--success-subtle-foreground);
+    --color-warning-subtle: var(--warning-subtle);
+    --color-warning-subtle-foreground: var(--warning-subtle-foreground);
+    --color-destructive-subtle: var(--destructive-subtle);
+    --color-destructive-subtle-foreground: var(--destructive-subtle-foreground);
+
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+
+    --color-chart-1: var(--chart-1);
+    --color-chart-2: var(--chart-2);
+    --color-chart-3: var(--chart-3);
+    --color-chart-4: var(--chart-4);
+    --color-chart-5: var(--chart-5);
+
+    --color-sidebar: var(--sidebar);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-ring: var(--sidebar-ring);
+}
+
+/* ===== B. :root (light) ===== */
+:root {
+    --background: oklch(0.985 0.004 247);              /* #F8FAFD */
+    --foreground: oklch(0.247 0.029 249);              /* #16222E, 15.4:1 */
+    --card: oklch(1 0 0);                              /* #FFFFFF */
+    --card-foreground: oklch(0.247 0.029 249);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.247 0.029 249);
+
+    --primary: oklch(0.48 0.133 249.8);                /* koreksi kontras yang disetujui: L 0.531->0.48, putih lolos 4.5:1 terukur axe */
+    --primary-foreground: oklch(0.985 0 0);
+    --secondary: oklch(0.96 0.014 244.7);              /* #EAF3FB, tint biru untuk tombol sekunder/terpilih */
+    --secondary-foreground: oklch(0.279 0.058 250);    /* #0F2A44, 13.0:1 */
+    --muted: oklch(0.965 0.008 247);                   /* #EFF4F9 */
+    --muted-foreground: oklch(0.5 0.032 248.4);        /* #556575, 5.4:1 di atas muted */
+    --accent: oklch(0.96 0.014 244.7);                 /* hover/baris terpilih */
+    --accent-foreground: oklch(0.279 0.058 250);
+
+    --destructive: oklch(0.577 0.245 27.325);          /* #E7000B, putih 4.6:1 */
+    --destructive-foreground: oklch(0.985 0 0);
+    --success: oklch(0.52 0.11 160);                   /* #177C52, putih 5.0:1 */
+    --success-foreground: oklch(0.985 0 0);
+    --warning: oklch(0.681 0.162 76.834);              /* #CF8800 */
+    --warning-foreground: oklch(0.145 0 0);            /* 6.8:1 */
+
+    /* Varian lembut untuk badge status: latar tint + teks gelap + ikon */
+    --success-subtle: oklch(0.96 0.03 160);            /* #E1F8EB */
+    --success-subtle-foreground: oklch(0.4 0.09 160);  /* #015636, 7.9:1 */
+    --warning-subtle: oklch(0.965 0.04 85);            /* #FFF2D6 */
+    --warning-subtle-foreground: oklch(0.42 0.09 70);  /* #6C4302, 7.8:1 */
+    --destructive-subtle: oklch(0.965 0.02 25);        /* #FFEFED */
+    --destructive-subtle-foreground: oklch(0.45 0.17 27); /* #9E1618, 7.3:1 */
+
+    --border: oklch(0.922 0.012 247);                  /* #DFE6ED, pemisah dekoratif */
+    --input: oklch(0.62 0.025 248);                    /* #7B8895, batas input 3.5:1 (WCAG 1.4.11) */
+    --ring: oklch(0.48 0.133 249.8);                  /* sama dengan primary (koreksi kontras yang disetujui) */
+
+    --chart-1: oklch(0.48 0.133 249.8);
+    --chart-2: oklch(0.655 0.13 245.9);                /* biru logo */
+    --chart-3: oklch(0.78 0.09 245);
+    --chart-4: oklch(0.42 0.09 251);
+    --chart-5: oklch(0.62 0.02 248);                   /* netral */
+
+    --radius: 0.625rem;
+
+    --sidebar: oklch(0.975 0.008 247);
+    --sidebar-foreground: oklch(0.247 0.029 249);
+    --sidebar-primary: oklch(0.48 0.133 249.8);
+    --sidebar-primary-foreground: oklch(0.985 0 0);
+    --sidebar-accent: oklch(0.96 0.014 244.7);
+    --sidebar-accent-foreground: oklch(0.279 0.058 250);
+    --sidebar-border: oklch(0.922 0.012 247);
+    --sidebar-ring: oklch(0.48 0.133 249.8);
+}
+
+/* ===== C. .dark ===== */
+.dark {
+    --background: oklch(0.195 0.026 247);              /* #0B1620 */
+    --foreground: oklch(0.97 0.005 247);               /* #F2F5F8, 16.8:1 */
+    --card: oklch(0.246 0.036 248);                    /* #122231 */
+    --card-foreground: oklch(0.97 0.005 247);
+    --popover: oklch(0.246 0.036 248);
+    --popover-foreground: oklch(0.97 0.005 247);
+
+    --primary: oklch(0.709 0.121 245.7);               /* #5BA8E8, teks gelap di atasnya 7.1:1 */
+    --primary-foreground: oklch(0.195 0.026 247);
+    --secondary: oklch(0.29 0.035 249);                /* #1D2D3C */
+    --secondary-foreground: oklch(0.97 0.005 247);
+    --muted: oklch(0.29 0.035 249);
+    --muted-foreground: oklch(0.72 0.02 248);          /* #9BA6B1, 5.7:1 di atas muted */
+    --accent: oklch(0.29 0.035 249);
+    --accent-foreground: oklch(0.97 0.005 247);
+
+    --destructive: oklch(0.704 0.191 22.216);
+    --destructive-foreground: oklch(0.145 0 0);
+    --success: oklch(0.696 0.17 162.48);
+    --success-foreground: oklch(0.145 0 0);
+    --warning: oklch(0.828 0.189 84.429);
+    --warning-foreground: oklch(0.145 0 0);
+
+    /* Ukur ulang kontras varian subtle di dark saat implementasi */
+    --success-subtle: oklch(0.27 0.05 160);
+    --success-subtle-foreground: oklch(0.85 0.1 160);
+    --warning-subtle: oklch(0.3 0.05 80);
+    --warning-subtle-foreground: oklch(0.88 0.11 85);
+    --destructive-subtle: oklch(0.29 0.07 27);
+    --destructive-subtle-foreground: oklch(0.86 0.08 25);
+
+    --border: oklch(0.32 0.03 249);
+    --input: oklch(0.55 0.03 248);
+    --ring: oklch(0.709 0.121 245.7);
+
+    --chart-1: oklch(0.709 0.121 245.7);
+    --chart-2: oklch(0.58 0.13 248);
+    --chart-3: oklch(0.82 0.08 245);
+    --chart-4: oklch(0.48 0.09 250);
+    --chart-5: oklch(0.65 0.02 248);
+
+    --sidebar: oklch(0.22 0.03 248);
+    --sidebar-foreground: oklch(0.97 0.005 247);
+    --sidebar-primary: oklch(0.709 0.121 245.7);
+    --sidebar-primary-foreground: oklch(0.195 0.026 247);   /* perbaikan: sebelumnya sama dengan sidebar-primary */
+    --sidebar-accent: oklch(0.29 0.035 249);
+    --sidebar-accent-foreground: oklch(0.97 0.005 247);
+    --sidebar-border: oklch(0.32 0.03 249);
+    --sidebar-ring: oklch(0.709 0.121 245.7);
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+
+    body {
+        @apply bg-background text-foreground;
+    }
+}
+
+/**
+ * The specialty rail hides the platform's scrollbar and draws its own.
+ *
+ * ## Why not simply style the native one
+ *
+ * Because it does not work. Chromium 153 - measured in isolation, on a throwaway page
+ * with nothing else going on - reserves `offsetWidth - clientWidth === 0` for an
+ * overflowed box whether or not `::-webkit-scrollbar { width: 8px }` is present: the
+ * scrollbar is an OVERLAY one, it paints only while it is being dragged, and sizing the
+ * pseudo-element no longer buys layout space. `scrollbar-width: thin` is no better - it
+ * makes Chromium take over the axis and IGNORE the pseudo-elements entirely, leaving a
+ * thumb that reserves nothing and appears on no screenshot.
+ *
+ * The rail is the reason this matters: it holds sixteen rows in a window that fits about
+ * ten, and a panel whose only hint of more content is a scrollbar that may never appear
+ * reads as a list that simply ENDS. So the native bar is turned off on both spellings -
+ * `scrollbar-width: none` for engines that honour the standard, `display: none` on the
+ * pseudo-element for the ones that only honour WebKit's - and the thumb drawn by
+ * `RelMenggulir` is a real element: it is laid out, it is draggable, and it exists
+ * identically on every machine, which is the whole point.
+ */
+.gulir-sendiri {
+    scrollbar-width: none;
+}
+
+.gulir-sendiri::-webkit-scrollbar {
+    display: none;
+}

@@ -1,6 +1,6 @@
 # Dependencies of the isolated OpenAPI type generator.
 #
-# Must be ignored for the same reason `web/node_modules` is: these are installed
+# Must be ignored for the same reason `frontend/node_modules` is: these are installed
 # artifacts, not source, and the whole tree is reproducible from the two versions
 # pinned in `package.json`.
 /node_modules

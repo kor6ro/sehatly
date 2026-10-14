@@ -34,7 +34,7 @@ use Illuminate\Validation\Rule;
  * the log (`dokter`'s allow-list is computed from the DDL and contains no
  * narrative column). So no field is offered, and the automatic audit row records
  * the changed `status_verifikasi` value and nothing else. Recorded in
- * `web/ux/patterns/F14.md` section 12 item 3.
+ * `frontend/ux/patterns/F14.md` section 12 item 3.
  *
  * ## `authorize()` is always true
  *

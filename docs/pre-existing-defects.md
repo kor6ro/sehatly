@@ -235,17 +235,25 @@ executor can delete uncommitted user work, and so `git diff --exit-code
 telemedicine_test.sql` can be used as a byte-identity probe. Todos 8 and 18 own
 its actual treatment.
 
-### 3.6 Untracked rebranding assets
+### 3.6 Rebranding assets — moved to `docs/assets/`
 
 Also pre-existing and untracked at baseline; the baseline commit tracks them for
-the same safety reason:
+the same safety reason (§3.5). All three were renamed when they moved out of the
+repository root, because the root is what a reader sees first and none of the
+three names said what the file contained:
 
-- `Sehatly Logo Icon.png`
-- `Sehatly.svg`
-- `WhatsApp Image 2026-09-26 at 7.07.11 PM.jpeg`
+| Original name (root) | Now | What it actually is |
+| --- | --- | --- |
+| `WhatsApp Image 2026-09-26 at 7.07.11 PM.jpeg` | [`docs/assets/sehatly-logo-full.jpeg`](assets/sehatly-logo-full.jpeg) | The **primary brand lockup**: icon + "Sehatly" wordmark + tagline "Sehat Lebih Mudah" |
+| `Sehatly Logo Icon.png` | [`docs/assets/sehatly-icon.png`](assets/sehatly-icon.png) | Icon only (cross + stethoscope), raster, transparent |
+| `Sehatly.svg` | [`docs/assets/sehatly-icon.svg`](assets/sehatly-icon.svg) | The same icon as vector, 256×256 |
 
-(The reference `resources/js/components/app-logo.tsx` / `app-logo-icon.tsx`
-were modified in the worktree to consume them.)
+Bytes are unchanged by the move — `git mv` only, no re-encode.
+
+Nothing imports them. The only prior consumer named in this document,
+`resources/js/components/app-logo.tsx` / `app-logo-icon.tsx`, was removed with
+the Inertia starter kit in todo 30, and the SPA ships its own
+`frontend/public/logo.svg`.
 
 ### 3.7 `composer.json` still carried starter-kit identity
 
@@ -261,9 +269,9 @@ were modified in the worktree to consume them.)
 | Thing | Status |
 |---|---|
 | Dart SDK 3.13.2 (standalone, via winget) | **installed**, on User `PATH` |
-| `web/` (`package.json`, `package-lock.json`, `playwright.config.ts`, `.gitignore`) | **created** |
-| `@playwright/test` + `playwright` 1.63.0 in `web/node_modules` | **installed**; `node_modules` gitignored |
-| Playwright **browser binaries** | **NOT downloaded** (`PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1`). Whoever first runs a real spec must run `npx playwright install` in `web/`. |
+| `frontend/` (`package.json`, `package-lock.json`, `playwright.config.ts`, `.gitignore`) | **created** |
+| `@playwright/test` + `playwright` 1.63.0 in `frontend/node_modules` | **installed**; `node_modules` gitignored |
+| Playwright **browser binaries** | **NOT downloaded** (`PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1`). Whoever first runs a real spec must run `npx playwright install` in `frontend/`. |
 | Flutter SDK / `pubspec.yaml` / `mobile/` | deliberately absent |
 | MySQL configuration | **untouched** (observation only) |
 
@@ -428,15 +436,15 @@ manifest it would have read (`public/build/manifest.json`) had been stale since
 todo 5: it names `resources/css/app.css` and twelve
 `resources/js/pages/*.tsx` modules, none of which still exist, and its entry
 chunk calls `createInertiaApp()` against an uninstalled backend. The
-`resources/js` entry also no longer exists to be mounted - `web/src/main.tsx`
+`resources/js` entry also no longer exists to be mounted - `frontend/src/main.tsx`
 is the SPA's entry and it has been since todo 5, and it mounts on `#root`, not
 `#app`.
 
 What the file is now: a bare shell with `<div id="root">`, no `@inertia`, no
 `@vite`, and no `$page`. It is rendered with a **503** and only when
-`web/dist/index.html` is absent, so a deployment that never built the SPA says
+`frontend/dist/index.html` is absent, so a deployment that never built the SPA says
 so instead of serving a 200 that mounts nothing. When the build exists,
-`routes/web.php` serves the real `web/dist/index.html` byte for byte.
+`routes/web.php` serves the real `frontend/dist/index.html` byte for byte.
 
 ### 6.5 One real bug, and it was not one of the 11
 

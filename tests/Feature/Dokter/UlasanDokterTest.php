@@ -17,7 +17,7 @@ use Tests\Contract\Support\LiveRequest;
 | F04 -- the doctor review surface: list, write, reply, invitation
 |--------------------------------------------------------------------------
 |
-| The binding contract is `web/ux/patterns/F04.md`. Four decisions shape every
+| The binding contract is `frontend/ux/patterns/F04.md`. Four decisions shape every
 | assertion here:
 |
 | 1. The aggregate is RECOMPUTED from `ulasan_dokter` on read. `dokter.

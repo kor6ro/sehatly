@@ -554,7 +554,7 @@ Id kanal yang cacat (`abc`, `01`, di luar 64-bit) ditolak 403, bukan 500
    `reverb:start` berjalan dan semuanya hijau), tetapi tidak ada frame
    yang menjangkau klien soket; klien Echo menampilkan indikator
    menyambung-ulang, bukan layar kosong.
-3. `npm run dev` di `web/` -- klien (`laravel-echo` 2.5.0,
+3. `npm run dev` di `frontend/` -- klien (`laravel-echo` 2.5.0,
    `broadcaster:'reverb'`, tanpa `cluster`, `authEndpoint:
    '/api/broadcasting/auth'` dengan header Bearer). Tanpanya: tidak ada
    UI yang berlangganan; API dan data tidak terpengaruh.

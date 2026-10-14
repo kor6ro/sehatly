@@ -1,8 +1,7 @@
 # Sehatly
 
 Telemedicine platform: a Laravel 13 API for appointments, video/text consultations,
-prescriptions and clinic administration; a React SPA in `web/`; and a pure-Dart
-client package for the mobile team.
+prescriptions and clinic administration; and a React SPA in `frontend/`.
 
 The API surface is **111 routes** under `/api/v1`. Every one of them is published
 as an OpenAPI 3.1 document that is *generated from the running application*, not
@@ -12,17 +11,47 @@ maintained by hand, and a drift check fails the build if the two disagree.
 
 ## Contents
 
+- [Repository layout](#repository-layout)
 - [Prerequisites](#prerequisites)
 - [The PHP binary is not on PATH](#the-php-binary-is-not-on-path)
 - [Setup](#setup)
 - [Running it](#running-it)
 - [The test suites](#the-test-suites)
 - [The generated contract](#the-generated-contract)
-- [No Flutter app exists in this repository](#no-flutter-app-exists-in-this-repository)
-- [For the mobile team](#for-the-mobile-team)
 - [`build.cssMinify: 'esbuild'` is required, not a preference](#buildcssminify-esbuild-is-required-not-a-preference)
 - [Documentation index](#documentation-index)
 - [CI](#ci)
+
+---
+
+## Repository layout
+
+**The repository root is the backend.** `app/`, `routes/`, `config/` and the rest are
+Laravel's own directory layout and cannot be relocated without fighting the framework.
+The front end is one directory beside them, and everything else is tooling or
+documentation.
+
+| Path | What it is |
+| --- | --- |
+| `app/` `bootstrap/` `config/` `database/` `routes/` `public/` `storage/` | **Backend.** The Laravel 13 API — 111 routes under `/api/v1`. |
+| `resources/views/app.blade.php` | **Backend.** One Blade file, rendered *only* when the SPA has not been built, as a deliberate 503 rather than a placeholder that lies. |
+| `frontend/` | **Front end.** The React SPA: `frontend/src`, its own `index.html`, Vite 8 config and dependency list. Builds to `frontend/dist` (gitignored), which `routes/web.php` serves as the shell. Also holds `frontend/tests/` (Playwright e2e) and `frontend/ux/` (the F01–F14 design research corpus). |
+| `tests/` | The PHP suite (Pest). |
+| `docs/` | The generated OpenAPI contract, the ENUM catalogue, and the decision documents. |
+| `docs/assets/` | Brand assets: the Sehatly logo lockup and the icon, as PNG and SVG. |
+| `tools/openapi-types/` | Generates `frontend/src/types/api.d.ts` from `docs/openapi.yaml`. Its own toolchain on purpose: it pins TypeScript 5 while `frontend/` compiles against TypeScript 7, and npm cannot satisfy both in one tree. |
+| `tools/check-doc-links.mjs` | Checks markdown links, route references and fenced code blocks across the documentation. |
+| `vendor/` `node_modules/` `frontend/dist/` | Installed or built artifacts. Gitignored. |
+| `package.json` (root) | Delegates every script into `frontend/` and `tools/`, so `npm run build` from the root still means "build the SPA". It declares **zero** dependencies of its own; its lockfile exists only because CI runs `npm ci` at the root. |
+| `telemedicine_test.sql` | The reference DDL. **Read-only**: migrations must reproduce it, and a test locks its bytes. Never edit, reformat or reorder it. |
+
+A request takes one path:
+
+```
+browser  →  frontend/dist/index.html   (SPA shell, served by routes/web.php)
+         →  GET /api/v1/...            (the Laravel API, routes/api.php)
+         →  MySQL
+```
 
 ---
 
@@ -35,7 +64,6 @@ maintained by hand, and a drift check fails the build if the two disagree.
 | MySQL | **8.0** | The schema uses `ENUM`, `CHECK` and generated columns; SQLite is not a substitute |
 | Node.js | **22.12+** or 20.19+ | Vite 8's floor. Verified on 24.13.1 |
 | npm | 10+ | Ships with Node. Verified on 11.17.0 |
-| Dart SDK | **3.13.x** (stable) | Standalone. Verified on 3.13.2. **No Flutter SDK is needed or used** |
 
 ### The PHP binary is not on PATH
 
@@ -60,12 +88,6 @@ C:\laragon\bin\php\php-8.4.17-nts-Win32-vs17-x64\php.exe artisan serve
 `composer.json`'s `@php` scripts use whichever `php` Composer resolves, so the
 same substitution is needed there.
 
-The Dart SDK is likewise **not on `PATH`**. It is installed at:
-
-```console
-C:\Users\axioo\AppData\Local\Microsoft\WinGet\Packages\Google.DartSDK_Microsoft.Winget.Source_8wekyb3d8bbwe\dart-sdk\bin\dart.exe
-```
-
 And `jq` is **not installed** on this host, so the plan's `route:list | jq length`
 is written everywhere as the portable equivalent:
 
@@ -79,7 +101,7 @@ php artisan route:list --path=api/v1 --json | php -r "echo count(json_decode(str
 
 ```console
 composer install
-npm --prefix web install --ignore-scripts
+npm --prefix frontend install --ignore-scripts
 npm --prefix tools/openapi-types install        # the OpenAPI type generator
 npm run build
 ```
@@ -128,7 +150,7 @@ Four processes. Each in its own terminal.
 ```console
 php artisan serve                       # http://127.0.0.1:8000
 php artisan reverb:start                # ws://localhost:8080
-npm run dev                             # Vite dev server for web/
+npm run dev                             # Vite dev server for frontend/
 ```
 
 `php artisan dev` runs the API and Reverb together in one process. The Vite dev
@@ -139,13 +161,10 @@ server proxies `/api` to `http://localhost:8000`.
 ## The test suites
 
 ```console
-php artisan test                        # 1512 tests, 26305 assertions
-npm run types:check                     # tsc --noEmit over web/, including the generated types
+php artisan test                        # the PHP suite
+npm run types:check                     # tsc --noEmit over frontend/, including the generated types
 npm run build                           # the SPA production build
-npm --prefix web run test:unit          # 14 web unit tests
-cd packages/sehatly_api_client
-dart analyze                            # no issues
-dart test                               # 132 tests
+npm --prefix frontend run test:unit     # web unit tests
 ```
 
 `php artisan test` needs `telemedisin_db_test` to exist and to be migrated. The
@@ -156,16 +175,13 @@ surfaces as eight unrelated failures rather than as one obvious cause.
 
 ## The generated contract
 
-Four artefacts are generated from the live route table, and a drift check fails
-the build if any of them is stale:
+Two artefacts are generated from the live route table, and a drift check fails
+the build if either is stale:
 
 | Artefact | Produced by | From |
 | --- | --- | --- |
 | `docs/openapi.yaml` | `php artisan sehatly:openapi` | `Route::getRoutes()` + each `FormRequest::rules()` |
-| `packages/sehatly_api_client/lib/src/generated/enums.dart` | the same command | the same walk, plus `docs/enums.json` |
-| `.../request_bodies.dart` | the same command | the same walk |
-| `.../paths_table.dart` | the same command | the same walk |
-| `web/src/types/api.d.ts` | `npm run types:generate` | `docs/openapi.yaml` |
+| `frontend/src/types/api.d.ts` | `npm run types:generate` | `docs/openapi.yaml` |
 
 ```console
 php artisan sehatly:openapi          # rewrite every generated file
@@ -189,8 +205,6 @@ red in the same run it proves it green:
 - `a hand-edit to one path in docs/openapi.yaml is DETECTED and refused` — renames
   one published path, asserts exit 1, asserts the `DRIFT` line and the byte
   offset, asserts the file was **not** repaired, then restores and asserts green.
-- `the generated Dart files are a fresh export, and a hand-edit to one is DETECTED`
-  — the same, for `paths_table.dart`.
 - `a mutated route table -- a POST with no FormRequest -- IS detected` — registers
   a violating route in memory, asserts the command refuses to publish, removes it.
 
@@ -222,9 +236,8 @@ fail more than one rule), the Sanctum bearer scheme, every status code, every
 `permission:`/`tipe:` guard, the rate limits, and the request rules.
 
 Untyped: every response's `data`. Deriving a response shape would mean running the
-application. The hand-written DTOs in
-`packages/sehatly_api_client/lib/src/model/dto.dart` are the response side, each
-naming the `App\Http\Resources\*` class it was transcribed from.
+application. Read it against the matching `app/Http/Resources/*` class, which is
+what the endpoint actually returns.
 
 Two things `openapi-typescript` 7.13.0 does **not** project into `api.d.ts`, so
 they are checked in the PHP suite instead where the document itself is read:
@@ -233,58 +246,23 @@ per-operation `security`.
 
 ---
 
-## No Flutter app exists in this repository
+## No Flutter app in this repository
 
-There is no `mobile/` directory and no `flutter:` SDK constraint anywhere. The
-mobile entry point is **`packages/sehatly_api_client`** plus `docs/modules/`.
+There is no `mobile/` directory and no `flutter:` SDK constraint anywhere. This
+repository is a Laravel API plus a React SPA; a mobile app would be a new
+top-level application arriving on its own, not a folder someone adds quietly.
 
-`packages/sehatly_api_client` is a **pure-Dart** package: `sdk: '>=3.13.0 <4.0.0'`
-with no `flutter:` constraint, so it resolves, analyzes and tests with a bare
-`dart` binary on a machine that has no Flutter — and it is importable from any
-Flutter app the mobile team writes. Its only runtime dependency is `dio`.
-
-`tests/Unit/NoFlutterMobileTest.php` enforces this, because `test ! -e mobile` was
-the one plan guardrail that had no automatic proof. It walks every `pubspec.yaml`
-in the repository and asserts:
-
-1. no `mobile/` directory or file at the root;
-2. no `pubspec.yaml` declares a `flutter:` / `flutter_test:` / `flutter_web_plugins:`
-   SDK constraint;
-3. no `pubspec.yaml` depends on `flutter`, `flutter_test` or `flutter_web_plugins`;
-4. the pure-Dart client **still depends on `dio`** and still wraps it.
-
-Point 4 matters in both directions: a "no Flutter" test satisfied by gutting the
-package is not a guard, it is vandalism. The guard was verified red — a probe
-`pubspec.yaml` with a `flutter:` constraint turns two of the four tests red, and a
-bare `mobile/` directory turns the first red. Both removed.
-
----
-
-## For the mobile team
-
-- **Use `get: ^4.7.3`.** GetX 5.0-rc deprecates the bindings API (`Bindings`,
-  `Get.lazyPut`, `GetxController`) that every example in `docs/modules/` is
-  written against, so taking 5.x-rc now means rewriting the call sites later.
-- `packages/sehatly_api_client/README.md` carries a copy-pasteable `pubspec.yaml`
-  dependency block, a bootstrap example, the base-URL/environment table, and the
-  OWASP MASVS-STORAGE-1 reasoning for the token-storage split.
-- **The concrete secure storage and push implementations live in your app, not
-  here.** `TokenStore` and `PushTokenProvider` are interfaces in the package;
-  `flutter_secure_storage` and `firebase_messaging` are Flutter plugins, and
-  depending on them would make the package untestable without the Flutter SDK.
-  Both adapters are copy-pasteable blocks in that README.
-- `lib/src/generated/request_bodies.dart` gives every write endpoint a typed
-  request with its required fields as constructor parameters, so a missing
-  required field is a compile error rather than a 422. `enums.dart` gives every
-  MySQL ENUM column a Dart `enum` in DDL declaration order, so an impossible
-  status value will not compile.
-- `lib/src/generated/paths_table.dart` holds every registered path as a constant.
+CI keeps that true with three commands in `.github/workflows/contract.yml`:
+`test ! -e mobile`, plus two greps over every `pubspec.yaml` for a `flutter:`
+constraint or a `flutter` dependency. The API itself stays client-agnostic — a
+mobile client integrates over the same REST surface the SPA uses, which
+`docs/mobile-integration.md` describes endpoint by endpoint.
 
 ---
 
 ## `build.cssMinify: 'esbuild'` is required, not a preference
 
-`web/vite.config.ts` sets `build.cssMinify: 'esbuild'` explicitly. **Vite 8 changed
+`frontend/vite.config.ts` sets `build.cssMinify: 'esbuild'` explicitly. **Vite 8 changed
 the default from `esbuild` to Lightning CSS**, and Lightning CSS strips vendor
 prefixes. The shadcn/Radix `sidebar`, `dialog`, `dropdown-menu`, `sheet` and
 `sonner` components all rely on the unprefixed `backdrop-filter`, so with the Vite 8
@@ -316,10 +294,11 @@ type check and no test catches.
 | [`docs/schema-notes.md`](docs/schema-notes.md) | Deferred constraints, extra tables, known schema defects |
 | [`docs/migration-order.md`](docs/migration-order.md) | Why the migrations are in this order |
 | [`docs/pre-existing-defects.md`](docs/pre-existing-defects.md) | Defects found in the scaffold, before this work |
-
-`docs/mobile-integration.md` and `docs/contract-conformance.md` are named by the
-plan and belong to later todos; they are not in this repository yet, and this
-index does not pretend otherwise.
+| [`docs/mobile-integration.md`](docs/mobile-integration.md) | Integrating against the API from any client: auth, errors, pagination, realtime, push |
+| [`docs/contract-conformance.md`](docs/contract-conformance.md) | How the running application is checked against its own published contract |
+| [`docs/verification-report.md`](docs/verification-report.md) | What was verified, how, and what was not |
+| [`docs/timezone-policy.md`](docs/timezone-policy.md) | The date and time rules, and why they are not left to the ORM |
+| [`docs/assets/`](assets/) | The Sehatly logo lockup and the icon, as PNG and SVG |
 
 ---
 
@@ -329,8 +308,7 @@ index does not pretend otherwise.
 
 - **generated contract is fresh** — `sehatly:enums --check`, `sehatly:openapi
   --check`, regenerates `api.d.ts` and fails if it differs from the committed copy,
-  then `types:check`, `build`, `dart analyze`, `dart test`, and the no-Flutter
-  guard.
+  then `types:check`, `build`, and the no-Flutter guard.
 - **PHP suite and schema parity** — `migrate:fresh --seed`, `pint --test`,
   `sehatly:verify-schema`, `artisan test`.
 - **web suite** — `types:check`, the web unit tests, `build`.
@@ -344,12 +322,6 @@ compares SHA-256, so a stale file fails loudly instead of being silently repaire
 
 Stated rather than hidden:
 
-- `dart format --set-exit-if-changed` is **not** clean on
-  `packages/sehatly_api_client/lib/src/generated/`. The generator emits one
-  collection element per line for byte determinism rather than reproducing the
-  formatter's cost model, and `--check` depends on those bytes being stable.
-  `dart analyze` is clean and is the enforced gate. Reasoning is in
-  `app/Support/OpenApi/DartContractGenerator.php`.
 - The three `FormRequest` exemptions above are exemptions to the Definition of
   Done, not endorsements. `PUT /notifikasi/{id}/baca` would be better served by a
   `FormRequest` with an empty `rules()` if the DoD ever stops being negotiable.

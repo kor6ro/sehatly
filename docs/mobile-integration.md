@@ -3,37 +3,37 @@
 The document the mobile team reads first. It is concrete enough that an engineer
 who has never seen this codebase can integrate against the API without asking a
 question, and every claim in it is checkable: the endpoint paths are the ones the
-router registers, the code blocks are the ones in
-[`packages/sehatly_api_client`](../packages/sehatly_api_client), and the rules
-are the ones in the code that enforces them.
+router registers, and the rules are the ones in the code that enforces them.
+
+> **Note (2026-10-14): this guide is now client-agnostic.** It previously shipped
+> alongside a pure-Dart API client kept in this repository, and its worked examples
+> were that package's own code. The package has since been removed along with its
+> generated code, so the Dart examples that imported it are gone and the REST
+> contract they were written against is what remains. Everything below describing an
+> endpoint, an envelope, a status code or a server-side rule still holds; anything
+> that described a surface of that package has been deleted rather than left to
+> point at nothing.
 
 ## Read this before you install anything
 
-**This repository ships no Flutter app.** There is no `mobile/` directory, no
-Flutter SDK constraint in any `pubspec.yaml`, and no `package:flutter` import
-anywhere in the tree. The mobile entry point is the **pure-Dart** package
-[`packages/sehatly_api_client`](../packages/sehatly_api_client), and this
-document.
+**This repository ships no app for your platform.** There is no `mobile/`
+directory, no Flutter SDK constraint anywhere, and no Flutter SDK in the toolchain.
+Your team writes the client; this repository owns the server. CI keeps that
+boundary with `test ! -e mobile` plus two greps over every `pubspec.yaml` for a
+`flutter:` constraint or a `flutter` dependency.
 
-That distinction is load-bearing rather than pedantic. A guide that says "add this
-to your pubspec" without saying the SDK is pure Dart sends every integrator down
-a Flutter install they do not need, on a machine that may not have one, for a
-package that resolves, analyses and tests with a bare `dart` binary. The
-statement is not a convention here: `tests/Unit/NoFlutterMobileTest.php` walks
-every `pubspec.yaml` in the repository and fails the PHP suite if a `flutter:`
-constraint or a `flutter` dependency appears. Your app is a Flutter app; this
-package is not, and both statements are true at once.
+What the server owns is precisely the REST surface the web SPA in `frontend/` calls,
+so a mobile client integrates against the same contract and gets the same answers.
 
 | this repository provides | your app provides |
 | --- | --- |
-| the HTTP layer, the token lifecycle, the typed error and pagination models | the widgets, the routing, the secure-storage adapter |
-| every path constant, and the generated request bodies and enums | the FCM adapter, the socket adapter, the `TokenStore` implementations |
-| the REST chat surface and the realtime subscription logic | the UI, the localisation, the analytics |
+| the API itself: every route, its `FormRequest` rules, its permissions and its error envelope | the widgets, the routing, the localisation, the analytics |
+| [`docs/openapi.yaml`](openapi.yaml) and [`docs/enums.json`](enums.json), generated from the running application and drift-checked when either is stale | the HTTP layer, the token lifecycle, the typed error and the pagination model |
+| the realtime broker, and the REST chat surface it publishes to | the socket adapter, the subscription logic, the dedupe-on-id set, the reconnect backfill |
 
 The three things that genuinely need a platform -- a hardware-backed keystore, a
-push token, and a live socket -- are declared as **interfaces** in the package
-and implemented in your app. They are copy-pasteable, and section 3 and section
-10 carry them.
+push token, and a live socket -- are left to your app. This repository cannot
+implement them for you; section 3 and section 10 say what each one must do.
 
 ## Contents
 
@@ -51,49 +51,39 @@ and implemented in your app. They are copy-pasteable, and section 3 and section
 | [10. Push notifications](#10-push-notifications) | device registration, the two platform traps, token rotation |
 | [11. Contoh integrasi dengan GetX](#11-contoh-integrasi-dengan-getx) | `GetxController`, `Bindings`, and the storage split in GetX terms |
 | [12. Server-side rules the client must NOT re-implement](#12-server-side-rules-the-client-must-not-re-implement) | twelve rules the server owns |
-| [13. Endpoint cookbook](#13-endpoint-cookbook) | one snippet per module, using the package's typed endpoints |
+| [13. Endpoint cookbook](#13-endpoint-cookbook) | one request per module, by hand |
 | [14. Troubleshooting](#14-troubleshooting) | symptom to cause, for the failures that actually occur |
 
 Companion documents: the OpenAPI contract
 ([`openapi.yaml`](openapi.yaml), generated from the live route table and
 drift-checked), the machine-readable enum lists ([`enums.json`](enums.json)),
-the per-module summaries under [`docs/modules/`](modules/README.md), the root
-[README](../README.md#no-flutter-app-exists-in-this-repository) on the no-Flutter
-constraint, and the storage and push adapters in the package's
-[README](../packages/sehatly_api_client/README.md).
+the per-module summaries under [`docs/modules/`](modules/README.md), and the root
+[README](../README.md#no-flutter-app-in-this-repository) on the no-Flutter
+constraint.
 
 ---
 
 ## 1. Prerequisites, environment and installation
 
-### 1.1 The pure-Dart constraint
+### 1.1 What the server will and will not do for you
 
-[`packages/sehatly_api_client/pubspec.yaml`](../packages/sehatly_api_client/pubspec.yaml)
-declares:
+The server owns authentication, authorisation, validation, expiry, quota, and every
+derived field. It does **not** ship a client library for your platform, and it does
+not require one: the contract is REST, so anything that can make an HTTP request and
+hold a bearer token can integrate. What follows in this guide is the behaviour you
+must reproduce client-side, plus the traps already decided server-side that you must
+not re-decide (section 12).
 
-```yaml
-name: sehatly_api_client
-environment:
-  sdk: '>=3.13.0 <4.0.0'
-dependencies:
-  dio: ^5.11.1
-```
-
-There is deliberately **no `flutter:` key**. The consequences for you:
-
-| consequence | what to do |
-| --- | --- |
-| the package resolves on a CI runner with no Flutter | nothing; this is the point |
-| the package cannot import `package:flutter/...` | put your adapter in your app, behind `SecureKeyValueBackend` |
-| `dart pub get` inside the package works, `flutter pub get` does not need to | not an issue in a Flutter app; `flutter pub get` handles a pure-Dart dependency fine |
-| the SDK floor is 3.13.0 | your app's `environment.sdk` must be at least `>=3.13.0` |
+One constraint is worth stating because it is enforced, not assumed: this repository
+contains no `mobile/` directory and no `flutter:` dependency anywhere, and CI fails
+if one appears. The API is deliberately client-agnostic.
 
 ### 1.2 Base URLs, per environment
 
-`SehatlyEnvironment` carries the four environments as an enum, so a wrong base URL
-is a compile error rather than a 404 with an HTML body:
+Fix the environment by name and a wrong base URL becomes a choice you made
+deliberately rather than a copy-paste you did not check:
 
-| `SehatlyEnvironment` | `baseUrl` | connect timeout | receive timeout | OTP code echoed in the response |
+| environment | `baseUrl` | connect timeout | receive timeout | OTP code echoed in the response |
 | --- | --- | --- | --- | --- |
 | `local` | `http://127.0.0.1:8000/api/v1` | 10 s | 30 s | **yes** (server `APP_ENV=local` only) |
 | `staging` | `https://staging.sehatly.id/api/v1` | 20 s | 60 s | no |
@@ -109,9 +99,9 @@ Three things about that table that are easy to get wrong:
 - **`127.0.0.1` is not `localhost` on purpose.** On Windows `localhost` resolves
   to the IPv6 address first, and a PHP dev server bound only to the IPv4 socket
   answers a connection refusal for the IPv6 attempt.
-- **The OTP echo is a property of the *server's* environment, not of the enum.**
-  `OtpService` publishes the plaintext code outside production. A `SehatlyEnvironment.test`
-  client pointed at a production server still gets no code.
+- **The OTP echo is a property of the *server's* environment, not of the client's.**
+  The server publishes the plaintext code outside production. A client configured
+  for the test environment and pointed at a production server still gets no code.
 
 ### 1.3 HTTPS, and cleartext only for a local loopback
 
@@ -128,36 +118,11 @@ hosts, and to no other:
 | iOS simulator | `localhost` | n/a; ATS exception for `localhost` |
 | physical device | the machine's LAN address | add that address to the same allow-list, and never ship the build |
 
-**The trap.** `SehatlyEnvironment.local` points at `127.0.0.1`, and an Android
+**The trap.** The `local` environment points at `127.0.0.1`, and an Android
 emulator's `127.0.0.1` is *the emulator itself*, not your laptop. An Android
-emulator therefore cannot use the enum's `local` value. Two ways out, both real:
-
-```dart
-import 'package:sehatly_api_client/sehatly_api_client.dart';
-
-// `backend` is your SecureKeyValueBackend -- see section 3.2 for the adapter.
-final SehatlyEnvironment environment =
-    SehatlyEnvironment.forName(const String.fromEnvironment('SEHATLY_ENV')) ??
-    SehatlyEnvironment.local;
-
-final String emulatorBaseUrl = const String.fromEnvironment(
-  'SEHATLY_BASE_URL',
-  defaultValue: '',
-);
-
-final TokenStorage storage = TokenStorage.secure(backend);
-
-final SehatlyApiClient client = emulatorBaseUrl.isEmpty
-    ? SehatlyApiClient.secure(backend: backend, environment: environment)
-    : SehatlyApiClient(
-        // The low-level constructor, for a base URL the enum does not carry.
-        baseUrl: emulatorBaseUrl,
-        storage: storage,
-        connectTimeout: environment.connectTimeout,
-        receiveTimeout: environment.receiveTimeout,
-        sendTimeout: environment.sendTimeout,
-      );
-```
+emulator therefore cannot use the `local` value as it stands. Put the base URL on
+the build command rather than in the source, so one binary can point at more than
+one host:
 
 ```console
 # Android emulator against `php artisan serve` on the host
@@ -166,43 +131,15 @@ flutter run --dart-define=SEHATLY_BASE_URL=http://10.0.2.2:8000/api/v1
 
 ### 1.4 Installation
 
-Add the package to **your** app's `pubspec.yaml`. It is `publish_to: none`, so it
-is consumed from a path or a git reference, never from pub.dev:
+This repository ships no client package, so there is nothing to add from here:
+your team chooses the HTTP layer, the storage plugin and the realtime transport,
+and pins them itself. What this guide assumes, and why:
 
-```yaml
-dependencies:
-  get: ^4.7.3
-  flutter_secure_storage:
-  get_storage:
-  firebase_messaging:
-  pusher_channels_flutter:
-  sehatly_api_client:
-    path: ../sehatly/packages/sehatly_api_client
-    # or, from a clone of this repository:
-    # git:
-    #   url: https://github.com/<org>/sehatly.git
-    #   ref: main
-    #   path: packages/sehatly_api_client
-```
-
-Only the `get: ^4.7.3` constraint carries a version, and the reason is
-load-bearing: GetX 5.0-rc deprecates the `Bindings` / `BindingsBuilder` /
-`Get.lazyPut` / `GetxController` API that section 11 is written against, in
-favour of a `Binding` + `List<Bind>` API that does not exist in a stable release.
-Pinning `^4.7.3` is part of following the example.
-
-The other four are deliberately versionless in this document. **No version of
-`flutter_secure_storage`, `get_storage`, `firebase_messaging` or
-`pusher_channels_flutter` is pinned anywhere in this repository**, so this guide
-does not assert one; pin them in your own lockfile and treat the choice as yours.
-`dio` is not in that list because the package depends on it already and you
-should not declare it.
-
-One import gives you everything:
-
-```dart
-import 'package:sehatly_api_client/sehatly_api_client.dart';
-```
+| package | why |
+| --- | --- |
+| `get: ^4.7.3` | **The only one carrying a version here, and the reason is load-bearing.** GetX 5.0-rc deprecates the `Bindings` / `BindingsBuilder` / `Get.lazyPut` / `GetxController` API that section 11 is written against, in favour of a `Binding` + `List<Bind>` API that does not exist in a stable release. Pinning `^4.7.3` is part of following the example |
+| `flutter_secure_storage`, `get_storage`, `firebase_messaging`, `pusher_channels_flutter` | **Deliberately versionless in this document.** No version of them is pinned anywhere in this repository, so this guide does not assert one; pin them in your own lockfile and treat the choice as yours |
+| `dio`, or whatever your HTTP layer is built on | Yours to declare. Nothing in this repository pulls it in for you any more |
 
 ---
 
@@ -228,9 +165,10 @@ This is a deliberate control, not an omission: a phone-proved second factor is
 only a control while the second step still requires the phone. Issuing a token
 from `/auth/login` would make the OTP a confirmation screen.
 
-The package makes the mistake a **compile error** rather than a null. `LoginResult`
-has no `token` member at all, so a call site that reaches for one does not
-compile. Do not hand-roll a request to work around that.
+The contract makes this impossible to miss rather than silent: the envelope for
+`POST /api/v1/auth/login` carries **no `token` member at all**, so a field mapping
+that reaches for one yields null and a signed-out user. Do not hand-roll a request
+to work around that.
 
 ### 2.2 The six-call sequence, with real request and response bodies
 
@@ -323,24 +261,12 @@ refresh.
 }
 ```
 
-Persist the pair yourself. The package deliberately does not write storage inside
-`verifyOtp`, so the choice of store stays yours:
-
-```dart
-Future<void> main() async {
-  final VerifyOtpResult verified = await client.auth.verifyOtp(
-    kode: enteredCode,
-    tujuan: OtpTujuanDiterbitkan.verifikasiTelepon,
-    noTelepon: '08123456789',
-    deviceId: installationId,
-  );
-
-  await client.persistSession(verified.token);
-}
-```
+Persist the pair yourself. `POST /api/v1/auth/otp/verify` returns the tokens and
+writes nothing to storage -- the choice of store is yours and nobody else's:
 
 **Call 3 -- an authenticated call.** Every protected route takes
-`Authorization: Bearer <access_token>`. The package's interceptor attaches it.
+`Authorization: Bearer <access_token>`. Your HTTP layer attaches it, in exactly
+one place in your app.
 
 **Call 4 -- refresh.** `POST /api/v1/auth/refresh`, unauthenticated, because the
 caller presents a refresh token rather than a bearer token.
@@ -392,9 +318,10 @@ refresh tokens and deactivates every `user_devices` row:
 device is not expressible and is deferred; the device list's per-row action is
 `DELETE /api/v1/auth/devices/{deviceId}`.
 
-**Call 6 -- the local clear.** `SehatlyApiClient.signOut()` calls logout and then
-clears both stores *in a `finally`*, so an unreachable server still leaves no
-live credential on a device the user believes they have signed out of.
+**Call 6 -- the local clear.** Log out and then clear both stores *in a `finally`*,
+so an unreachable server still leaves no live credential on a device the user
+believes they have signed out of. A bare logout call with a network failure
+between the two steps leaves a token behind.
 
 ### 2.3 Token lifetimes, and the OTP attempt rules
 
@@ -432,11 +359,10 @@ a different answer and deserves different UI copy.
 
 ### 2.4 The Dio client and its interceptors
 
-The package owns the `Dio`, its timeouts, its `validateStatus`, the bearer header
+The client owns the `Dio`, its timeouts, its `validateStatus`, the bearer header
 and the refresh. You construct it once (section 11 shows where).
 
-**It is not one `Dio`.** There are three, and each exists for a structural reason
-documented in `packages/sehatly_api_client/lib/src/client.dart`:
+**It is not one `Dio`.** There are three, and each exists for a structural reason:
 
 | instance | interceptors | why it is separate |
 | --- | --- | --- |
@@ -454,28 +380,16 @@ The behaviour that matters to you:
 - **Rotation is a one-shot.** The server revokes the presented refresh token on
   every use, so a client that retries a refresh with the same token gets a **401**,
   and the server's answer to that is to revoke **every** live refresh token for
-  the account. A 401 from the refresh path is therefore **terminal**: the package
-  clears both stores and fires `onSessionExpired` exactly once. Route to login.
-- **Only some requests are replayable.** `AuthApi` opts individual `POST`s in
-  (`allowUnsafeRetry: true`) because replaying a non-idempotent write is worse
-  than a 401. If you add your own endpoint through `client.transport`, decide the
-  same thing explicitly.
+  the account. A 401 from the refresh path is therefore **terminal**: clear both
+  stores yourself and route to login. Do not retry it, and fire your
+  session-expired hook exactly once.
+- **Only some requests are replayable.** Opt individual `POST`s in explicitly,
+  because replaying a non-idempotent write is worse than a surfaced 401. Decide it
+  per endpoint as you add one, rather than defaulting to replaying everything.
 
-```dart
-final client = SehatlyApiClient.secure(
-  backend: secureBackend,
-  environment: SehatlyEnvironment.staging,
-  onSessionExpired: (ApiException error) {
-    // Fires once, when the session is unrecoverable. Clear navigation state
-    // and send the user to the OTP screen. Do not retry.
-    Get.offAllNamed('/login');
-  },
-);
-```
-
-`onSessionExpired` defaults to a no-op, which is deliberate: it fires from inside
-a `catch` in an interceptor on whatever request happened to be in flight, and
-there is nobody there to receive an exception.
+Whatever hook you fire for a dead session should default to a no-op, deliberately:
+it fires from inside a `catch` in an interceptor on whatever request happened to
+be in flight, and there is nobody there to receive an exception.
 
 ---
 
@@ -495,65 +409,12 @@ it is the keychain. A bearer token in an unencrypted file is readable by any app
 with storage access on an old Android, and readable regardless on a rooted
 device.
 
-The package encodes this in the type system rather than in a comment. There are
-two constructors, not one with a flag:
-
-```dart
-// A shipping app. `backend` must be a SecureKeyValueBackend, so a plain map
-// does not compile.
-final client = SehatlyApiClient.secure(
-  backend: FlutterSecureStorageBackend(),
-  environment: SehatlyEnvironment.production,
-);
-
-// A desktop build, a CLI script, a unit test. The acknowledgement is a named
-// parameter, so "I meant this" is a line in a diff rather than an assumption.
-final desktopClient = SehatlyApiClient.plain(
-  backend: backend,
-  allowInsecureStorage: true,
-  environment: SehatlyEnvironment.local,
-);
-```
-
-`allowInsecureStorage` is a **required** named argument. Omitting it is a compile
-error; that is the mechanism.
+Encode this in the type system rather than in a comment: two distinct
+constructors, not one with a boolean flag. Make the insecure choice require an
+explicit `allowInsecureStorage: true` at the call site, so "I meant this" is a
+line in a diff rather than an assumption nobody made.
 
 ### 3.2 The `flutter_secure_storage` adapter
-
-```dart
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:sehatly_api_client/sehatly_api_client.dart';
-
-class FlutterSecureStorageBackend implements SecureKeyValueBackend {
-  FlutterSecureStorageBackend([FlutterSecureStorage? storage])
-    : _storage =
-          storage ??
-          const FlutterSecureStorage(
-            aOptions: AndroidOptions(encryptedSharedPreferences: true),
-            iOptions: IOSOptions(
-              accessibility: KeychainAccessibility.first_unlock,
-            ),
-          );
-
-  final FlutterSecureStorage _storage;
-
-  @override
-  String get description => 'flutter_secure_storage';
-
-  @override
-  Future<String?> read(String key) => _storage.read(key: key);
-
-  @override
-  Future<void> write(String key, String value) =>
-      _storage.write(key: key, value: value);
-
-  @override
-  Future<void> delete(String key) => _storage.delete(key: key);
-
-  @override
-  Future<void> deleteAll() => _storage.deleteAll();
-}
-```
 
 `KeychainAccessibility.first_unlock` is deliberate, not a default you inherited: a
 background fetch that wakes the app while the device is still locked must be able
@@ -579,12 +440,12 @@ general hygiene.
 
 ### 3.4 The two keys, and the interface you can swap
 
-The package writes two namespaced keys -- `sehatly.access_token` and
+Write two namespaced keys -- `sehatly.access_token` and
 `sehatly.refresh_token` -- so a shared keychain cannot collide with an unrelated
-value. The interfaces are `TokenStore` and `RefreshTokenStore`, separate types on
-purpose: the two tokens have different lifetimes and different blast radii, and
-"clear the session" is not expressible as two independent `clear()` calls without a
-caller that remembers to do both. Implement both, or use
+value. Model the two as separate types on purpose: the tokens have different
+lifetimes and different blast radii, and "clear the session" is not expressible as
+two independent `clear()` calls without a caller that remembers to do both.
+Implement both, or use
 `InMemoryKeyValueBackend` for a test.
 
 ---
@@ -619,11 +480,11 @@ Every failure under the API is rendered by a single callback in
 - `errors` is `{}` -- an empty object, never `[]` -- for every 401, 403, 404 and
   sanitised 500. An empty `errors` is a normal state, never a parse failure.
 
-The package parses all of this into `ApiException` (aliased `ApiError`) with
-`statusCode`, `message`, `errors`, `method`, `path` and the underlying
-`DioException`, plus the helpers `isValidationError`, `isUnauthorized`,
-`isForbidden`, `isNotFound`, `isTooManyRequests`, `isServerError`,
-`isNetworkError`, `isSlotTaken` and `isConsentRequired`.
+Parse all of this into one typed error carrying `statusCode`, `message`, `errors`,
+`method` and `path`, plus the helpers a caller actually reaches for:
+`isValidationError`, `isUnauthorized`, `isForbidden`, `isNotFound`,
+`isTooManyRequests`, `isServerError`, `isNetworkError`, `isSlotTaken` and
+`isConsentRequired`.
 
 ### 4.2 Every status the API returns
 
@@ -656,16 +517,16 @@ without it the server answers 403 and leaves no rows behind. The refusal message
 is a **constant on purpose** -- naming the missing consent kind would confirm to
 the doctor a fact about the *patient* they did not have before asking.
 
-`ApiException.isConsentRequired` matches on a 403 plus either a consent key in
-`errors` or one of `consent`, `persetujuan`, `setuju`, `pdp` in the message, so
-you do not have to match on the message text yourself. **401 always precedes 403**,
+`isConsentRequired` matches on a 403 plus either a consent key in `errors` or one
+of `consent`, `persetujuan`, `setuju`, `pdp` in the message, so you do not have to
+match on the message text yourself. **401 always precedes 403**,
 including on a route whose only guard is a `permission:` one, so an unauthenticated
 caller gets the 401 envelope and never the 403 envelope.
 
 ### 4.4 Decision tree
 
 ```text
-on ApiException e
+on ApiFailure e
 |-- e.isNetworkError ............... statusCode 0: retry with backoff, never prompt for login
 |-- e.isUnauthorized
 |  |-- the failing path is the refresh path ... session over: clear, route to login, do not retry
@@ -713,7 +574,7 @@ top-level key** -- not nested inside `data`:
 | --- | --- |
 | `per_page` | the page size the server **applied**, after its cap. A request for `per_page=500` answers `per_page: 100`. Render `meta.per_page`, never the value you asked for |
 | `from` / `to` | `null` on an empty page, never `0`. `from: 0` renders as "0-0 of 0" and reads as a bug to a user |
-| `meta` | **absent** on a single-resource response, not `null`. `ApiEnvelope.isPaginated` distinguishes the two |
+| `meta` | **absent** on a single-resource response, not `null`. Test for presence, not `null` -- the two states are genuinely different |
 
 ### 5.2 The cap, and the unpaged lists
 
@@ -721,7 +582,7 @@ top-level key** -- not nested inside `data`:
 unpaged and answer the degenerate block `current_page: 1, last_page: 1`:
 `GET /api/v1/auth/devices` and `GET /api/v1/master-spesialisasi`. An account has a
 handful of devices, and a pager over them would be one disabled button. The
-package's `Paginated<T>` holds all three real states -- a single resource with no
+Your pagination model must hold all three real states -- a single resource with no
 `meta`, a real page, and a degenerate one -- so one call site handles all of them.
 
 ### 5.3 The one ascending list
@@ -732,38 +593,6 @@ that renders newest-first is a transcript that reads backwards, and the message
 you are looking at is the one at the bottom. Do not reverse it client-side; the
 ascending order is also the order the realtime backfill arrives in, so reversing
 one and not the other duplicates and reorders.
-
-```dart
-Future<void> main() async {
-  // The consultation is in the path, so `per_page` is the only query
-  // parameter. The rows arrive under `data.pesan` and `meta` is a top-level
-  // sibling of `data`, never nested inside it.
-  final ApiEnvelope<Object?> page = await client.transport.get<Object?>(
-    apiv1konsultasiidchat,
-    queryParameters: <String, Object?>{'per_page': 50},
-    parseData: parseDataObject,
-  );
-
-  final List<Object?> rows = jsonList(page.dataMap['pesan']);
-  final ApiMeta? meta = page.pagination;
-
-  if (meta == null || !meta.hasNextPage) {
-    return;
-  }
-
-  // Ask for the next page. `meta.perPage` is the size the server APPLIED.
-  final ApiEnvelope<Object?> next = await client.transport.get<Object?>(
-    apiv1konsultasiidchat,
-    queryParameters: <String, Object?>{
-      'per_page': meta.perPage,
-      'page': meta.nextPage,
-    },
-    parseData: parseDataObject,
-  );
-
-  rows.addAll(jsonList(next.dataMap['pesan']));
-}
-```
 
 ---
 
@@ -879,21 +708,6 @@ will render is not the place to accept arbitrary executables under a `dokumen`
 label. `isi` is bounded at 16000 characters, which is under `TEXT`'s 65535-**byte**
 ceiling so a long message is a 422 you can read rather than a 500 you cannot.
 
-```dart
-Future<void> main() async {
-  final FormData form = FormData.fromMap(<String, Object?>{
-    'tipe_pesan': 'gambar',
-    'isi': 'Ini hasil rontgen saya.',
-    'berkas': await MultipartFile.fromFile(path, filename: 'rontgen.jpg'),
-  });
-
-  final Response<Object?> response = await client.dio.post<Object?>(
-    apiv1konsultasiidchat,
-    data: form,
-  );
-}
-```
-
 `konsultasi_id`, `pengirim_user_id`, `pengirim_tipe`, `dibaca_at` and
 `terkirim_at` are all `prohibited` on this request: the consultation is in the
 path and the sender and the timestamps are the server's to write. Sending them is
@@ -971,11 +785,11 @@ calls `withBroadcasting()`, `routes/channels.php` declares the one channel, and
 path works with `BROADCAST_CONNECTION=null`, and that independence is the point:
 stopping the broker degrades delivery, it does not break the API.
 
-`laravel_reverb` is **not** a dependency of the Dart package, and
-`RealtimeSocket` is the seam you implement. The package's README carries a
-`pusher_channels_flutter` adapter; it is a starting point, not a locked-in choice,
-because both Reverb and Soketi speak the Pusher protocol. Running the broker
-locally is three processes, and the Module 3 summary has the commands
+`laravel_reverb` is a **server** dependency and nothing else: the client speaks the
+Pusher protocol over its own transport, which is the seam you implement.
+`pusher_channels_flutter` is a starting point, not a locked-in choice, because both
+Reverb and Soketi speak that protocol. Running the broker locally is three
+processes, and the Module 3 summary has the commands
 ([Realtime: kanal privat per konsultasi](modules/modul-3-konsultasi-rekam-medis.md#realtime-kanal-privat-per-konsultasi)).
 
 ### 9.2 Channel naming -- the two strings are different
@@ -1002,7 +816,8 @@ Authorisation is `GET|POST /api/broadcasting/auth`, and it needs the
 `Authorization: Bearer` header. A request carrying only a subscription and no
 bearer is refused, and a refusal on a session-authenticated route would be a
 redirect or a 419 with no error anywhere -- which is why the endpoint is named as
-a constant in the package (`broadcastAuthEndpoint`).
+the single place in your app that names it (`BROADCAST_AUTH_ENDPOINT`), rather than
+a string literal spread across call sites.
 
 ### 9.3 The event and its payload
 
@@ -1013,50 +828,26 @@ is the same already-serialised array the REST history
 endpoint returns, passed in by the caller. The wire key is **`konsultasi_id`**, not
 `konsultasi`: a resource serialises a model's attributes, so a model whose column
 is `konsultasi_id` publishes `konsultasi_id`, and a client reading `konsultasi`
-scores every message in the transcript as consultation `0`. There is a Dart test
-pinning that key for exactly that reason.
+scores every message in the transcript as consultation `0`. Read `konsultasi_id`.
 
 ### 9.4 Three protocol facts that shape the client
 
 1. **The broker does not replay.** A message broadcast while the socket was down
    is not buffered for you. The gap has to be closed over REST by the caller, and
-   `RealtimeClient.onResync` is the hook: return the rows for the channels that
-   were missed, and anything already seen is withheld automatically.
+   your reconnect hook is the place: return the rows for the channels that
+   were missed, and drop anything already seen when you merge.
 2. **A re-subscribe can re-deliver.** Re-sending the subscribe makes the broker
    replay whatever it considers in flight, so the same
    `konsultasi_chat.id` can arrive twice. Dedupe is keyed on **the message's own
    primary key**, never on arrival order and never on `konsultasi_id` (which every
-   message in one transcript shares). The package's set is bounded at 500 ids,
-   oldest evicted, and `duplicateSuppressedCount` is the honest count of what was
-   withheld. A frame with no id is **delivered rather than swallowed** -- it
+   message in one transcript shares). Bound the set -- 500 ids is enough in
+   practice, oldest evicted -- and keep an honest count of what you withheld, so a
+   silence is visible rather than assumed. A frame with no id is **delivered rather than swallowed** -- it
    cannot be deduplicated, and swallowing it loses a message.
 3. **An authorisation failure is a normal outcome.** A revoked consultation, a
    signed-out session and a rate-limited auth endpoint all surface as a refused
    subscribe, and one refused channel must not silence the others on the same
    connection.
-
-```dart
-Future<void> main() async {
-  final RealtimeClient realtime = RealtimeClient(
-    socket: PusherRealtimeSocket(
-      host: 'reverb.example.test',
-      port: 8080,
-      appKey: reverbAppKey,
-      secret: reverbSecret,
-    ),
-    storage: client.storage,
-    onResync: (RealtimeResync gap) async {
-      // The broker replayed nothing, so the gap is closed over REST.
-      return fetchChatHistory(konsultasiId: currentKonsultasiId);
-    },
-    onFailure: (String reason) => log.warning('realtime: $reason'),
-  );
-
-  realtime.messages.listen(render);
-  await realtime.subscribeKonsultasi(konsultasiId: 5);
-  realtime.connect();
-}
-```
 
 `connect()` is separate from `subscribe` on purpose: a subscribe is authorised
 over HTTP, so a transport that opened its socket inside that `await` would hold a
@@ -1088,23 +879,6 @@ first, and `DELETE /api/v1/auth/devices/{deviceId}` deactivates one. The row is
 deactivated, never deleted -- `user_devices` is the only record of which
 installations hold a push registration. A `device_id` belonging to another account
 is a **404, not a 403**, because a 403 would confirm it exists.
-
-```dart
-Future<void> main() async {
-  final PushRegistration registration = PushRegistration(
-    auth: client.auth,
-    provider: FirebasePushProvider(),
-    platform: DevicePlatform.android,
-    appVersi: '1.4.2',
-    onRegistered: (UserDevice row) => log.info('device ${row.deviceId}'),
-    onFailed: (ApiException error) => log.warning('refused: ${error.message}'),
-    onWarning: (String reason) => log.warning('device side: $reason'),
-  );
-
-  await registration.register(deviceId: installationId);
-  registration.start();
-}
-```
 
 Two things about that call that are not obvious:
 
@@ -1176,14 +950,14 @@ The notification surface itself is REST, not realtime:
 
 ## 11. Contoh integrasi dengan GetX
 
-The mobile team builds with GetX, and re-deriving how to wrap
-`sehatly_api_client` is exactly the rework this section exists to prevent.
+The mobile team builds with GetX, and re-deriving how to layer a controller over
+this API is exactly the rework this section exists to prevent.
 
-**Two rules for everything in this section.** The controller calls
-`sehatly_api_client` and **nothing else** -- it never constructs a network client
-and never imports an HTTP package, so the bearer header, the single-flight refresh
-and the typed error cannot be bypassed by accident. And the storage split from
-section 3 is the same split in GetX terms.
+**Two rules for everything in this section.** One layer owns the network: a single
+client constructed once and reached with `Get.find`, so it never constructs a
+network client per controller and never imports an HTTP package directly -- the
+bearer header, the single-flight refresh and the typed error cannot be bypassed by
+accident. And the storage split from section 3 is the same split in GetX terms.
 
 The examples use the `Bindings` + `void dependencies()` + `Get.lazyPut` API of
 `get: ^4.7.3`. The 5.0.0 release candidate deprecates `Bindings` and
@@ -1192,31 +966,34 @@ in a stable release, so pinning `^4.7.3` in the consuming app is part of
 following this example. If you upgrade to a 5.x release candidate you will be
 rewriting these call sites; that is the trade, made knowingly.
 
+`ApiService`, `ApiFailure`, `TokenPair` and `User` below are the mobile team's own
+types -- this repository ships no client, so the names are the shape of what you
+must provide, not imports you can copy. What the snippets do pin down is the
+*wiring*: where the client is constructed, how many of them exist, and which layer
+is allowed to make an HTTP call.
+
 ### 11.1 The bindings -- one client, constructed once
 
 ```dart
 import 'package:get/get.dart';
-import 'package:sehatly_api_client/sehatly_api_client.dart';
 
 class AuthBinding extends Bindings {
-  AuthBinding({required this.backend});
+  AuthBinding({required this.api});
 
-  final SecureKeyValueBackend backend;
+  /// The single HTTP layer, built once at app start and injected here.
+  /// You write this class -- section 2 says what it owns and section 10 says
+  /// how it is shaped.
+  final ApiService api;
 
   @override
   void dependencies() {
     // The ONE client. Every screen reaches it through Get.find, so there is one
-    // Dio, one connection pool, one interceptor chain and one token store for
-    // the whole app. Building a second client would build a second
-    // RefreshCoordinator, which is two single-flights -- the bug the package
-    // exists to prevent.
-    Get.lazyPut<SehatlyApiClient>(
-      () => SehatlyApiClient.secure(
-        backend: backend,
-        environment: SehatlyEnvironment.staging,
-        onSessionExpired: (ApiException _) => Get.offAllNamed('/login'),
-      ),
-    );
+    // interceptor chain, one connection pool, one token store and one refresh
+    // coordinator for the whole app. A second instance means two single-flights
+    // racing to rotate the same refresh token, and the server revokes the token
+    // the loser presented -- which revokes every live refresh token for the
+    // account. That is the bug this binding exists to make impossible.
+    Get.lazyPut<ApiService>(() => api);
 
     Get.lazyPut<AuthController>(AuthController.new);
   }
@@ -1227,10 +1004,9 @@ class AuthBinding extends Bindings {
 
 ```dart
 class AuthController extends GetxController {
-  AuthController({SehatlyApiClient? client})
-    : _client = client ?? Get.find<SehatlyApiClient>();
+  AuthController({ApiService? api}) : _api = api ?? Get.find<ApiService>();
 
-  final SehatlyApiClient _client;
+  final ApiService _api;
 
   static const String destination = '/';
 
@@ -1249,14 +1025,14 @@ class AuthController extends GetxController {
 
     try {
       // Step one of two. This call mints an OTP and returns NO token.
-      await _client.auth.login(
+      await _api.login(
         password: password,
         noTelepon: identifier.startsWith('0') ? identifier : null,
         email: identifier.contains('@') ? identifier : null,
       );
 
       stage.value = AuthStage.awaitingOtp;
-    } on ApiException catch (error) {
+    } on ApiFailure catch (error) {
       _fail(error);
     }
   }
@@ -1268,31 +1044,39 @@ class AuthController extends GetxController {
     try {
       // Step two. The ONLY endpoint in the API that mints a token. `kode` is a
       // String, not an int: it may begin with 0.
-      final VerifyOtpResult verified = await _client.auth.verifyOtp(
+      final TokenPair verified = await _api.verifyOtp(
         kode: kode,
         tujuan: OtpTujuanDiterbitkan.login,
         noTelepon: pendingIdentifier,
       );
 
-      await _client.persistSession(verified.token);
+      await _api.saveTokens(verified);
 
-      user.value = await _client.me.show();
+      user.value = await _api.me();
       stage.value = AuthStage.done;
       Get.offAllNamed(destination);
-    } on ApiException catch (error) {
+    } on ApiFailure catch (error) {
       _fail(error);
     }
   }
 
   Future<void> signOut() async {
     stage.value = AuthStage.busy;
-    await _client.signOut();
-    user.value = null;
-    stage.value = AuthStage.idle;
+
+    try {
+      await _api.logout();
+    } finally {
+      // Clear both stores even when the call above threw: an unreachable server
+      // must still leave no credential on a device the user signed out of.
+      await _api.clearTokens();
+      user.value = null;
+      stage.value = AuthStage.idle;
+    }
+
     Get.offAllNamed('/login');
   }
 
-  void _fail(ApiException error) {
+  void _fail(ApiFailure error) {
     // `errors` maps a field to a LIST. Render every entry: a chat message with
     // a file attached produces two messages on the same field, and taking
     // [0] silently drops half the reason.
@@ -1323,19 +1107,19 @@ look the same everywhere:
 
 ### 11.3 The storage split in GetX terms
 
-| value | GetX term | the package's interface |
+| value | where it lives | who may touch it |
 | --- | --- | --- |
-| access token | `flutter_secure_storage` | `TokenStore` |
-| refresh token | `flutter_secure_storage` | `RefreshTokenStore` |
-| theme, locale, cached profile, FCM token | `GetStorage` | not the package's business |
-| FCM lifecycle | `firebase_messaging` | `PushTokenProvider` |
+| access token | `flutter_secure_storage` | only your HTTP layer -- it attaches the bearer and drives the refresh |
+| refresh token | `flutter_secure_storage` | the same store as the access token, never a second one; they rotate together or the reuse rule revokes the account's |
+| theme, locale, cached profile, FCM token | `GetStorage` | the app; the HTTP layer must never read this box |
+| FCM lifecycle | `firebase_messaging` | your app, which posts the token as `fcm_token` on `POST /api/v1/auth/devices` after login and again on every FCM rotation |
 
-`GetStorage` is deliberately **not** in the package's dependency list, for the
-same reason `flutter_secure_storage` is not: both are your app's plugins, and
-depending on them would make the package untestable without the Flutter SDK. The
-split itself is already encoded -- `SehatlyApiClient.secure` requires a
-`SecureKeyValueBackend` by type, and `SehatlyApiClient.plain` requires a
-`PlainKeyValueBackend` **plus** an explicit `allowInsecureStorage: true`.
+`GetStorage` is deliberately **not** a server-side dependency, for the same reason
+`flutter_secure_storage` is not: both are your app's plugins. The split itself is
+a type rule, not a convention -- the secure store accepts only a backend typed as
+one, and the plain store accepts only a backend typed as one **plus** an explicit
+`allowInsecureStorage: true` at the call site. A token handed to the plain store
+therefore will not compile.
 
 ```dart
 Future<void> main() async {
@@ -1365,7 +1149,7 @@ subtly wrong answer that no type check and no test catches.
 | referral discounts | `is_rujukan` and `is_konsultasi_lanjutan` are stored boolean flags and **never** produce an automatic discount | never apply a client-side discount for either flag |
 | a referral letter | `surat_rujukan` requires an **approved** `berbagi_data_medis` PDP consent; without it the server answers **403** and writes no rows | on `isConsentRequired`, start the consent flow. Do not retry the letter |
 | drug-interaction warnings | advisory. The server returns them in the response and does not block. A `kontraindikasi` item requires a non-empty `catatan_dokter` | surface the warnings; do not gate checkout on them |
-| payment state | webhook state changes **asynchronously** | poll. Note: the plan names `GET /api/v1/invoice/{id}` and **that endpoint does not exist**; the pollable authenticated read for an order is `GET /api/v1/pesanan-obat/{id}` |
+| payment state | webhook state changes **asynchronously** | poll. `GET /api/v1/invoice/{id}` (permission `pembayaran.bayar`, `InvoicePolicy` checked) and `GET /api/v1/pesanan-obat/{id}` are both registered reads -- poll the one the screen is actually about |
 | stock | decremented **server-side at payment**, not at checkout | a total you displayed before payment can legitimately differ from the post-payment order state. Re-render from the order, never from your own arithmetic |
 | a patient row | created in the same transaction as the `users` row, which is why register requires `jenis_kelamin`, `tanggal_lahir` and `alamat_lengkap` | do not defer those fields to the profile screen; a patient with no `pasien` row cannot book |
 | record amendment | the amendment chain is reconstructed by grouping on `(pasien_id, dokter_id, tanggal_periksa)`, because the schema has **no** parent/amendment column | render the chain from the grouping, and do not invent a parent id |
@@ -1374,237 +1158,84 @@ subtly wrong answer that no type check and no test catches.
 
 ## 13. Endpoint cookbook
 
-The package wraps the **Module 1** surface with typed endpoint classes:
-`client.auth`, `client.me`, `client.pasien` and `client.dokter`. Everything in
-Modules 2 to 5 is reachable, and every path exists as a constant in
-`packages/sehatly_api_client/lib/src/generated/paths_table.dart`, but there is no
-hand-written wrapper class for it yet -- call those through `client.transport`,
-which still gives you the bearer header, the single-flight refresh and the typed
-`ApiException`.
+Everything in the cookbook below is a plain HTTP request against the published
+OpenAPI contract -- there is no wrapper layer you must adopt. Every path is listed
+in [`docs/openapi.yaml`](openapi.yaml), and every one of them gives its rules,
+middleware and error map there, so read the operation before you write the call.
 
 ### 13.1 Module 1 -- auth, profile, directory
 
-```dart
-Future<void> main() async {
-  // Register. Returns no token; the OTP is in `data.otp`.
-  final RegisterResult registered = await client.auth.register(
-    namaLengkap: 'Siti Aminah',
-    noTelepon: '08123456789',
-    password: 'a-long-enough-password',
-    jenisKelamin: JenisKelamin.p,
-    tanggalLahir: '1994-03-17',
-    alamatLengkap: 'Jl. Merdeka No. 12, Jakarta',
-  );
-
-  // Login. Returns no token either.
-  final LoginResult login = await client.auth.login(
-    password: 'a-long-enough-password',
-    noTelepon: '08123456789',
-  );
-
-  // The only token in the API. Then persist it.
-  final VerifyOtpResult verified = await client.auth.verifyOtp(
-    kode: '014725',
-    tujuan: OtpTujuanDiterbitan.login,
-    noTelepon: '08123456789',
-  );
-  await client.persistSession(verified.token);
-
-  // The caller's own account, with the patient and doctor relations loaded.
-  final User me = await client.me.show();
-
-  // The patient profile. `nik` and `nomor_kk` arrive MASKED; see section 8.
-  final PasienProfile profile = await client.pasien.profil();
-
-  // The public directory. Unauthenticated: it works with no session at all.
-  final Paginated<DokterListing> doctors = await client.dokter.index(
-    spesialisasi: 'kardiologi',
-    tersediaTelemedisin: true,
-    page: const PageQuery(page: 1, perPage: 20),
-  );
-
-  // A doctor, their schedule and their bookable slots. All unauthenticated.
-  final DokterDetail detail = await client.dokter.show('7');
-}
-```
+| call | token | what it does that surprises people |
+| --- | --- | --- |
+| `POST /api/v1/auth/sign-up` | no | **returns no token.** The OTP rides out in `data.otp` outside production. Required: `nama_lengkap`, `no_telepon`, `password`, `jenis_kelamin`, `tanggal_lahir`, `alamat_lengkap` |
+| `POST /api/v1/auth/login` | no | **returns no token either.** It mints an OTP and stops. `password` plus one of `no_telepon` / `email` |
+| `POST /api/v1/auth/otp/verify` | no | **the only endpoint in the API that mints a token.** `kode` is a String, not an int -- it may begin with `0`. Persist the pair before you make any other call |
+| `GET /api/v1/me` | yes | the caller's own account, with the patient and doctor relations loaded |
+| `GET /api/v1/pasien/profil` | yes | `nik` and `nomor_kk` arrive **masked**; see section 8 |
+| `GET /api/v1/dokter` | **no** | the public directory. Query: `spesialisasi`, `tersedia_telemedisin`, and the usual `page` / `per_page` |
+| `GET /api/v1/dokter/{dokter}` | **no** | the doctor, their schedule and their bookable slots in one response |
 
 ### 13.2 Module 2 -- schedules, slots, booking
 
 All four are authenticated-or-public as the route table says: the directory and
 the slot reads are public, and the booking writes need a token and a
-`booking.buat` grant. They go through `client.transport`; the path constants come
-from the generated table.
+`booking.buat` grant.
 
-```dart
-Future<void> main() async {
-  // GET /api/v1/dokter/{dokter}/jadwal - public. The doctor is the path
-  // segment, so it is NOT a query parameter; this call takes none.
-  final ApiEnvelope<Object?> jadwal = await client.transport.get<Object?>(
-    apiv1dokterdokterjadwal,
-    anonymous: true,
-    parseData: parseDataObject,
-  );
-
-  // GET /api/v1/dokter/{dokter}/slot - public. `tanggal` is the only query
-  // parameter and it is REQUIRED. The server owns availability; render what it
-  // returns and do not compute a second opinion.
-  final ApiEnvelope<Object?> slots = await client.transport.get<Object?>(
-    apiv1dokterdokterslot,
-    queryParameters: <String, Object?>{'tanggal': '2026-10-05'},
-    anonymous: true,
-    parseData: parseDataObject,
-  );
-
-  // POST /api/v1/booking - authenticated, permission booking.buat.
-  // `dokter_id`, `tipe_layanan`, `tanggal_kunjungan` and `slot_mulai` are
-  // required. There is NO `slot_selesai` on the request -- the end time is the
-  // schedule window's -- and sending one is a 422. `pasien_id` is prohibited:
-  // the patient is the caller's own profile row. `tipe_layanan` is one of
-  // `chat`, `video_call`, `kunjungan_klinik`, `home_visit`.
-  final ApiEnvelope<Object?> booked = await client.transport.post<Object?>(
-    apiv1booking,
-    body: <String, Object?>{
-      'dokter_id': 7,
-      'jadwal_id': 31,
-      'tipe_layanan': 'video_call',
-      'tanggal_kunjungan': '2026-10-05',
-      'slot_mulai': '17:00:00',
-      'keluhan': 'Nyeri dada',
-    },
-    parseData: parseDataObject,
-  );
-}
-```
+| call | token | what it does that surprises people |
+| --- | --- | --- |
+| `GET /api/v1/dokter/{dokter}/jadwal` | **no** | the doctor is the path segment, so it is **not** a query parameter; this call takes none |
+| `GET /api/v1/dokter/{dokter}/slot` | **no** | `tanggal` is the only query parameter and it is **required**. The server owns availability -- render what it returns and do not compute a second opinion |
+| `POST /api/v1/booking` | yes + `booking.buat` | required: `dokter_id`, `tipe_layanan`, `tanggal_kunjungan`, `slot_mulai` (and `jadwal_id` for the window). There is **no `slot_selesai`** -- the end time belongs to the schedule window -- and sending one is a 422. `pasien_id` is `prohibited`: the patient is the caller's own profile row. `tipe_layanan` is one of `chat`, `video_call`, `kunjungan_klinik`, `home_visit` |
 
 ### 13.3 Module 3 -- consultation, chat, medical record
 
-```dart
-Future<void> main() async {
-  // POST /api/v1/konsultasi/mulai - the patient opens a consultation.
-  // Exactly one of `booking_id` or `dokter_id`, plus `tipe` (one of `chat`,
-  // `video_call`, `telepon`).
-  await client.transport.post<Object?>(
-    apiv1konsultasimulai,
-    body: <String, Object?>{'booking_id': 55, 'tipe': 'chat'},
-    parseData: parseDataObject,
-  );
-
-  // GET /api/v1/konsultasi/{id}/chat - the ONLY ascending list in the API.
-  // `per_page` is the only query parameter: the consultation is in the path,
-  // so `konsultasi_id` is NOT accepted here. The rows arrive under
-  // `data.pesan`.
-  final ApiEnvelope<Object?> history = await client.transport.get<Object?>(
-    apiv1konsultasiidchat,
-    queryParameters: <String, Object?>{'per_page': 50},
-    parseData: parseDataObject,
-  );
-
-  // POST /api/v1/konsultasi/{id}/chat/baca - read receipts. The body is empty:
-  // every field its FormRequest names is `prohibited`.
-  await client.transport.post<Object?>(
-    apiv1konsultasiidchatbaca,
-    body: <String, Object?>{},
-    parseData: parseDataObject,
-  );
-}
-```
+| call | token | what it does that surprises people |
+| --- | --- | --- |
+| `POST /api/v1/konsultasi/mulai` | yes | the patient opens a consultation. Exactly **one** of `booking_id` or `dokter_id`, plus `tipe` (one of `chat`, `video_call`, `telepon`) |
+| `GET /api/v1/konsultasi/{id}/chat` | yes | the **only ascending list in the API** -- everything else is newest-first. `per_page` is the only query parameter: the consultation is in the path, so `konsultasi_id` is **not** accepted here. Rows arrive under `data.pesan`, and the wire key is `konsultasi_id` |
+| `POST /api/v1/konsultasi/{id}/chat/baca` | yes | read receipts. The body is **empty**: every field its `FormRequest` names is `prohibited` |
 
 ### 13.4 Module 4 -- reference data, drug catalogue, PDP consent
 
 The fourteen `GET /api/v1/referensi/*` endpoints are the **only data endpoints
 callable without a token**, alongside the doctor directory, the OTP/login calls
 and the public letter verification. That is deliberate: a login-screen province
-picker must work before the user has a token. The full enum vocabulary is also
-baked into the package as compile-checked Dart enums in
-`packages/sehatly_api_client/lib/src/generated/enums.dart`, so you can build
-every dropdown from constants rather than string literals, and
+picker must work before the user has a token. The full enum vocabulary is
+published as [`docs/enums.json`](enums.json) -- every MySQL `ENUM` column and its
+values in declaration order -- so you can generate typed constants for each
+dropdown rather than scattering string literals, and
 [`docs/contract-conformance.md`](contract-conformance.md) is the PHP suite that
 holds real responses to the published schemas.
 
-```dart
-Future<void> main() async {
-  // GET /api/v1/referensi/provinsi - public, no token
-  final ApiEnvelope<Object?> provinces = await client.transport.get<Object?>(
-    apiv1referensiprovinsi,
-    anonymous: true,
-    parseData: parseDataObject,
-  );
-
-  // GET /api/v1/referensi/enums - the whole vocabulary in one call, public.
-  final ApiEnvelope<Object?> vocabulary = await client.transport.get<Object?>(
-    apiv1referensienums,
-    anonymous: true,
-    parseData: parseDataObject,
-  );
-
-  // GET /api/v1/obat/{id}/stok - authenticated. `{id}` is the drug; the only
-  // query parameters are `apotek_id` and `jumlah`.
-  final ApiEnvelope<Object?> stock = await client.transport.get<Object?>(
-    apiv1obatidstok,
-    queryParameters: <String, Object?>{'apotek_id': 3, 'jumlah': 10},
-    parseData: parseDataObject,
-  );
-
-  // POST /api/v1/pdp/persetujuan - grant the consent a referral letter needs.
-  // `versi_dokumen` is a STRING (max 20 characters), not a number.
-  await client.transport.post<Object?>(
-    apiv1pdppersetujuan,
-    body: <String, Object?>{
-      'jenis': 'berbagi_data_medis',
-      'disetujui': true,
-      'versi_dokumen': '2026-09-29',
-    },
-    parseData: parseDataObject,
-  );
-}
-```
+| call | token | what it does that surprises people |
+| --- | --- | --- |
+| `GET /api/v1/referensi/provinsi` | **no** | one of the fourteen reference reads; a login-screen province picker must work before there is a token |
+| `GET /api/v1/referensi/enums` | **no** | the whole enum vocabulary in one call -- the same lists [`docs/enums.json`](enums.json) publishes statically |
+| `GET /api/v1/obat/{id}/stok` | yes | `{id}` is the drug; the only query parameters are `apotek_id` and `jumlah` |
+| `POST /api/v1/pdp/persetujuan` | yes | grants the consent a referral letter needs. `versi_dokumen` is a **String** (max 20 characters), not a number |
 
 ### 13.5 Module 5 -- prescriptions, checkout, payment
 
-```dart
-Future<void> main() async {
-  // GET /api/v1/resep/{id}/cek-interaksi - advisory warnings, does not block.
-  // No query parameters: the prescription is in the path. The warnings arrive
-  // under `data.warning` and `data.warning_grup`, and `data.wajib_catatan`
-  // says whether the pharmacist's note is mandatory.
-  final ApiEnvelope<Object?> interactions = await client.transport.get<Object?>(
-    apiv1resepidcekInteraksi,
-    parseData: parseDataObject,
-  );
+| call | token | what it does that surprises people |
+| --- | --- | --- |
+| `GET /api/v1/resep/{id}/cek-interaksi` | yes | advisory warnings that **do not block**. No query parameters: the prescription is in the path. Warnings arrive under `data.warning` and `data.warning_grup`, and `data.wajib_catatan` says whether the pharmacist's note is mandatory |
+| `POST /api/v1/resep/{id}/checkout` | yes + `pesanan.buat` | every field is **optional**; `items` is `prohibited`, because the prescription already fixed what is being bought. Takes `metode_id` and optionally `kode_promo` |
+| `POST /api/v1/invoice/{id}/bayar` | yes + `pembayaran.bayar` | the field is `metode_id`. The state changes **asynchronously** -- poll `GET /api/v1/pesanan-obat/{id}` or `GET /api/v1/invoice/{id}` afterwards rather than assuming it settled |
 
-  // POST /api/v1/resep/{id}/checkout - permission pesanan.buat. Every field is
-  // optional; `items` is `prohibited` because the prescription already fixed
-  // what is being bought.
-  final ApiEnvelope<Object?> checkout = await client.transport.post<Object?>(
-    apiv1resepidcheckout,
-    body: <String, Object?>{'metode_id': 4, 'kode_promo': 'HEMAT10'},
-    parseData: parseDataObject,
-  );
-
-  // POST /api/v1/invoice/{id}/bayar - permission pembayaran.bayar. The field is
-  // `metode_id`, and the state changes asynchronously; poll
-  // GET /api/v1/pesanan-obat/{id} after this rather than assuming it settled.
-  final ApiEnvelope<Object?> paid = await client.transport.post<Object?>(
-    apiv1invoiceidbayar,
-    body: <String, Object?>{'metode_id': 4},
-    parseData: parseDataObject,
-  );
-}
-```
-
-Every `POST` above that a network retry could duplicate carries
-`allowUnsafeRetry` in the package's own endpoints. When you add one through
-`client.transport`, pass `allowUnsafeRetry: true` **only** if the write is
-idempotent; a retried non-idempotent write is worse than a surfaced 401.
+Every `POST` above is a write a network retry could duplicate. Retry one **only**
+if the write is idempotent from the server's point of view: a retried
+non-idempotent write is worse than a surfaced 401, and the 409 you were trying to
+avoid is itself the useful answer.
 
 ### 13.6 Typed request bodies and enums
 
-Two generated files remove the two most common integration bugs:
+Two server-side facts remove the two most common integration bugs. Read both from
+the contract rather than transcribing them by hand:
 
-| file | what it gives you |
+| bug | where the server already says it |
 | --- | --- |
-| `packages/sehatly_api_client/lib/src/generated/request_bodies.dart` | every write endpoint's required fields as constructor parameters, so a missing required field is a **compile error** rather than a 422 |
-| `packages/sehatly_api_client/lib/src/generated/enums.dart` | a Dart `enum` for every MySQL `ENUM` column, in DDL declaration order, so an impossible status will not compile |
+| a missing required field, discovered as a 422 after the request went out | each operation's `requestBody` `required` list and property set in [`docs/openapi.yaml`](openapi.yaml) |
+| an impossible status value sent to a column that cannot hold it | the `enum` on that column's schema in [`docs/openapi.yaml`](openapi.yaml), and the same list in [`docs/enums.json`](enums.json) |
 
 Both are regenerated by `php artisan sehatly:openapi` from the live route table
 and drift-checked by `--check`, so neither can disagree with the server.
@@ -1615,14 +1246,14 @@ and drift-checked by `--check`, so neither can disagree with the server.
 
 | symptom | cause | what to do |
 | --- | --- | --- |
-| 401 immediately after a successful OTP verify | the token pair was never persisted -- `verifyOtp` does not write storage | call `client.persistSession(verified.token)` |
-| an infinite 401 loop | two `SehatlyApiClient` instances, so two `RefreshCoordinator`s, each rotating on its own | build the client once, in a binding, and reach it with `Get.find` |
+| 401 immediately after a successful OTP verify | the token pair was never persisted -- `verifyOtp` does not write storage, your client must | store `verified.token` yourself before you make any other call |
+| an infinite 401 loop | two client instances, so two refresh coordinators, each rotating on its own | build the client once, in a binding, and reach it with `Get.find` |
 | 401 on every request after a refresh that "worked" | you retried the refresh with the same token. The server revokes the presented refresh token on **every** use, and a reuse revokes **every** live refresh token for the account | treat a 401 from the refresh path as terminal. Clear storage and route to login; do not retry |
-| 403 on a private channel subscription | the subscribe went out without an `Authorization` header, or to a session-authenticated route that answered a redirect or a 419 | use `GET|POST /api/broadcasting/auth` through the package's constant, with the bearer header, and strip the `private-` prefix from the channel name on the way in |
-| a channel subscribes and never fires, with no error | you wrote `private-konsultasi.5` yourself, so the broker saw `private-private-konsultasi.5` | pass the **logical** name `konsultasi.5`; `RealtimeClient` adds the prefix |
-| duplicate messages in a transcript | a re-subscribe replayed frames in flight, or a REST backfill returned rows already delivered live | dedupe on `konsultasi_chat.id`. The package's bounded set is 500 ids and it delivers a frame with no id rather than swallowing it |
-| messages missing after a reconnect | **the broker does not replay.** Nothing was buffered for you | implement `onResync` and backfill over `GET /api/v1/konsultasi/{id}/chat` |
-| every message in a transcript shows consultation `0` | you read `konsultasi` and the wire key is **`konsultasi_id`** | rename the key. There is a Dart test pinning it |
+| 403 on a private channel subscription | the subscribe went out without an `Authorization` header, or to a session-authenticated route that answered a redirect or a 419 | use `GET|POST /api/broadcasting/auth` (exactly this path -- not `/api/v1/...`, not Echo's bare `/broadcasting/auth`), with the bearer header, and strip the `private-` prefix from the channel name on the way in |
+| a channel subscribes and never fires, with no error | you wrote `private-konsultasi.5` yourself, so the broker saw `private-private-konsultasi.5` | pass the **logical** name `konsultasi.5`; the client adds the `private-` prefix |
+| duplicate messages in a transcript | a re-subscribe replayed frames in flight, or a REST backfill returned rows already delivered live | dedupe on `konsultasi_chat.id`. Keep a bounded set -- 500 ids is enough in practice -- and **do not** swallow a frame that carries no id |
+| messages missing after a reconnect | **the broker does not replay.** Nothing was buffered for you | on reconnect, backfill over `GET /api/v1/konsultasi/{id}/chat` and merge on the same id |
+| every message in a transcript shows consultation `0` | you read `konsultasi` and the wire key is **`konsultasi_id`** | rename the key |
 | an empty doctor list | the directory only lists doctors eligible for telemedicine, verified, with a matching specialisation or search term | check `tersedia_telemedisin` and the `spesialisasi` value against `GET /api/v1/referensi/spesialisasi`; an unverified doctor is filtered server-side and the client cannot see them |
 | slots that never refresh | the page cached the slot list | re-read `GET /api/v1/dokter/{dokter}/slot` on focus, and after any failed booking, because a 409/422 on `slot` means the slot went |
 | a booking refused with a `slot` error | someone else took it; active bookings reached `kuota_per_sesi` | offer the next slot. Do not retry the same one |
@@ -1633,7 +1264,7 @@ and drift-checked by `--check`, so neither can disagree with the server.
 | a 422 that shows half the reason | `errors[field]` is a **list** and one field can carry several messages | render every entry, not `[0]` |
 | an OTP code that never matches | it was parsed as an integer, so a leading `0` was lost | `kode` is a `String` of exactly six digits |
 | a 403 that will not clear | a referral letter needs an approved `berbagi_data_medis` PDP consent | start the consent flow; the letter request will not succeed before it |
-| a payment that stays pending | the webhook is asynchronous | poll the order; note that the plan's `GET /api/v1/invoice/{id}` does not exist |
+| a payment that stays pending | the webhook is asynchronous | poll `GET /api/v1/pesanan-obat/{id}` or `GET /api/v1/invoice/{id}`. Both are registered; the invoice read additionally requires `permission:pembayaran.bayar` |
 | a 429 with no visible wait | the client ignored the headers | read `Retry-After`; the server also sets `X-RateLimit-Limit` and `X-RateLimit-Remaining` on both sides of the boundary |
 | the doctor directory works but every other call 401s | the directory is genuinely unauthenticated, so a working directory proves nothing about your token | check `client.currentAccessToken()` and that the interceptor is attached |
 | an endpoint 404s that `route:list` says exists | the base URL already ends in the API prefix and the path added it a second time | pass group-relative paths, or a constant from the generated paths table |
@@ -1653,8 +1284,10 @@ Every count in this document is read from the repository, not from the plan:
 
 The plan and the route table disagree in places, and where they do this document
 follows the route table and says so: the plan's error-catalogue list includes a
-`204` the API never returns; the plan's server-rules table sends the client to
-poll an invoice endpoint that is not registered. The generated contract
+`204` the API never returns. One earlier disagreement has since been closed by the
+API itself -- `GET /api/v1/invoice/{id}`, absent when this guide was written, was
+registered on 2026-10-01 behind `InvoicePolicy`, so the sentences that said it did
+not exist no longer stand. The generated contract
 ([`openapi.yaml`](openapi.yaml)) is the tie-breaker, and it is regenerated from
 the live route table with a drift check that fails the build when it disagrees.
 The remaining arithmetic, and the environment notes for this host, are in the

@@ -49,9 +49,9 @@ firebase-credentials.json
 storage/app/private/firebase/
 
 # Materi riset UX pihak ketiga (jangan di-commit)
-web/ux/refs/
-web/ux/evidence/**/*.png
-web/ux/evidence/**/*.jpg
-web/ux/evidence/**/*.jpeg
-web/ux/evidence/**/*.webp
+frontend/ux/refs/
+frontend/ux/evidence/**/*.png
+frontend/ux/evidence/**/*.jpg
+frontend/ux/evidence/**/*.jpeg
+frontend/ux/evidence/**/*.webp
 

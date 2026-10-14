@@ -312,7 +312,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
     | parties who may cancel - which is the audience a reschedule has. Adding
     | a 25th code would be a catalogue policy change for one route; that
     | option, and the reason it was not taken, is recorded in
-    | `web/ux/patterns/F12.md` section 12.
+    | `frontend/ux/patterns/F12.md` section 12.
     */
     Route::post('booking', [BookingController::class, 'store'])
         ->middleware(['permission:booking.buat', 'throttle:booking'])
@@ -1667,7 +1667,7 @@ use App\Http\Controllers\Api\V1\AdminPersetujuanPdpController;
 | application had ZERO admin routes: `dokter.lihat`, `jadwal.lihat`,
 | `audit.lihat` and `pdp.kelola` were catalogue codes with no consumer, and
 | `docs/openapi.yaml` published no `/admin` path at all. F14 is the backend the
-| F14 pattern (`web/ux/patterns/F14.md`) is blocked on.
+| F14 pattern (`frontend/ux/patterns/F14.md`) is blocked on.
 |
 | ## The sixteen, grouped by resource and registered literals-first
 |
@@ -1706,7 +1706,7 @@ use App\Http\Controllers\Api\V1\AdminPersetujuanPdpController;
 | except `pdp.kelola`, which is a management grant whose surface is deliberately
 | read-only. **No code that names a doctor or schedule MUTATION was approved**:
 | the F14 pattern's proposal for `dokter.kelola`/`jadwal.kelola` is an open
-| question in `web/ux/patterns/F14.md` section 12 item 1, and the owner did not
+| question in `frontend/ux/patterns/F14.md` section 12 item 1, and the owner did not
 | take it. The write routes are therefore authorised by the account type the
 | owner named as the audience - `tipe:admin,superadmin` - and carry no
 | `permission:` at all.

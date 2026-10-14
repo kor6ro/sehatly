@@ -1843,7 +1843,7 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         // the two parties who may cancel, which is the audience a schedule
         // move has. No code in the catalogue names schedule movement, and
         // adding a 25th is a policy change this task does not make; see
-        // `web/ux/patterns/F12.md` section 12.
+        // `frontend/ux/patterns/F12.md` section 12.
         "'permission:booking.lihat'",
         "'permission:booking.batal'",
         "'permission:booking.lihat'",
@@ -1994,7 +1994,7 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         // The eight F14 WRITES contribute NOTHING to this census, and that is a
         // decision rather than an omission: no code naming a doctor or schedule
         // MUTATION was approved (it is open question 1 in
-        // `web/ux/patterns/F14.md`), so the writes are guarded by the party gate
+        // `frontend/ux/patterns/F14.md`), so the writes are guarded by the party gate
         // alone rather than by a read code reused as a write grant. `pasien`,
         // `dokter` and `apoteker` all hold `dokter.lihat`, so reusing it on a
         // write would have widened the audience of a credential mutation.

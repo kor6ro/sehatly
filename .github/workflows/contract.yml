@@ -77,12 +77,12 @@ jobs:
       - name: ENUM catalogue is a fresh export
         run: php artisan sehatly:enums --check
 
-      - name: OpenAPI document and Dart types are a fresh export
+      - name: OpenAPI document is a fresh export
         run: php artisan sehatly:openapi --check
 
       - name: Install the OpenAPI type-generator toolchain
-        # Isolated from `web/` on purpose: openapi-typescript peers on
-        # typescript ^5 while `web/` compiles against typescript ^7. See
+        # Isolated from `frontend/` on purpose: openapi-typescript peers on
+        # typescript ^5 while `frontend/` compiles against typescript ^7. See
         # tools/openapi-types/README.md.
         run: npm --prefix tools/openapi-types ci
 
@@ -90,10 +90,10 @@ jobs:
         run: npm run types:generate
 
       - name: The regenerated types are byte-identical to the committed ones
-        run: git diff --exit-code -- web/src/types/api.d.ts
+        run: git diff --exit-code -- frontend/src/types/api.d.ts
 
       - name: Install the web client's dependencies
-        run: npm --prefix web ci --ignore-scripts
+        run: npm --prefix frontend ci --ignore-scripts
 
       - name: The generated TypeScript compiles
         run: npm run types:check
@@ -101,25 +101,11 @@ jobs:
       - name: Build the SPA
         run: npm run build
 
-      - name: Set up the Dart SDK
-        uses: dart-lang/setup-dart@v1
-        with:
-          sdk: '3.13.2'
-
-      - name: Resolve the Dart package
-        run: dart pub get --directory packages/sehatly_api_client
-
-      - name: Analyze the Dart package
-        run: dart analyze packages/sehatly_api_client
-
-      - name: Test the Dart package
-        working-directory: packages/sehatly_api_client
-        run: dart test
-
       - name: No Flutter app exists in this repository
-        # The plan's guardrail, as a real check rather than prose. The Dart
-        # package is pure Dart on purpose: a `flutter:` SDK constraint or a
-        # `flutter` dependency would make it untestable without the Flutter SDK.
+        # The plan's guardrail, as a real check rather than prose. This
+        # repository is a Laravel API plus a React SPA in `frontend/`; a
+        # `mobile/` directory, or a `flutter:` constraint in any `pubspec.yaml`,
+        # would be a new top-level app arriving without a decision.
         run: |
           test ! -e mobile
           ! grep -rn --include=pubspec.yaml -E '^\s+flutter:' .
@@ -216,13 +202,13 @@ jobs:
       - name: Install dependencies
         run: |
           npm ci --ignore-scripts
-          npm --prefix web ci --ignore-scripts
+          npm --prefix frontend ci --ignore-scripts
 
       - name: Types
         run: npm run types:check
 
       - name: Unit tests
-        run: npm --prefix web run test:unit
+        run: npm --prefix frontend run test:unit
 
       - name: Build
         run: npm run build

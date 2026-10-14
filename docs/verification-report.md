@@ -280,6 +280,11 @@ NONE
 
 ### Dart — `packages/sehatly_api_client`
 
+> **Note (2026-10-14): this package no longer exists.** `packages/` was removed
+> afterwards in favour of the web client as the sole front end, so the measurements
+> below record a state that has since passed. They are kept because they were true
+> when taken, not as a claim about the repository as it now stands.
+
 SDK at the path named in the brief, **not on PATH**:
 
 ```
@@ -310,7 +315,7 @@ the generator emits one collection element per line for byte determinism, and `d
 the enforced gate. I report it as an **open, accepted trade-off with a live exit code of 1**,
 not as a new defect.
 
-### Web — `web/`
+### Web — `frontend/`
 
 | Command | Exit | Result |
 | --- | --- | --- |
@@ -318,7 +323,7 @@ not as a new defect.
 | `npm run test:unit` | **0** | `tests 37 / suites 0 / pass 37 / fail 0 / cancelled 0 / skipped 0 / todo 0` — 37 named tests, **0 skipped** |
 | `npm run build` (`vite build`) | **0** | `✓ 3363 modules transformed.` / `dist/assets/index-BL2d11Un.js 1,097.26 kB │ gzip: 325.22 kB` / `✓ built in 1.15s` |
 
-`web/package.json` has exactly six scripts — `dev`, `build`, `preview`, `types:check`,
+`frontend/package.json` has exactly six scripts — `dev`, `build`, `preview`, `types:check`,
 `test:unit`, `test:e2e`. **All three that are runnable offline were run. `test:e2e`
 (`playwright test`) was NOT run — see §8.**
 
@@ -629,6 +634,9 @@ not a missing test; it is a missing writer.
 
 ### 7.4 The plan's Dart integration test does not exist
 
+> **Note (2026-10-14): moot.** `packages/` no longer exists, so there is no package
+> for this test to belong to. Kept as the record of a gap that was open at the time.
+
 The plan requires a fresh integration test at
 `packages/sehatly_api_client/test/integration/` exercising auth → booking → consultation →
 prescription → checkout **against the live server using only the package's public API**, and
@@ -705,8 +713,8 @@ Stated plainly rather than papered over:
 
 1. **No browser was driven at any point.** Playwright browser binaries were never downloaded
    (`docs/pre-existing-defects.md` §4 records `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1`; `npx playwright
-   install` was not run), so `web/`'s `test:e2e` script was **not executed**, no screenshot was
-   captured, and no `web/dist` UI state was verified in a browser. **Steps 7 and 12's UI halves are
+   install` was not run), so `frontend/`'s `test:e2e` script was **not executed**, no screenshot was
+   captured, and no `frontend/dist` UI state was verified in a browser. **Steps 7 and 12's UI halves are
    "not exercised".** I substituted two authenticated HTTP contexts for "two browser contexts",
    which is weaker and is labelled as such above.
 2. **No network log per step** was captured. I recorded status codes and response bodies, which is

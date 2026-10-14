@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Schema;
  *
  * `preferensi_notifikasi` holds ONE row per user: the quiet-hours half of the
  * F11 notification preferences. Permission approval is recorded in
- * `web/ux/patterns/F11.md` §12 and the DDL was APPENDED as section `[18]` at the
+ * `frontend/ux/patterns/F11.md` §12 and the DDL was APPENDED as section `[18]` at the
  * end of the reference file, so every pre-existing line citation is untouched.
  *
  * **What is deliberately NOT here.** There is no `in_app` column: in-app delivery

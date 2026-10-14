@@ -49,7 +49,7 @@ Lintas modul:
 - `App\Models\User.php`, `Pasien.php`, `Dokter.php`, `UserDevice.php`,
   `UserOtp.php`, `UserRefreshToken.php`, dan master terkait.
 
-Web (`web/`) dan mobile (`packages/`, `mobile/`): tidak ada berkas Modul 1
+Web (`frontend/`) dan mobile (`packages/`, `mobile/`): tidak ada berkas Modul 1
 (todo 23/24 belum dikerjakan).
 
 ## Tabel endpoint (22 route, semua terverifikasi)

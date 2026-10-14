@@ -20,15 +20,15 @@ use Symfony\Component\HttpFoundation\Response;
 | ## What the catch-all is, and what it deliberately is not
 |
 | The SPA is a **separate front-end project that happens to live in this
-| repository**: `web/`, with its own `package.json`, its own Vite 8 config, its
+| repository**: `frontend/`, with its own `package.json`, its own Vite 8 config, its
 | own `index.html` and its own `src/`. Todo 5 relocated the UI kit out of
-| `resources/js` into `web/src`, and todo 23 built Module 1 against it. It mounts
-| on `#root` from `web/src/main.tsx`, it proxies `/api` to this server from
-| `web/vite.config.ts:49-54`, and `web/dist` is its build output (gitignored, like
+| `resources/js` into `frontend/src`, and todo 23 built Module 1 against it. It mounts
+| on `#root` from `frontend/src/main.tsx`, it proxies `/api` to this server from
+| `frontend/vite.config.ts:49-54`, and `frontend/dist` is its build output (gitignored, like
 | `public/build`).
 |
 | So the catch-all does not *build* anything and does not *own* a bundle. It
-| serves the bytes `npm run build` in `web/` already produced. That is the whole
+| serves the bytes `npm run build` in `frontend/` already produced. That is the whole
 | design, and it is the reason the root Vite project could be deleted: there was
 | no second bundle to keep alive, and the one that did exist
 | (`public/build/manifest.json`, an entry named `resources/js/app.tsx`) had been
@@ -40,7 +40,7 @@ use Symfony\Component\HttpFoundation\Response;
 |
 | ## Why the two failures are different statuses
 |
-| Built: 200 with the real `web/dist/index.html`, so a deep link such as
+| Built: 200 with the real `frontend/dist/index.html`, so a deep link such as
 | `/dashboard/anything` boots the router. Not built: **503**, with the exact
 | command to run. A 200 carrying a placeholder page would be a lie a client
 | cannot detect; a 503 says the deployment is incomplete, which is what it is.
@@ -54,7 +54,7 @@ use Symfony\Component\HttpFoundation\Response;
 | failure scenario for this todo. `up` protects the health check, `build` and
 | `storage` protect the two `public/` directories Laravel publishes, and
 | `assets` is added to the plan's list because the route below needs to reach
-| `web/dist/assets`, which the built `index.html` addresses as absolute
+| `frontend/dist/assets`, which the built `index.html` addresses as absolute
 | `/assets/...` URLs.
 |
 | `broadcasting` and `sanctum` are kept even though neither is registered yet.
@@ -65,16 +65,16 @@ use Symfony\Component\HttpFoundation\Response;
 | ## Why the asset route exists at all
 |
 | Only for the same-origin deployment this file implements. In development the
-| SPA is served by `web/`'s own dev server on its own port, and in production a
-| static host serves `web/dist` directly - neither involves this application. When
+| SPA is served by `frontend/`'s own dev server on its own port, and in production a
+| static host serves `frontend/dist` directly - neither involves this application. When
 | Laravel does serve the shell, the absolute `/assets/...` URLs in the built HTML
 | have to resolve, and `public/` does not contain them. The route is deliberately
 | narrow: a single segment of the build, no `..`, no symlink traversal, and a
-| 404 for anything that is not a regular file inside `web/dist/assets`.
+| 404 for anything that is not a regular file inside `frontend/dist/assets`.
 |
 */
 
-$spaBuild = base_path('web/dist');
+$spaBuild = base_path('frontend/dist');
 
 /**
  * Stated by extension, not guessed from content.

@@ -63,7 +63,7 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
  * stored date plus a signed `sisa_hari` and two booleans, and the admin decides.
  * A date far in the future reads as "not expiring soon", which is the truthful
  * reading of the stored data. Recorded as an open question in
- * `web/ux/patterns/F14.md` section 12 item 4 and reported in this task's summary.
+ * `frontend/ux/patterns/F14.md` section 12 item 4 and reported in this task's summary.
  *
  * ## Verification is a one-way decision from `pending`
  *

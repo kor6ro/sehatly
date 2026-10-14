@@ -70,7 +70,7 @@ use Illuminate\Support\Collection;
  * The attendance report counts the three visit-lifecycle statuses the task
  * names: `check_in`, `selesai` and `no_show`. **`no_show` currently has NO
  * writer**: no endpoint moves a booking into it (recorded in
- * `web/ux/patterns/F14.md` and F13's open questions), so its count is always
+ * `frontend/ux/patterns/F14.md` and F13's open questions), so its count is always
  * zero on a live database and the key is published anyway - a key that vanishes
  * would make the field look unimplemented, while a zero whose meaning is
  * documented is the honest reading. When a writer ships, this report starts

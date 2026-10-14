@@ -447,8 +447,8 @@ class AuthController extends Controller
      * The two obvious ways to put it in front of the UI both fail in a way this
      * project already has a name for:
      *
-     * - **Copy `OTP_DRIVER` into the client build.** `web/vite.config.ts` sets no
-     *   `envDir`, so Vite reads `web/.env` and not the project `.env` a deployment is
+     * - **Copy `OTP_DRIVER` into the client build.** `frontend/vite.config.ts` sets no
+     *   `envDir`, so Vite reads `frontend/.env` and not the project `.env` a deployment is
      *   configured through; `VITE_APP_NAME` already sits in the latter, where Vite
      *   never reads it. Two files holding one fact is the same silent
      *   contract-versus-transport drift `PenjagaPengirimanProduksi` refuses at boot,

@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Route;
 | F09 -- the pharmacist verification queue: `GET /api/v1/resep`
 |--------------------------------------------------------------------------
 |
-| The gap this file closes is recorded in `web/ux/flows.md` F09: the
+| The gap this file closes is recorded in `frontend/ux/flows.md` F09: the
 | `ApotekerQueuePage` had no list endpoint, so a pharmacist typed a
 | prescription id by hand. `GET /api/v1/resep` is that list, and this file
 | proves the four properties a queue has to have:

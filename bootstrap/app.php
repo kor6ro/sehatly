@@ -64,10 +64,10 @@ return Application::configure(basePath: dirname(__DIR__))
             | `$attributes` is for.
             |
             | `prefix: api` and NOT `api/v1` is a contract fact, not a preference.
-            | The Dart client posts to `/api/broadcasting/auth`
-            | (`packages/sehatly_api_client/lib/src/realtime/realtime_socket.dart`),
-            | which is the framework's own default path, so moving the endpoint
-            | under `/api/v1` would 404 the only client this application has.
+            | The web client posts to `/api/broadcasting/auth`
+            | (`frontend/src/lib/echo.ts`, `BROADCAST_AUTH_ENDPOINT`), which is
+            | the framework's own default path, so moving the endpoint under
+            | `/api/v1` would 404 the client this application ships.
             |
             | `auth:sanctum` is what turns the endpoint from "anyone can ask"
             | into "a caller proves who they are first". The route is registered

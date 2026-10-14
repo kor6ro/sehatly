@@ -868,7 +868,7 @@ test('per_page defaults to 15 and 100 is accepted', function (): void {
 | F03 §4.4: the `?sort=` vocabulary and the recomputed review count
 |--------------------------------------------------------------------------
 |
-| The binding contract is `web/ux/patterns/F03.md` §4.4. Two owner decisions
+| The binding contract is `frontend/ux/patterns/F03.md` §4.4. Two owner decisions
 | shape every assertion below:
 |
 | 1. `?sort=` is a closed vocabulary; anything outside it is a 422, never a

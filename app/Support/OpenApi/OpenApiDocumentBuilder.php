@@ -279,7 +279,7 @@ final class OpenApiDocumentBuilder
             'deriving it would mean running the application -- not reading it. A client generated from this',
             'file gets the envelope, the auth scheme, the status codes, the error map and the request rules;',
             'the response shapes are the one thing a reader must confirm against',
-            '`packages/sehatly_api_client/lib/src/model/dto.dart`, which is hand-written and covered by tests.',
+            'the matching `app/Http/Resources/*` class, which is what the API actually returns.',
         ]);
     }
 

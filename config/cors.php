@@ -7,14 +7,14 @@ return [
     | Cross-Origin Resource Sharing (CORS) Configuration
     |--------------------------------------------------------------------------
     |
-    | `web/vite.config.ts` proxies `/api` to http://localhost:8000, so a browser
+    | `frontend/vite.config.ts` proxies `/api` to http://localhost:8000, so a browser
     | loading the SPA never issues a cross-origin API call and this config is
     | not on the web dev path. It is still mandatory for two real clients: the
     | Flutter app (todo 45) hits http://localhost:8000 directly from a different
     | origin, and any `fetch` from a page served on the API's own origin during
     | testing must not be rejected.
     |
-    | The dev origins below were read out of `web/vite.config.ts`, not guessed.
+    | The dev origins below were read out of `frontend/vite.config.ts`, not guessed.
     | That file declares `server.proxy` for `/api` but sets neither `server.port`
     | nor `server.origin`, so Vite serves the SPA on its default 5173. Because it
     | also leaves `strictPort` off, Vite walks forward to 5174 (and beyond) when

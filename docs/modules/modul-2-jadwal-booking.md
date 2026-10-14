@@ -27,7 +27,7 @@ Hasilnya 22 route, semuanya milik Modul 1: auth, `/me`, `/pasien/*`,
 | `app/Models/Booking.php` | ada (todo 19) | memetakan `booking`, `:498-534` |
 | `tests/Feature/Dokter/SlotAvailabilityTest.php` | ada (todo 26) | 37 test, 285 asersi |
 | controller, route, FormRequest, Resource Modul 2 | belum ada | todo 27 |
-| `web/src/features/booking/` | belum ada | todo 28 |
+| `frontend/src/features/booking/` | belum ada | todo 28 |
 | seeder atau factory `dokter_jadwal` dan `dokter_libur` | tidak ada, dan memang tidak boleh ada | bagian 6.1 |
 
 ## 2. Permukaan yang sudah jadi: service, bukan endpoint
@@ -127,7 +127,7 @@ tidak mengulangnya supaya tidak basi setiap kali suite bertambah test.
 - **Tidak ada controller, FormRequest, Resource, atau pemakaian `ApiResponse`**
   untuk Modul 2.
 - **Sisi React belum ada.** Todo 28, yaitu kalender, pemilih slot, form booking,
-  dan daftar booking, belum dikerjakan; `web/src/features/booking/` tidak ada.
+  dan daftar booking, belum dikerjakan; `frontend/src/features/booking/` tidak ada.
 - **Tidak ada seeder dev untuk Modul 2**, jadi direktori dokter tidak menampilkan
   satu pun dokter dengan jadwal. Lihat `docs/modules/modul-1-dokter.md`.
 

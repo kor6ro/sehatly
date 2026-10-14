@@ -99,8 +99,7 @@ const DEFAULT_DOC = 'docs/mobile-integration.md';
  */
 const PATHS_EXPECTED_ABSENT = [
   // The load-bearing claim of docs/mobile-integration.md: the repository ships
-  // no Flutter app. tests/Unit/NoFlutterMobileTest.php asserts the same thing
-  // from the PHP side.
+  // no Flutter app, and CI re-asserts it with `test ! -e mobile`.
   'mobile/',
 ];
 
@@ -110,20 +109,20 @@ const PATHS_EXPECTED_ABSENT = [
  * Entries are stored in NORMALISED form -- placeholders collapsed to `{}` -- so
  * they compare against the same shape `normalisePath()` produces.
  *
- * `docs/mobile-integration.md` tells the mobile team that the plan's
- * "poll GET /invoice/{id}" rule points at an endpoint this application does not
- * have, and it has to be able to write that path down in order to say so. Each
- * entry is a *negative* assertion with a lifetime: the tool fails if the path
+ * Each entry is a *negative* assertion with a lifetime: the tool fails if the path
  * ever becomes a registered route, because at that moment the document is
  * lying and the sentence has to be rewritten. A missing-endpoint claim that
  * nobody checks is exactly as rot-prone as a dead link.
+ *
+ * The list is EMPTY today, which is the record of this mechanism working once
+ * already. Its only entry held `api/v1/invoice/{}`, on the grounds that the route
+ * table had `POST /api/v1/invoice/{id}/bayar` and no read on the invoice resource
+ * at all. Commit `b7c2fd0` (2026-10-01) then registered `GET /api/v1/invoice/{id}`
+ * behind `InvoicePolicy` -- one day after this guide was written -- the gate fired,
+ * the three sentences claiming the endpoint was missing were rewritten to name it,
+ * and the entry was retired. The mechanism stays; add the next claim here.
  */
-const ENDPOINTS_EXPECTED_ABSENT = [
-  // Named by the plan's todo 36 section 12 as the thing to poll after a
-  // payment. The route table has `POST /api/v1/invoice/{id}/bayar` and no read
-  // at all on the invoice resource, so there is nothing to poll here.
-  'api/v1/invoice/{}',
-];
+const ENDPOINTS_EXPECTED_ABSENT = [];
 
 /**
  * IANA top-level media types, so a MIME prefix in prose is not read as a path
@@ -573,7 +572,7 @@ function checkLinks(docFile, text) {
 }
 
 /**
- * A link may point at a directory -- GitHub renders `packages/sehatly_api_client`
+ * A link may point at a directory -- GitHub renders `docs/modules`
  * as a file listing, and that is a useful link to have. The target only has to
  * *exist*; an anchor additionally has to be a Markdown file, which is asserted
  * separately below.
@@ -906,9 +905,7 @@ function checkDartBlocks(docFile, text, tmpRoot) {
     const file = join(tmpRoot, `block-${String(index + 1).padStart(2, '0')}.dart`);
     writeFileSync(file, `${block.text.replace(/\s+$/, '')}\n`, 'utf8');
 
-    const result = spawnSync(dart, ['format', '--output=none', '--set-exit-if-changed', file], {
-      encoding: 'utf8',
-    });
+    const result = spawnTool(dart, ['format', '--output=none', '--set-exit-if-changed', file]);
 
     if (result.status === 0) {
       return;
@@ -954,8 +951,28 @@ function indent(text) {
     .join('\n');
 }
 
+/**
+ * Windows exposes most CLI tools as `.bat`/`.cmd` shims, and Node refuses to
+ * execute those without a shell (`spawnSync` returns ENOENT for `dart.bat`
+ * even though it is on PATH). Forcing a shell for everything that is not a
+ * direct `.exe` is what makes the candidate `"dart"` work on a machine whose
+ * Dart lives behind `flutter\bin\dart.bat`.
+ *
+ * Args here are fixed literals, never interpolated user input, so there is no
+ * shell-injection surface.
+ */
+function spawnTool(candidate, args, timeout) {
+  const useShell = process.platform === 'win32' && !/\.exe$/i.test(candidate);
+
+  return spawnSync(candidate, args, {
+    encoding: 'utf8',
+    timeout: timeout ?? 30000,
+    ...(useShell ? { shell: true } : {}),
+  });
+}
+
 function canRun(candidate, args) {
-  const result = spawnSync(candidate, args, { encoding: 'utf8', timeout: 30000 });
+  const result = spawnTool(candidate, args);
 
   return !result.error && result.status === 0;
 }
@@ -965,14 +982,19 @@ function canRun(candidate, args) {
 // ---------------------------------------------------------------------------
 
 /**
- * The plan's acceptance criterion for section 11, expressed as a check.
+ * Section 11's acceptance criterion, expressed as a check.
  *
  * A section whose title matches GETX_SECTION_PATTERN must contain a class
- * extending GetxController and one extending Bindings, both of which name
- * SehatlyApiClient, and must contain neither `Dio(` nor `http.`. The negative
- * half is the part that matters: an example that quietly constructs a Dio has
- * stopped being an integration of the package and has become a second HTTP layer
- * that will drift.
+ * extending GetxController and one extending Bindings, must register exactly one
+ * `Get.lazyPut<ApiService>` and reach it with `Get.find<ApiService>`, and must
+ * contain neither `Dio(` nor `http.`. The negative half is the part that matters:
+ * an example that quietly constructs a Dio has stopped being an integration of one
+ * HTTP layer and has become a second one that will drift.
+ *
+ * The `ApiService` name replaced an earlier requirement on `SehatlyApiClient`, the
+ * class in the Dart API client that was removed from this repository on
+ * 2026-10-14. The rule that class carried -- one client, constructed once, no
+ * second HTTP layer -- is what outlived the package, so only the type name moved.
  */
 const GETX_SECTION_PATTERN = /^##\s+(\d+)\.\s+Contoh integrasi dengan GetX/;
 
@@ -1012,8 +1034,8 @@ function checkGetXSection(docFile, text) {
     [/\bextends\s+GetxController\b/, 'a class extending GetxController'],
     [/\bextends\s+Bindings\b/, 'a class extending Bindings'],
     [/\bGet\.lazyPut\b/, 'a Get.lazyPut call'],
-    [/\bGet\.lazyPut<SehatlyApiClient>/, 'a Get.lazyPut<SehatlyApiClient> call'],
-    [/\bSehatlyApiClient\b/, 'a reference to SehatlyApiClient'],
+    [/\bGet\.lazyPut<\s*ApiService\s*>/, 'a Get.lazyPut<ApiService> call'],
+    [/\bGet\.find<\s*ApiService\s*>/, 'a Get.find<ApiService> call'],
   ];
 
   for (const [pattern, what] of need) {
@@ -1031,7 +1053,7 @@ function checkGetXSection(docFile, text) {
         'getx',
         docFile,
         line,
-        `section ${number} contains \`${forbidden}\`, which bypasses sehatly_api_client`,
+        `section ${number} contains \`${forbidden}\`, which is a second HTTP layer beside the one client`,
       );
     }
   }

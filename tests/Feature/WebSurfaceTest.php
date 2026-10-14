@@ -441,7 +441,7 @@ test('the Blade root template is no longer an Inertia template and emits no Vite
         ->and($markup)->not->toContain('$page')
         ->and($markup)->not->toContain('x-');
 
-    // The mount point matches the SPA's own `web/index.html`, which renders into
+    // The mount point matches the SPA's own `frontend/index.html`, which renders into
     // `#root` and not into `#app`.
     expect($markup)->toContain('id="root"');
 });
@@ -470,12 +470,12 @@ test('neither manifest declares an Inertia, Fortify, passkey or Wayfinder depend
     expect($npmPackages)->each->not->toMatch('/inertia|fortify|passkeys|wayfinder/');
 });
 
-test('the SPA in web/ is independent of the removed root bundle', function (): void {
+test('the SPA in frontend/ is independent of the removed root bundle', function (): void {
     // Todo 30 must not break the SPA, and the only way to keep proving that is to
-    // assert the property rather than assume it: `web/` has its own Vite project,
+    // assert the property rather than assume it: `frontend/` has its own Vite project,
     // its own entry and its own dependency list, and none of them named the root
     // Inertia bundle.
-    $package = json_decode((string) file_get_contents(base_path('web/package.json')), true);
+    $package = json_decode((string) file_get_contents(base_path('frontend/package.json')), true);
 
     expect($package)->toBeArray();
 
@@ -487,21 +487,21 @@ test('the SPA in web/ is independent of the removed root bundle', function (): v
     expect($dependencies)->each->not->toMatch('/inertia|fortify|passkeys|wayfinder/');
 
     // Its entry point and its dev proxy are the two things the removed root
-    // project used to own, and both live in `web/`.
-    $main = (string) file_get_contents(base_path('web/src/main.tsx'));
-    $vite = (string) file_get_contents(base_path('web/vite.config.ts'));
+    // project used to own, and both live in `frontend/`.
+    $main = (string) file_get_contents(base_path('frontend/src/main.tsx'));
+    $vite = (string) file_get_contents(base_path('frontend/vite.config.ts'));
 
     expect($main)->toContain("getElementById('root')")
         ->and($main)->toContain('createRoot(')
         ->and($vite)->toContain('proxy')
         ->and($vite)->toContain("'/api'");
 
-    // And nothing under `web/src` imports Inertia, which is the concrete meaning
+    // And nothing under `frontend/src` imports Inertia, which is the concrete meaning
     // of "the removal did not reach into the client".
     $offenders = [];
 
     $files = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator(base_path('web/src'), FilesystemIterator::SKIP_DOTS),
+        new RecursiveDirectoryIterator(base_path('frontend/src'), FilesystemIterator::SKIP_DOTS),
     );
 
     foreach ($files as $file) {
@@ -536,7 +536,7 @@ test('every path the retired test files addressed now resolves to the shell and 
 // =====================================================================
 
 test('a deep link is answered with the built SPA shell, or a 503 naming the build command', function (): void {
-    $index = base_path('web/dist/index.html');
+    $index = base_path('frontend/dist/index.html');
 
     $response = $this->get('/dashboard/anything');
 
@@ -588,7 +588,7 @@ test('the asset route streams the built file and declares a type the browser wil
     // run `npm run build` is not a guard -- it is the same silent pass that let
     // both faults through.
 
-    $assets = base_path('web/dist/assets');
+    $assets = base_path('frontend/dist/assets');
     $fixtures = [
         'guard.css' => 'body{color:red}',
         'guard.js' => 'console.log(1)',

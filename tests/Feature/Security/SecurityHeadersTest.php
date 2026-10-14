@@ -334,7 +334,7 @@ test('the token-bearing response is marked uncacheable, and nothing rewrites its
 test('the SPA shell gets the three browser-facing headers but NOT the API-only policy', function (): void {
     $shell = $this->get('/dashboard/apa-saja');
 
-    // A 503 while `web/dist` is unbuilt, a 200 once it exists. Both are a
+    // A 503 while `frontend/dist` is unbuilt, a 200 once it exists. Both are a
     // *document*, and the assertion is about the headers either way.
     expect($shell->getStatusCode())->toBeIn([200, 503]);
 

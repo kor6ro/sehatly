@@ -46,7 +46,7 @@ use Throwable;
  * partial refunds (`refund.jumlah` has no CHECK against the payment, and its
  * missing uniqueness is a deliberate gap) and the UI has a partial-refund
  * state (`invoice.refund_sebagian`), but no product decision names a fee, so
- * none is invented here. That is recorded in `web/ux/patterns/F12.md` section
+ * none is invented here. That is recorded in `frontend/ux/patterns/F12.md` section
  * 12 as DIPUTUSKAN.
  *
  * ## The hybrid execution rule, keyed on `master_metode_pembayaran.tipe`
@@ -307,7 +307,7 @@ final class RefundService
      * The uniform cancellation policy for one booking, server-computed.
      *
      * The client MUST NOT compute any of this - that is the decision recorded
-     * in `web/ux/patterns/F12.md` section 12. The response is:
+     * in `frontend/ux/patterns/F12.md` section 12. The response is:
      *
      * ```
      * {

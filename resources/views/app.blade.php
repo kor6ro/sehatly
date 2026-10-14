@@ -9,8 +9,8 @@
     so the `<x-inertia::*>` component namespace no longer resolves at all.
 
     It is now reached only when the SPA has not been built. `routes/web.php`
-    serves `web/dist/index.html` - the real shell, produced by `npm run build` in
-    `web/`, mounting on `#root` - whenever that file exists, and renders this view
+    serves `frontend/dist/index.html` - the real shell, produced by `npm run build` in
+    `frontend/`, mounting on `#root` - whenever that file exists, and renders this view
     with a 503 when it does not. The status is the point: a 200 carrying a
     placeholder would be a lie a client cannot detect, and a 503 says plainly that
     the deployment is incomplete.
@@ -31,7 +31,7 @@
                 <code>{{ $spaIndex }}</code> does not exist yet.
             </p>
             <p>Build it with:</p>
-            <pre>cd web &amp;&amp; npm install &amp;&amp; npm run build</pre>
+            <pre>cd frontend &amp;&amp; npm install &amp;&amp; npm run build</pre>
             <p>
                 The API is unaffected and remains available under
                 <code>/api/v1</code>.

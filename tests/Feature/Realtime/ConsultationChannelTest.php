@@ -198,9 +198,9 @@ function asAccount(User $user, string $channelName, string $socketId = '4242.1')
 
 // ------------------------------------------------------------------- tests
 
-test('the auth endpoint is registered where the mobile client posts to it', function () {
-    // `packages/sehatly_api_client/lib/src/realtime/realtime_socket.dart` posts
-    // to `/api/broadcasting/auth`, which is the framework's own default path and
+test('the auth endpoint is registered where the web client posts to it', function () {
+    // `frontend/src/lib/echo.ts` posts to `/api/broadcasting/auth`
+    // (`BROADCAST_AUTH_ENDPOINT`), which is the framework's own default path and
     // is NOT under the `/api/v1` prefix `withRouting(apiPrefix: 'api/v1')` builds.
     $route = Route::getRoutes()->getByAction(BroadcastController::class.'@authenticate');
 

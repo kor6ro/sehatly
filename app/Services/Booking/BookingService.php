@@ -256,7 +256,7 @@ class BookingService
      * `dokter_id`, the price and the invoice are all untouched - only
      * `jadwal_id`, `faskes_id` (the new window's venue), `tanggal_kunjungan`,
      * `slot_mulai` and `slot_selesai` change. No reschedule-count limit is
-     * applied because none was decided; see `web/ux/patterns/F12.md` section
+     * applied because none was decided; see `frontend/ux/patterns/F12.md` section
      * 12.
      *
      * ## The locking order is `create()`'s, and that is the whole mechanism
