@@ -387,15 +387,6 @@ beforeEach(function (): void {
     // `EnsurePermission` resolves every `permission:` code against `permissions`.
     // Without it, every booking route answers 500 or 403.
     $this->seed(RbacSeeder::class);
-
-    // `master_hubungan_keluarga` has a `TINYINT UNSIGNED PRIMARY KEY` with no
-    // `AUTO_INCREMENT` and this todo does not seed master data, so
-    // `pasien_anggota_keluarga.hubungan_id` (:265) has a real foreign key to a
-    // table that is empty. One row is planted on demand, `insertOrIgnore` so a
-    // future seeder landing here first is not fought with.
-    DB::table('master_hubungan_keluarga')->insertOrIgnore([
-        ['id' => 1, 'nama' => 'Pasangan'],
-    ]);
 });
 
 // =====================================================================
@@ -737,51 +728,33 @@ test('a patient cannot name the patient, and a schedule row belonging to another
         ->toBe((int) $pasien['pasien']->getKey());
 });
 
-test('a family member must belong to the caller', function (): void {
+test('the family-member field is refused outright, because the API can no longer register one', function (): void {
     // `booking.anggota_keluarga_id BIGINT UNSIGNED NULL COMMENT 'NULL = untuk
-    // pasien sendiri'` (:502). The column is nullable, but "whose family member"
-    // is a question only the owning patient can answer, so the rule is a
-    // `PasienRecordAccess::anggotaKeluargaQuery()` scope and not a bare
-    // `exists:pasien_anggota_keluarga,id`.
+    // pasien sendiri'` (:502) is still a live column with a live foreign key, but the four
+    // routes that let a patient populate `pasien_anggota_keluarga` were removed on
+    // 2026-10-15 (see `routes/api.php` for why). Accepting an id with no way to have
+    // registered one would either fail the foreign key or point at a row this caller cannot
+    // see, so `StoreBookingRequest` forbids the key and a client that sends it is told so
+    // rather than being silently ignored - the same rule `pasien_id` follows.
     $pasien = bkuPatient();
-    $orangLain = bkuPatient();
-
-    $milikSendiri = (int) DB::table('pasien_anggota_keluarga')->insertGetId([
-        'pasien_id' => $pasien['pasien']->getKey(),
-        'hubungan_id' => 1,
-        'nama_lengkap' => 'Siti Aminah',
-        'jenis_kelamin' => 'P',
-        'tanggal_lahir' => '1965-08-09',
-    ]);
-
-    $milikOrangLain = (int) DB::table('pasien_anggota_keluarga')->insertGetId([
-        'pasien_id' => $orangLain['pasien']->getKey(),
-        'hubungan_id' => 1,
-        'nama_lengkap' => 'Budi Orang Lain',
-        'jenis_kelamin' => 'L',
-        'tanggal_lahir' => '1962-01-01',
-    ]);
-
     $dokter = bkuDoctor();
     bkuJadwal($dokter['dokter']->getKey());
     bkuAs($pasien['user']);
 
     test()->postJson('/api/v1/booking', bkuPayload(
         $dokter['dokter']->getKey(),
-        ['anggota_keluarga_id' => $milikOrangLain],
+        ['anggota_keluarga_id' => 1],
     ))->assertUnprocessable()->assertJsonStructure(['errors' => ['anggota_keluarga_id']]);
 
-    // The booking is still FOR the patient row, not for the family member:
-    // `pasien_id` is `NOT NULL` and names the account holder, and the family
-    // member is the SUBJECT of the visit. Asserted because the alternative
-    // reading -- writing the member's id into `pasien_id` -- is the mistake this
-    // column pair exists to make impossible.
-    test()->postJson('/api/v1/booking', bkuPayload(
-        $dokter['dokter']->getKey(),
-        ['anggota_keluarga_id' => $milikSendiri],
-    ))->assertCreated()
-        ->assertJsonPath('data.booking.pasien_id', (int) $pasien['pasien']->getKey())
-        ->assertJsonPath('data.booking.anggota_keluarga_id', $milikSendiri);
+    // And a booking created without the key keeps the column NULL - which the DDL's own
+    // comment calls "untuk pasien sendiri", i.e. the ordinary case. Asserted on the row
+    // rather than on the response, because `BookingResource` no longer publishes the
+    // field at all.
+    test()->postJson('/api/v1/booking', bkuPayload($dokter['dokter']->getKey()))
+        ->assertCreated()
+        ->assertJsonPath('data.booking.pasien_id', (int) $pasien['pasien']->getKey());
+
+    expect(bkuBookingTerakhir((int) $pasien['pasien']->getKey())->anggota_keluarga_id)->toBeNull();
 });
 
 // =====================================================================

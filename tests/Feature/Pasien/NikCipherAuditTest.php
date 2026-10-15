@@ -81,9 +81,13 @@ const T50_AUDIT_FILES = [
     'app/Support/Security/NikDecryptionException.php',
     'app/Http/Resources/BookingResource.php',
     'app/Http/Resources/KonsultasiResource.php',
-    'app/Http/Resources/PasienAnggotaKeluargaResource.php',
     'app/Http/Resources/PasienResource.php',
     'app/Http/Resources/RekamMedisResource.php',
+    // `PasienAnggotaKeluargaResource.php` is deliberately absent: it masked
+    // `pasien_anggota_keluarga.nik` and was deleted on 2026-10-15 along with the four
+    // routes that let a patient populate that table (see `routes/api.php`). The COLUMN is
+    // untouched and the DDL test below still pins it to plaintext, so re-adding the
+    // feature without a masked resource fails this file's sibling test first.
     'app/Http/Resources/SuratKeteranganResource.php',
     'config/nik.php',
     'tests/Feature/Pasien/NikCipherTest.php',
@@ -142,10 +146,13 @@ test('every authored file is byte-identical ASCII, read as RAW BYTES', function 
 
     // Byte-exact, not "0 violations reported": the harness could itself be
     // broken and report nothing, and a total floor is the cheapest proof that it
-    // actually read the files.
+    // actually read the files. The count is a floor against a silently shortened
+    // list, and it was 17 until `PasienAnggotaKeluargaResource.php` was deleted
+    // on 2026-10-15 with the routes that let a patient populate
+    // `pasien_anggota_keluarga` (see `routes/api.php` for why).
     expect($pelanggaran)->toBe([])
         ->and($total)->toBeGreaterThan(40000)
-        ->and(count(T50_AUDIT_FILES))->toBe(17);
+        ->and(count(T50_AUDIT_FILES))->toBe(16);
 });
 
 test('every DDL citation in the authored files points at a line that EXISTS', function (): void {

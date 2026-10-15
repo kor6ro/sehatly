@@ -213,22 +213,29 @@ Route::prefix('auth')->name('auth.')->group(function (): void {
 |
 | ## `{id}` is constrained to a number
 |
-| `pasien_anggota_keluarga.id` and `pasien_alergi.id` are `BIGINT UNSIGNED AUTO_INCREMENT`
-| primary keys (`:259`, `:274`). `whereNumber('id')` makes a non-numeric segment a 404
+| `pasien_alergi.id` is a `BIGINT UNSIGNED AUTO_INCREMENT` primary key (`:274`), and
+| `pasien_anggota_keluarga.id` is one too (`:259`) although no route addresses it any
+| more. `whereNumber('id')` makes a non-numeric segment a 404
 | from the router, so the controllers take an `int` and no request can arrive with
 | `abc` in a position the API treats as an identifier.
 |
-| ## The plan's "8 routes" is unsatisfiable; 10 are registered here
+| ## The plan's "8 routes" is unsatisfiable; this module's 6 are registered here
 |
 | The plan's todo 21 acceptance criterion says
 | `php artisan route:list --path=api/v1/pasien` lists 8 routes. Its own prose names 10:
 | `GET`/`PUT /pasien/profil` (2), `GET`/`POST /pasien/anggota-keluarga` (2),
 | `PUT`/`DELETE /pasien/anggota-keluarga/{id}` (2), `GET`/`POST /pasien/alergi` (2) and
-| `PUT`/`DELETE /pasien/alergi/{id}` (2). All ten ship; the count is not met by dropping
-| endpoints. `GET /api/v1/me` is the eleventh and sits outside the `pasien` path filter.
+| `PUT`/`DELETE /pasien/alergi/{id}` (2). All ten shipped at the time; the count was not
+| met by dropping endpoints. `GET /api/v1/me` sits outside the `pasien` path filter, and
+| other modules' `/pasien/*` routes - `booking`, `refund`, `resep`, `surat-keterangan` -
+| sit inside it, so the filter's own number never equalled this surface either.
 | This is the same class of defect as todo 20's "lists all 6 routes" for seven named
 | operations, and it is recorded in `.omo/evidence/task-21-sehatly.md` rather than
 | satisfied by omission.
+|
+| Four of those ten - the whole `anggota-keluarga` family - were removed on 2026-10-15,
+| leaving six: two for the profile and four for allergies. The reason is on the block
+| further down where their routes used to be.
 */
 
 Route::middleware('auth:sanctum')->group(function (): void {
@@ -249,21 +256,28 @@ Route::middleware('auth:sanctum')->group(function (): void {
             ->name('profil.update');
 
         /*
-        | Family members. `pasien_anggota_keluarga` has no `dihapus_at` (`:269`), so the
-        | DELETE below is a hard delete - the schema allows nothing else.
+        | The family-member surface that used to sit here is gone, and the reason is
+        | worth writing down because the column it fed is not.
+        |
+        | `booking.anggota_keluarga_id` and `home_care_pesanan.anggota_keluarga_id` are
+        | both nullable foreign keys into `pasien_anggota_keluarga`, annotated
+        | "NULL = untuk pasien sendiri" (`2026_10_01_000037_booking_table.php:178`, and
+        | "whose body is being visited" for home care at `:93`), so the intent was that
+        | one account books on behalf of a dependent. The four CRUD routes that let a
+        | patient populate that table were removed on 2026-10-15 because nothing acted
+        | on the value: `BookingService` wrote the caller's own `pasien_id` regardless,
+        | `BookingResource` echoed only the bare id back, and no service, policy or
+        | query ever branched on it -- so a doctor treating a booking could not tell
+        | whose body it concerned. A tag with no consumer is a claim the API cannot
+        | keep, and it was costing a reader a whole surface to learn before booking.
+        |
+        | The TABLE stays. `telemedicine_test.sql` is read-only law for this
+        | application, both foreign keys are live, and `PasienAnggotaKeluarga` remains
+        | as their target; what is gone is the application's ability to write it. To
+        | bring it back, the work is not the routes -- it is making the dependent the
+        | clinical subject of the booking, from `konsultasi` through `rekam medis` and
+        | `resep`, and only then re-adding a way to register one.
         */
-        Route::prefix('anggota-keluarga')->name('anggota-keluarga.')->group(function (): void {
-            Route::get('/', [PasienController::class, 'anggotaKeluargaIndex'])
-                ->name('index');
-            Route::post('/', [PasienController::class, 'anggotaKeluargaStore'])
-                ->name('store');
-            Route::put('{id}', [PasienController::class, 'anggotaKeluargaUpdate'])
-                ->whereNumber('id')
-                ->name('update');
-            Route::delete('{id}', [PasienController::class, 'anggotaKeluargaDestroy'])
-                ->whereNumber('id')
-                ->name('destroy');
-        });
 
         /*
         | Allergies. `pasien_alergi` also has no `dihapus_at` (`:282`), so this DELETE is

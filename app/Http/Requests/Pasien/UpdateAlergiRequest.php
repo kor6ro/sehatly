@@ -8,8 +8,7 @@ namespace App\Http\Requests\Pasien;
  * Validates `PUT /api/v1/pasien/alergi/{id}`.
  *
  * A **partial** update: every field is `sometimes`, so only the keys present in the body
- * are written. The reasoning is on {@see AlergiRequest::isCreate()} and
- * {@see AnggotaKeluargaRequest::isCreate()}.
+ * are written. The reasoning is on {@see AlergiRequest::isCreate()}.
  *
  * `{id}` is a route parameter and never reaches the validated data, so there is no `id`
  * rule here: the row is resolved by `PasienRecordAccess::alergiOrFail()`, which scopes by

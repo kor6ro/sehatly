@@ -468,15 +468,6 @@ async function pasangMock(page: Page, opsi: OpsiMock = {}): Promise<State> {
             });
         }
 
-        if (path === '/api/v1/pasien/anggota-keluarga') {
-            return balasJson(route, 200, {
-                success: true,
-                message: 'Daftar anggota keluarga berhasil dimuat.',
-                data: { anggota_keluarga: [] },
-                meta: meta(0, 100),
-            });
-        }
-
         if (/^\/api\/v1\/konsultasi\/[^/]+\/ulasan$/.test(path) && method === 'POST') {
             state.kirimUlasanBody = (request.postDataJSON() ?? null) as Record<
                 string,

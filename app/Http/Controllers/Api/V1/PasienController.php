@@ -6,18 +6,13 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Pasien\IndexAlergiRequest;
-use App\Http\Requests\Pasien\IndexAnggotaKeluargaRequest;
 use App\Http\Requests\Pasien\StoreAlergiRequest;
-use App\Http\Requests\Pasien\StoreAnggotaKeluargaRequest;
 use App\Http\Requests\Pasien\UpdateAlergiRequest;
-use App\Http\Requests\Pasien\UpdateAnggotaKeluargaRequest;
 use App\Http\Requests\Pasien\UpdatePasienProfileRequest;
 use App\Http\Resources\PasienAlergiResource;
-use App\Http\Resources\PasienAnggotaKeluargaResource;
 use App\Http\Resources\PasienResource;
 use App\Models\Pasien;
 use App\Models\PasienAlergi;
-use App\Models\PasienAnggotaKeluarga;
 use App\Models\User;
 use App\Services\Pasien\PasienRecordAccess;
 use App\Support\ApiResponse;
@@ -27,7 +22,7 @@ use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * The ten patient-self-service routes: the profile, family members and allergies.
+ * The six patient-self-service routes: the profile and allergies.
  *
  * ## Every route here is a "your own record" route, and the rule is one lookup
  *
@@ -49,8 +44,8 @@ use Symfony\Component\HttpFoundation\Response;
  * The full justification is in {@see PasienRecordAccess}'s class docblock, and it is
  * summarised here because a reader looking at the route file deserves the short form:
  *
- * - `RbacCatalog::PERMISSIONS` holds 24 codes and **none** names a patient profile, a
- *   family member or an allergy. `EnsurePermission` throws a `LogicException` - a 500 -
+ * - `RbacCatalog::PERMISSIONS` holds 24 codes and **none** names a patient profile or an
+ *   allergy. `EnsurePermission` throws a `LogicException` - a 500 -
  *   for a code that is not in the catalogue, and adding one is a policy change in
  *   `app/Support/Rbac/`, which is not this todo's to make.
  * - `tipe:pasien` would resolve, and is deliberately not used: it answers "which account
@@ -61,18 +56,23 @@ use Symfony\Component\HttpFoundation\Response;
  *
  * ## Deletes are HARD deletes, and the schema forces it
  *
- * `pasien_anggota_keluarga` and `pasien_alergi` declare `dibuat_at` and nothing else
- * (`telemedicine_test.sql:269` and `:282`) - no `dihapus_at`, no `diubah_at`. Only `users`
- * (`:148`) and `pasien` (`:249`) are soft-deletable, which is why `SoftDeletes` is on those
- * two models and no other. So `DELETE` here removes the row, and the response says exactly
- * that rather than pretending to a soft delete. Both tables cascade from `pasien`
- * (`:270`, `:283`), so deleting a patient profile removes them all - and that is the
- * schema's behaviour, recorded in `docs/schema-notes.md`, not a choice made here.
+ * `pasien_alergi` declares `dibuat_at` and nothing else (`telemedicine_test.sql:282`) - no
+ * `dihapus_at`, no `diubah_at`. Only `users` (`:148`) and `pasien` (`:249`) are
+ * soft-deletable, which is why `SoftDeletes` is on those two models and no other. So
+ * `DELETE` here removes the row, and the response says exactly that rather than
+ * pretending to a soft delete. `pasien_alergi` cascades from `pasien` (`:283`), so
+ * deleting a patient profile removes them all - and that is the schema's behaviour,
+ * recorded in `docs/schema-notes.md`, not a choice made here.
  *
- * Because neither table can record *when* a row went away, and because the API cannot add
- * a column (`telemedicine_test.sql` is read-only law), a delete leaves no trace in these
- * tables. `audit_log` (`:1118`) is where such an event belongs, and its write path is not
- * in this todo's scope; it is named here so the gap is a decision on the record rather
+ * `pasien_anggota_keluarga` (`:269`) is in the same position and has the same cascade
+ * (`:270`), but no longer has any route: see the note where its endpoints used to be in
+ * `routes/api.php`. Its table and both foreign keys into it are untouched, because
+ * `telemedicine_test.sql` cannot be edited.
+ *
+ * Because `pasien_alergi` cannot record *when* a row went away, and because the API cannot
+ * add a column (`telemedicine_test.sql` is read-only law), a delete leaves no trace in
+ * these tables. `audit_log` (`:1118`) is where such an event belongs, and its write path is
+ * not in this todo's scope; it is named here so the gap is a decision on the record rather
  * than an oversight.
  *
  * ## A 404 for a row that is not the caller's, never a 403
@@ -163,116 +163,6 @@ class PasienController extends Controller
     }
 
     // =================================================================
-    // /api/v1/pasien/anggota-keluarga
-    // =================================================================
-
-    /**
-     * `GET /api/v1/pasien/anggota-keluarga`
-     *
-     * `?page=` and `?per_page=` with the plan's cap of 100, and the `meta` block on the
-     * envelope. The `hubungan` relation is loaded so a list renders "Ibu" rather than a
-     * bare `3`; it is one extra join on a `TINYINT` primary key, and the alternative is a
-     * client that must ship its own copy of the seven relationship labels.
-     */
-    public function anggotaKeluargaIndex(IndexAnggotaKeluargaRequest $request): JsonResponse
-    {
-        $pasien = $this->access->ownPasien($this->user($request));
-
-        $rows = $this->access
-            ->anggotaKeluargaQuery($pasien)
-            ->with('hubungan')
-            ->orderBy('dibuat_at')
-            ->orderBy('id')
-            ->paginate($request->perPage())
-            ->withQueryString();
-
-        return ApiResponse::success(
-            ['anggota_keluarga' => PasienAnggotaKeluargaResource::collection($rows->items())],
-            'Daftar anggota keluarga berhasil dimuat.',
-            Response::HTTP_OK,
-            ApiResponse::pageMeta($rows),
-        );
-    }
-
-    /**
-     * `POST /api/v1/pasien/anggota-keluarga`
-     *
-     * `pasien_id` comes from the caller's own row. The DDL's comment at `:258` - "Anggota
-     * keluarga (didaftarkan oleh pasien, TANPA akun sendiri)" - is why: a family member
-     * has no account and therefore no way to be its own tenant, so the account holder's
-     * `pasien_id` is the only correct value and the only one a client cannot influence.
-     */
-    public function anggotaKeluargaStore(StoreAnggotaKeluargaRequest $request): JsonResponse
-    {
-        $pasien = $this->access->ownPasien($this->user($request));
-        $validated = $request->validated();
-
-        $anggota = new PasienAnggotaKeluarga;
-        $anggota->pasien_id = $pasien->getKey();
-
-        foreach ($request->anggotaKeys() as $key) {
-            $anggota->{$key} = $validated[$key];
-        }
-
-        $anggota->save();
-
-        return ApiResponse::success(
-            ['anggota_keluarga' => new PasienAnggotaKeluargaResource($anggota->load('hubungan'))],
-            'Anggota keluarga berhasil ditambahkan.',
-            Response::HTTP_CREATED,
-        );
-    }
-
-    /**
-     * `PUT /api/v1/pasien/anggota-keluarga/{id}`
-     *
-     * Scoped lookup, so a row belonging to another patient is a 404 and the write never
-     * happens. A partial update: only the keys present in the body are written, which is
-     * why this is a `foreach` over `anggotaKeys()` and not a `fill()`.
-     */
-    public function anggotaKeluargaUpdate(UpdateAnggotaKeluargaRequest $request, int $id): JsonResponse
-    {
-        $pasien = $this->access->ownPasien($this->user($request));
-        $validated = $request->validated();
-
-        $anggota = $this->access->anggotaKeluargaOrFail($pasien, $id);
-
-        foreach ($request->anggotaKeys() as $key) {
-            $anggota->{$key} = $validated[$key];
-        }
-
-        $anggota->save();
-
-        return ApiResponse::success(
-            ['anggota_keluarga' => new PasienAnggotaKeluargaResource($anggota->load('hubungan'))],
-            'Anggota keluarga berhasil diperbarui.',
-        );
-    }
-
-    /**
-     * `DELETE /api/v1/pasien/anggota-keluarga/{id}`
-     *
-     * Scoped lookup, so another patient's row is a 404 and is never deleted. A hard
-     * delete, because the table has no `dihapus_at` - see the class docblock.
-     *
-     * The response echoes the id and says `deleted: true` rather than returning 204 with
-     * no body: this API's envelope is `{success,data,message}` and a client parsing one
-     * shape should not have to special-case the delete. The id is echoed so a client that
-     * fired several deletes can tell which one answered.
-     */
-    public function anggotaKeluargaDestroy(Request $request, int $id): JsonResponse
-    {
-        $pasien = $this->access->ownPasien($this->user($request));
-
-        $this->access->anggotaKeluargaOrFail($pasien, $id)->delete();
-
-        return ApiResponse::success(
-            ['deleted' => true, 'id' => $id],
-            'Anggota keluarga berhasil dihapus.',
-        );
-    }
-
-    // =================================================================
     // /api/v1/pasien/alergi
     // =================================================================
 
@@ -347,7 +237,9 @@ class PasienController extends Controller
      * `PUT /api/v1/pasien/alergi/{id}`
      *
      * Scoped lookup, so another patient's row is a 404 and is never written. A partial
-     * update, for the reason given on {@see anggotaKeluargaUpdate()}.
+     * update: only the keys present in the body are written, which is why this is a
+     * `foreach` over `alergiKeys()` and not a `fill()` - a `PUT` that omitted
+     * `keparahan` must leave the stored severity alone rather than nulling it.
      *
      * `dicatat_oleh_user_id` is **not** rewritten on update. It records who first recorded
      * the allergy; a later edit by the same patient is not a second observation, and

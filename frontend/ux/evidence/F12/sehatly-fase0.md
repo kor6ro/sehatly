@@ -84,7 +84,7 @@ Hasil pencarian (case-insensitive) `reschedule`, `reschedul`, `jadwal_ulang`, `j
 - Baris `dibatalkan`: badge + catatan “Slot ini sudah dilepas dan dapat dipesan kembali.” + “Dibatalkan oleh pasien/dokter/sistem” + alasan (`booking-status-badge.tsx:131-145`, `booking-list.tsx:438-442`). **Tidak ada tombol jadwal ulang.**
 - **Tidak ada halaman detail booking** (`/booking/:id` tidak ada; route: `/booking`, `/booking/:dokterId`, `/dokter/booking` — `frontend/src/app/router.tsx:194-208`).
 - **Tidak ada UI refund**: `frontend/src/lib/api/pembayaran.ts` hanya fetch invoice/metode/promo/bayar; label status pembayaran `refund` = “Dikembalikan” (L73) tetapi tidak ada alur.
-- `BookingResource` (L31-65) mengembalikan `id, nomor_booking, pasien_id, anggota_keluarga_id, dokter_id, jadwal_id, faskes_id, tipe_layanan, tanggal_kunjungan, slot_mulai, slot_selesai, nomor_antrian, keluhan, lampiran_keluhan, is_rujukan, is_konsultasi_lanjutan, status, dibatalkan_oleh, alasan_pembatalan, dibuat_oleh_user_id, dibuat_at` + `pasien` (whenLoaded). **Tidak ada field reschedule/refund.**
+- `BookingResource` (L31-65) mengembalikan `id, nomor_booking, pasien_id, anggota_keluarga_id, dokter_id, jadwal_id, faskes_id, tipe_layanan, tanggal_kunjungan, slot_mulai, slot_selesai, nomor_antrian, keluhan, lampiran_keluhan, is_rujukan, is_konsultasi_lanjutan, status, dibatalkan_oleh, alasan_pembatalan, dibuat_oleh_user_id, dibuat_at` + `pasien` (whenLoaded). **Tidak ada field reschedule/refund.** *(Snapshot 2026-10-02; `anggota_keluarga_id` dihapus dari resource pada 2026-10-15 bersama empat route `/pasien/anggota-keluarga` — lihat `routes/api.php`.)*
 
 ## 7. Kesiapan kit UI (untuk pattern)
 

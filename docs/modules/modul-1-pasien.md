@@ -1,10 +1,20 @@
 # Modul 1 - Profil dan Data Pasien (`/api/v1/me`, `/api/v1/pasien`)
 
-Sebelas route mandiri pasien. Semua butuh header
+Tujuh route mandiri pasien. Semua butuh header
 `Authorization: Bearer <ACCESS_TOKEN>`. Tidak ada middleware `permission:`
 atau `tipe:` pada route ini; penegakannya ada di
 `App\Services\Pasien\PasienRecordAccess`: pemanggil yang bukan pemilik baris
 `pasien` mendapat 403, dan baris milik pasien lain mendapat 404.
+
+Empat route `GET|POST|PUT|DELETE /pasien/anggota-keluarga` pernah menjadi bagian
+dari daftar ini dan dihapus pada 2026-10-15, karena tidak ada yang bertindak di
+atas nilainya: `booking.pasien_id` selalu milik pemanggil, `BookingResource` hanya
+memantulkan id angka, dan tidak ada service, policy, atau query punya cabang di
+atasnya - sehingga dokter tidak bisa tahu tubuh siapa yang dikonsultasikan.
+Alasan lengkapnya ada di catatan di `routes/api.php`. Tabel
+`pasien_anggota_keluarga` dan kedua foreign key ke arahnya tetap ada; yang hilang
+hanya kemampuan aplikasi menulisnya, dan kini `POST /api/v1/booking` menolak
+`anggota_keluarga_id` dengan 422.
 
 - `GET /me` mengembalikan pengguna beserta relasi `pasien` dan `dokter`.
 - NIK tidak pernah mentah di respons; bentuknya menyimpan 4 digit awal dan
@@ -81,72 +91,7 @@ Format kode pos salah (HTTP 422):
 {"success":false,"message":"The given data was invalid.","errors":{"kode_pos":["The kode pos field format is invalid."]}}
 ```
 
-## 4. `GET /pasien/anggota-keluarga` - 200
-
-```bash
-curl.exe -s "$BASE_URL/pasien/anggota-keluarga?page=1&per_page=5" -H "$AUTH"
-```
-
-Respons terverifikasi (HTTP 200):
-
-```json
-{"success":true,"data":{"anggota_keluarga":[]},"message":"Daftar anggota keluarga berhasil dimuat.","meta":{"current_page":1,"last_page":1,"per_page":15,"total":0,"from":null,"to":null}}
-```
-
-## 5. `POST /pasien/anggota-keluarga` - 201
-
-```bash
-curl.exe -s -X POST "$BASE_URL/pasien/anggota-keluarga" \
-  -H "$AUTH" -H "Content-Type: application/json" \
-  -d '{"hubungan_id":3,"nik":"<NIK_16_DIGIT>","nama_lengkap":"<NAMA_LENGKAP>","jenis_kelamin":"P","tanggal_lahir":"1968-04-12","no_telepon":"<NO_TELEPON_ANGGOTA>","catatan_alergi":"Penicillin"}'
-```
-
-Respons terverifikasi (HTTP 201; NIK termasking):
-
-```json
-{"success":true,"data":{"anggota_keluarga":{"id":4,"hubungan_id":3,"hubungan":"Orang Tua/Kandung","nik":"3273••••••••0002","nama_lengkap":"<NAMA_LENGKAP>","jenis_kelamin":"P","tanggal_lahir":"1968-04-12","no_telepon":"<NO_TELEPON_ANGGOTA>","catatan_alergi":"Penicillin","dibuat_at":"<TIMESTAMP>"}},"message":"Anggota keluarga berhasil ditambahkan."}
-```
-
-Kunci: `data.anggota_keluarga.{id,hubungan_id,hubungan,nik,nama_lengkap,
-jenis_kelamin,tanggal_lahir,no_telepon,catatan_alergi,dibuat_at}`.
-Badan tidak valid (HTTP 422):
-
-```json
-{"success":false,"message":"The given data was invalid.","errors":{"hubungan_id":["The selected hubungan keluarga is invalid."],"jenis_kelamin":["The selected jenis kelamin is invalid."],"tanggal_lahir":["The tanggal lahir field must match the format Y-m-d."],"nik":["The nik field must be 16 digits."]}}
-```
-
-## 6. `PUT /pasien/anggota-keluarga/{id}` - 200
-
-Hanya baris milik pasien itu yang bisa diubah.
-
-```bash
-curl.exe -s -X PUT "$BASE_URL/pasien/anggota-keluarga/<ID>" \
-  -H "$AUTH" -H "Content-Type: application/json" \
-  -d '{"catatan_alergi":"Penicillin dan Lateks"}'
-```
-
-Respons terverifikasi (HTTP 200; kolom lain tidak berubah):
-
-```json
-{"success":true,"data":{"anggota_keluarga":{"id":4,"hubungan_id":3,"hubungan":"Orang Tua/Kandung","nik":"3273••••••••0002","nama_lengkap":"<NAMA_LENGKAP>","jenis_kelamin":"P","tanggal_lahir":"1968-04-12","no_telepon":"<NO_TELEPON_ANGGOTA>","catatan_alergi":"Penicillin dan Lateks","dibuat_at":"<TIMESTAMP>"}},"message":"Anggota keluarga berhasil diperbarui."}
-```
-
-## 7. `DELETE /pasien/anggota-keluarga/{id}` - 200
-
-```bash
-curl.exe -s -X DELETE "$BASE_URL/pasien/anggota-keluarga/<ID>" -H "$AUTH"
-```
-
-Respons terverifikasi (HTTP 200):
-
-```json
-{"success":true,"data":{"deleted":true,"id":4},"message":"Anggota keluarga berhasil dihapus."}
-```
-
-Id non-numerik tidak cocok dengan route (`whereNumber`) sehingga menjadi
-404. Menghapus baris milik pasien lain juga 404, bukan 403.
-
-## 8. `GET /pasien/alergi` - 200
+## 4. `GET /pasien/alergi` - 200
 
 ```bash
 curl.exe -s "$BASE_URL/pasien/alergi" -H "$AUTH"
@@ -158,7 +103,7 @@ Respons terverifikasi (HTTP 200):
 {"success":true,"data":{"alergi":[]},"message":"Daftar alergi berhasil dimuat.","meta":{"current_page":1,"last_page":1,"per_page":15,"total":0,"from":null,"to":null}}
 ```
 
-## 9. `POST /pasien/alergi` - 201
+## 5. `POST /pasien/alergi` - 201
 
 `keparahan` boleh dikosongkan dan default-nya `ringan`.
 
@@ -181,7 +126,7 @@ dicatat_oleh_user_id,dibuat_at}`. Enum tak dikenal (HTTP 422):
 {"success":false,"message":"The given data was invalid.","errors":{"nama_alergen":["The nama alergen field must be at least 2 characters."],"keparahan":["The selected keparahan is invalid."]}}
 ```
 
-## 10. `PUT /pasien/alergi/{id}` - 200
+## 6. `PUT /pasien/alergi/{id}` - 200
 
 ```bash
 curl.exe -s -X PUT "$BASE_URL/pasien/alergi/<ID>" \
@@ -202,7 +147,7 @@ Id milik pasien lain (HTTP 404, tanpa membocorkan keberadaan baris):
 {"success":false,"message":"Resource not found.","errors":{}}
 ```
 
-## 11. `DELETE /pasien/alergi/{id}` - 200
+## 7. `DELETE /pasien/alergi/{id}` - 200
 
 ```bash
 curl.exe -s -X DELETE "$BASE_URL/pasien/alergi/<ID>" -H "$AUTH"
@@ -217,7 +162,7 @@ Respons terverifikasi (HTTP 200):
 ## Semantik lintas-penyewa (terverifikasi)
 
 Dengan dua akun pasien sungguhan: pasien A mengubah atau menghapus alergi
-atau anggota keluarga milik pasien B selalu mendapat 404
+milik pasien B selalu mendapat 404
 `"Resource not found."`, dan baris milik B tetap ada saat dibaca dengan
 token B. Pemanggil bertipe `dokter` yang memukul route pasien mendapat 403
 `"This action is unauthorized."`.

@@ -3,19 +3,16 @@
 declare(strict_types=1);
 
 use App\Http\Requests\Pasien\AlergiRequest;
-use App\Http\Requests\Pasien\AnggotaKeluargaRequest;
 use App\Http\Requests\Pasien\UpdatePasienProfileRequest;
 use App\Models\Dokter;
 use App\Models\DokterPendidikan;
 use App\Models\DokterSpesialisasi;
 use App\Models\MasterAgama;
-use App\Models\MasterHubunganKeluarga;
 use App\Models\MasterKecamatan;
 use App\Models\MasterKelurahan;
 use App\Models\MasterSpesialisasi;
 use App\Models\Pasien;
 use App\Models\PasienAlergi;
-use App\Models\PasienAnggotaKeluarga;
 use App\Models\User;
 use App\Services\Auth\IssuedOtp;
 use App\Services\Auth\LogOtpSender;
@@ -38,10 +35,10 @@ use Tests\Support\FakeOtpSender;
 
 /*
 |--------------------------------------------------------------------------
-| GET /api/v1/me, the patient profile, family members and allergies
+| GET /api/v1/me, the patient profile and allergies
 |--------------------------------------------------------------------------
 |
-| Eleven routes, and the point of the file is the matrix under "Ownership": for every
+| Seven routes, and the point of the file is the matrix under "Ownership": for every
 | mutating endpoint the caller's own record is allowed, another patient's record is refused,
 | a non-patient account is refused, and an anonymous caller is refused - each with a
 | different status, because "you are not a patient" (403) and "that row is not yours" (404)
@@ -196,14 +193,6 @@ function religionId(): int
 }
 
 /**
- * A `master_hubungan_keluarga` id.
- */
-function relationshipId(): int
-{
-    return (int) MasterHubunganKeluarga::query()->orderBy('id')->value('id');
-}
-
-/**
  * One coherent administrative chain, planted once per test.
  *
  * `master_kabupaten_kota`, `master_kecamatan` and `master_kelurahan` are **never seeded** -
@@ -272,25 +261,6 @@ function quartierLain(int $kabupatenKotaId): int
 }
 
 /**
- * A minimal valid `POST /pasien/anggota-keluarga` body, with overrides merged in.
- *
- * @param  array<string, mixed>  $overrides
- * @return array<string, mixed>
- */
-function familyMemberPayload(array $overrides = []): array
-{
-    return array_merge([
-        'hubungan_id' => relationshipId(),
-        'nik' => '3273123456780001',
-        'nama_lengkap' => 'Siti Aminah',
-        'jenis_kelamin' => 'P',
-        'tanggal_lahir' => '1965-08-09',
-        'no_telepon' => '081200000001',
-        'catatan_alergi' => 'Alergi terhadap biting serangga',
-    ], $overrides);
-}
-
-/**
  * A minimal valid `POST /pasien/alergi` body, with overrides merged in.
  *
  * @param  array<string, mixed>  $overrides
@@ -307,31 +277,13 @@ function allergyPayload(array $overrides = []): array
 }
 
 /**
- * Insert a family member straight into the table, bypassing the API.
- *
- * Used to plant a row that belongs to *another* patient, which is the only way to test the
- * cross-tenant refusal: the API itself can never create one, because `pasien_id` is
- * server-written. This is the one place in the file that writes without going through an
- * endpoint, and it is a fixture rather than a shortcut.
- */
-function plantFamilyMember(Pasien $pasien, array $overrides = []): PasienAnggotaKeluarga
-{
-    $anggota = new PasienAnggotaKeluarga;
-    $anggota->pasien_id = $pasien->getKey();
-
-    foreach (familyMemberPayload($overrides) as $key => $value) {
-        $anggota->{$key} = $value;
-    }
-
-    $anggota->save();
-
-    return $anggota;
-}
-
-/**
  * Insert an allergy straight into the table, bypassing the API.
  *
- * @see plantFamilyMember() for why this exists
+ * It exists to plant a row that belongs to *another* patient, which is the only way to
+ * test the cross-tenant refusal: the API itself can never create one, because
+ * `pasien_id` and `dicatat_oleh_user_id` are server-written. This is the one place in the
+ * file that writes without going through an endpoint, and it is a fixture rather than a
+ * shortcut.
  */
 function plantAllergy(Pasien $pasien, array $overrides = []): PasienAlergi
 {
@@ -394,9 +346,6 @@ function mutatingEndpoints(): array
 {
     return [
         'profil' => ['PUT', '/api/v1/pasien/profil'],
-        'keluarga create' => ['POST', '/api/v1/pasien/anggota-keluarga'],
-        'keluarga update' => ['PUT', '/api/v1/pasien/anggota-keluarga/{id}'],
-        'keluarga delete' => ['DELETE', '/api/v1/pasien/anggota-keluarga/{id}'],
         'alergi create' => ['POST', '/api/v1/pasien/alergi'],
         'alergi update' => ['PUT', '/api/v1/pasien/alergi/{id}'],
         'alergi delete' => ['DELETE', '/api/v1/pasien/alergi/{id}'],
@@ -407,11 +356,9 @@ function mutatingEndpoints(): array
  * A body that satisfies every one of the mutating requests' rules at once, so a refusal
  * can only ever be about authorisation and never about validation.
  *
- * The profile request and the family request both want a `nama_lengkap`, and they want
- * different things from it: a person's name on the profile, a relative's name on a family
- * member. The profile body is therefore trimmed to the one field it uses, and the family
- * body keeps the relative's name, so a single array can drive all seven refusals without
- * any of them being a validation failure wearing a 403.
+ * The profile request and the allergy requests want different things from the shared
+ * keys, so {@see validMutationBody()} trims this to the keys each one validates. No key
+ * is shared between the two surfaces, which is why the trims are absolute.
  *
  * @return array<string, mixed>
  */
@@ -419,13 +366,7 @@ function validBodyForEveryMutation(): array
 {
     return [
         'pekerjaan' => 'Guru',
-        'hubungan_id' => relationshipId(),
-        'nik' => '3273123456780001',
-        'nama_lengkap' => 'Siti Aminah',
-        'jenis_kelamin' => 'P',
-        'tanggal_lahir' => '1965-08-09',
-        'no_telepon' => '081200000001',
-        'catatan_alergi' => 'Alergi terhadap biting serangga',
+        'nama_lengkap' => 'Budi Santoso Junior',
         'tipe_alergen' => 'obat',
         'nama_alergen' => 'Amoksisilin',
         'reaksi' => 'Ruam dan gatal',
@@ -442,26 +383,10 @@ function validMutationBody(string $method, string $uri): array
 {
     $body = validBodyForEveryMutation();
 
-    if (! str_contains($uri, 'alergi')) {
-        unset($body['tipe_alergen'], $body['nama_alergen'], $body['reaksi'], $body['keparahan']);
-    }
-
-    if (! str_contains($uri, 'keluarga')) {
-        unset(
-            $body['hubungan_id'],
-            $body['nik'],
-            $body['jenis_kelamin'],
-            $body['tanggal_lahir'],
-            $body['no_telepon'],
-            $body['catatan_alergi'],
-        );
-    }
-
     if (str_contains($uri, 'profil')) {
-        // The profile request names `nama_lengkap` for the *patient*, and the family
-        // request for a *relative*; keeping the relative's name here is safe because the
-        // profile body only ever sends `pekerjaan`.
-        $body = ['pekerjaan' => 'Guru', 'nama_lengkap' => 'Budi Santoso Junior'];
+        unset($body['tipe_alergen'], $body['nama_alergen'], $body['reaksi'], $body['keparahan']);
+    } else {
+        unset($body['pekerjaan'], $body['nama_lengkap']);
     }
 
     return $body;
@@ -473,8 +398,8 @@ beforeEach(function (): void {
     // throws a LogicException when the catalogue names a row that is not there.
     $this->seed(RbacSeeder::class);
 
-    // `MasterUmumSeeder` supplies the `master_agama` and `master_hubungan_keluarga` rows the
-    // profile and family requests validate against, and `SpesialisasiSeeder` supplies the
+    // `MasterUmumSeeder` supplies the `master_agama` rows the profile request validates
+    // against, and `SpesialisasiSeeder` supplies the
     // two `master_spesialisasi` rows the `/me` doctor test attaches. Both are the DDL's own
     // `[16]` inserts, run through the project's own seeders rather than re-typed here, so a
     // change to the reference data cannot leave a stale literal in this file.
@@ -870,7 +795,6 @@ test('a non-patient account is refused with 403 on every mutating route, whateve
 
         // And nothing was written on the way out.
         expect(PasienAlergi::query()->count())->toBe(0)
-            ->and(PasienAnggotaKeluarga::query()->count())->toBe(0)
             ->and(Pasien::query()->where('pekerjaan', 'Guru')->count())->toBe(0);
     }
 })->with(mutatingEndpoints());
@@ -905,193 +829,9 @@ test('every patient route refuses an anonymous caller with the 401 envelope', fu
     [
         'me' => ['GET', '/api/v1/me'],
         'profil read' => ['GET', '/api/v1/pasien/profil'],
-        'keluarga list' => ['GET', '/api/v1/pasien/anggota-keluarga'],
         'alergi list' => ['GET', '/api/v1/pasien/alergi'],
     ],
 ));
-
-// =====================================================================
-// Family members
-// =====================================================================
-
-test('a family member is created, listed, updated and hard deleted, every step scoped to the caller', function (): void {
-    $account = asPatient();
-
-    $created = asUser($account['user'])->postJson('/api/v1/pasien/anggota-keluarga', familyMemberPayload());
-
-    $created->assertCreated();
-    $created->assertJsonPath('data.anggota_keluarga.nama_lengkap', 'Siti Aminah');
-    $created->assertJsonPath(
-        'data.anggota_keluarga.hubungan',
-        MasterHubunganKeluarga::query()->orderBy('id')->value('nama'),
-    );
-    $created->assertJsonPath('data.anggota_keluarga.nik', maskedNik('3273123456780001'));
-    $created->assertJsonPath('data.anggota_keluarga.tanggal_lahir', '1965-08-09');
-
-    $id = (int) $created->json('data.anggota_keluarga.id');
-
-    // `pasien_id` is server-written and is not published, so the row is proved to belong to
-    // the caller by reading the table rather than by trusting the response.
-    expect(PasienAnggotaKeluarga::query()->findOrFail($id)->pasien_id)->toBe($account['pasien']->getKey());
-
-    $listed = asUser($account['user'])->getJson('/api/v1/pasien/anggota-keluarga');
-    $listed->assertOk();
-    $listed->assertJsonPath('meta.total', 1);
-    $listed->assertJsonCount(1, 'data.anggota_keluarga');
-    expect((string) $listed->getContent())->not->toContain('"pasien_id"');
-
-    $updated = asUser($account['user'])->putJson('/api/v1/pasien/anggota-keluarga/'.$id, [
-        'nama_lengkap' => 'Siti Aminah Baru',
-        'no_telepon' => '081200000009',
-    ]);
-
-    $updated->assertOk();
-    $updated->assertJsonPath('data.anggota_keluarga.nama_lengkap', 'Siti Aminah Baru');
-    $updated->assertJsonPath('data.anggota_keluarga.no_telepon', '081200000009');
-
-    // A partial update: `tanggal_lahir` was absent from the body and is untouched.
-    $stored = PasienAnggotaKeluarga::query()->findOrFail($id);
-    expect($stored->tanggal_lahir->toDateString())->toBe('1965-08-09')
-        ->and($stored->pasien_id)->toBe($account['pasien']->getKey());
-
-    $deleted = asUser($account['user'])->deleteJson('/api/v1/pasien/anggota-keluarga/'.$id);
-    $deleted->assertOk();
-    $deleted->assertJsonPath('data.deleted', true);
-    $deleted->assertJsonPath('data.id', $id);
-
-    // A HARD delete: `pasien_anggota_keluarga` declares `dibuat_at` and nothing else, so
-    // there is no `dihapus_at` to soft-delete into.
-    expect(PasienAnggotaKeluarga::query()->whereKey($id)->count())->toBe(0);
-});
-
-test('the family list returns only the caller own rows, with the project meta block', function (): void {
-    $mine = asPatient();
-    $theirs = patientAccount(['no_telepon' => '081200000010', 'email' => 'orang.lain@example.test']);
-
-    plantFamilyMember($mine['pasien'], ['nama_lengkap' => 'Ibu Saya']);
-    plantFamilyMember($mine['pasien'], ['nama_lengkap' => 'Ayah Saya']);
-    plantFamilyMember($theirs['pasien'], ['nama_lengkap' => 'Ibu Orang Lain']);
-
-    $first = asUser($mine['user'])->getJson('/api/v1/pasien/anggota-keluarga?per_page=1');
-
-    $first->assertOk();
-    $first->assertJsonPath('meta.total', 2);
-    $first->assertJsonPath('meta.current_page', 1);
-    $first->assertJsonPath('meta.last_page', 2);
-    $first->assertJsonPath('meta.per_page', 1);
-    $first->assertJsonCount(1, 'data.anggota_keluarga');
-    expect($first->getContent())->not->toContain('Ibu Orang Lain');
-
-    $second = asUser($mine['user'])->getJson('/api/v1/pasien/anggota-keluarga?per_page=1&page=2');
-    $second->assertOk();
-    $second->assertJsonPath('meta.current_page', 2);
-    $second->assertJsonPath('meta.last_page', 2);
-    $second->assertJsonCount(1, 'data.anggota_keluarga');
-    expect($second->getContent())->not->toContain('Ibu Orang Lain');
-
-    // The other patient's row is still on the table: this list filtered, it did not move
-    // anything.
-    expect(PasienAnggotaKeluarga::query()->count())->toBe(3);
-});
-
-test('a family member belonging to another patient is 404 on update and delete, and the row is untouched', function (): void {
-    $mine = asPatient();
-    $theirs = patientAccount(['no_telepon' => '081200000011', 'email' => 'orang.lain2@example.test']);
-
-    $foreign = plantFamilyMember($theirs['pasien'], ['nama_lengkap' => 'Ibu Orang Lain']);
-
-    $update = asUser($mine['user'])->putJson('/api/v1/pasien/anggota-keluarga/'.$foreign->getKey(), [
-        'nama_lengkap' => 'Diretas',
-    ]);
-
-    // 404, not 403: a 403 would confirm the row exists. The plan states this explicitly.
-    $update->assertStatus(404);
-    $update->assertJsonPath('success', false);
-    $update->assertJsonPath('message', 'Resource not found.');
-    expect($update->getContent())->not->toContain('Ibu Orang Lain')
-        ->and($update->getContent())->not->toContain('Diretas');
-
-    $delete = asUser($mine['user'])->deleteJson('/api/v1/pasien/anggota-keluarga/'.$foreign->getKey());
-    $delete->assertStatus(404);
-
-    $stillThere = PasienAnggotaKeluarga::query()->findOrFail($foreign->getKey());
-    expect($stillThere->nama_lengkap)->toBe('Ibu Orang Lain')
-        ->and($stillThere->pasien_id)->toBe($theirs['pasien']->getKey());
-
-    // A row that does not exist at all is byte-identical, so the two cannot be told apart.
-    // The body is a VALID one, so the 404 is about the row and not about a rule the
-    // request happened to break on the way in.
-    $missing = asUser($mine['user'])->putJson('/api/v1/pasien/anggota-keluarga/999999', [
-        'nama_lengkap' => 'Siti Aminah',
-        'jenis_kelamin' => 'P',
-        'tanggal_lahir' => '1965-08-09',
-        'hubungan_id' => relationshipId(),
-    ]);
-    $missing->assertStatus(404);
-    expect($missing->getContent())->toBe($update->getContent());
-});
-
-test('the family endpoints refuse the field errors the DDL makes unavoidable', function (string $field, mixed $value, string $fragment): void {
-    $account = asPatient();
-
-    $response = asUser($account['user'])
-        ->postJson('/api/v1/pasien/anggota-keluarga', familyMemberPayload([$field => $value]));
-
-    $response->assertStatus(422);
-    $response->assertJsonPath('success', false);
-    $response->assertJsonPath('message', 'The given data was invalid.');
-    expect($response->json('errors'))->toHaveKey($field);
-    expect($response->json('errors.'.$field.'.0'))->toContain($fragment);
-
-    expect(PasienAnggotaKeluarga::query()->count())->toBe(0);
-})->with([
-    // `nama_lengkap`, `jenis_kelamin`, `tanggal_lahir` and `hubungan_id` are all NOT NULL.
-    ['nama_lengkap', null, 'field is required'],
-    ['jenis_kelamin', null, 'field is required'],
-    ['tanggal_lahir', null, 'field is required'],
-    ['hubungan_id', null, 'field is required'],
-    ['jenis_kelamin', 'X', 'The selected jenis kelamin is invalid.'],
-    ['tanggal_lahir', '09-08-1965', 'must match the format Y-m-d'],
-    ['tanggal_lahir', now()->addDay()->toDateString(), 'before or equal to today'],
-    ['nik', '12345', 'must be 16 digits'],
-    ['nik', str_repeat('a', 16), 'must be 16 digits'],
-    ['no_telepon', 'bukan-nomor', 'format is invalid'],
-    // The FK is real (`:271`), so without `exists` this would be MySQL 1452 - a 500.
-    ['hubungan_id', 250, 'The selected hubungan keluarga is invalid.'],
-]);
-
-test('a family member cannot be created under a patient id of the caller choosing', function (): void {
-    $mine = asPatient();
-    $theirs = patientAccount(['no_telepon' => '081200000012', 'email' => 'orang.lain3@example.test']);
-
-    // 201, and the row lands under the CALLER's `pasien_id`: `pasien_id` is not in the
-    // rules, so a client-supplied one is dropped before the write.
-    $response = asUser($mine['user'])->postJson('/api/v1/pasien/anggota-keluarga', array_merge(
-        familyMemberPayload(),
-        ['pasien_id' => $theirs['pasien']->getKey()],
-    ));
-
-    $response->assertCreated();
-
-    $created = PasienAnggotaKeluarga::query()->latest('id')->firstOrFail();
-    expect($created->pasien_id)->toBe($mine['pasien']->getKey())
-        ->and($created->pasien_id)->not->toBe($theirs['pasien']->getKey())
-        ->and(PasienAnggotaKeluarga::query()->where('pasien_id', $theirs['pasien']->getKey())->count())->toBe(0);
-});
-
-test('the family list refuses a page size above the plan cap and an unparseable page', function (string $query, string $field): void {
-    $account = asPatient();
-
-    $response = asUser($account['user'])->getJson('/api/v1/pasien/anggota-keluarga?'.$query);
-
-    $response->assertStatus(422);
-    expect($response->json('errors'))->toHaveKey($field);
-})->with([
-    ['per_page=101', 'per_page'],
-    ['per_page=0', 'per_page'],
-    ['page=0', 'page'],
-    ['page=abc', 'page'],
-]);
 
 // =====================================================================
 // Allergies
@@ -1278,11 +1018,9 @@ test('an allergy cannot be created with a patient or an author of the caller cho
 test('a non-numeric id is a 404 from the router, not a validation error', function (): void {
     $account = asPatient();
 
-    foreach (['/api/v1/pasien/alergi/abc', '/api/v1/pasien/anggota-keluarga/abc'] as $uri) {
-        $response = asUser($account['user'])->getJson($uri);
-        $response->assertStatus(404);
-        $response->assertJsonPath('message', 'Resource not found.');
-    }
+    $response = asUser($account['user'])->getJson('/api/v1/pasien/alergi/abc');
+    $response->assertStatus(404);
+    $response->assertJsonPath('message', 'Resource not found.');
 });
 
 // =====================================================================
@@ -1393,7 +1131,7 @@ test('the masker keeps four at each end, preserves the length, and refuses to fa
 // Contracts the endpoints depend on
 // =====================================================================
 
-test('the route table exposes the twelve auth routes and the eleven patient routes with the expected middleware', function (): void {
+test('the route table exposes the twelve auth routes and the seven patient routes with the expected middleware', function (): void {
     $routes = collect(Route::getRoutes()->getRoutes())
         ->filter(fn ($route): bool => str_starts_with($route->uri(), 'api/v1'))
         ->keyBy(fn ($route): string => $route->methods()[0].' '.$route->uri())
@@ -1433,10 +1171,6 @@ test('the route table exposes the twelve auth routes and the eleven patient rout
         'GET api/v1/me',
         'GET api/v1/pasien/profil',
         'PUT api/v1/pasien/profil',
-        'GET api/v1/pasien/anggota-keluarga',
-        'POST api/v1/pasien/anggota-keluarga',
-        'PUT api/v1/pasien/anggota-keluarga/{id}',
-        'DELETE api/v1/pasien/anggota-keluarga/{id}',
         'GET api/v1/pasien/alergi',
         'POST api/v1/pasien/alergi',
         'PUT api/v1/pasien/alergi/{id}',
@@ -1676,17 +1410,18 @@ test('the route table exposes the twelve auth routes and the eleven patient rout
         'DELETE api/v1/admin/hero/{id}/gambar',
     ]);
 
-    // FOURTEEN under the `pasien` filter: the ten above (profil read + write,
-    // two each for the family and allergy lists, and two each for the
-    // row-addressed update and delete) plus the patient booking list, todo
-    // 34's letter list, todo 40's patient prescription history, and F12's
-    // patient refund list. `GET /api/v1/me` sits outside the `pasien` filter,
-    // and the other booking routes live outside it too.
+    // TEN under the `pasien` filter: the six above (profil read + write, two for
+    // the allergy list, and two each for the row-addressed update and delete)
+    // plus the patient booking list, todo 34's letter list, todo 40's patient
+    // prescription history, and F12's patient refund list. It was fourteen until
+    // the four `/pasien/anggota-keluarga` routes were removed on 2026-10-15 (see
+    // `routes/api.php` for why). `GET /api/v1/me` sits outside the `pasien`
+    // filter, and the other booking routes live outside it too.
     $pasienRoutes = collect(array_keys($routes))
         ->filter(fn (string $key): bool => str_contains($key, 'api/v1/pasien'))
         ->all();
 
-    expect($pasienRoutes)->toHaveCount(14);
+    expect($pasienRoutes)->toHaveCount(10);
 
     $middlewareFor = static function (string $key) use ($routes): array {
         return array_values(array_filter(
@@ -2260,7 +1995,6 @@ test('the validated ENUM lists are the DDL enums, not transcriptions', function 
         ->and(AlergiRequest::TIPE_ALERGEN)->toHaveCount(4)
         ->and(AlergiRequest::KEPARAHAN)->toBe(pasienEnumFromDdl('pasien_alergi', 'keparahan'))
         ->and(AlergiRequest::KEPARAHAN)->toHaveCount(4)
-        ->and(AnggotaKeluargaRequest::JENIS_KELAMIN)->toBe(pasienEnumFromDdl('pasien_anggota_keluarga', 'jenis_kelamin'))
         ->and(RbacCatalog::USER_TYPES)->toBe(pasienEnumFromDdl('users', 'tipe'));
 });
 
@@ -2315,8 +2049,11 @@ test('the four bare wilayah columns really are foreign-key free, which is why ex
         );
     }
 
-    // And the two columns the write path deliberately never touches, so the claim that they
+    // And the two child tables that carry no soft-delete column, so the claim that they
     // have no time column - which is what forces a hard delete - is also measured.
+    // `pasien_anggota_keluarga` has no write path any more (see `routes/api.php`), but the
+    // table and both foreign keys into it remain, so the property is still worth asserting
+    // for whoever re-adds the feature.
     foreach (['pasien_anggota_keluarga', 'pasien_alergi'] as $table) {
         expect($spec->table($table)->columns)->toHaveKey('dibuat_at')
             ->and($spec->table($table)->columns)->not->toHaveKey('diubah_at')

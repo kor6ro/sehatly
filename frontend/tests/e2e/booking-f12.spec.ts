@@ -118,7 +118,6 @@ function booking(overrides: Record<string, unknown>): Record<string, unknown> {
         id: 1,
         nomor_booking: 'BK20261004F12001',
         pasien_id: 1,
-        anggota_keluarga_id: null,
         dokter_id: 1,
         jadwal_id: null,
         faskes_id: null,

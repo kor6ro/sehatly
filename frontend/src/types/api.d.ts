@@ -1068,42 +1068,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/pasien/anggota-keluarga": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read /api/v1/pasien/anggota-keluarga. */
-        get: operations["getApiV1PasienAnggotaKeluarga"];
-        put?: never;
-        /** Create /api/v1/pasien/anggota-keluarga. */
-        post: operations["postApiV1PasienAnggotaKeluarga"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/pasien/anggota-keluarga/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Replace /api/v1/pasien/anggota-keluarga/{id}. */
-        put: operations["putApiV1PasienAnggotaKeluargaId"];
-        post?: never;
-        /** Delete /api/v1/pasien/anggota-keluarga/{id}. */
-        delete: operations["deleteApiV1PasienAnggotaKeluargaId"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/pasien/booking": {
         parameters: {
             query?: never;
@@ -1841,19 +1805,19 @@ export interface components {
          * @description Request body for operations validated by `App\Http\Requests\RekamMedis\AmandemenRekamMedisRequest`. The properties below are read from that class's `rules()` at generation time.
          */
         AmandemenRekamMedisRequestBody: {
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             dibuat_at?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             ditandatangani_at?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             diubah_at?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             dokter_id?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             faskes_id?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             konsultasi_id?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             pasien_id?: unknown;
             "perubahan.asesmen"?: string;
             "perubahan.diagnosis_kerja"?: string;
@@ -1871,17 +1835,17 @@ export interface components {
             /** @enum {string} */
             "perubahan.status_tindak_lanjut"?: "pulang_dengan_obat" | "kontrol" | "rujuk" | "rawat_inap" | "ke_igd";
             "perubahan.subjektif"?: string;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             "perubahan.tanggal_periksa"?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             satusehat_encounter_id?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             status_dokumen?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             tipe_kunjungan?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             uuid?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             versi?: unknown;
         };
         /**
@@ -1900,23 +1864,23 @@ export interface components {
          */
         BalasUlasanRequestBody: {
             balasan_dokter: string;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             dibalas_at?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             dokter_id?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             is_anonim?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             isi?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             konsultasi_id?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             pasien_id?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             rating?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             rating_akurasi?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             rating_komunikasi?: unknown;
         };
         /**
@@ -1935,41 +1899,41 @@ export interface components {
             /** Format: date */
             berlaku_sampai?: string;
             diagnosis_kerja?: string;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             dibuat_at?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             ditandatangani_at?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             diubah_at?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             dokter_id?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             dokter_perujuk_id?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             faskes_id?: unknown;
             faskes_tujuan_id?: number;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             file_url?: unknown;
             icd10_kode?: string;
             isi?: string;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             jumlah_hari?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             konsultasi_id?: unknown;
             nomor_sep?: string;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             nomor_surat?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             pasien_id?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             qr_token?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             satusehat_encounter_id?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             status?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             status_dokumen?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             surat_keterangan_id?: unknown;
             /** Format: date */
             tanggal_mulai?: string;
@@ -1977,11 +1941,11 @@ export interface components {
             tanggal_selesai?: string;
             /** @enum {string} */
             tipe: "surat_sakit" | "surat_sehat" | "surat_rujukan" | "surat_kematian";
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             tipe_kunjungan?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             uuid?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             versi?: unknown;
         };
         /**
@@ -1996,35 +1960,35 @@ export interface components {
          * @description Request body for operations validated by `App\Http\Requests\PesananObat\CheckoutResepRequest`. The properties below are read from that class's `rules()` at generation time.
          */
         CheckoutResepRequestBody: {
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             alamat_kirim?: unknown;
             apotek_id?: number;
             biaya_kirim?: string;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             dibuat_at?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             diubah_at?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             items?: unknown;
             kode_promo?: string;
             /** @enum {string} */
             kurir?: "internal" | "grab_express" | "gojek" | "jne" | "jnt" | "sicepat";
             metode_id?: number;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             no_resi?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             nomor_pesanan?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             pasien_id?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             resep_id?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             status?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             subtotal?: unknown;
             /** @enum {string} */
             tipe?: "resep_dokter" | "obat_bebas" | "produk_kesehatan";
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             total?: unknown;
         };
         /**
@@ -2032,29 +1996,29 @@ export interface components {
          * @description Request body for operations validated by `App\Http\Requests\RekamMedis\FinalisasiRekamMedisRequest`. The properties below are read from that class's `rules()` at generation time.
          */
         FinalisasiRekamMedisRequestBody: {
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             dibuat_at?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             ditandatangani_at?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             diubah_at?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             dokter_id?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             faskes_id?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             konsultasi_id?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             pasien_id?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             satusehat_encounter_id?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             status_dokumen?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             tipe_kunjungan?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             uuid?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             versi?: unknown;
         };
         /**
@@ -2092,14 +2056,6 @@ export interface components {
          * @description Request body for operations validated by `App\Http\Requests\Pasien\IndexAlergiRequest`. The properties below are read from that class's `rules()` at generation time.
          */
         IndexAlergiRequestBody: {
-            page?: number;
-            per_page?: number;
-        };
-        /**
-         * IndexAnggotaKeluargaRequest
-         * @description Request body for operations validated by `App\Http\Requests\Pasien\IndexAnggotaKeluargaRequest`. The properties below are read from that class's `rules()` at generation time.
-         */
-        IndexAnggotaKeluargaRequestBody: {
             page?: number;
             per_page?: number;
         };
@@ -2251,16 +2207,16 @@ export interface components {
          */
         KirimPesanRequestBody: {
             berkas: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             dibaca_at?: unknown;
             isi: string;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             konsultasi_id?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             pengirim_tipe?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             pengirim_user_id?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             terkirim_at?: unknown;
             /** @enum {string} */
             tipe_pesan: "teks" | "gambar" | "dokumen" | "audio" | "video_note" | "resep" | "surat_keterangan" | "sistem";
@@ -2338,19 +2294,19 @@ export interface components {
          * @description Request body for operations validated by `App\Http\Requests\Konsultasi\MulaiKonsultasiRequest`. The properties below are read from that class's `rules()` at generation time.
          */
         MulaiKonsultasiRequestBody: {
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             biaya_konsultasi?: unknown;
             booking_id?: number;
             dokter_id?: number;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             mulai_at?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             pasien_id?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             room_id?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             selesai_at?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             status?: unknown;
             tipe?: string;
         };
@@ -2431,25 +2387,25 @@ export interface components {
          * @description Request body for operations validated by `App\Http\Requests\Konsultasi\SelesaikanKonsultasiRequest`. The properties below are read from that class's `rules()` at generation time.
          */
         SelesaikanKonsultasiRequestBody: {
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             biaya_konsultasi?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             booking_id?: unknown;
             catatan_asessment?: string;
             catatan_objektif?: string;
             catatan_plan?: string;
             catatan_subjektif?: string;
             diagnosis_kerja?: string;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             mulai_at?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             room_id?: unknown;
             saran_tindak_lanjut?: string;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             selesai_at?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             status?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             total_durasi_detik?: unknown;
         };
         /**
@@ -2461,9 +2417,9 @@ export interface components {
             cta_target: string;
             deskripsi: string;
             eyebrow?: string;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             gambar?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             gambar_alt?: unknown;
             judul: string;
             mulai_tayang?: unknown;
@@ -2479,45 +2435,45 @@ export interface components {
         SimpanRekamMedisRequestBody: {
             asesmen?: string;
             diagnosis_kerja?: string;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             dibuat_at?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             ditandatangani_at?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             diubah_at?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             dokter_id?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             faskes_id?: unknown;
             hasil_pemeriksaan_fisik?: string;
             instruksi_tindak_lanjut?: string;
             /** Format: date */
             jadwal_kontrol?: string;
             keluhan_utama?: string;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             konsultasi_id?: unknown;
             objektif?: string;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             pasien_id?: unknown;
             plan?: string;
             riwayat_keluarga?: string;
             riwayat_penyakit_dahulu?: string;
             riwayat_penyakit_sekarang?: string;
             riwayat_psikososial?: string;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             satusehat_encounter_id?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             status_dokumen?: unknown;
             /** @enum {string} */
             status_tindak_lanjut?: "pulang_dengan_obat" | "kontrol" | "rujuk" | "rawat_inap" | "ke_igd";
             subjektif?: string;
             /** @description A time of day formatted `Y-m-d H:i:s`. */
             tanggal_periksa?: string;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             tipe_kunjungan?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             uuid?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             versi?: unknown;
         };
         /**
@@ -2525,17 +2481,17 @@ export interface components {
          * @description Request body for operations validated by `App\Http\Requests\Konsultasi\SimpanUlasanRequest`. The properties below are read from that class's `rules()` at generation time.
          */
         SimpanUlasanRequestBody: {
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             balasan_dokter?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             dibalas_at?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             dokter_id?: unknown;
             is_anonim?: boolean;
             isi?: string;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             konsultasi_id?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             pasien_id?: unknown;
             rating: number;
             rating_akurasi?: number;
@@ -2570,26 +2526,12 @@ export interface components {
             tipe_alergen: "obat" | "makanan" | "lingkungan" | "lainnya";
         };
         /**
-         * StoreAnggotaKeluargaRequest
-         * @description Request body for operations validated by `App\Http\Requests\Pasien\StoreAnggotaKeluargaRequest`. The properties below are read from that class's `rules()` at generation time.
-         */
-        StoreAnggotaKeluargaRequestBody: {
-            catatan_alergi?: string;
-            hubungan_id: number;
-            /** @enum {string} */
-            jenis_kelamin: "L" | "P";
-            nama_lengkap: string;
-            nik?: string;
-            no_telepon?: string;
-            /** Format: date */
-            tanggal_lahir: string;
-        };
-        /**
          * StoreBookingRequest
          * @description Request body for operations validated by `App\Http\Requests\Booking\StoreBookingRequest`. The properties below are read from that class's `rules()` at generation time.
          */
         StoreBookingRequestBody: {
-            anggota_keluarga_id?: number;
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
+            anggota_keluarga_id?: unknown;
             dokter_id: number;
             is_konsultasi_lanjutan?: boolean;
             is_rujukan?: boolean;
@@ -2598,7 +2540,7 @@ export interface components {
             lampiran_keluhan?: Record<string, never>[];
             "lampiran_keluhan.*.nama": string;
             "lampiran_keluhan.*.url": unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             pasien_id?: unknown;
             /** @description A time of day formatted `H:i:s`. */
             slot_mulai: string;
@@ -2662,7 +2604,7 @@ export interface components {
             keterangan?: string;
             lama_hari?: number;
             obat_id?: number;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             status?: unknown;
             /** Format: date */
             tanggal_mulai: string;
@@ -2676,15 +2618,15 @@ export interface components {
          */
         StorePersetujuanPdpRequestBody: {
             disetujui: boolean;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             disetujui_at?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             id?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             ip_address?: unknown;
             /** @enum {string} */
             jenis: "syarat_ketentuan" | "kebijakan_privasi" | "berbagi_data_medis" | "pemasaran" | "komunikasi_tindak_lanjut";
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             user_id?: unknown;
             versi_dokumen: string;
         };
@@ -2693,22 +2635,22 @@ export interface components {
          * @description Request body for operations validated by `App\Http\Requests\Resep\StoreResepRequest`. The properties below are read from that class's `rules()` at generation time.
          */
         StoreResepRequestBody: {
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             apotek_id?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             berlaku_sampai?: unknown;
             catatan_dodio?: string;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             catatan_dokter?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             dokter_id?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             is_iter?: unknown;
             items: Record<string, never>[];
             "items.*.aturan_pakai": string;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             "items.*.catatan_apoteker"?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             "items.*.harga_satuan"?: unknown;
             "items.*.is_racikan"?: boolean;
             "items.*.jumlah": number;
@@ -2717,25 +2659,25 @@ export interface components {
             "items.*.obat_id"?: number;
             "items.*.racikan_nama"?: string;
             "items.*.satuan"?: string;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             "items.*.subtotal"?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             jumlah_iter?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             konsultasi_id?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             nomor_resep?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             pasien_id?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             qr_token?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             rekam_medis_id?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             status?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             tanggal_resep?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             tipe?: unknown;
         };
         /**
@@ -2743,15 +2685,15 @@ export interface components {
          * @description Request body for operations validated by `App\Http\Requests\Konsultasi\TandaiDibacaRequest`. The properties below are read from that class's `rules()` at generation time.
          */
         TandaiDibacaRequestBody: {
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             dibaca_at?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             konsultasi_id?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             pengirim_tipe?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             pengirim_user_id?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             per_page?: unknown;
         };
         /**
@@ -2759,19 +2701,19 @@ export interface components {
          * @description Request body for operations validated by `App\Http\Requests\Konsultasi\TerimaKonsultasiRequest`. The properties below are read from that class's `rules()` at generation time.
          */
         TerimaKonsultasiRequestBody: {
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             booking_id?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             dokter_id?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             mulai_at?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             room_id?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             selesai_at?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             status?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             total_durasi_detik?: unknown;
         };
         /**
@@ -2783,9 +2725,9 @@ export interface components {
             cta_target?: string;
             deskripsi?: string;
             eyebrow?: string;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             gambar?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             gambar_alt?: unknown;
             judul?: string;
             mulai_tayang?: unknown;
@@ -2801,45 +2743,45 @@ export interface components {
         UbahRekamMedisRequestBody: {
             asesmen?: string;
             diagnosis_kerja?: string;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             dibuat_at?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             ditandatangani_at?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             diubah_at?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             dokter_id?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             faskes_id?: unknown;
             hasil_pemeriksaan_fisik?: string;
             instruksi_tindak_lanjut?: string;
             /** Format: date */
             jadwal_kontrol?: string;
             keluhan_utama?: string;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             konsultasi_id?: unknown;
             objektif?: string;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             pasien_id?: unknown;
             plan?: string;
             riwayat_keluarga?: string;
             riwayat_penyakit_dahulu?: string;
             riwayat_penyakit_sekarang?: string;
             riwayat_psikososial?: string;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             satusehat_encounter_id?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             status_dokumen?: unknown;
             /** @enum {string} */
             status_tindak_lanjut?: "pulang_dengan_obat" | "kontrol" | "rujuk" | "rawat_inap" | "ke_igd";
             subjektif?: string;
             /** @description A time of day formatted `Y-m-d H:i:s`. */
             tanggal_periksa?: string;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             tipe_kunjungan?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             uuid?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             versi?: unknown;
         };
         /**
@@ -2868,21 +2810,6 @@ export interface components {
             reaksi?: string;
             /** @enum {string} */
             tipe_alergen?: "obat" | "makanan" | "lingkungan" | "lainnya";
-        };
-        /**
-         * UpdateAnggotaKeluargaRequest
-         * @description Request body for operations validated by `App\Http\Requests\Pasien\UpdateAnggotaKeluargaRequest`. The properties below are read from that class's `rules()` at generation time.
-         */
-        UpdateAnggotaKeluargaRequestBody: {
-            catatan_alergi?: string;
-            hubungan_id?: number;
-            /** @enum {string} */
-            jenis_kelamin?: "L" | "P";
-            nama_lengkap?: string;
-            nik?: string;
-            no_telepon?: string;
-            /** Format: date */
-            tanggal_lahir?: string;
         };
         /**
          * UpdateJadwalRequest
@@ -2984,12 +2911,12 @@ export interface components {
          * @description Request body for operations validated by `App\Http\Requests\Resep\VerifikasiResepRequest`. The properties below are read from that class's `rules()` at generation time.
          */
         VerifikasiResepRequestBody: {
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             apoteker_user_id?: unknown;
             catatan?: string;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             diverifikasi_at?: unknown;
-            /** @description PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row. */
+            /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             resep_id?: unknown;
             status: string;
         };
@@ -7915,267 +7842,6 @@ export interface operations {
         };
     };
     deleteApiV1PasienAlergiId: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Success. `data` holds the requested resource, and `meta` is present when the response is a list. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessEnvelope"];
-                };
-            };
-            /** @description Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Resource not found. Also answers a `{placeholder}` outside the route's own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client. */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    getApiV1PasienAnggotaKeluarga: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Success. `data` holds the requested resource, and `meta` is present when the response is a list. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PaginatedEnvelope"];
-                };
-            };
-            /** @description Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Resource not found. Also answers a `{placeholder}` outside the route's own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element). */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ValidationErrorEnvelope"];
-                };
-            };
-            /** @description Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client. */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    postApiV1PasienAnggotaKeluarga: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** @description Validated by `App\Http\Requests\Pasien\StoreAnggotaKeluargaRequest::rules()`, which is read at generation time -- these properties are the live rules, not a transcription. */
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["StoreAnggotaKeluargaRequestBody"];
-            };
-        };
-        responses: {
-            /** @description Created. `data` holds the created resource. */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessEnvelope"];
-                };
-            };
-            /** @description Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Resource not found. Also answers a `{placeholder}` outside the route's own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element). */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ValidationErrorEnvelope"];
-                };
-            };
-            /** @description Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client. */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    putApiV1PasienAnggotaKeluargaId: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** @description Validated by `App\Http\Requests\Pasien\UpdateAnggotaKeluargaRequest::rules()`, which is read at generation time -- these properties are the live rules, not a transcription. */
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateAnggotaKeluargaRequestBody"];
-            };
-        };
-        responses: {
-            /** @description Success. `data` holds the requested resource, and `meta` is present when the response is a list. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessEnvelope"];
-                };
-            };
-            /** @description Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Resource not found. Also answers a `{placeholder}` outside the route's own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element). */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ValidationErrorEnvelope"];
-                };
-            };
-            /** @description Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client. */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    deleteApiV1PasienAnggotaKeluargaId: {
         parameters: {
             query?: never;
             header?: never;

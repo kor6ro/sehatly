@@ -97,8 +97,8 @@ abstract class AlergiRequest extends PasienRequest
      *
      * `true` for `POST`: `pasien_alergi.tipe_alergen` and `pasien_alergi.nama_alergen` are
      * both `NOT NULL` with no default (`:277`, `:278`), so a create that omitted one is
-     * MySQL 1364 - a 500. `false` for `PUT`, which is a partial update for the reason
-     * given on {@see AnggotaKeluargaRequest::isCreate()}.
+     * MySQL 1364 - a 500. `false` for `PUT`, which is a partial update: a body that
+     * omits `keparahan` must leave the stored severity alone rather than null it.
      */
     abstract protected function isCreate(): bool;
 

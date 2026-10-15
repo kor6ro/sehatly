@@ -300,10 +300,6 @@ the `2xx`.
 | `POST /api/v1/pasien/alergi` | bearer | `201,422,401,403,404,500` | SuccessEnvelope | 401 |
 | `DELETE /api/v1/pasien/alergi/{id}` | bearer | `200,401,403,404,500` | SuccessEnvelope | 401 |
 | `PUT /api/v1/pasien/alergi/{id}` | bearer | `200,422,401,403,404,500` | SuccessEnvelope | 401 |
-| `GET /api/v1/pasien/anggota-keluarga` | bearer | `200,422,401,403,404,500` | PaginatedEnvelope | 401 |
-| `POST /api/v1/pasien/anggota-keluarga` | bearer | `201,422,401,403,404,500` | SuccessEnvelope | 401 |
-| `DELETE /api/v1/pasien/anggota-keluarga/{id}` | bearer | `200,401,403,404,500` | SuccessEnvelope | 401 |
-| `PUT /api/v1/pasien/anggota-keluarga/{id}` | bearer | `200,422,401,403,404,500` | SuccessEnvelope | 401 |
 | `GET /api/v1/pasien/booking` | bearer | `200,422,401,403,404,500` | PaginatedEnvelope | 401 |
 | `GET /api/v1/pasien/profil` | bearer | `200,401,403,404,500` | SuccessEnvelope | 401 |
 | `PUT /api/v1/pasien/profil` | bearer | `200,422,401,403,404,500` | SuccessEnvelope | 401 |

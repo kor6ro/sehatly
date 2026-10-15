@@ -20,7 +20,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
  * ever existed is not yours to know", because `PasienController` answers 404 rather than
  * 403 for another patient's row precisely so existence is not leaked across tenants.
  *
- * Collapsing them would tell a patient that their own family member does not exist, and
+ * Collapsing them would tell a patient that their own allergy record does not exist, and
  * would tell an operator with a misconfigured account that their data is gone. So the
  * titles differ, and the retry button is omitted for both, because neither is fixed by
  * asking again.

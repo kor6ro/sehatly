@@ -44,9 +44,9 @@ import type {
 /**
  * `booking.tipe_layanan`, in the DDL's order, with the wording the UI shows.
  *
- * A **DDL transcription, not an API response**, and labelled as such at every use - the
- * same distinction `HUBUNGAN_KELUARGA` in `lib/api/anggota-keluarga.ts` draws. There is no
- * reference endpoint for this ENUM (`route:list --path=api/v1` carries exactly one,
+ * A **DDL transcription, not an API response**, and labelled as such at every use. There
+ * is no reference endpoint for this ENUM
+ * (`route:list --path=api/v1` carries exactly one reference route,
  * `master-spesialisasi`), and `StoreBookingRequest` applies `Rule::in(TIPE_LAYANAN)` to it,
  * so the client can only ever usefully offer these four and the server would 422 anything
  * else. The server's spelling is read straight off the wire in every failure it produces:
@@ -242,8 +242,6 @@ export type CreateBookingInput = {
     keluhan?: string | null;
     /** Each element needs a non-empty `nama` (max 150) and a valid `url` (max 2048). */
     lampiran_keluhan?: Array<{ nama: string; url: string }>;
-    /** Scoped to the caller's own family by a closure rule, so a foreign id is a 422. */
-    anggota_keluarga_id?: number | null;
     is_rujukan?: boolean;
     is_konsultasi_lanjutan?: boolean;
 };

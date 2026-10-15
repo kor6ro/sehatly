@@ -10,7 +10,6 @@ import { OtpPage } from '@/pages/otp-page';
 import { DashboardPage } from '@/pages/dashboard-page';
 import { ProfilePage } from '@/pages/profile-page';
 import { DevicesPage } from '@/pages/devices-page';
-import { FamilyPage } from '@/pages/family-page';
 import { AllergyPage } from '@/pages/allergy-page';
 import { DoctorDetailPage } from '@/pages/doctor-detail-page';
 import { MyBookingsPage } from '@/pages/my-bookings-page';
@@ -207,11 +206,6 @@ export const router = createBrowserRouter([
                             {
                                 path: '/profil',
                                 element: <ProfilePage />,
-                                errorElement: <RouteErrorBoundary />,
-                            },
-                            {
-                                path: '/profil/keluarga',
-                                element: <FamilyPage />,
                                 errorElement: <RouteErrorBoundary />,
                             },
                             {

@@ -26,8 +26,10 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * self-reported. The write path sets it to the caller's own id, so a self-reported row
  * is one whose `dicatat_oleh_user_id` equals the caller's `id`.
  *
- * `pasien_id` is not published, for the reason given in
- * {@see PasienAnggotaKeluargaResource}: the list can only ever hold one account's rows.
+ * `pasien_id` is not published: the list is built by
+ * {@see \App\Services\Pasien\PasienRecordAccess::alergiQuery()}, which scopes the query
+ * to the caller's own row, so the response can only ever hold one account's rows and the
+ * column would repeat what the token already establishes.
  *
  * ## `nama_alergen` is free text and is NOT joined to `master_obat`
  *

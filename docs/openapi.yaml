@@ -12,7 +12,7 @@ info:
     drift from the code: a route added, renamed or removed changes it on the next run, and
     `--check` fails until the regenerated file is committed.
 
-    This document describes 120 routes across 102 distinct paths, read from the live route table.
+    This document describes 116 routes across 100 distinct paths, read from the live route table.
 
     ## Envelopes
 
@@ -2927,156 +2927,6 @@ paths:
         500:
           description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
-  /api/v1/pasien/anggota-keluarga:
-    get:
-      operationId: getApiV1PasienAnggotaKeluarga
-      summary: 'Read /api/v1/pasien/anggota-keluarga.'
-      tags:
-        - pasien
-      security:
-        -
-          sanctum: []
-      x-route-name: pasien.anggota-keluarga.index
-      x-laravel-action: App\Http\Controllers\Api\V1\PasienController@anggotaKeluargaIndex
-      x-middleware:
-        - 'auth:sanctum'
-      x-auth:
-        scheme: sanctum
-        transport: bearer
-      responses:
-        200:
-          description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
-          content: { application/json: { schema: { $ref: '#/components/schemas/PaginatedEnvelope' } } }
-        422:
-          description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
-          content: { application/json: { schema: { $ref: '#/components/schemas/ValidationErrorEnvelope' } } }
-        401:
-          description: 'Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`.'
-          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
-        403:
-          description: 'Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`.'
-          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
-        404:
-          description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
-          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
-        500:
-          description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
-          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
-    post:
-      operationId: postApiV1PasienAnggotaKeluarga
-      summary: 'Create /api/v1/pasien/anggota-keluarga.'
-      tags:
-        - pasien
-      security:
-        -
-          sanctum: []
-      x-route-name: pasien.anggota-keluarga.store
-      x-laravel-action: App\Http\Controllers\Api\V1\PasienController@anggotaKeluargaStore
-      x-middleware:
-        - 'auth:sanctum'
-      x-auth:
-        scheme: sanctum
-        transport: bearer
-      requestBody:
-        required: true
-        description: 'Validated by `App\Http\Requests\Pasien\StoreAnggotaKeluargaRequest::rules()`, which is read at generation time -- these properties are the live rules, not a transcription.'
-        content:
-          application/json: { schema: { $ref: '#/components/schemas/StoreAnggotaKeluargaRequestBody' } }
-      responses:
-        201:
-          description: 'Created. `data` holds the created resource.'
-          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
-        422:
-          description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
-          content: { application/json: { schema: { $ref: '#/components/schemas/ValidationErrorEnvelope' } } }
-        401:
-          description: 'Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`.'
-          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
-        403:
-          description: 'Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`.'
-          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
-        404:
-          description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
-          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
-        500:
-          description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
-          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
-  '/api/v1/pasien/anggota-keluarga/{id}':
-    parameters:
-      -
-        name: id
-        type: integer
-        required: true
-    delete:
-      operationId: deleteApiV1PasienAnggotaKeluargaId
-      summary: 'Delete /api/v1/pasien/anggota-keluarga/{id}.'
-      tags:
-        - pasien
-      security:
-        -
-          sanctum: []
-      x-route-name: pasien.anggota-keluarga.destroy
-      x-laravel-action: App\Http\Controllers\Api\V1\PasienController@anggotaKeluargaDestroy
-      x-middleware:
-        - 'auth:sanctum'
-      x-auth:
-        scheme: sanctum
-        transport: bearer
-      responses:
-        200:
-          description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
-          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
-        401:
-          description: 'Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`.'
-          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
-        403:
-          description: 'Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`.'
-          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
-        404:
-          description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
-          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
-        500:
-          description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
-          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
-    put:
-      operationId: putApiV1PasienAnggotaKeluargaId
-      summary: 'Replace /api/v1/pasien/anggota-keluarga/{id}.'
-      tags:
-        - pasien
-      security:
-        -
-          sanctum: []
-      x-route-name: pasien.anggota-keluarga.update
-      x-laravel-action: App\Http\Controllers\Api\V1\PasienController@anggotaKeluargaUpdate
-      x-middleware:
-        - 'auth:sanctum'
-      x-auth:
-        scheme: sanctum
-        transport: bearer
-      requestBody:
-        required: true
-        description: 'Validated by `App\Http\Requests\Pasien\UpdateAnggotaKeluargaRequest::rules()`, which is read at generation time -- these properties are the live rules, not a transcription.'
-        content:
-          application/json: { schema: { $ref: '#/components/schemas/UpdateAnggotaKeluargaRequestBody' } }
-      responses:
-        200:
-          description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
-          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
-        422:
-          description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
-          content: { application/json: { schema: { $ref: '#/components/schemas/ValidationErrorEnvelope' } } }
-        401:
-          description: 'Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`.'
-          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
-        403:
-          description: 'Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`.'
-          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
-        404:
-          description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
-          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
-        500:
-          description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
-          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
   /api/v1/pasien/booking:
     get:
       operationId: getApiV1PasienBooking
@@ -4691,25 +4541,25 @@ components:
       properties:
         dibuat_at:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         ditandatangani_at:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         diubah_at:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         dokter_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         faskes_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         konsultasi_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         pasien_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         perubahan.asesmen:
           type: string
           x-laravel-rule: [string, 'max:16000']
@@ -4756,22 +4606,22 @@ components:
           x-laravel-rule: [string, 'max:16000']
         perubahan.tanggal_periksa:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         satusehat_encounter_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         status_dokumen:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         tipe_kunjungan:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         uuid:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         versi:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
       required: []
       additionalProperties: false
       x-enum-fields:
@@ -4828,31 +4678,31 @@ components:
           x-laravel-rule: [string, 'max:1000']
         dibalas_at:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         dokter_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         is_anonim:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         isi:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         konsultasi_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         pasien_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         rating:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         rating_akurasi:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         rating_komunikasi:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
       required:
         - balasan_dokter
       additionalProperties: false
@@ -4888,28 +4738,28 @@ components:
           x-laravel-rule: [string, 'max:255']
         dibuat_at:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         ditandatangani_at:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         diubah_at:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         dokter_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         dokter_perujuk_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         faskes_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         faskes_tujuan_id:
           type: integer
           x-laravel-rule: [integer, 'min:1']
         file_url:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         icd10_kode:
           type: string
           x-laravel-rule: [string, 'max:8']
@@ -4918,34 +4768,34 @@ components:
           x-laravel-rule: [string, 'max:16000']
         jumlah_hari:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         konsultasi_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         nomor_sep:
           type: string
           x-laravel-rule: [string, 'max:30']
         nomor_surat:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         pasien_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         qr_token:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         satusehat_encounter_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         status:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         status_dokumen:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         surat_keterangan_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         tanggal_mulai:
           type: string
           format: date
@@ -4960,13 +4810,13 @@ components:
           x-laravel-rule: [string, 'in:["surat_sakit","surat_sehat","surat_rujukan","surat_kematian"]']
         tipe_kunjungan:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         uuid:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         versi:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
       required:
         - tipe
       additionalProperties: false
@@ -5028,7 +4878,7 @@ components:
       properties:
         alamat_kirim:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         apotek_id:
           type: integer
           x-laravel-rule: [integer, 'min:1']
@@ -5037,13 +4887,13 @@ components:
           x-laravel-rule: [string, 'max:14']
         dibuat_at:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         diubah_at:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         items:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         kode_promo:
           type: string
           x-laravel-rule: [string, 'max:30']
@@ -5056,29 +4906,29 @@ components:
           x-laravel-rule: [integer, 'min:1']
         no_resi:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         nomor_pesanan:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         pasien_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         resep_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         status:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         subtotal:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         tipe:
           type: string
           enum: [resep_dokter, obat_bebas, produk_kesehatan]
           x-laravel-rule: [string, 'in:["resep_dokter","obat_bebas","produk_kesehatan"]']
         total:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
       required: []
       additionalProperties: false
       x-enum-fields:
@@ -5125,40 +4975,40 @@ components:
       properties:
         dibuat_at:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         ditandatangani_at:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         diubah_at:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         dokter_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         faskes_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         konsultasi_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         pasien_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         satusehat_encounter_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         status_dokumen:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         tipe_kunjungan:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         uuid:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         versi:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
       required: []
       additionalProperties: false
       x-enum-fields:
@@ -5232,21 +5082,6 @@ components:
       title: IndexAlergiRequest
       description: 'Request body for operations validated by `App\Http\Requests\Pasien\IndexAlergiRequest`. The properties below are read from that class''s `rules()` at generation time.'
       x-form-request: App\Http\Requests\Pasien\IndexAlergiRequest
-      properties:
-        page:
-          type: integer
-          x-laravel-rule: [integer, 'min:1']
-        per_page:
-          type: integer
-          x-laravel-rule: [integer, 'min:1', 'max:100']
-      required: []
-      additionalProperties: false
-      x-enum-fields: []
-    IndexAnggotaKeluargaRequestBody:
-      type: object
-      title: IndexAnggotaKeluargaRequest
-      description: 'Request body for operations validated by `App\Http\Requests\Pasien\IndexAnggotaKeluargaRequest`. The properties below are read from that class''s `rules()` at generation time.'
-      x-form-request: App\Http\Requests\Pasien\IndexAnggotaKeluargaRequest
       properties:
         page:
           type: integer
@@ -5641,22 +5476,22 @@ components:
           x-laravel-rule: ['required_if:tipe_pesan,gambar,dokumen,audio,video_note', 'prohibited_unless:tipe_pesan,gambar,dokumen,audio,video_note', file, 'max:10240', closure]
         dibaca_at:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         isi:
           type: string
           x-laravel-rule: ['required_if:tipe_pesan,teks', string, 'max:16000']
         konsultasi_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         pengirim_tipe:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         pengirim_user_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         terkirim_at:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         tipe_pesan:
           type: string
           enum: [teks, gambar, dokumen, audio, video_note, resep, surat_keterangan, sistem]
@@ -5821,7 +5656,7 @@ components:
       properties:
         biaya_konsultasi:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         booking_id:
           type: integer
           x-laravel-rule: ['required_without:dokter_id', 'prohibits:dokter_id', integer]
@@ -5830,19 +5665,19 @@ components:
           x-laravel-rule: ['required_without:booking_id', 'prohibits:booking_id', integer]
         mulai_at:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         pasien_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         room_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         selesai_at:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         status:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         tipe:
           type: string
           x-laravel-rule: ['required_without:booking_id', 'prohibits:booking_id', string, enum]
@@ -6073,10 +5908,10 @@ components:
       properties:
         biaya_konsultasi:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         booking_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         catatan_asessment:
           type: string
           x-laravel-rule: [string, 'max:16000']
@@ -6094,22 +5929,22 @@ components:
           x-laravel-rule: [string, 'max:255']
         mulai_at:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         room_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         saran_tindak_lanjut:
           type: string
           x-laravel-rule: [string, 'max:16000']
         selesai_at:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         status:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         total_durasi_detik:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
       required: []
       additionalProperties: false
       x-enum-fields:
@@ -6150,10 +5985,10 @@ components:
           x-laravel-rule: [string, 'max:60']
         gambar:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         gambar_alt:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         judul:
           type: string
           x-laravel-rule: [string, 'max:160']
@@ -6206,19 +6041,19 @@ components:
           x-laravel-rule: [string, 'max:255']
         dibuat_at:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         ditandatangani_at:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         diubah_at:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         dokter_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         faskes_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         hasil_pemeriksaan_fisik:
           type: string
           x-laravel-rule: [string, 'max:16000']
@@ -6234,13 +6069,13 @@ components:
           x-laravel-rule: [string, 'max:16000']
         konsultasi_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         objektif:
           type: string
           x-laravel-rule: [string, 'max:16000']
         pasien_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         plan:
           type: string
           x-laravel-rule: [string, 'max:16000']
@@ -6258,10 +6093,10 @@ components:
           x-laravel-rule: [string, 'max:16000']
         satusehat_encounter_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         status_dokumen:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         status_tindak_lanjut:
           type: string
           enum: [pulang_dengan_obat, kontrol, rujuk, rawat_inap, ke_igd]
@@ -6275,13 +6110,13 @@ components:
           x-laravel-rule: ['date_format:Y-m-d H:i:s']
         tipe_kunjungan:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         uuid:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         versi:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
       required: []
       additionalProperties: false
       x-enum-fields:
@@ -6299,13 +6134,13 @@ components:
       properties:
         balasan_dokter:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         dibalas_at:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         dokter_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         is_anonim:
           type: boolean
           x-laravel-rule: [boolean]
@@ -6314,10 +6149,10 @@ components:
           x-laravel-rule: [string, 'max:1000']
         konsultasi_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         pasien_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         rating:
           type: integer
           x-laravel-rule: [integer, 'between:1,5']
@@ -6391,45 +6226,6 @@ components:
           - pasien_alergi.keparahan
         tipe_alergen:
           - pasien_alergi.tipe_alergen
-    StoreAnggotaKeluargaRequestBody:
-      type: object
-      title: StoreAnggotaKeluargaRequest
-      description: 'Request body for operations validated by `App\Http\Requests\Pasien\StoreAnggotaKeluargaRequest`. The properties below are read from that class''s `rules()` at generation time.'
-      x-form-request: App\Http\Requests\Pasien\StoreAnggotaKeluargaRequest
-      properties:
-        catatan_alergi:
-          type: string
-          x-laravel-rule: [string, 'max:2000']
-        hubungan_id:
-          type: integer
-          x-laravel-rule: [integer, 'exists:master_hubungan_keluarga,id']
-        jenis_kelamin:
-          type: string
-          enum: [L, P]
-          x-laravel-rule: [string, 'in:["L","P"]']
-        nama_lengkap:
-          type: string
-          x-laravel-rule: [string, 'min:3', 'max:150']
-        nik:
-          type: string
-          x-laravel-rule: [string, 'digits:16']
-        no_telepon:
-          type: string
-          x-laravel-rule: [string, 'max:20', 'regex:/^\+?[0-9]{8,20}$/']
-        tanggal_lahir:
-          type: string
-          format: date
-          x-laravel-rule: [string, 'date_format:Y-m-d', 'after_or_equal:1900-01-01', 'before_or_equal:today']
-      required:
-        - hubungan_id
-        - jenis_kelamin
-        - nama_lengkap
-        - tanggal_lahir
-      additionalProperties: false
-      x-enum-fields:
-        jenis_kelamin:
-          - pasien.jenis_kelamin
-          - pasien_anggota_keluarga.jenis_kelamin
     StoreBookingRequestBody:
       type: object
       title: StoreBookingRequest
@@ -6437,8 +6233,8 @@ components:
       x-form-request: App\Http\Requests\Booking\StoreBookingRequest
       properties:
         anggota_keluarga_id:
-          type: integer
-          x-laravel-rule: [integer, closure]
+          x-laravel-prohibited: true
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         dokter_id:
           type: integer
           x-laravel-rule: [integer, 'exists:dokter,id']
@@ -6465,7 +6261,7 @@ components:
           x-laravel-rule: [url, 'max:2048']
         pasien_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         slot_mulai:
           type: string
           description: 'A time of day formatted `H:i:s`.'
@@ -6629,7 +6425,7 @@ components:
           x-laravel-rule: [integer, exists]
         status:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         tanggal_mulai:
           type: string
           format: date
@@ -6683,20 +6479,20 @@ components:
           x-laravel-rule: [boolean]
         disetujui_at:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         ip_address:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         jenis:
           type: string
           enum: [syarat_ketentuan, kebijakan_privasi, berbagi_data_medis, pemasaran, komunikasi_tindak_lanjut]
           x-laravel-rule: [string, 'in:["syarat_ketentuan","kebijakan_privasi","berbagi_data_medis","pemasaran","komunikasi_tindak_lanjut"]']
         user_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         versi_dokumen:
           type: string
           x-laravel-rule: [string, 'max:20']
@@ -6718,22 +6514,22 @@ components:
       properties:
         apotek_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         berlaku_sampai:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         catatan_dodio:
           type: string
           x-laravel-rule: [string, 'max:16000']
         catatan_dokter:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         dokter_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         is_iter:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         items:
           type: array
           items: { type: object }
@@ -6743,10 +6539,10 @@ components:
           x-laravel-rule: [string, 'max:255']
         'items.*.catatan_apoteker':
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         'items.*.harga_satuan':
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         'items.*.is_racikan':
           type: boolean
           x-laravel-rule: [boolean]
@@ -6770,34 +6566,34 @@ components:
           x-laravel-rule: [string, 'max:30']
         'items.*.subtotal':
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         jumlah_iter:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         konsultasi_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         nomor_resep:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         pasien_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         qr_token:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         rekam_medis_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         status:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         tanggal_resep:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         tipe:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
       required:
         - items
         - 'items.*.aturan_pakai'
@@ -6847,19 +6643,19 @@ components:
       properties:
         dibaca_at:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         konsultasi_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         pengirim_tipe:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         pengirim_user_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         per_page:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
       required: []
       additionalProperties: false
       x-enum-fields:
@@ -6873,25 +6669,25 @@ components:
       properties:
         booking_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         dokter_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         mulai_at:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         room_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         selesai_at:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         status:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         total_durasi_detik:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
       required: []
       additionalProperties: false
       x-enum-fields:
@@ -6932,10 +6728,10 @@ components:
           x-laravel-rule: [string, 'max:60']
         gambar:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         gambar_alt:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         judul:
           type: string
           x-laravel-rule: [string, 'max:160']
@@ -6984,19 +6780,19 @@ components:
           x-laravel-rule: [string, 'max:255']
         dibuat_at:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         ditandatangani_at:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         diubah_at:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         dokter_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         faskes_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         hasil_pemeriksaan_fisik:
           type: string
           x-laravel-rule: [string, 'max:16000']
@@ -7012,13 +6808,13 @@ components:
           x-laravel-rule: [string, 'max:16000']
         konsultasi_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         objektif:
           type: string
           x-laravel-rule: [string, 'max:16000']
         pasien_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         plan:
           type: string
           x-laravel-rule: [string, 'max:16000']
@@ -7036,10 +6832,10 @@ components:
           x-laravel-rule: [string, 'max:16000']
         satusehat_encounter_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         status_dokumen:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         status_tindak_lanjut:
           type: string
           enum: [pulang_dengan_obat, kontrol, rujuk, rawat_inap, ke_igd]
@@ -7053,13 +6849,13 @@ components:
           x-laravel-rule: ['date_format:Y-m-d H:i:s']
         tipe_kunjungan:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         uuid:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         versi:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
       required: []
       additionalProperties: false
       x-enum-fields:
@@ -7125,41 +6921,6 @@ components:
           - pasien_alergi.keparahan
         tipe_alergen:
           - pasien_alergi.tipe_alergen
-    UpdateAnggotaKeluargaRequestBody:
-      type: object
-      title: UpdateAnggotaKeluargaRequest
-      description: 'Request body for operations validated by `App\Http\Requests\Pasien\UpdateAnggotaKeluargaRequest`. The properties below are read from that class''s `rules()` at generation time.'
-      x-form-request: App\Http\Requests\Pasien\UpdateAnggotaKeluargaRequest
-      properties:
-        catatan_alergi:
-          type: string
-          x-laravel-rule: [string, 'max:2000']
-        hubungan_id:
-          type: integer
-          x-laravel-rule: [integer, 'exists:master_hubungan_keluarga,id']
-        jenis_kelamin:
-          type: string
-          enum: [L, P]
-          x-laravel-rule: [string, 'in:["L","P"]']
-        nama_lengkap:
-          type: string
-          x-laravel-rule: [string, 'min:3', 'max:150']
-        nik:
-          type: string
-          x-laravel-rule: [string, 'digits:16']
-        no_telepon:
-          type: string
-          x-laravel-rule: [string, 'max:20', 'regex:/^\+?[0-9]{8,20}$/']
-        tanggal_lahir:
-          type: string
-          format: date
-          x-laravel-rule: [string, 'date_format:Y-m-d', 'after_or_equal:1900-01-01', 'before_or_equal:today']
-      required: []
-      additionalProperties: false
-      x-enum-fields:
-        jenis_kelamin:
-          - pasien.jenis_kelamin
-          - pasien_anggota_keluarga.jenis_kelamin
     UpdateJadwalRequestBody:
       type: object
       title: UpdateJadwalRequest
@@ -7414,16 +7175,16 @@ components:
       properties:
         apoteker_user_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         catatan:
           type: string
           x-laravel-rule: [string, 'max:20000']
         diverifikasi_at:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         resep_id:
           x-laravel-prohibited: true
-          description: "PROHIBITED: sending this key at all is a validation error. It is a tenant key the server writes from the caller's own row."
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
         status:
           type: string
           x-laravel-rule: [string, enum]

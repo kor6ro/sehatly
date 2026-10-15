@@ -5,9 +5,9 @@ pertama, dan tidak ada satu pun yang mendokumentasikan endpoint yang belum ada.
 
 | modul | berkas | status | endpoint |
 |---|---|---|---|
-| 1 - ringkasan | [`modul-1-ringkasan.md`](modul-1-ringkasan.md) | selesai | 22 |
+| 1 - ringkasan | [`modul-1-ringkasan.md`](modul-1-ringkasan.md) | selesai | 18 |
 | 1 - auth | [`modul-1-auth.md`](modul-1-auth.md) | selesai | 10 |
-| 1 - pasien | [`modul-1-pasien.md`](modul-1-pasien.md) | selesai | 11 |
+| 1 - pasien | [`modul-1-pasien.md`](modul-1-pasien.md) | selesai | 7 |
 | 1 - dokter | [`modul-1-dokter.md`](modul-1-dokter.md) | selesai | 3 |
 | 2 - jadwal dan booking | [`modul-2-jadwal-booking.md`](modul-2-jadwal-booking.md) | **belum lengkap** | **0** |
 | 3 - konsultasi dan rekam medis | [`modul-3-konsultasi-rekam-medis.md`](modul-3-konsultasi-rekam-medis.md) | selesai | 15 |

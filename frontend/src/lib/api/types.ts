@@ -13,7 +13,6 @@
  * | --- | --- |
  * | `User` | `UserResource` |
  * | `PasienProfile` | `PasienResource` |
- * | `AnggotaKeluarga` | `PasienAnggotaKeluargaResource` |
  * | `Alergi` | `PasienAlergiResource` |
  * | `DokterRingkas` | `DokterResource` |
  * | `DokterDetail` | `DokterDetailResource` |
@@ -29,6 +28,13 @@
  * | `ResepVerifikasi` | `ResepVerifikasiResource` |
  * | `MasterObat` | `MasterObatResource` |
  * | `PeringatanPeringatan` | `ObatInteraksiService::susunInteraksi()` / `::susunAlergi()` |
+ *
+ * One row is deliberately missing: `AnggotaKeluarga` / `PasienAnggotaKeluargaResource`.
+ * The four routes that let a patient populate `pasien_anggota_keluarga` were removed on
+ * 2026-10-15 (see `routes/api.php` for why), so no resource publishes the table any more
+ * and a client type for it would be a claim about a contract that does not exist. The
+ * `Booking.anggota_keluarga_id` field is gone for the same reason, and the server now
+ * answers 422 to any client that sends it.
  *
  * ## Nullable is spelled honestly
  *
@@ -157,29 +163,6 @@ export type PasienProfile = {
     tanggal_meninggal: Tanggal;
     dibuat_at: Iso;
     diubah_at: Iso;
-};
-
-// ============================================================================
-// pasien_anggota_keluarga
-// ============================================================================
-
-export type AnggotaKeluarga = {
-    id: number;
-    hubungan_id: number;
-    /**
-     * `master_hubungan_keluarga.nama`, present only when the relation was
-     * eager-loaded. The list endpoint loads it, so this is populated in practice; it stays
-     * optional because the resource's contract is `whenLoaded()`.
-     */
-    hubungan?: string | null;
-    /** Masked, like {@link PasienProfile.nik}. Write-only from a client's point of view. */
-    nik: string | null;
-    nama_lengkap: string;
-    jenis_kelamin: 'L' | 'P';
-    tanggal_lahir: Tanggal;
-    no_telepon: string | null;
-    catatan_alergi: string | null;
-    dibuat_at: Iso;
 };
 
 // ============================================================================
@@ -529,8 +512,6 @@ export type Booking = {
     /** `BK<Ymd><suffix>`, e.g. `BK20261028P8UTGR`; `VARCHAR(30) UNIQUE` at `:500`. */
     nomor_booking: string;
     pasien_id: number;
-    /** `NULL` means "for the patient themselves", which is the common case. */
-    anggota_keluarga_id: number | null;
     dokter_id: number;
     /**
      * `NULL` on an instant booking. Observed `null` for a doctor with no

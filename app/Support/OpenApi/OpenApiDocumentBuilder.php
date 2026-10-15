@@ -849,7 +849,8 @@ final class OpenApiDocumentBuilder
                     $property['x-laravel-prohibited'] = true;
                     $property['description'] = trim(
                         ($property['description'] ?? '').' PROHIBITED: sending this key at all is a validation '
-                        .'error. It is a tenant key the server writes from the caller\'s own row.',
+                        .'error. The endpoint neither accepts nor writes the key, and the request '
+                        .'class\'s docblock states the reason where there is one.',
                     );
                 }
 

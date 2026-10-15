@@ -4,14 +4,12 @@ declare(strict_types=1);
 
 use App\Http\Resources\BookingResource;
 use App\Http\Resources\KonsultasiResource;
-use App\Http\Resources\PasienAnggotaKeluargaResource;
 use App\Http\Resources\PasienResource;
 use App\Http\Resources\RekamMedisResource;
 use App\Http\Resources\SuratKeteranganResource;
 use App\Models\Booking;
 use App\Models\Konsultasi;
 use App\Models\Pasien;
-use App\Models\PasienAnggotaKeluarga;
 use App\Models\RekamMedis;
 use App\Models\SuratKeterangan;
 use App\Support\NikCipher;
@@ -956,9 +954,14 @@ test('every resource that publishes a NIK publishes the same masked string', fun
 
     // Two shapes, because both exist in the codebase: a resource reads the
     // column off its own model, or off a loaded `pasien` relation.
+    //
+    // A third resource, `PasienAnggotaKeluargaResource`, used to read `nik` off its own
+    // model too; it was deleted on 2026-10-15 with the routes that let a patient populate
+    // `pasien_anggota_keluarga` (see `routes/api.php`). The column stays plaintext in the
+    // DDL, so re-adding the feature without re-adding a masked resource is the exact
+    // leak this test exists to catch.
     $langsung = [
         PasienResource::class => $pasien,
-        PasienAnggotaKeluargaResource::class => (new PasienAnggotaKeluarga)->forceFill(['nik' => $nik]),
     ];
 
     foreach ($langsung as $resource => $model) {
@@ -1028,10 +1031,15 @@ test('no resource publishes a raw NIK and every one of them routes through this 
     // The closed set of resources that publish an identifier. `nomor_kk` is
     // masked by the same rule but is not a NIK column, so it is listed
     // separately below rather than folded in here.
+    //
+    // `PasienAnggotaKeluargaResource` is no longer in the set because it no longer
+    // exists: deleted 2026-10-15 with the routes that let a patient populate
+    // `pasien_anggota_keluarga` (see `routes/api.php`). The scan above still walks every
+    // resource in the directory, so re-adding one that publishes `nik` without the cipher
+    // fails on the `expect($baris)->toContain('NikCipher::mask(')` line, not on this list.
     expect(array_keys($penyusun))->toBe([
         'BookingResource',
         'KonsultasiResource',
-        'PasienAnggotaKeluargaResource',
         'PasienResource',
         'RekamMedisResource',
         'SuratKeteranganResource',

@@ -32,7 +32,6 @@ class BookingResource extends JsonResource
             'id' => $this->resource->getKey(),
             'nomor_booking' => $this->resource->nomor_booking,
             'pasien_id' => $this->resource->pasien_id,
-            'anggota_keluarga_id' => $this->resource->anggota_keluarga_id,
             'dokter_id' => $this->resource->dokter_id,
             'jadwal_id' => $this->resource->jadwal_id,
             'faskes_id' => $this->resource->faskes_id,

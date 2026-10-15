@@ -733,7 +733,9 @@ class BookingService
                 $booking = new Booking;
                 $booking->nomor_booking = $this->nomor->berikutnya(NomorDokumen::PREFIX_BOOKING, $tanggal);
                 $booking->pasien_id = $pasien->getKey();
-                $booking->anggota_keluarga_id = $data['anggota_keluarga_id'] ?? null;
+                // Always NULL - `StoreBookingRequest` prohibits the field. The column
+                // stays because the schema is not ours to change.
+                $booking->anggota_keluarga_id = null;
                 $booking->dokter_id = $dokter->getKey();
                 $booking->jadwal_id = $jadwal?->getKey();
                 $booking->faskes_id = $faskesId;

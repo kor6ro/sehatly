@@ -92,7 +92,6 @@ const BOOKING = {
     id: 1,
     nomor_booking: 'BK20261110UJI001',
     pasien_id: 1,
-    anggota_keluarga_id: null,
     dokter_id: 1,
     jadwal_id: null,
     faskes_id: null,
@@ -203,15 +202,6 @@ async function pasangMock(page: Page, opsi: OpsiMock = {}): Promise<void> {
                 message: 'Daftar booking berhasil dimuat.',
                 data: { booking: [] },
                 meta: meta(0, 10),
-            });
-        }
-
-        if (path === '/api/v1/pasien/anggota-keluarga') {
-            return balasJson(route, 200, {
-                success: true,
-                message: 'Daftar anggota keluarga berhasil dimuat.',
-                data: { anggota_keluarga: [] },
-                meta: meta(0, 100),
             });
         }
 
@@ -542,11 +532,22 @@ test.describe('F05 AC-9: touch targets, labels, and visible focus at 390 px', ()
         for (const label of [
             'Jam mulai terpilih',
             'Tipe layanan',
-            'Didaftarkan atas nama',
             'Keluhan',
         ]) {
             await expect(page.getByLabel(label)).toBeVisible();
         }
+
+        /**
+         * The family-member picker is gone, asserted rather than omitted. Its API
+         * (`GET /api/v1/pasien/anggota-keluarga`) was removed on 2026-10-15 and
+         * `POST /api/v1/booking` now answers 422 to `anggota_keluarga_id`, so a control
+         * that came back would offer a choice the server refuses. The booking stays for
+         * the account holder's own `pasien_id`, which is what `data.booking.pasien_id`
+         * below already pins.
+         */
+        await expect(
+            page.getByText('Didaftarkan atas nama'),
+        ).toHaveCount(0);
 
         await expect(
             page.getByRole('textbox', { name: 'Tanggal kunjungan' }),

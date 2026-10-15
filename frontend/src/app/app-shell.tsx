@@ -7,7 +7,6 @@ import {
     ClipboardCheck,
     ClipboardList,
     FileHeart,
-    HeartPulse,
     LogOut,
     MessagesSquare,
     MonitorSmartphone,
@@ -220,14 +219,6 @@ function AppSidebar() {
                                     to="/profil"
                                     icon={ClipboardList}
                                     label="Profil"
-                                    pathname={pathname}
-                                    onNavigate={tutupDrawer}
-                                />
-
-                                <MenuLink
-                                    to="/profil/keluarga"
-                                    icon={HeartPulse}
-                                    label="Anggota keluarga"
                                     pathname={pathname}
                                     onNavigate={tutupDrawer}
                                 />

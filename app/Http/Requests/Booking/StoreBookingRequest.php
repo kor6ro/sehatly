@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace App\Http\Requests\Booking;
 
 use App\Models\DokterJadwal;
-use App\Models\User;
-use App\Services\Pasien\PasienRecordAccess;
 use Closure;
 use Illuminate\Validation\Rule;
 
@@ -16,6 +14,16 @@ use Illuminate\Validation\Rule;
  * `pasien_id` is the tenant key, written from the caller's own row and never
  * read from a body. It is `prohibited` rather than merely absent from the
  * rules, so a client that tries is told so instead of being silently ignored.
+ *
+ * `anggota_keluarga_id` is `prohibited` for the opposite reason: the column is
+ * real and nullable (`2026_10_01_000037_booking_table.php:178`) and
+ * {@see \App\Models\Booking::anggotaKeluarga()} still points at it, but the
+ * four routes that let a patient populate `pasien_anggota_keluarga` were
+ * removed on 2026-10-15 (see `routes/api.php` for why). Accepting an id with
+ * no way to have registered one would either fail the foreign key or point at
+ * a row this caller cannot see, so the field is refused outright and
+ * `BookingService` writes NULL. Removing the rule instead would silently drop
+ * the key, which is the failure mode this class exists to avoid.
  *
  * `tanggal_kunjungan` and `slot_mulai` are `date_format` checks and not `date`
  * checks: `Carbon::createFromFormat('Y-m-d', '2026-13-45')` does NOT fail,
@@ -59,25 +67,7 @@ class StoreBookingRequest extends BookingRequest
             'lampiran_keluhan.*.nama' => ['required', 'string', 'max:150'],
             'lampiran_keluhan.*.url' => ['required', 'url', 'max:2048'],
             'pasien_id' => ['prohibited'],
-            'anggota_keluarga_id' => [
-                'nullable',
-                'integer',
-                function (string $attribute, mixed $value, Closure $fail): void {
-                    /** @var User $user */
-                    $user = $this->user();
-
-                    $pasien = app(PasienRecordAccess::class)->ownPasien($user);
-
-                    $milikPasien = app(PasienRecordAccess::class)
-                        ->anggotaKeluargaQuery($pasien)
-                        ->whereKey((int) $value)
-                        ->exists();
-
-                    if (! $milikPasien) {
-                        $fail('Anggota keluarga yang dipilih bukan milik pasien ini.');
-                    }
-                },
-            ],
+            'anggota_keluarga_id' => ['prohibited'],
             'is_rujukan' => ['nullable', 'boolean'],
             'is_konsultasi_lanjutan' => ['nullable', 'boolean'],
         ];

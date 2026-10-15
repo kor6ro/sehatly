@@ -2,7 +2,6 @@ import { Link } from 'react-router';
 import {
     AlertCircle,
     ClipboardList,
-    HeartPulse,
     LogOut,
     ShieldCheck,
     Stethoscope,
@@ -199,13 +198,6 @@ export function DashboardPage() {
                         />
 
                         <NavLink
-                            to="/profil/keluarga"
-                            icon={<HeartPulse />}
-                            label="Anggota keluarga"
-                            disabled={!isPasien}
-                        />
-
-                        <NavLink
                             to="/?semua=1"
                             icon={<Stethoscope />}
                             label="Dokter Terdekat"
@@ -216,7 +208,7 @@ export function DashboardPage() {
 
             {user.pasien === undefined ? (
                 <ForbiddenState
-                    detail="Akun ini tidak memiliki data pasien. Halaman profil, anggota keluarga, dan alergi hanya dapat dibuka oleh akun yang memiliki data pasien."
+                    detail="Akun ini tidak memiliki data pasien. Halaman profil dan alergi hanya dapat dibuka oleh akun yang memiliki data pasien."
                 />
             ) : null}
         </>

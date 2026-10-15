@@ -301,15 +301,6 @@ async function pasangMock(page: Page, opsi: OpsiMock = {}): Promise<MockState> {
             });
         }
 
-        if (path === '/api/v1/pasien/anggota-keluarga') {
-            return balasJson(route, 200, {
-                success: true,
-                message: 'Daftar anggota keluarga berhasil dimuat.',
-                data: { anggota_keluarga: [] },
-                meta: meta(0, 100),
-            });
-        }
-
         if (path === '/api/v1/referensi/metode-pembayaran') {
             return balasJson(route, 200, {
                 success: true,

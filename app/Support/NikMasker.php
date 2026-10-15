@@ -4,19 +4,24 @@ declare(strict_types=1);
 
 namespace App\Support;
 
-use App\Http\Resources\PasienAnggotaKeluargaResource;
-
 /**
  * Masks a 16-character national identifier for publication.
  *
  * ## Why this is a class and not a line inside a resource
  *
- * Three resources publish a masked identifier - {@see \App\Http\Resources\PasienResource}
- * for `pasien.nik` and `pasien.nomor_kk`, and
- * {@see PasienAnggotaKeluargaResource} for
- * `pasien_anggota_keluarga.nik` - and the masking rule is a security control, not a
- * formatting preference. Three copies of it would be three places for the next edit to
- * get wrong, and a wrong one is a raw NIK in a response body.
+ * The masking rule is a security control, not a formatting preference, and more than
+ * one place needs it: {@see \App\Http\Resources\PasienResource} masks
+ * `pasien.nomor_kk`, {@see \App\Http\Resources\AdminDokterResource} masks
+ * `dokter.nomor_str` and `dokter.nomor_sip`, and {@see NikCipher} routes every
+ * decrypted `pasien.nik` through it before publication. Duplicated, it would be
+ * several places for the next edit to get wrong, and a wrong one is a raw identifier
+ * in a response body.
+ *
+ * `pasien_anggota_keluarga.nik` is a fourth column of the same shape and is no longer
+ * published by anything: the four routes that let a patient populate that table were
+ * removed on 2026-10-15, and with them {@see \App\Http\Resources\PasienAnggotaKeluargaResource}.
+ * The column and its masking rule both remain, so re-adding the feature does not
+ * reopen the leak.
  *
  * ## The rule
  *

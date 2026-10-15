@@ -8,7 +8,6 @@ use App\Models\Booking;
 use App\Models\Dokter;
 use App\Models\Pasien;
 use App\Models\PasienAlergi;
-use App\Models\PasienAnggotaKeluarga;
 use App\Models\PesananObat;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -38,7 +37,7 @@ use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
  * `pasien` row can name a given `users` row. That single uniqueness is what makes "your
  * own record" decidable at all: there is never a question of which of several rows
  * belongs to the caller, and there is no list to page through. Everything below it -
- * family members, allergies, bookings, prescriptions, invoices - is reachable only
+ * allergies, bookings, prescriptions, invoices - is reachable only
  * through that one root, so a rule that holds at the root holds everywhere.
  *
  * ## 403 for the caller, 404 for the row, and the two are not interchangeable
@@ -57,13 +56,14 @@ use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
  * ## `whereBelongsTo` is the explicit form, on purpose
  *
  * `$pasien->pasienAlergi()` would produce equivalent SQL, but it spreads the scope
- * across four call sites where a reader has to resolve the relation to see the filter.
- * Writing `PasienAlergi::query()->whereBelongsTo($pasien)` in {@see alergiQuery()} and
- * the same for the family query makes the tenant filter the first thing on the query,
+ * across call sites where a reader has to resolve the relation to see the filter.
+ * Writing `PasienAlergi::query()->whereBelongsTo($pasien)` in {@see alergiQuery()} -
+ * and `Booking::query()->whereBelongsTo($pasien)` in {@see bookingQuery()} - makes the
+ * tenant filter the first thing on the query,
  * and it is the framework's own API for exactly this
  * (`Illuminate\Database\Eloquent\Concerns\QueriesRelationships::whereBelongsTo`, which
  * resolves the `BelongsTo` relationship name from the related model when none is
- * given). Future code that queries `pasien_alergi` directly instead of through here is
+ * given). Future code that queries those tables directly instead of through here is
  * then visibly the odd one out.
  *
  * ## 23 bare columns have no relation, and none of them is used here
@@ -80,8 +80,8 @@ use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
  *
  * Read against `RbacCatalog::PERMISSIONS` in full, the 24 codes name booking, jadwal,
  * konsultasi, rekam_medis, surat_keterangan, resep, obat, pesanan, pembayaran, promo,
- * notifikasi, audit, pdp and dokter actions - **none** of them names a patient profile,
- * a family member or an allergy. `EnsurePermission` throws a `LogicException` (a 500)
+ * notifikasi, audit, pdp and dokter actions - **none** of them names a patient profile
+ * or an allergy. `EnsurePermission` throws a `LogicException` (a 500)
  * for an unknown code, and adding a code to the catalogue is a policy change in
  * `app/Support/Rbac/`, which is not this todo's to make.
  *
@@ -107,8 +107,8 @@ final class PasienRecordAccess
     /**
      * The page size a list request gets when it asks for none.
      *
-     * Chosen rather than the cap because a patient has a handful of family members and
-     * allergies, not thousands, and 15 is the conventional default for a list whose
+     * Chosen rather than the cap because a patient has a handful of allergies and
+     * bookings, not thousands, and 15 is the conventional default for a list whose
      * size is unknown. The cap above is still what protects a client that asks for
      * everything.
      */
@@ -178,16 +178,6 @@ final class PasienRecordAccess
     }
 
     /**
-     * Every `pasien_anggota_keluarga` row of one patient, and nothing else.
-     *
-     * @return Builder<PasienAnggotaKeluarga>
-     */
-    public function anggotaKeluargaQuery(Pasien $pasien): Builder
-    {
-        return PasienAnggotaKeluarga::query()->whereBelongsTo($pasien);
-    }
-
-    /**
      * Every `pasien_alergi` row of one patient, and nothing else.
      *
      * @return Builder<PasienAlergi>
@@ -195,27 +185,6 @@ final class PasienRecordAccess
     public function alergiQuery(Pasien $pasien): Builder
     {
         return PasienAlergi::query()->whereBelongsTo($pasien);
-    }
-
-    /**
-     * One family member of this patient, or a 404.
-     *
-     * The `whereBelongsTo` is inside {@see anggotaKeluargaQuery()}, so a row belonging
-     * to somebody else is simply not found and the caller cannot tell it apart from a
-     * row that never existed. That is the whole point: the check **is** the query, not a
-     * filter applied after the row has been loaded.
-     *
-     * @throws ModelNotFoundException, rendered as the 404 envelope by `bootstrap/app.php`
-     */
-    public function anggotaKeluargaOrFail(Pasien $pasien, int $id): PasienAnggotaKeluarga
-    {
-        $anggota = $this->anggotaKeluargaQuery($pasien)->whereKey($id)->first();
-
-        if ($anggota === null) {
-            throw (new ModelNotFoundException)->setModel(PasienAnggotaKeluarga::class, [$id]);
-        }
-
-        return $anggota;
     }
 
     /**

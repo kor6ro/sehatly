@@ -48,13 +48,17 @@ const DESKTOP = { width: 1280, height: 900 };
 const PONSEL = { width: 390, height: 844 };
 
 /**
- * The sixteen nav destinations a patient account is offered, as paths.
+ * The fifteen nav destinations a patient account is offered, as paths.
  *
  * Written out rather than counted, because "the drawer has links" would pass with the three
  * F3-04 measured. A destination added later fails here until this list is updated, which is
  * the whole value of writing it down - and which is how `/profil/notifikasi` and
  * `/pengingat` were caught: the "Notifikasi & pengingat" group landed in the shell and this
  * array did not, so the spec failed until the list was brought up to date.
+ *
+ * `/profil/keluarga` left this list when its four routes were removed on 2026-10-15 (see
+ * `routes/api.php` for why), taking the link with them - a list entry whose page no longer
+ * exists would fail the same way the two above did, which is the point of writing it down.
  *
  * `/dokter/booking` ("Booking masuk") left this list when the practitioner entrances were
  * held back from the sidebar: it answers `tipe:dokter` only, so for this account it was a
@@ -67,7 +71,6 @@ const PONSEL = { width: 390, height: 844 };
 const TUJUAN_PASIEN: ReadonlyArray<string> = [
     '/dashboard',
     '/profil',
-    '/profil/keluarga',
     '/profil/alergi',
     '/profil/perangkat',
     '/profil/privasi',

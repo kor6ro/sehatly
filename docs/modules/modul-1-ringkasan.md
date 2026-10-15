@@ -7,9 +7,9 @@ pasien, serta direktori dokter publik. Basis diverifikasi:
 Resep per endpoint ada di:
 
 - `modul-1-auth.md` - 10 route `/api/v1/auth/*` (F01 menambahkan
-  `POST /auth/otp/resend` dan `POST /auth/logout-all`; tabel 22 endpoint di
+  `POST /auth/otp/resend` dan `POST /auth/logout-all`; tabel 18 endpoint di
   bawah adalah snapshot verifikasi sebelum F01).
-- `modul-1-pasien.md` - 11 route `/api/v1/me` + `/api/v1/pasien/*`.
+- `modul-1-pasien.md` - 7 route `/api/v1/me` + `/api/v1/pasien/*`.
 - `modul-1-dokter.md` - 3 route `/api/v1/dokter*` + `/api/v1/master-spesialisasi`.
 
 ## Manifest berkas (backend)
@@ -29,10 +29,14 @@ Profil dan data pasien (`MeController.php`, `PasienController.php`):
 
 - `App\Services\Pasien\PasienRecordAccess.php` (403 pemanggil vs 404 baris).
 - `App\Http\Requests\Pasien\UpdateProfileRequest.php`,
-  `StoreAnggotaKeluargaRequest.php`, `UpdateAnggotaKeluargaRequest.php`,
   `StoreAlergiRequest.php`, `UpdateAlergiRequest.php`.
 - `App\Http\Resources\UserResource.php`, `PasienResource.php`,
-  `PasienAnggotaKeluargaResource.php`, `PasienAlergiResource.php`.
+  `PasienAlergiResource.php`.
+
+Empat route `/pasien/anggota-keluarga` beserta
+`StoreAnggotaKeluargaRequest.php`, `UpdateAnggotaKeluargaRequest.php`,
+`IndexAnggotaKeluargaRequest.php` dan `PasienAnggotaKeluargaResource.php`
+dihapus pada 2026-10-15; alasan lengkapnya ada di catatan di `routes/api.php`.
 
 Direktori dokter (`DokterController.php`):
 
@@ -52,7 +56,7 @@ Lintas modul:
 Web (`frontend/`) dan mobile (`packages/`, `mobile/`): tidak ada berkas Modul 1
 (todo 23/24 belum dikerjakan).
 
-## Tabel endpoint (22 route, semua terverifikasi)
+## Tabel endpoint (18 route, semua terverifikasi)
 
 `A` = butuh `Authorization: Bearer <ACCESS_TOKEN>`. Tidak ada route Modul 1
 yang memakai `permission:`; scoping pasien dikerjakan
@@ -71,17 +75,13 @@ yang memakai `permission:`; scoping pasien dikerjakan
 | 9 | GET | `/me` | A | 200 |
 | 10 | GET | `/pasien/profil` | A | 200 |
 | 11 | PUT | `/pasien/profil` | A | 200 |
-| 12 | GET | `/pasien/anggota-keluarga` | A | 200 |
-| 13 | POST | `/pasien/anggota-keluarga` | A | 201 |
-| 14 | PUT | `/pasien/anggota-keluarga/{id}` | A | 200 |
-| 15 | DELETE | `/pasien/anggota-keluarga/{id}` | A | 200 |
-| 16 | GET | `/pasien/alergi` | A | 200 |
-| 17 | POST | `/pasien/alergi` | A | 201 |
-| 18 | PUT | `/pasien/alergi/{id}` | A | 200 |
-| 19 | DELETE | `/pasien/alergi/{id}` | A | 200 |
-| 20 | GET | `/dokter` | - | 200 |
-| 21 | GET | `/dokter/{id}` | - | 200 |
-| 22 | GET | `/master-spesialisasi` | - | 200 |
+| 12 | GET | `/pasien/alergi` | A | 200 |
+| 13 | POST | `/pasien/alergi` | A | 201 |
+| 14 | PUT | `/pasien/alergi/{id}` | A | 200 |
+| 15 | DELETE | `/pasien/alergi/{id}` | A | 200 |
+| 16 | GET | `/dokter` | - | 200 |
+| 17 | GET | `/dokter/{id}` | - | 200 |
+| 18 | GET | `/master-spesialisasi` | - | 200 |
 
 ## Cara memperoleh token (urutan persis yang dipakai verifikasi)
 
@@ -97,7 +97,7 @@ curl.exe -s -X POST "$BASE_URL/auth/otp/verify" -H "Content-Type: application/js
 Alur masuk akun yang sudah ada: `POST /auth/login` (menerima OTP, tanpa
 token) lalu `POST /auth/otp/verify` dengan `tujuan=login`.
 
-## Aritmetika 13 vs 22 (temuan basi)
+## Aritmetika 13 vs 18 (temuan basi)
 
 Todo 25 menulis "13 endpoint Modul 1", tetapi angka itu tidak cocok dengan
 rencana itu sendiri maupun implementasi:
@@ -110,7 +110,13 @@ rencana itu sendiri maupun implementasi:
   `route:list --path=api/v1/pasien` memuat **8 route** (filter path ini
   mengecualikan `/me`). Berkas route sendiri mengoreksi: prosanya menyebut
   10 route di bawah `/pasien` dan semuanya dikirim, plus `/me` sebagai
-  kesebelas. Implementasi: **10 + 1 = 11**.
+  kesebelas. Implementasi saat itu: **10 + 1 = 11**.
+  Empat route `/pasien/anggota-keluarga` dihapus pada 2026-10-15 - alasan
+  lengkapnya di catatan di `routes/api.php` - sehingga Modul 1 kini
+  memuat **7** route: `/me`, dua `/pasien/profil`, empat `/pasien/alergi`.
+  Enam route `/pasien/*` yang tersisa (`booking`, `refund`, `resep`,
+  `surat-keterangan`) milik modul lain dan memang tidak pernah masuk tabel
+  di atas.
 - Todo 22 (dokter): acceptance-nya menuntut
   `route:list --path=api/v1/dokter` memuat **2 route**. Implementasi
   memuat **3** (`GET /dokter`, `GET /dokter/{id}`,
@@ -118,7 +124,7 @@ rencana itu sendiri maupun implementasi:
   `master_spesialisasi` sebagai "ditambahkan di luar tabel spec".
 - 6 + 8 + 2 = 16 menurut acceptance rencana, bukan 13. Jadi "13" basi
   terhadap rencana maupun kode. Yang otoritatif adalah route table:
-  **8 + 11 + 3 = 22**, dan dokumen ini meresepkan semuanya.
+  **8 + 7 + 3 = 18** untuk Modul 1, dan dokumen ini meresepkan semuanya.
 
 ## Temuan basi lain yang dilaporkan, bukan ditutupi
 

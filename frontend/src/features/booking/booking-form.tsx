@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { Paperclip, Plus, Send, Trash2 } from 'lucide-react';
 import {
     createBookingMutation,
@@ -10,7 +10,6 @@ import {
     TIPE_LAYANAN,
     type CreateBookingInput,
 } from '@/lib/api/booking';
-import { anggotaKeluargaOptions, namaHubungan } from '@/lib/api/anggota-keluarga';
 import { BookingCalendar } from '@/features/booking/booking-calendar';
 import { SlotPicker, SlotTakenNotice } from '@/features/booking/slot-picker';
 import { ApiError } from '@/lib/http';
@@ -66,7 +65,6 @@ const schema = z.object({
         .string()
         .regex(/^\d{2}:\d{2}:\d{2}$/, 'Jam mulai harus format HH:MM:SS.'),
     keluhan: z.string().trim().max(5000, 'Keluhan maksimal 5000 karakter.'),
-    anggota_keluarga_id: z.string(),
     is_rujukan: z.boolean(),
     is_konsultasi_lanjutan: z.boolean(),
 });
@@ -118,8 +116,6 @@ export function BookingForm({
 
     const online = useOnlineStatus();
 
-    const keluarga = useQuery(anggotaKeluargaOptions({ page: 1, per_page: 100 }));
-
     const {
         register,
         handleSubmit,
@@ -139,7 +135,6 @@ export function BookingForm({
                     ? jamAwal
                     : '',
             keluhan: '',
-            anggota_keluarga_id: '',
             is_rujukan: false,
             is_konsultasi_lanjutan: false,
         },
@@ -149,7 +144,6 @@ export function BookingForm({
 
     const tanggal = watch('tanggal_kunjungan');
     const tipeLayanan = watch('tipe_layanan');
-    const anggotaKeluargaId = watch('anggota_keluarga_id');
     const isRujukan = watch('is_rujukan');
     const isLanjutan = watch('is_konsultasi_lanjutan');
 
@@ -318,61 +312,7 @@ export function BookingForm({
                                 ))}
                             </FieldSelect>
                         </Field>
-
-                        {/**
-                         * The family list is real data from
-                         * `GET /api/v1/pasien/anggota-keluarga`, and it can legitimately
-                         * fail: the same account may own no `pasien` row, which is a 403
-                         * the create itself would also receive. Hiding the control and
-                         * saying so is better than offering a dropdown that is empty
-                         * because the query is still loading, or because it failed.
-                         */}
-                        <Field
-                            label="Didaftarkan atas nama"
-                            errors={fieldErrors(
-                                serverError,
-                                'anggota_keluarga_id',
-                            )}
-                            hint="Dikosongkan berarti untuk pasien sendiri."
-                        >
-                            <FieldSelect
-                                value={anggotaKeluargaId}
-                                disabled={keluarga.isError}
-                                onValueChange={(value) => {
-                                    setValue('anggota_keluarga_id', value, {
-                                        shouldValidate: true,
-                                    });
-                                }}
-                            >
-                                <SelectItem value="">
-                                    Pasien sendiri
-                                </SelectItem>
-
-                                {(keluarga.data?.data.anggota_keluarga ?? []).map(
-                                    (row) => (
-                                        <SelectItem
-                                            key={row.id}
-                                            value={String(row.id)}
-                                        >
-                                            {row.nama_lengkap} (
-                                            {namaHubungan(
-                                                row.hubungan_id,
-                                                row.hubungan,
-                                            )}
-                                            )
-                                        </SelectItem>
-                                    ),
-                                )}
-                            </FieldSelect>
-                        </Field>
                     </div>
-
-                    {keluarga.isError ? (
-                        <p className="text-muted-foreground text-sm">
-                            Daftar anggota keluarga tidak dapat dimuat, sehingga
-                            booking hanya dapat dibuat untuk pasien sendiri.
-                        </p>
-                    ) : null}
 
                     <Field
                         label="Keluhan"
@@ -642,9 +582,6 @@ function toPayload(
             ? {}
             : { keluhan: values.keluhan.trim() }),
         ...(terlampir.length === 0 ? {} : { lampiran_keluhan: terlampir }),
-        ...(values.anggota_keluarga_id === ''
-            ? {}
-            : { anggota_keluarga_id: Number(values.anggota_keluarga_id) }),
         ...(values.is_rujukan ? { is_rujukan: true } : {}),
         ...(values.is_konsultasi_lanjutan
             ? { is_konsultasi_lanjutan: true }

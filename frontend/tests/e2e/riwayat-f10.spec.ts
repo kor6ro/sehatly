@@ -98,7 +98,6 @@ const BOOKING = {
     id: 21,
     nomor_booking: 'BK20261001AAA001',
     pasien_id: 5,
-    anggota_keluarga_id: null,
     dokter_id: 9,
     jadwal_id: null,
     faskes_id: null,
