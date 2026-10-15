@@ -331,7 +331,7 @@ test('login and account lookup never expose the attempt counter', function (): v
     ortRegisteredUser();
 
     // A correct-password login: 200, and no `meta` key at all.
-    $login = $this->postJson('/api/v1/auth/login', [
+    $login = $this->postJson('/api/v1/auth/masuk', [
         'no_telepon' => ortPhone(),
         'password' => ortPassword(),
     ]);
@@ -341,7 +341,7 @@ test('login and account lookup never expose the attempt counter', function (): v
         ->and($login->getContent())->not->toContain('sisa_percobaan');
 
     // A wrong password: the generic 401, no counter.
-    $wrong = $this->postJson('/api/v1/auth/login', [
+    $wrong = $this->postJson('/api/v1/auth/masuk', [
         'no_telepon' => ortPhone(),
         'password' => 'kata-sandi-yang-salah',
     ]);

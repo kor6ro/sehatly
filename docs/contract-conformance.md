@@ -266,7 +266,7 @@ the `2xx`.
 | `GET /api/v1/auth/devices` | bearer | `200,401,403,404,500` | SuccessEnvelope | 401 |
 | `POST /api/v1/auth/devices` | bearer | `201,422,401,403,404,500` | SuccessEnvelope | 401 |
 | `DELETE /api/v1/auth/devices/{deviceId}` | bearer | `200,401,403,404,500` | SuccessEnvelope | 401 |
-| `POST /api/v1/auth/login` | anonymous | `201,422,404,429,500` | SuccessEnvelope | 422 |
+| `POST /api/v1/auth/masuk` | anonymous | `201,422,404,429,500` | SuccessEnvelope | 422 |
 | `POST /api/v1/auth/logout` | bearer | `201,422,401,403,404,500` | SuccessEnvelope | 401 |
 | `POST /api/v1/auth/otp/verify` | anonymous | `201,422,404,429,500` | SuccessEnvelope | 422 |
 | `POST /api/v1/auth/refresh` | anonymous | `201,422,404,500` | SuccessEnvelope | 422 |

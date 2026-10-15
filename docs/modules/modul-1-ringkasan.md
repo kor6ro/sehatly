@@ -66,7 +66,7 @@ yang memakai `permission:`; scoping pasien dikerjakan
 |---|--------|------|------|----------------------|
 | 1 | POST | `/auth/sign-up` | - | 201 |
 | 2 | POST | `/auth/otp/verify` | - | 200 |
-| 3 | POST | `/auth/login` | - | 200 |
+| 3 | POST | `/auth/masuk` | - | 200 |
 | 4 | POST | `/auth/refresh` | - | 200 |
 | 5 | POST | `/auth/logout` | A | 200 |
 | 6 | POST | `/auth/devices` | A | 201 |
@@ -94,7 +94,7 @@ curl.exe -s -X POST "$BASE_URL/auth/otp/verify" -H "Content-Type: application/js
 # 3. Pakai header Authorization: Bearer <ACCESS_TOKEN> untuk route bertanda A.
 ```
 
-Alur masuk akun yang sudah ada: `POST /auth/login` (menerima OTP, tanpa
+Alur masuk akun yang sudah ada: `POST /auth/masuk` (menerima OTP, tanpa
 token) lalu `POST /auth/otp/verify` dengan `tujuan=login`.
 
 ## Aritmetika 13 vs 18 (temuan basi)

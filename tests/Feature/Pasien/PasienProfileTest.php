@@ -1152,7 +1152,7 @@ test('the route table exposes the twelve auth routes and the seven patient route
         // neither `$anonymous` nor `$expectedGuards`, which lists only the routes
         // carrying a `permission:` or `tipe:` gate and expects none by default.
         'POST api/v1/auth/sign-up/lengkapi',
-        'POST api/v1/auth/login',
+        'POST api/v1/auth/masuk',
         'POST api/v1/auth/otp/verify',
         'POST api/v1/auth/otp/resend',
         // The channel probe, registered immediately after resend in the same
@@ -1449,7 +1449,7 @@ test('the route table exposes the twelve auth routes and the seven patient route
     // controller, never by a middleware, so "public" here costs no data.
     $anonymous = [
         'POST api/v1/auth/sign-up',
-        'POST api/v1/auth/login',
+        'POST api/v1/auth/masuk',
         'POST api/v1/auth/otp/verify',
         // F01's resend: anonymous by design. It mints a code with no prior
         // credential, answers generically so it cannot enumerate accounts, and

@@ -584,7 +584,7 @@ test('the published rate limits are the ones the application registers, not inve
 
     // Every throttled ROUTE must appear in the document, and every limiter name a
     // route mounts must be REGISTERED. A route may mount more than one: since F-002
-    // `/auth/login` mounts `auth-login` and `auth-login-ip`, and the document
+    // `/auth/masuk` mounts `auth-login` and `auth-login-ip`, and the document
     // publishes the FIRST, because `x-ratelimit` is one object and the 429 body
     // names one limiter. Counting middleware instances against published operations
     // therefore stopped being the invariant the moment a second limiter was mounted
@@ -619,7 +619,7 @@ test('the published rate limits are the ones the application registers, not inve
     $loginKey = null;
 
     foreach (array_keys($throttled) as $key) {
-        if (is_string($key) && str_ends_with($key, 'auth/login')) {
+        if (is_string($key) && str_ends_with($key, 'auth/masuk')) {
             $loginKey = $key;
         }
     }

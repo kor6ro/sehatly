@@ -47,7 +47,7 @@ require_once __DIR__.'/demo3c-helpers.php';
 |
 | ## Auth is two-step and that is exercised, not bypassed
 |
-| `POST /api/v1/auth/login` returns NO token; the OTP is delivered through the
+| `POST /api/v1/auth/masuk` returns NO token; the OTP is delivered through the
 | bound `OtpSender` and `POST /api/v1/auth/otp/verify` is the only issuer. The
 | test swaps the sender for {@see FakeOtpSender} - the same binding
 | `AuthFlowTest` uses, and the same one a real SMS gateway would replace - and

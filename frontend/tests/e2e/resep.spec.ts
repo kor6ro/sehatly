@@ -129,7 +129,7 @@ async function statusPanggil(
 async function masuk(page: Page, siapa: 'dokter' | 'apoteker'): Promise<void> {
     const { telepon } = kredensial(siapa);
 
-    await page.goto('/login');
+    await page.goto('/masuk');
 
     await expect(page.getByLabel('Nomor telepon')).toBeVisible({
         timeout: 60_000,
@@ -138,7 +138,7 @@ async function masuk(page: Page, siapa: 'dokter' | 'apoteker'): Promise<void> {
     await page.getByLabel('Nomor telepon').fill(telepon);
 
     const [respons] = await Promise.all([
-        page.waitForResponse((r) => r.url().includes('/api/v1/auth/login')),
+        page.waitForResponse((r) => r.url().includes('/api/v1/auth/masuk')),
         page.getByRole('button', { name: 'Lanjutkan' }).click(),
     ]);
 

@@ -34,7 +34,7 @@ export function RequireAuth() {
     if (getAccessToken() === null) {
         return (
             <Navigate
-                to="/login"
+                to="/masuk"
                 replace
                 state={{ from: location.pathname + location.search }}
             />

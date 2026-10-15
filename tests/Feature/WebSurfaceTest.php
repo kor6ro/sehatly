@@ -156,7 +156,7 @@ function scaffoldApiRouteNamesToAssert(): array
         // removal of the API surface has to fail here too, so this file does not
         // quietly become a statement only about deletions.
         'auth.sign-up',
-        'auth.login',
+        'auth.masuk',
         'auth.otp.verify',
         'auth.refresh',
         'auth.logout',
@@ -183,9 +183,9 @@ function scaffoldApiRouteNamesToAssert(): array
 function scaffoldRetiredPaths(): array
 {
     return [
-        // AuthenticationTest: `$this->get('/login')`, `$this->post('/login', ...)`,
+        // AuthenticationTest: `$this->get('/masuk')`, `$this->post('/masuk', ...)`,
         // `$this->post('/logout')`.
-        'AuthenticationTest' => ['/login', '/logout'],
+        'AuthenticationTest' => ['/masuk', '/logout'],
 
         // RegistrationTest: `$this->get('/register')`, `$this->post('/register', ...)`.
         'RegistrationTest' => ['/register'],

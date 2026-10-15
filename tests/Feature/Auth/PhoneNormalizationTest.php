@@ -106,7 +106,7 @@ test('login and verify accept either spelling of the same account', function ():
     $this->postJson('/api/v1/auth/sign-up', pntPayload())->assertCreated();
 
     // ...logged in with the international form...
-    $this->postJson('/api/v1/auth/login', [
+    $this->postJson('/api/v1/auth/masuk', [
         'no_telepon' => '+62'.substr(pntPhone(), 1),
         'password' => 'kata-sandi-normalisasi-789',
     ])->assertOk()->assertJsonPath('data.otp.tujuan', OtpService::TUJUAN_LOGIN);
@@ -144,7 +144,7 @@ test('the login limiter counts both spellings against one budget', function (): 
     ])->assertOk();
 
     for ($attempt = 1; $attempt <= 5; $attempt++) {
-        $this->postJson('/api/v1/auth/login', [
+        $this->postJson('/api/v1/auth/masuk', [
             'no_telepon' => pntPhone(),
             'password' => 'kata-sandi-yang-salah',
         ])->assertStatus(401);
@@ -153,7 +153,7 @@ test('the login limiter counts both spellings against one budget', function (): 
     // The sixth attempt spells the SAME number the other way. If the middleware
     // did not normalise before keying, this would be a fresh bucket and answer
     // 401 instead of 429.
-    $this->postJson('/api/v1/auth/login', [
+    $this->postJson('/api/v1/auth/masuk', [
         'no_telepon' => '+62'.substr(pntPhone(), 1),
         'password' => 'kata-sandi-yang-salah',
     ])->assertStatus(429);

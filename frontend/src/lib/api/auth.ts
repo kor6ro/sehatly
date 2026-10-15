@@ -15,13 +15,13 @@ import type { OtpChallenge, OtpTujuan, User } from '@/lib/api/types';
  *
  * `AuthController::login` returns no token on purpose: a phone-proved second factor is
  * only a control while the second step still requires the phone. So a login form that
- * expects a token from `/login` is not merely incomplete, it is wrong - and the screen
+ * expects a token from `/masuk` is not merely incomplete, it is wrong - and the screen
  * has to carry the identifier forward to the verify call, because `VerifyOtpRequest`
  * identifies the account by `no_telepon` **or** `email` and by nothing else.
  */
 
 /**
- * How an account is named to `/login` and `/auth/otp/verify`.
+ * How an account is named to `/masuk` and `/auth/otp/verify`.
  *
  * `AuthRequest` requires **at least one** of the two and prefers `no_telepon` when both
  * are sent, and it attaches the same "Isi no_telepon atau email." message to both keys
@@ -37,7 +37,7 @@ export type LoginInput = Identifier & {
      * Present only for a client that still carries a password.
      *
      * The sign-in screen sends none: `LoginRequest` makes the field `sometimes`, so an
-     * identifier alone is a complete `/auth/login` request and the OTP is what admits the
+     * identifier alone is a complete `/auth/masuk` request and the OTP is what admits the
      * caller. A password that IS sent is verified exactly as it always was - see
      * `LoginRequest` for why leaving the check in place while the screen stopped sending
      * one is the honest shape rather than a bypass.
@@ -76,13 +76,13 @@ export type VerifyOtpInput = Identifier & {
 };
 
 /**
- * `POST /api/v1/auth/login`
+ * `POST /api/v1/auth/masuk`
  *
  * Returns the OTP challenge and **no token**. The caller must go on to
  * {@link verifyOtp} to obtain a pair.
  */
 export function login(input: LoginInput) {
-    return request<{ otp: OtpChallenge }>('auth/login', {
+    return request<{ otp: OtpChallenge }>('auth/masuk', {
         method: 'POST',
         json: input,
         // A 401 here is an unregistered identifier (or a wrong password, for a client
@@ -92,7 +92,7 @@ export function login(input: LoginInput) {
         // every response regardless of the retry budget - so the transport is told
         // directly. Without the flag it found no refresh token, called
         // `endSession(null)`, and `RootLayout`'s subscriber threw the visitor out to
-        // `/login` with no flash: the OTP step never rendered. See
+        // `/masuk` with no flash: the OTP step never rendered. See
         // `RequestOptions.authRejection`.
         retry: 0,
         authRejection: true,

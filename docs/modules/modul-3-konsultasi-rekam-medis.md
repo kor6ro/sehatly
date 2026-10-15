@@ -52,7 +52,7 @@ tidak diresepkan di sini.
 
 ## Cara memperoleh token (urutan persis yang dipakai verifikasi)
 
-Login di API ini dua langkah dan `POST /auth/login` **tidak** mengembalikan
+Login di API ini dua langkah dan `POST /auth/masuk` **tidak** mengembalikan
 token -- ia hanya mengirim OTP; pasangan token terbit dari
 `POST /auth/otp/verify`. Kode OTP dibaca dari
 `storage/logs/laravel.log` (baris `sehatly.otp`, kanal `LogOtpSender`),
@@ -74,7 +74,7 @@ Akun dokter tidak bisa didaftar lewat API (register selalu `tipe=pasien`),
 sehingga token dokter untuk verifikasi ini diperoleh dengan masuk memakai
 akun dokter fixture yang kata sandinya disetel di database pengembangan,
 lalu alur login dua-langkah yang sama:
-`POST /auth/login` (menerima OTP, tanpa token) lalu
+`POST /auth/masuk` (menerima OTP, tanpa token) lalu
 `POST /auth/otp/verify` dengan `tujuan=login`.
 
 ## Aritmetika 14 vs 15 (temuan basi)

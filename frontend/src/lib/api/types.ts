@@ -367,7 +367,7 @@ export type UserDevice = {
 export type OtpTujuan = 'verifikasi_telepon' | 'login';
 
 /**
- * The `otp` block that `POST /auth/sign-up` and `POST /auth/login` return inline.
+ * The `otp` block that `POST /auth/sign-up` and `POST /auth/masuk` return inline.
  *
  * ## `kode` is intentionally absent, and that is the point
  *

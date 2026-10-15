@@ -168,7 +168,7 @@ async function balasJson(route: Route, status: number, body: unknown): Promise<v
  * Intercept every `/api/v1` call the shell and the queue make.
  *
  * The catch-all is load-bearing: an unmocked request would reach the real API and take the
- * transport down its session-expiry path, redirecting the test to `/login` for a reason
+ * transport down its session-expiry path, redirecting the test to `/masuk` for a reason
  * unrelated to the assertion.
  */
 async function pasangMock(page: Page, opsi: OpsiMock = {}): Promise<PeganganMock> {

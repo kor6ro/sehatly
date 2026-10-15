@@ -37,10 +37,10 @@ export type RequestOptions = Options & {
      *
      * Everything below does with a 401 is one session-recovery path: refresh the pair,
      * replay, and when there is nothing to refresh *with*, end the session and send the
-     * visitor to `/login`. For a guarded endpoint that is right - its 401 means "the
+     * visitor to `/masuk`. For a guarded endpoint that is right - its 401 means "the
      * token you presented no longer works".
      *
-     * For an endpoint that answers 401 on purpose it is wrong. `POST /auth/login` returns
+     * For an endpoint that answers 401 on purpose it is wrong. `POST /auth/masuk` returns
      * 401 for an identifier with no account, in the same byte-identical body as a wrong
      * password, and there is no session to recover *or* to end: the caller never had one.
      * Routed through the default path, an anonymous visitor who mistypes their number is
@@ -111,7 +111,7 @@ export const api = ky.create({
                 // is returned untouched before any branch below can mistake a credential
                 // refusal for a session expiry - including the "nothing to refresh with"
                 // branch, which is exactly where an anonymous visitor used to be bounced
-                // to `/login` out of the sign-in dialog. See `RequestOptions`.
+                // to `/masuk` out of the sign-in dialog. See `RequestOptions`.
                 if ((options as RequestOptions).authRejection === true) {
                     return response;
                 }

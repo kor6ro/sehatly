@@ -236,7 +236,7 @@ class ApiKernelTest extends TestCase
     {
         // The plan's mandated failure scenario: an api/* caller that does not
         // negotiate JSON must still receive the envelope rather than an HTML error
-        // page or a 302 to /login.
+        // page or a 302 to /masuk.
         $response = $this->call('POST', '/api/v1/_test/me', [], [], [], [
             'HTTP_ACCEPT' => null,
         ]);

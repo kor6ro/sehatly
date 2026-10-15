@@ -226,7 +226,7 @@ it('answers 422 with the validation envelope on every anonymous write with a bod
     expect($violations)->toBe([], implode("\n", $violations));
 })->with([
     ['post', '/api/v1/auth/sign-up'],
-    ['post', '/api/v1/auth/login'],
+    ['post', '/api/v1/auth/masuk'],
     ['post', '/api/v1/auth/refresh'],
     ['post', '/api/v1/auth/otp/verify'],
     ['post', '/api/v1/auth/otp/resend'],

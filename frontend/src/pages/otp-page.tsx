@@ -492,7 +492,7 @@ export function OtpPage() {
                     onClick={() => {
                         clearPendingOtp();
 
-                        void navigate('/login', { replace: true });
+                        void navigate('/masuk', { replace: true });
                     }}
                 >
                     Kembali
@@ -534,7 +534,7 @@ function OtpContextMissing() {
                         size="sm"
                         className="min-h-11"
                         onClick={() => {
-                            void navigate('/login', { replace: true });
+                            void navigate('/masuk', { replace: true });
                         }}
                     >
                         Kembali ke halaman masuk

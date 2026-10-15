@@ -256,7 +256,7 @@ class AuthController extends Controller
     }
 
     /**
-     * `POST /api/v1/auth/login`
+     * `POST /api/v1/auth/masuk`
      *
      * Mints a `login` OTP for a registered, active account. **Returns no token**, on
      * purpose: a phone-proved factor is only a control while the second step still
@@ -368,7 +368,7 @@ class AuthController extends Controller
      * `POST /api/v1/auth/otp/resend`
      *
      * Re-mints the code for `$tujuan` without a password. It exists because the
-     * only other way to reopen a login code is `POST /auth/login`, which makes a
+     * only other way to reopen a login code is `POST /auth/masuk`, which makes a
      * client hold the password in memory on the OTP screen - the risk F01 §4.4
      * names - and because a registration code has no second path at all.
      *
@@ -543,7 +543,7 @@ class AuthController extends Controller
         return ApiResponse::success([
             'user' => new UserResource($user->refresh()),
             'token' => new AuthTokenResource($pair),
-            // Where the client must go next. An account minted by `POST /auth/login` for
+            // Where the client must go next. An account minted by `POST /auth/masuk` for
             // a number that had none is a SHELL - no name, no patient row, no consents -
             // and `/profil/edit/{id}?sign_up=true` is where they are collected. Reporting
             // it HERE rather than at login is what keeps the login response identical for

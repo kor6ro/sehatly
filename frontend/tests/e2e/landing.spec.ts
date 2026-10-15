@@ -158,8 +158,8 @@ test.describe('Landing page (/)', () => {
         await expect(page.getByRole('button', { name: 'Daftar', exact: true })).toHaveCount(0);
 
         /**
-         * The DIALOG's own vocabulary, which is not the `/login` page's. The door says
-         * "Nomor ponsel" and its first button says "Lanjut"; `/login` asks for "Nomor
+         * The DIALOG's own vocabulary, which is not the `/masuk` page's. The door says
+         * "Nomor ponsel" and its first button says "Lanjut"; `/masuk` asks for "Nomor
          * telepon" and says "Lanjutkan". Asserting the wrong pair would still pass
          * against the other screen, which is why both strings are written out here.
          *
@@ -724,7 +724,7 @@ test.describe('Landing page (/)', () => {
         await expect(panel).toBeVisible();
 
         await chat.click();
-        await expect(page).toHaveURL(/\/login/);
+        await expect(page).toHaveURL(/\/masuk/);
     });
 
     /**

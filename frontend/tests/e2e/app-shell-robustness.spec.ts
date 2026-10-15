@@ -168,7 +168,7 @@ async function daftar(browser: Browser): Promise<void> {
 }
 
 /**
- * Sign in through the two real steps, because `POST /auth/login` answers `{otp}` and **no
+ * Sign in through the two real steps, because `POST /auth/masuk` answers `{otp}` and **no
  * token**, and `POST /auth/otp/verify` is the only endpoint in the controller that mints
  * one. A helper that pasted a token into `sessionStorage` would be testing a session no
  * user can obtain.
@@ -177,7 +177,7 @@ async function daftar(browser: Browser): Promise<void> {
  * code. The seeded account's own password is never involved in getting in.
  */
 async function masuk(page: Page): Promise<void> {
-    await page.goto('/login');
+    await page.goto('/masuk');
 
     await expect(page.getByLabel('Nomor telepon')).toBeVisible({
         timeout: 60_000,
@@ -186,7 +186,7 @@ async function masuk(page: Page): Promise<void> {
     await page.getByLabel('Nomor telepon').fill(telepon);
 
     const [respons] = await Promise.all([
-        page.waitForResponse((r) => r.url().includes('/api/v1/auth/login')),
+        page.waitForResponse((r) => r.url().includes('/api/v1/auth/masuk')),
         page.getByRole('button', { name: 'Lanjutkan' }).click(),
     ]);
 

@@ -16,7 +16,7 @@ Semua keputusan di sini dapat diuji; AC/Playwright-nya mengikuti AC flow masing-
 ## 1. Pola navigasi
 
 ### 1.1 Kerangka layar
-- **Pra-sesi** (`/`, `/login`, `/otp`): `AuthLayout` — kartu terpusat, tanpa nav akun. **Tidak ada `/register`**: satu pintu meminta nomor ponsel, lalu akun diselesaikan di `/profil/edit/:userId?sign_up=true` — di bawah `RequireAuth` tetapi **di luar** `AppShell`, karena akun segar belum punya baris `pasien` dan halaman membawa bilah mereknya sendiri.
+- **Pra-sesi** (`/`, `/masuk`, `/otp`): `AuthLayout` — kartu terpusat, tanpa nav akun. **Tidak ada `/register`**: satu pintu meminta nomor ponsel, lalu akun diselesaikan di `/profil/edit/:userId?sign_up=true` — di bawah `RequireAuth` tetapi **di luar** `AppShell`, karena akun segar belum punya baris `pasien` dan halaman membawa bilah mereknya sendiri.
 - **Sesi pasien/dokter/apoteker** (semua `/dashboard`, `/booking`, `/konsultasi`, `/pasien/resep`, dst.):
   `RequireAuth` → `AppShell` (sidebar di desktop, header + drawer di mobile). 26 leaf route,
   **setiap leaf wajib punya `errorElement`** (alasan panjang ada di `router.tsx`: error di level
@@ -83,7 +83,7 @@ hanya boleh muncul di komentar kode, bukan di layar.
 | Aksi berhasil yang tidak mengubah halaman | **Toast `sonner`** singkat, maks 1 baris | Konfirmasi tanpa mengganggu. |
 | Aksi berhasil yang mengubah status (booking, bayar, checkout) | **Kartu/Alert inline** persisten di halaman + tautan lanjut | Status harus terbaca ulang, bukan hilang dalam 3 detik (`F06` §2, `F05` §2). |
 | Gagal jaringan / 5xx | **`ErrorState` inline + tombol "Coba lagi"** | Sudah ada; jangan toast error jaringan. |
-| 401 sesi habis | Refresh single-flight → jika gagal, flash + redirect `/login` | Sudah ada di `http.ts` + `root-layout.tsx`. |
+| 401 sesi habis | Refresh single-flight → jika gagal, flash + redirect `/masuk` | Sudah ada di `http.ts` + `root-layout.tsx`. |
 | Slot bentrok (422 `slot`) | `SlotTakenNotice` `role="alert"` di atas form, isi form dipertahankan | `F05` §2. |
 | Koneksi realtime putus | **Strip status persisten** + tombol "Hubungkan ulang" | `F08` §2; memakai `role="status"` `aria-live="polite"`. |
 

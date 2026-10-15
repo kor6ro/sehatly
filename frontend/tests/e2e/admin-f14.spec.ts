@@ -316,7 +316,7 @@ function metaHalaman(total: number, lastPage = 1): Record<string, unknown> {
  * serves, so the assertions read what the UI did rather than what a second
  * canned payload claims. The catch-all at the bottom is load-bearing - an
  * unmocked request would reach the real API, answer 401 and send the transport
- * down its session-expiry path, redirecting the test to `/login` for a reason
+ * down its session-expiry path, redirecting the test to `/masuk` for a reason
  * that has nothing to do with the assertion.
  */
 async function pasangMock(page: Page, opsi: OpsiMock = {}): Promise<Catatan> {

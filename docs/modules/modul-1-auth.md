@@ -7,7 +7,7 @@ Sepuluh route autentikasi. Semua respons memakai amplop
 
 Aturan utama:
 
-- `POST /auth/login` **tidak** mengembalikan token. Ia hanya mengembalikan OTP.
+- `POST /auth/masuk` **tidak** mengembalikan token. Ia hanya mengembalikan OTP.
 - Token (`access_token` 50 karakter, `refresh_token` 80 karakter) hanya
   diterbitkan oleh `POST /auth/otp/verify`.
 - `POST /auth/refresh` memutar refresh token di dalam transaksi. Memakai ulang
@@ -114,12 +114,12 @@ Tanpa pengenal (HTTP 422):
 {"success":false,"message":"The given data was invalid.","errors":{"no_telepon":["Isi no_telepon atau email."],"email":["Isi no_telepon atau email."]}}
 ```
 
-## 3. `POST /auth/login` - 200
+## 3. `POST /auth/masuk` - 200
 
 Langkah pertama masuk. Mengembalikan **OTP saja**, bukan token.
 
 ```bash
-curl.exe -s -X POST "$BASE_URL/auth/login" \
+curl.exe -s -X POST "$BASE_URL/auth/masuk" \
   -H "Content-Type: application/json" \
   -d '{"no_telepon":"<NO_TELEPON>","password":"<PASSWORD>"}'
 ```

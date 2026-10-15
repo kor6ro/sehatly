@@ -118,7 +118,7 @@ return Application::configure(basePath: dirname(__DIR__))
         | turns it into `{"success":false,"message":"Unauthenticated.","errors":{}}`.
         |
         | There is deliberately no replacement URL. A bearer-token API has no page
-        | to send a caller to, and inventing one - `/login` on this application is
+        | to send a caller to, and inventing one - `/masuk` on this application is
         | now the SPA's client-side route, which a 302 to it would defeat - would
         | reintroduce exactly the redirect `ApiKernelTest` asserts is absent.
         |

@@ -268,7 +268,7 @@ test('a validation failure carries the headers and keeps the 422 envelope', func
     // the sign-in screen sends none), so a bare identifier is a well-formed request now.
     // What this test owns is the 422 ENVELOPE and the headers riding on it, so it is
     // given a genuinely malformed password instead - a present field of the wrong shape.
-    $response = $this->postJson('/api/v1/auth/login', [
+    $response = $this->postJson('/api/v1/auth/masuk', [
         'no_telepon' => headerTestPhone(),
         'password' => ['bukan', 'string'],
     ]);
@@ -396,7 +396,7 @@ test('the headers never change a response status, which is the failure mode that
         ['GET', '/api/v1/me', 401],
         ['GET', '/api/v1/pasien/profil', 401],
         ['GET', '/api/v1/tidak-ada-sama-sekali', 404],
-        ['POST', '/api/v1/auth/login', 422],
+        ['POST', '/api/v1/auth/masuk', 422],
     ];
 
     foreach ($cases as [$method, $uri, $expected]) {

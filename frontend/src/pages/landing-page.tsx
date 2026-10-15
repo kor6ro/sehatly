@@ -26,12 +26,12 @@ import {
  *
  * This route used to render "Pilih tujuan" with two buttons, because the alternative was
  * a redirect chain: sending a signed-out visitor to `/dashboard` bounced them to
- * `/login`, and sending them to a directory put a catalogue in front of somebody looking
+ * `/masuk`, and sending them to a directory put a catalogue in front of somebody looking
  * for their own profile. Both of those assumed a destination. The landing page does not
  * assume anything - it is the one screen a signed-out visitor, a patient, a doctor and an
  * admin can all read, so every door in the app now opens onto it instead of onto the
  * dashboard: OTP verification, the sign-in dialog, the sign-up completion form, and
- * `/login` itself when a session already exists.
+ * `/masuk` itself when a session already exists.
  *
  * The dashboard did not go away; it moved one menu entry away. `LandingHeader`'s account
  * pill carries it, which is also the only place a visitor learns that it exists.

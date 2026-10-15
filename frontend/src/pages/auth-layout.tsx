@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 /**
- * The layout for the two screens that exist before a session does: `/login` and `/otp`.
+ * The layout for the two screens that exist before a session does: `/masuk` and `/otp`.
  *
  * ## Why these are not in `AppShell`
  *

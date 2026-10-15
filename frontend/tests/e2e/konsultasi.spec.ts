@@ -15,7 +15,7 @@ import { daftarDanMasuk } from './akun';
  * `POST /api/v1/auth/sign-up`, reads the OTP out of **that response body** - which
  * `AuthController` publishes only under `APP_ENV=local` - and verifies it through the
  * actual `POST /api/v1/auth/otp/verify`. `/register` is gone; the form was never the
- * thing under test. The doctor signs in through the actual `POST /api/v1/auth/login`
+ * thing under test. The doctor signs in through the actual `POST /api/v1/auth/masuk`
  * and the actual `POST /api/v1/auth/otp/verify`; its phone number comes from the
  * environment, because a doctor account cannot be self-registered
  * (`POST /auth/sign-up` writes `users.tipe = 'pasien'`). Nothing needs its password:
@@ -205,13 +205,13 @@ async function tungguReverbHidup(): Promise<void> {
  * The two steps are the server's own contract, not a client convenience:
  * `AuthController::login` answers `{otp}` and **no token**, and
  * `POST /auth/otp/verify` is the only endpoint in that controller that mints one. A
- * test expecting a token from `/login` would be testing a flow this application does
+ * test expecting a token from `/masuk` would be testing a flow this application does
  * not have.
  */
 async function masukSebagaiDokter(page: Page): Promise<void> {
     const { telepon } = kredensialDokter();
 
-    await page.goto('/login');
+    await page.goto('/masuk');
 
     await expect(page.getByLabel('Nomor telepon')).toBeVisible({
         timeout: 60_000,
@@ -220,7 +220,7 @@ async function masukSebagaiDokter(page: Page): Promise<void> {
     await page.getByLabel('Nomor telepon').fill(telepon);
 
     const [respons] = await Promise.all([
-        page.waitForResponse((r) => r.url().includes('/api/v1/auth/login')),
+        page.waitForResponse((r) => r.url().includes('/api/v1/auth/masuk')),
         page.getByRole('button', { name: 'Lanjutkan' }).click(),
     ]);
 

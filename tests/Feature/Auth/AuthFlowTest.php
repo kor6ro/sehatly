@@ -177,7 +177,7 @@ function authLoginVerified(User $user, ?string $deviceId = null): array
 {
     $identifier = (string) $user->no_telepon;
 
-    test()->postJson('/api/v1/auth/login', [
+    test()->postJson('/api/v1/auth/masuk', [
         'no_telepon' => $identifier,
         'password' => authTestPassword(),
     ])->assertOk();
@@ -217,7 +217,7 @@ function authLoginVerified(User $user, ?string $deviceId = null): array
  */
 function authCangkangTerverifikasi(string $nomor = '089876543210'): array
 {
-    test()->postJson('/api/v1/auth/login', ['no_telepon' => $nomor])->assertOk();
+    test()->postJson('/api/v1/auth/masuk', ['no_telepon' => $nomor])->assertOk();
 
     $response = test()->postJson('/api/v1/auth/otp/verify', [
         'no_telepon' => $nomor,
@@ -681,13 +681,13 @@ test('register is rate limited to ten a minute per identifier', function (): voi
 });
 
 // =====================================================================
-// POST /api/v1/auth/login
+// POST /api/v1/auth/masuk
 // =====================================================================
 
 test('login accepts a correct password by phone number and returns no token', function (): void {
     $verified = authRegisterVerified();
 
-    $response = $this->postJson('/api/v1/auth/login', [
+    $response = $this->postJson('/api/v1/auth/masuk', [
         'no_telepon' => authTestPhone(),
         'password' => authTestPassword(),
     ]);
@@ -714,7 +714,7 @@ test('login accepts a correct password by phone number and returns no token', fu
 test('login accepts a correct password by email address', function (): void {
     $verified = authRegisterVerified();
 
-    $this->postJson('/api/v1/auth/login', [
+    $this->postJson('/api/v1/auth/masuk', [
         'email' => 'budi.santoso@example.test',
         'password' => authTestPassword(),
     ])->assertOk()->assertJsonPath('data.otp.tujuan', OtpService::TUJUAN_LOGIN);
@@ -731,7 +731,7 @@ test('login accepts a correct password by email address', function (): void {
 test('login with a wrong password is refused and mints no OTP', function (): void {
     authRegisterVerified();
 
-    $response = $this->postJson('/api/v1/auth/login', [
+    $response = $this->postJson('/api/v1/auth/masuk', [
         'no_telepon' => authTestPhone(),
         'password' => 'kata-sandi-yang-salah',
     ]);
@@ -747,11 +747,11 @@ test('login with a wrong password is refused and mints no OTP', function (): voi
 test('an unknown identifier and a wrong password are answered identically', function (): void {
     authRegisterVerified();
 
-    $unknown = $this->postJson('/api/v1/auth/login', [
+    $unknown = $this->postJson('/api/v1/auth/masuk', [
         'no_telepon' => '089999999999',
         'password' => authTestPassword(),
     ]);
-    $wrong = $this->postJson('/api/v1/auth/login', [
+    $wrong = $this->postJson('/api/v1/auth/masuk', [
         'no_telepon' => authTestPhone(),
         'password' => 'kata-sandi-yang-salah',
     ]);
@@ -772,7 +772,7 @@ test('login refuses a nonaktif or ditangguhan account before minting an OTP', fu
     $user->status = $status;
     $user->save();
 
-    $response = $this->postJson('/api/v1/auth/login', [
+    $response = $this->postJson('/api/v1/auth/masuk', [
         'no_telepon' => authTestPhone(),
         'password' => authTestPassword(),
     ]);
@@ -786,17 +786,17 @@ test('login needs no password, but still needs an identifier', function (): void
 
     // The passwordless shape: the OTP is the whole factor, so an identifier alone is a
     // complete login request and must not be a 422.
-    $this->postJson('/api/v1/auth/login', ['no_telepon' => authTestPhone()])
+    $this->postJson('/api/v1/auth/masuk', ['no_telepon' => authTestPhone()])
         ->assertOk();
 
     // A password that IS presented still has to be a string - `sometimes` skips the
     // field when it is absent, never when it is present and malformed.
-    $this->postJson('/api/v1/auth/login', [
+    $this->postJson('/api/v1/auth/masuk', [
         'no_telepon' => authTestPhone(),
         'password' => ['bukan', 'string'],
     ])->assertStatus(422)->assertJsonValidationErrors(['password']);
 
-    $neither = $this->postJson('/api/v1/auth/login', ['password' => 'apa-saja-123']);
+    $neither = $this->postJson('/api/v1/auth/masuk', ['password' => 'apa-saja-123']);
 
     $neither->assertStatus(422);
     expect($neither->json('errors'))->toHaveKeys(['no_telepon', 'email'])
@@ -808,7 +808,7 @@ test('a passwordless login for a number with no account mints it rather than ref
 
     expect(User::query()->where('no_telepon', $nomor)->count())->toBe(0);
 
-    $response = $this->postJson('/api/v1/auth/login', ['no_telepon' => $nomor]);
+    $response = $this->postJson('/api/v1/auth/masuk', ['no_telepon' => $nomor]);
 
     $response->assertOk()
         ->assertJsonPath('success', true)
@@ -832,8 +832,8 @@ test('a passwordless login for a number with no account mints it rather than ref
 test('a login for a new number carries the same fields as a login for an existing one', function (): void {
     authRegisterVerified();
 
-    $existing = $this->postJson('/api/v1/auth/login', ['no_telepon' => authTestPhone()]);
-    $fresh = $this->postJson('/api/v1/auth/login', ['no_telepon' => '081234567890']);
+    $existing = $this->postJson('/api/v1/auth/masuk', ['no_telepon' => authTestPhone()]);
+    $fresh = $this->postJson('/api/v1/auth/masuk', ['no_telepon' => '081234567890']);
 
     $existing->assertOk();
     $fresh->assertOk();
@@ -848,7 +848,7 @@ test('a login for a new number carries the same fields as a login for an existin
 });
 
 test('a passwordless login by an unknown email still refuses, because there is no channel for its code', function (): void {
-    $this->postJson('/api/v1/auth/login', ['email' => 'belum.ada@example.test'])
+    $this->postJson('/api/v1/auth/masuk', ['email' => 'belum.ada@example.test'])
         ->assertStatus(401);
 
     // Documented as the endpoint's one remaining gap: minting an email-identified
@@ -863,7 +863,7 @@ test('a passwordless login by an unknown email still refuses, because there is n
 test('verify reports the shell as incomplete, and sign-up/lengkapi finishes it', function (): void {
     $nomor = '089876543210';
 
-    test()->postJson('/api/v1/auth/login', ['no_telepon' => $nomor])->assertOk();
+    test()->postJson('/api/v1/auth/masuk', ['no_telepon' => $nomor])->assertOk();
 
     $verifikasi = test()->postJson('/api/v1/auth/otp/verify', [
         'no_telepon' => $nomor,
@@ -928,7 +928,7 @@ test('verify reports the shell as incomplete, and sign-up/lengkapi finishes it',
 
     // A second round trip agrees the account is finished, which is what routes a
     // client off the sign-up screen rather than back onto it.
-    test()->postJson('/api/v1/auth/login', ['no_telepon' => $nomor])->assertOk();
+    test()->postJson('/api/v1/auth/masuk', ['no_telepon' => $nomor])->assertOk();
 
     test()->postJson('/api/v1/auth/otp/verify', [
         'no_telepon' => $nomor,
@@ -1003,7 +1003,7 @@ test('an unknown number refuses outright while a password is presented', functio
     // old contract, where unknown and wrong-password are byte-identical. Keeping
     // BOTH is what lets `RateLimitingTest`'s enumeration pair still pass while the
     // dialog's passwordless path stops enumerating.
-    $response = $this->postJson('/api/v1/auth/login', [
+    $response = $this->postJson('/api/v1/auth/masuk', [
         'no_telepon' => '089876543210',
         'password' => authTestPassword(),
     ]);
@@ -1017,13 +1017,13 @@ test('login is rate limited to five a minute per identifier', function (): void 
     authRegisterVerified();
 
     for ($attempt = 1; $attempt <= 5; $attempt++) {
-        $this->postJson('/api/v1/auth/login', [
+        $this->postJson('/api/v1/auth/masuk', [
             'no_telepon' => authTestPhone(),
             'password' => 'kata-sandi-yang-salah',
         ])->assertStatus(401);
     }
 
-    $this->postJson('/api/v1/auth/login', [
+    $this->postJson('/api/v1/auth/masuk', [
         'no_telepon' => authTestPhone(),
         'password' => authTestPassword(),
     ])->assertStatus(429);
@@ -1167,14 +1167,14 @@ test('a superseded code is refused as expired and cannot be used after a resend'
     // Two logins without verifying in between. The second `issue()` supersedes the
     // first, which is the situation the supersession rule exists for: a user who asked
     // for a code twice must not be able to spend the older one.
-    $this->postJson('/api/v1/auth/login', [
+    $this->postJson('/api/v1/auth/masuk', [
         'no_telepon' => authTestPhone(),
         'password' => authTestPassword(),
     ])->assertOk();
 
     $firstKode = (string) authSender()->lastKodeFor(OtpService::TUJUAN_LOGIN);
 
-    $this->postJson('/api/v1/auth/login', [
+    $this->postJson('/api/v1/auth/masuk', [
         'no_telepon' => authTestPhone(),
         'password' => authTestPassword(),
     ])->assertOk();
@@ -1745,7 +1745,7 @@ test('the route table exposes exactly the twelve module 1 auth routes with the e
         // The one-door flow's tail, registered immediately after `sign-up`: a shell
         // minted by `login` for an unknown number becomes a full patient here.
         'POST api/v1/auth/sign-up/lengkapi',
-        'POST api/v1/auth/login',
+        'POST api/v1/auth/masuk',
         'POST api/v1/auth/otp/verify',
         'POST api/v1/auth/otp/resend',
         'GET api/v1/auth/otp/kanal',
@@ -1773,7 +1773,7 @@ test('the route table exposes exactly the twelve module 1 auth routes with the e
     };
 
     $harusMemiliki('POST api/v1/auth/sign-up', 'throttle:auth-otp-send');
-    $harusMemiliki('POST api/v1/auth/login', 'throttle:auth-login');
+    $harusMemiliki('POST api/v1/auth/masuk', 'throttle:auth-login');
     $harusMemiliki('POST api/v1/auth/otp/verify', 'throttle:auth-otp-verify');
     $harusMemiliki('POST api/v1/auth/otp/resend', 'throttle:auth-otp-resend');
     $harusMemiliki('POST api/v1/auth/sign-up/lengkapi', 'auth:sanctum');

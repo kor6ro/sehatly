@@ -145,7 +145,7 @@ and pins them itself. What this guide assumes, and why:
 
 ## 2. Auth lifecycle
 
-### 2.1 The load-bearing fact: `/auth/login` returns no token
+### 2.1 The load-bearing fact: `/auth/masuk` returns no token
 
 Both registration and login are **two requests**. The password step mints an OTP
 and stops. The only endpoint in the entire API that mints a token is
@@ -156,17 +156,17 @@ POST /api/v1/auth/sign-up   -> 201  { user, otp }      NO token
     ... the user reads the SMS ...
 POST /api/v1/auth/otp/verify -> 200  { user, token }    the only token in the API
 
-POST /api/v1/auth/login      -> 200  { otp }            NO token
+POST /api/v1/auth/masuk      -> 200  { otp }            NO token
     ... the user reads the SMS ...
 POST /api/v1/auth/otp/verify -> 200  { user, token }    the only token in the API
 ```
 
 This is a deliberate control, not an omission: a phone-proved second factor is
 only a control while the second step still requires the phone. Issuing a token
-from `/auth/login` would make the OTP a confirmation screen.
+from `/auth/masuk` would make the OTP a confirmation screen.
 
 The contract makes this impossible to miss rather than silent: the envelope for
-`POST /api/v1/auth/login` carries **no `token` member at all**, so a field mapping
+`POST /api/v1/auth/masuk` carries **no `token` member at all**, so a field mapping
 that reaches for one yields null and a signed-out user. Do not hand-roll a request
 to work around that.
 
@@ -353,7 +353,7 @@ left before the code is burned) and the 429 carries `meta.sisa_percobaan: 0` plu
 attempt counter.
 
 An unknown identifier and a wrong password produce the **same** 401 body and take
-the same time by way of a decoy hash, so `/auth/login` is not a phone-number
+the same time by way of a decoy hash, so `/auth/masuk` is not a phone-number
 oracle. A **403** there means the account is `nonaktif` or `ditangguhkan`, which is
 a different answer and deserves different UI copy.
 
@@ -1073,7 +1073,7 @@ class AuthController extends GetxController {
       stage.value = AuthStage.idle;
     }
 
-    Get.offAllNamed('/login');
+    Get.offAllNamed('/masuk');
   }
 
   void _fail(ApiFailure error) {
@@ -1168,7 +1168,7 @@ middleware and error map there, so read the operation before you write the call.
 | call | token | what it does that surprises people |
 | --- | --- | --- |
 | `POST /api/v1/auth/sign-up` | no | **returns no token.** The OTP rides out in `data.otp` outside production. Required: `nama_lengkap`, `no_telepon`, `password`, `jenis_kelamin`, `tanggal_lahir`, `alamat_lengkap` |
-| `POST /api/v1/auth/login` | no | **returns no token either.** It mints an OTP and stops. `password` plus one of `no_telepon` / `email` |
+| `POST /api/v1/auth/masuk` | no | **returns no token either.** It mints an OTP and stops. `password` plus one of `no_telepon` / `email` |
 | `POST /api/v1/auth/otp/verify` | no | **the only endpoint in the API that mints a token.** `kode` is a String, not an int -- it may begin with `0`. Persist the pair before you make any other call |
 | `GET /api/v1/me` | yes | the caller's own account, with the patient and doctor relations loaded |
 | `GET /api/v1/pasien/profil` | yes | `nik` and `nomor_kk` arrive **masked**; see section 8 |
@@ -1198,8 +1198,8 @@ the slot reads are public, and the booking writes need a token and a
 ### 13.4 Module 4 -- reference data, drug catalogue, PDP consent
 
 The fourteen `GET /api/v1/referensi/*` endpoints are the **only data endpoints
-callable without a token**, alongside the doctor directory, the OTP/login calls
-and the public letter verification. That is deliberate: a login-screen province
+callable without a token**, alongside the doctor directory, the OTP and sign-in calls
+and the public letter verification. That is deliberate: a sign-in-screen province
 picker must work before the user has a token. The full enum vocabulary is
 published as [`docs/enums.json`](enums.json) -- every MySQL `ENUM` column and its
 values in declaration order -- so you can generate typed constants for each

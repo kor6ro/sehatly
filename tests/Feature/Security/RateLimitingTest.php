@@ -151,20 +151,20 @@ function rateRegisterVerified(): User
 /**
  * Log in with the correct password, which mints a `login` OTP and no token.
  *
- * The two-step shape is load-bearing: `POST /auth/login` returns no token pair, so
+ * The two-step shape is load-bearing: `POST /auth/masuk` returns no token pair, so
  * a test that expected one here would be asserting an endpoint that does not
  * exist. The token arrives from `POST /auth/otp/verify`.
  */
 function rateLoginMintsCode(): UserOtp
 {
-    $response = test()->postJson('/api/v1/auth/login', [
+    $response = test()->postJson('/api/v1/auth/masuk', [
         'no_telepon' => rateTestPhone(),
         'password' => rateTestPassword(),
     ]);
 
     $response->assertOk()->assertJsonPath('success', true);
 
-    expect($response->json('data.token'))->toBeNull('`POST /auth/login` must not return a token.');
+    expect($response->json('data.token'))->toBeNull('`POST /auth/masuk` must not return a token.');
 
     return UserOtp::query()
         ->where('tujuan', OtpService::TUJUAN_LOGIN)
@@ -182,7 +182,7 @@ function rateLoginMintsCode(): UserOtp
  */
 function rateLoginFailureMessage(): string
 {
-    $body = test()->postJson('/api/v1/auth/login', [
+    $body = test()->postJson('/api/v1/auth/masuk', [
         'no_telepon' => '089999999997',
         'password' => rateTestPassword(),
     ])->assertStatus(401)->json('message');
@@ -343,12 +343,12 @@ beforeEach(function (): void {
 test('an unknown identifier and a wrong password produce the same status, the same bytes and the same headers', function (): void {
     rateRegisterVerified();
 
-    $unknown = $this->postJson('/api/v1/auth/login', [
+    $unknown = $this->postJson('/api/v1/auth/masuk', [
         'no_telepon' => '089999999999',
         'password' => rateTestPassword(),
     ]);
 
-    $wrong = $this->postJson('/api/v1/auth/login', [
+    $wrong = $this->postJson('/api/v1/auth/masuk', [
         'no_telepon' => rateTestPhone(),
         'password' => 'kata-sandi-yang-salah',
     ]);
@@ -384,7 +384,7 @@ test('an unknown identifier and a wrong password produce the same status, the sa
 test('the byte comparison is sensitive to ONE changed word, which is the whole point', function (): void {
     rateRegisterVerified();
 
-    $real = $this->postJson('/api/v1/auth/login', [
+    $real = $this->postJson('/api/v1/auth/masuk', [
         'no_telepon' => rateTestPhone(),
         'password' => 'kata-sandi-yang-salah',
     ])->getContent();
@@ -425,7 +425,7 @@ test('the two login failures cost the same wall time, so an identical body is no
     // its own process, so it does not. That difference is a finding, and this
     // test measures the *warm* shape on purpose so the runtime measurement of the
     // cold shape can be compared against a known baseline.
-    $this->postJson('/api/v1/auth/login', [
+    $this->postJson('/api/v1/auth/masuk', [
         'no_telepon' => '089999999998',
         'password' => rateTestPassword(),
     ])->assertStatus(401);
@@ -436,7 +436,7 @@ test('the two login failures cost the same wall time, so an identical body is no
         for ($run = 0; $run < 3; $run++) {
             $start = hrtime(true);
 
-            test()->postJson('/api/v1/auth/login', $payload)->assertStatus(401);
+            test()->postJson('/api/v1/auth/masuk', $payload)->assertStatus(401);
 
             $best = min($best, (hrtime(true) - $start) / 1e6);
         }
@@ -505,7 +505,7 @@ test('every limiter this application names is registered with its documented cei
 
 test('the login limiter keys on the identifier ALONE, and a nameless request still gets its own bucket', function (): void {
     $keyFor = function (array $input, string $ip = '198.51.100.9'): string {
-        $request = Request::create('/api/v1/auth/login', 'POST', $input);
+        $request = Request::create('/api/v1/auth/masuk', 'POST', $input);
         $request->server->set('REMOTE_ADDR', $ip);
 
         return (string) rateRegisteredLimiter('auth-login')($request)->key;
@@ -586,7 +586,7 @@ test('the sixth login attempt in a minute is refused with 429, the envelope and 
     rateRegisterVerified();
 
     for ($attempt = 1; $attempt <= 5; $attempt++) {
-        $this->postJson('/api/v1/auth/login', [
+        $this->postJson('/api/v1/auth/masuk', [
             'no_telepon' => rateTestPhone(),
             'password' => 'kata-sandi-yang-salah',
         ])->assertStatus(401);
@@ -594,14 +594,14 @@ test('the sixth login attempt in a minute is refused with 429, the envelope and 
 
     // The header the framework adds to a request that was ALLOWED, so the ceiling
     // is visible before it is reached and not only after it is passed.
-    $allowed = $this->postJson('/api/v1/auth/login', [
+    $allowed = $this->postJson('/api/v1/auth/masuk', [
         'no_telepon' => '081288888888',
         'password' => 'kata-sandi-yang-salah',
     ]);
 
     expect($allowed->headers->get('X-RateLimit-Limit'))->toBe('5');
 
-    $refused = $this->postJson('/api/v1/auth/login', [
+    $refused = $this->postJson('/api/v1/auth/masuk', [
         'no_telepon' => rateTestPhone(),
         'password' => rateTestPassword(),
     ]);

@@ -2,7 +2,7 @@ import type { OtpTujuan } from '@/lib/api/types';
 import type { Identifier } from '@/lib/api/auth';
 
 /**
- * The half-finished auth attempt, carried between `/login` (or the sign-in dialog) and
+ * The half-finished auth attempt, carried between `/masuk` (or the sign-in dialog) and
  * `/otp`.
  *
  * ## Why this is `sessionStorage` and not router state

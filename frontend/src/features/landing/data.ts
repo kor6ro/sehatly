@@ -41,7 +41,7 @@ import type { LucideIcon } from 'lucide-react';
  * A landing page's job is to move somebody somewhere, so every link in this file points
  * at a path `app/router.tsx` actually registers. There are no `#` anchors and no
  * "coming soon" destinations: a signed-out visitor who picks "Resep & Apotek" lands on
- * `RequireAuth`, which hands them to `/login` - the correct outcome, reached through the
+ * `RequireAuth`, which hands them to `/masuk` - the correct outcome, reached through the
  * router rather than through a link that goes nowhere.
  *
  * The two sections with no route to offer - the health-check tiles and the glossary -
@@ -408,7 +408,7 @@ export const FOOTER_KOLOM: FooterKolom[] = [
     {
         judul: 'Akun',
         tautan: [
-            { label: 'Masuk', to: '/login' },
+            { label: 'Masuk', to: '/masuk' },
             { label: 'Dasbor', to: '/dashboard' },
             { label: 'Pengaturan Profil', to: '/profil' },
             { label: 'Privasi & Data', to: '/profil/privasi' },

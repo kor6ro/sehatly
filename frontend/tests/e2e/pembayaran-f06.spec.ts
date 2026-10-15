@@ -214,7 +214,7 @@ function meta(total: number, perPage: number): Record<string, unknown> {
  * Intercept every `/api/v1` call the payment screen and its shell make.
  *
  * The catch-all is load-bearing: an unmocked request would reach the real API, answer 401,
- * and send the transport down its session-expiry path - redirecting the test to `/login`
+ * and send the transport down its session-expiry path - redirecting the test to `/masuk`
  * for a reason unrelated to the assertion.
  */
 async function pasangMock(page: Page, opsi: OpsiMock = {}): Promise<PeganganMock> {

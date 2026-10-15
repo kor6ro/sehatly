@@ -14,7 +14,7 @@ use Illuminate\Validation\Validator;
  *
  * ## Why the "one of the two" rule lives here
  *
- * `POST /auth/login` and `POST /auth/otp/verify` both accept **either**
+ * `POST /auth/masuk` and `POST /auth/otp/verify` both accept **either**
  * `users.no_telepon` **or** `users.email`, because `telemedicine_test.sql:136-137`
  * makes one of the two mandatory and the other optional:
  *

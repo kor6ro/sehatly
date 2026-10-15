@@ -12,7 +12,7 @@ use Illuminate\Validation\Rule;
  *
  * ## It is a sign-up, not a profile edit, and the consents are what make it one
  *
- * `POST /auth/login` mints a SHELL for a number with no account: a `users` row with an
+ * `POST /auth/masuk` mints a SHELL for a number with no account: a `users` row with an
  * empty name, no `pasien` row, no role grant and no ledger. This request turns that
  * shell into a patient, and it carries the two mandatory UU PDP consents for the same
  * reason {@see RegisterRequest} does - they are the difference between an account that

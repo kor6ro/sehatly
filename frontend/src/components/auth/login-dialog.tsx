@@ -84,7 +84,7 @@ function WhatsAppIcon({ className }: { className?: string }) {
  * The header's action is the whole reason a visitor is here, and a route costs a page
  * load to collect one phone number. The dialog also has to hold the whole exchange -
  * number, then channel, then code - because sending the visitor to a page between them
- * is the half-measure this replaces. The `/login` route still exists for a reload of
+ * is the half-measure this replaces. The `/masuk` route still exists for a reload of
  * `/otp` (which has no other way to recover its identifier) and for anyone holding an
  * old link.
  *
@@ -671,7 +671,7 @@ export function LoginDialog({
                             {/**
                              * A 401 here cannot be a wrong password - this form sends
                              * none - and it can no longer mean "this number has no
-                             * account" either, because `POST /auth/login` mints one for
+                             * account" either, because `POST /auth/masuk` mints one for
                              * a number that has none. What is left is a decline the
                              * server will state a reason for, so it is reported with
                              * its own wording instead of a message about registering

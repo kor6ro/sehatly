@@ -144,7 +144,7 @@ dilaporkan, bukan dihapus diam-diam. Rincian per-test ada di
 | G1 | Tidak ada reset kata sandi maupun ganti kata sandi. | `users.kata_sandi_hash` ada, `telemedicine_test.sql:138`, `NOT NULL`, dan `user_otp.tujuan` memuat `'reset_kata_sandi'`, `:183`. Tabel `password_reset_tokens` yang dirujuk `config/auth.php:98` tidak ada di skema maupun di database. |
 | G2 | Tidak ada ganti alamat email, sehingga `users.email_terverifikasi` tidak pernah bisa menjadi `true` lewat API. | `users.email` adalah `VARCHAR(255) NULL UNIQUE`, `:136`, dan `user_otp.tujuan` memuat `'verifikasi_email'`. Kolom `email_verified_at` tidak ada. |
 | G3 | Tidak ada penghapusan akun oleh pemiliknya sendiri. | `users.dihapus_at DATETIME NULL`, `:148`, dengan `SoftDeletes` dan `DELETED_AT = 'dihapus_at'`. Tidak ada endpoint yang memanggilnya. |
-| G4 | Tidak ada padanan konfirmasi kata sandi, atau step-up auth. | Tidak ada kolom dan tidak ada OTP purpose untuk itu. Yang paling mendekati adalah mengulang `POST /auth/login` lalu `POST /auth/otp/verify` dengan `tujuan = login`, yang menerbitkan ulang pasangan token tetapi bukan gerbang step-up. |
+| G4 | Tidak ada padanan konfirmasi kata sandi, atau step-up auth. | Tidak ada kolom dan tidak ada OTP purpose untuk itu. Yang paling mendekati adalah mengulang `POST /auth/masuk` lalu `POST /auth/otp/verify` dengan `tujuan = login`, yang menerbitkan ulang pasangan token tetapi bukan gerbang step-up. |
 | G5 | Dua dari empat nilai `user_otp.tujuan` tidak terjangkau lewat route mana pun. | `OtpService::TUJUAN` berisi empat nilai, sedangkan `TUJUAN_DI_TERBITKAN` hanya `['verifikasi_telepon', 'login']`. |
 
 Empat kesenjangan pertama disengaja tidak ada di rencana, karena tabel endpoint

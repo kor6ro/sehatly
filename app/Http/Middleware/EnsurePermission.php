@@ -63,7 +63,7 @@ use Symfony\Component\HttpFoundation\Response;
  * so a client cannot tell whether the 401 came from the guard or from here.
  *
  * Both failure bodies are produced by {@see ApiResponse}, the same class every
- * controller uses. **This middleware never redirects** - not to `/login`, not to an
+ * controller uses. **This middleware never redirects** - not to `/masuk`, not to an
  * Inertia page - because every route it protects lives under the `api/v1` prefix and
  * an HTML redirect is unparseable to every client in this project.
  *

@@ -136,7 +136,7 @@ final class OpenApiDocumentBuilder
             // No `servers` block, on purpose: every `paths` key below is the FULL
             // `/api/v1/...` path as the kernel routes it. Pairing a full path
             // with a `/api/v1` server URL -- the obvious "tidy" arrangement --
-            // makes a generated client request `/api/v1/api/v1/auth/login`, which
+            // makes a generated client request `/api/v1/api/v1/auth/masuk`, which
             // 404s. One of the two may carry the prefix and the full path is the
             // more useful of the two: it is what `route:list` prints, what a
             // curl recipe in `docs/modules/` contains, and what a reader greps

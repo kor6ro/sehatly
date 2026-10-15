@@ -7,7 +7,7 @@ namespace App\Http\Requests\Auth;
 use Illuminate\Validation\Validator;
 
 /**
- * Validates `POST /api/v1/auth/login`.
+ * Validates `POST /api/v1/auth/masuk`.
  *
  * ## What this endpoint deliberately does not return
  *

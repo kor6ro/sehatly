@@ -21,7 +21,7 @@ use Illuminate\Support\Str;
 | number - and left three unmounted on purpose:
 |
 | - `otp-kirim` (3/min) and `otp-kirim-jam` (10/hour), both keyed on the
-|   identifier, would drop `/auth/login`'s effective ceiling from the plan's 5/min
+|   identifier, would drop `/auth/masuk`'s effective ceiling from the plan's 5/min
 |   to 3/min and lock a patient out after ten attempts in an hour;
 | - `auth-register` (3/hour, client IP) would drop `/auth/sign-up` from 10/min to
 |   3/hour per address, which behind carrier-grade NAT is one clinic's egress.
@@ -151,7 +151,7 @@ function rltAs(User $user): mixed
 
 test('setiap limiter F-002 menempel pada route yang benar', function (): void {
     $peta = [
-        ['POST', 'api/v1/auth/login', 'throttle:auth-login-ip'],
+        ['POST', 'api/v1/auth/masuk', 'throttle:auth-login-ip'],
         ['POST', 'api/v1/auth/otp/resend', 'throttle:auth-otp-resend'],
         ['POST', 'api/v1/auth/refresh', 'throttle:auth-refresh'],
         ['POST', 'api/v1/booking', 'throttle:booking'],

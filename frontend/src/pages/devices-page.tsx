@@ -83,7 +83,7 @@ export function DevicesPage() {
 
             dispatchFlash({ level: 'info', message: 'Anda telah keluar.' });
 
-            void navigate('/login', { replace: true });
+            void navigate('/masuk', { replace: true });
         },
     });
 
@@ -98,7 +98,7 @@ export function DevicesPage() {
                 message: 'Anda telah keluar dari semua perangkat.',
             });
 
-            void navigate('/login', { replace: true });
+            void navigate('/masuk', { replace: true });
         },
     });
 

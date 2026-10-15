@@ -146,7 +146,7 @@ function AppSidebar() {
 
             dispatchFlash({ level: 'info', message: 'Anda telah keluar.' });
 
-            void navigate('/login', { replace: true });
+            void navigate('/masuk', { replace: true });
         },
     });
 

@@ -216,7 +216,7 @@ function demo3cIkatOtp(): void
  *
  * ## Why this is not `$user->createToken(...)`
  *
- * `POST /api/v1/auth/login` deliberately returns NO token and
+ * `POST /api/v1/auth/masuk` deliberately returns NO token and
  * `POST /api/v1/auth/otp/verify` is the only issuer - the F3 gate verified that
  * as correct. A test that minted a Sanctum token directly would prove the demo
  * password works and nothing else, and the password is exactly what F3 could
@@ -233,7 +233,7 @@ function demo3cToken(string $noTelepon, string $kataSandi): ?string
 
     app('auth')->forgetGuards();
 
-    $login = test()->postJson('/api/v1/auth/login', [
+    $login = test()->postJson('/api/v1/auth/masuk', [
         'no_telepon' => $noTelepon,
         'password' => $kataSandi,
     ]);
@@ -241,7 +241,7 @@ function demo3cToken(string $noTelepon, string $kataSandi): ?string
     $login->assertOk();
 
     if ($login->json('data.token') !== null) {
-        throw new RuntimeException('POST /auth/login returned a token, so the two-step flow this test relies on is gone.');
+        throw new RuntimeException('POST /auth/masuk returned a token, so the two-step flow this test relies on is gone.');
     }
 
     $kode = $pengirim->lastKodeFor(OtpService::TUJUAN_LOGIN);

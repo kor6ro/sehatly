@@ -49,17 +49,17 @@ use Illuminate\Support\Facades\Route;
 | widens this vocabulary for the rest of the sensitive surface.
 |
 | The three limits are the plan's: 10/min on the OTP-sending endpoint, 5/min on
-| login, 5/min on OTP verify. `user_otp` has **no attempt-counter column**, so
+| `masuk`, 5/min on OTP verify. `user_otp` has **no attempt-counter column**, so
 | the verify limit is the only thing bounding a six-digit brute force, and the
 | key includes the caller's identifier so one attacker cannot lock every account
 | out by spending a shared budget.
 |
 | APPENDED by F-002: seven of the ten limiters that `AppServiceProvider` had
 | registered but left unmounted are now mounted - `auth-login-ip` beside
-| `auth-login` on `/auth/login`, `auth-refresh` on `/auth/refresh`, and one each on
+| `auth-login` on `/auth/masuk`, `auth-refresh` on `/auth/refresh`, and one each on
 | booking, chat, checkout, promo validation and the payment webhook. The remaining
 | three are deliberately NOT mounted: `otp-kirim` (3/min per identifier) and
-| `otp-kirim-jam` (10/hour) would lower `/auth/login`'s EFFECTIVE ceiling from the
+| `otp-kirim-jam` (10/hour) would lower `/auth/masuk`'s EFFECTIVE ceiling from the
 | plan's 5/min to 3/min, and `auth-register` (3/hour per IP) would lower
 | `/auth/sign-up` from 10/min to 3/hour per address and punish every patient
 | behind one shared NAT. Mounting any of the three is a ceiling decision rather
@@ -100,7 +100,7 @@ Route::prefix('auth')->name('auth.')->group(function (): void {
     /*
     | The tail of the one-door flow. `sign-up` writes a complete account in one request
     | for a client that already holds every fact; this writes the same account for a
-    | client that proved its phone first and was therefore minted only a shell by `login`.
+    | client that proved its phone first and was therefore minted only a shell by `masuk`.
     |
     | Authenticated, and deliberately carrying NO `permission:` gate: the bearer token was
     | issued minutes ago to whoever held the phone, and a permission the fresh account
@@ -119,14 +119,28 @@ Route::prefix('auth')->name('auth.')->group(function (): void {
         ->middleware(['auth:sanctum', 'throttle:auth-otp-send'])
         ->name('sign-up.lengkapi');
 
-    Route::post('login', [AuthController::class, 'login'])
+    /*
+    | `masuk`, not `login`: the path is the client-visible half of the contract and
+    | the only part a patient ever reads, in the address bar and in their own network
+    | log. This application admits on a phone number and a one-time code - the form
+    | collects no password at all - so a verb borrowed from credential entry promised
+    | something the screen never asks for. `AuthController::login` keeps the English
+    | name, on the same rule the `sign-up` route above documents: a path and its
+    | method need not agree.
+    |
+    | The limiter names stay `auth-login` for the opposite reason. A throttle key is a
+    | bucket in `AppServiceProvider` and never appears in a request or a response;
+    | renaming it would move the ceiling identifiers `RateLimitingTest` and
+    | `RouteThrottlingTest` pin, to hide a word no user can see.
+    */
+    Route::post('masuk', [AuthController::class, 'login'])
         // `otp-kirim` and `otp-kirim-jam` are deliberately NOT mounted here: both are
         // keyed on the identifier with a 3/min and a 10/hour ceiling, so mounting them
-        // lowers login's EFFECTIVE ceiling below the plan's 5/min. That is a ceiling
-        // decision rather than a wiring one, and F-002 recorded it in
+        // lowers this endpoint's EFFECTIVE ceiling below the plan's 5/min. That is a
+        // ceiling decision rather than a wiring one, and F-002 recorded it in
         // `AppServiceProvider`'s inventory instead of making it here.
         ->middleware(['throttle:auth-login', 'throttle:auth-login-ip'])
-        ->name('login');
+        ->name('masuk');
 
     Route::post('otp/verify', [AuthController::class, 'verifyOtp'])
         ->middleware('throttle:auth-otp-verify')
@@ -135,7 +149,7 @@ Route::prefix('auth')->name('auth.')->group(function (): void {
     // The only anonymous route that mints an OTP without a prior credential, so
     // its limiter is its own: 3 per five minutes, keyed on identifier + IP. See
     // `AppServiceProvider::configureRateLimiting()` for why it is tighter than
-    // login's and why `device_id` is not part of the key.
+    // `masuk`'s and why `device_id` is not part of the key.
     Route::post('otp/resend', [AuthController::class, 'resendOtp'])
         ->middleware('throttle:auth-otp-resend')
         ->name('otp.resend');
@@ -144,7 +158,7 @@ Route::prefix('auth')->name('auth.')->group(function (): void {
     // deployment - which transport OTPs actually go out on - with no identifier in and
     // none out, so there is nothing to enumerate and nothing worth rate-limiting; the
     // public GETs in this file are unthrottled for the same reason. A client reads it
-    // BEFORE login so the send button can be labelled truthfully, which is why
+    // BEFORE signing in so the send button can be labelled truthfully, which is why
     // `AuthController::otpKanal()` exists rather than a build-time copy of the driver.
     Route::get('otp/kanal', [AuthController::class, 'otpKanal'])
         ->name('otp.kanal');
@@ -439,7 +453,7 @@ use App\Http\Controllers\Api\V1\HeroController;
 | ONE read, no `permission:` and no `tipe:`, for the reason `GET /dokter` and
 | `GET /master-spesialisasi` above carry neither: it is content the front page
 | needs before anybody has an account. Gating it would put the landing page
-| behind a login.
+| behind a sign-in.
 |
 | The audience question that matters is on the WRITE side, and it is answered
 | by `hero.kelola` - the owner-approved catalogue code for "an `admin`

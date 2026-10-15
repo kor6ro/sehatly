@@ -205,7 +205,7 @@ export function ProfilEditPage() {
         // on a decision that has already been made.
         clearTokens();
         queryClient.clear();
-        void navigate('/login', { replace: true });
+        void navigate('/masuk', { replace: true });
     }
 
     async function onSubmit(values: LengkapiForm): Promise<void> {

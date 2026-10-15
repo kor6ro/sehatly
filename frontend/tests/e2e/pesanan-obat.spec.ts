@@ -102,7 +102,7 @@ async function isi(locator: import('@playwright/test').Locator, nilai: string): 
 async function masuk(page: Page): Promise<void> {
     const telepon = wajib('SEHATLY_PASIEN_NO_TELEPON');
 
-    await page.goto('/login');
+    await page.goto('/masuk');
 
     await expect(page.getByLabel('Nomor telepon')).toBeVisible({
         timeout: 60_000,
@@ -114,7 +114,7 @@ async function masuk(page: Page): Promise<void> {
     await isi(page.getByLabel('Nomor telepon'), telepon);
 
     const [respons] = await Promise.all([
-        page.waitForResponse((r) => r.url().includes('/api/v1/auth/login'), {
+        page.waitForResponse((r) => r.url().includes('/api/v1/auth/masuk'), {
             timeout: 60_000,
         }),
         page.getByRole('button', { name: 'Lanjutkan' }).click(),

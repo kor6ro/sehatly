@@ -21,7 +21,7 @@ export function RootLayout() {
     useEffect(
         () =>
             onSessionExpired(() => {
-                void navigate('/login', { replace: true });
+                void navigate('/masuk', { replace: true });
             }),
         [navigate],
     );

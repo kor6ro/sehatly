@@ -89,7 +89,7 @@ import { cn } from '@/lib/utils';
  *   `/pesanan` exists - it is where a prescription order already lives.
  * - Every menu entry points at a route that is registered in `app/router.tsx`. There are
  *   no placeholder links: a signed-out visitor who picks "Chat dengan Dokter" lands on
- *   `RequireAuth`, which hands them to `/login` - the correct outcome, reached through
+ *   `RequireAuth`, which hands them to `/masuk` - the correct outcome, reached through
  *   the router rather than through a link that goes nowhere.
  * - The nav shows its content before it asks for a click. Both entries with something
  *   behind them - "Dokter Terdekat" and "Layanan Kesehatan" - expand under a pointer
@@ -774,7 +774,7 @@ function GridPromoPanel({
  * one of the five wearing a different hat.
  *
  * Every destination is honest about what it is: a route registered in `app/router.tsx`
- * - a signed-out visitor who picks one still lands on `RequireAuth` and its `/login`, the
+ * - a signed-out visitor who picks one still lands on `RequireAuth` and its `/masuk`, the
  * correct outcome reached through the router - or the `#solusi` anchor above, which is
  * this page. Every one of them closes the panel on the way out (`hover.tutup`), so the
  * menu never lies open behind the page it opened.
@@ -1560,7 +1560,7 @@ function PencarianBar({
  * broke that way: a visitor who signed in through the dialog on this very page kept the
  * "Masuk" button, and a visitor who signed out left the pill's `/me` query subscribed,
  * so its refetch fired with no credentials and the transport, reading that as a session
- * expiry, moved them to `/login`. `useSession` subscribes to the store instead, which
+ * expiry, moved them to `/masuk`. `useSession` subscribes to the store instead, which
  * makes both directions a re-render of exactly this component.
  *
  * There is deliberately no "Daftar" button here, and "Masuk" opens a dialog rather than
@@ -1655,7 +1655,7 @@ function AkunPill() {
      * The parent unmounts this pill the moment `clearTokens()` announces, but the two
      * updates race: if this component renders once in between, a query that refetches on
      * an empty cache would call `/me` with no `Authorization` header, and the transport
-     * answers that 401 by declaring the session expired and moving the page to `/login` -
+     * answers that 401 by declaring the session expired and moving the page to `/masuk` -
      * which is how signing OUT of the landing page used to land you on the sign-IN
      * screen. Gated on the session, that refetch cannot start at all.
      */
@@ -1895,7 +1895,7 @@ export function LandingHeader({ onMasuk }: { onMasuk: () => void }) {
                         The bag the reference carries after the account, pointed at the one
                         route that answers it: `/pesanan` is where a prescription order
                         lives. It is offered signed-out on purpose, for the same reason every
-                        service link is - `RequireAuth` sends the visitor to `/login`, which
+                        service link is - `RequireAuth` sends the visitor to `/masuk`, which
                         is the correct outcome reached through the router rather than a link
                         that pretends a cart exists. The reference's heart is deliberately
                         NOT reproduced: there is no wishlist route to point it at, and an

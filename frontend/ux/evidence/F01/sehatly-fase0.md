@@ -9,7 +9,7 @@ Grup `Route::prefix('auth')` di `routes/api.php:83`; semua path di bawah `/api/v
 | Method + path | Nama | Middleware | File:baris |
 |---|---|---|---|
 | `POST /api/v1/auth/sign-up` | `auth.register` | `throttle:auth-otp-send` (10/60 dtk) | `routes/api.php:88-90` |
-| `POST /api/v1/auth/login` | `auth.login` | `throttle:auth-login` (5/60, per identifier) + `throttle:auth-login-ip` (60/60) | `routes/api.php:92-99` |
+| `POST /api/v1/auth/masuk` | `auth.masuk` | `throttle:auth-login` (5/60, per identifier) + `throttle:auth-login-ip` (60/60) | `routes/api.php:92-99` |
 | `POST /api/v1/auth/otp/verify` | `auth.otp.verify` | `throttle:auth-otp-verify` (5/300 dtk, per `user_otp.id`) | `routes/api.php:101-103` |
 | `POST /api/v1/auth/refresh` | `auth.refresh` | `throttle:auth-refresh` (30/60) | `routes/api.php:105-107` |
 | `POST /api/v1/auth/logout` | `auth.logout` | `auth:sanctum` | `routes/api.php:115-116` |
@@ -75,7 +75,7 @@ Dipetakan di `AuthController.php:574-581`; isi `app/Services/Auth/OtpRejected.ph
 
 ## 6. UI frontend (`frontend/src`)
 
-Route: `/login` (`router.tsx:106`), `/otp` (:121); halaman publik `/kebijakan-privasi`, `/syarat-ketentuan` (:145, :150). **`/register` tidak ada lagi** — pintu hanya meminta nomor ponsel, dan akun diselesaikan di `/profil/edit/:userId?sign_up=true` (:173), di bawah `RequireAuth` tetapi **di luar** `AppShell` karena akun segar belum punya baris `pasien` dan bilah sampingnya akan buntu.
+Route: `/masuk` (`router.tsx:106`), `/otp` (:121); halaman publik `/kebijakan-privasi`, `/syarat-ketentuan` (:145, :150). **`/register` tidak ada lagi** — pintu hanya meminta nomor ponsel, dan akun diselesaikan di `/profil/edit/:userId?sign_up=true` (:173), di bawah `RequireAuth` tetapi **di luar** `AppShell` karena akun segar belum punya baris `pasien` dan bilah sampingnya akan buntu.
 
 **Input OTP:**
 - `input-otp` (`frontend/package.json:33`), komponen `frontend/src/components/ui/input-otp.tsx`.
@@ -85,7 +85,7 @@ Route: `/login` (`router.tsx:106`), `/otp` (:121); halaman publik `/kebijakan-pr
 
 **Timer:** `useCountdown(kedaluwarsaAt, ttlDetik)` dari server (:81-117; fallback 300 dtk :145). Copy: `Kode berlaku X menit Y detik lagi.` (:256); saat habis: `Kode mungkin sudah kedaluwarsa. Kirim ulang dengan masuk kembali.` (:257). Tombol submit **tidak** dinonaktifkan saat timer habis (:76-79).
 
-**Kirim ulang: TIDAK ADA.** Satu-satunya pemulihan adalah tombol `Kembali` (:269-279) yang membersihkan state dan kembali ke `/login`.
+**Kirim ulang: TIDAK ADA.** Satu-satunya pemulihan adalah tombol `Kembali` (:269-279) yang membersihkan state dan kembali ke `/masuk`.
 
 **State error:**
 - Validasi (`errors.kode`) inline di field OTP (:154-155, :247).

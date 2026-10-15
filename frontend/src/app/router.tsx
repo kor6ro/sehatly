@@ -104,7 +104,7 @@ export const router = createBrowserRouter([
             },
 
             {
-                path: '/login',
+                path: '/masuk',
                 element: <LoginPage />,
                 errorElement: <RouteErrorBoundary />,
             },
@@ -112,7 +112,7 @@ export const router = createBrowserRouter([
              * There is deliberately NO `/register`.
              *
              * Registration is the same door as sign-in: the dialog takes the number,
-             * `POST /auth/login` mints an account for one that has none, `otp/verify`
+             * `POST /auth/masuk` mints an account for one that has none, `otp/verify`
              * proves it, and `/profil/edit/{id}?sign_up=true` finishes it. A second
              * route would be a second door to the same room, and every link that
              * pointed at it would be pointing at a page that half the visitors to it

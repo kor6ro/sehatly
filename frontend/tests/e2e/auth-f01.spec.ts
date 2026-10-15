@@ -4,7 +4,7 @@ import { expect, test, type Locator, type Page, type Route } from '@playwright/t
 import { expectNoA11yViolations } from './a11y';
 
 /**
- * F01 `/login`, `/profil/edit/{id}?sign_up=true`, `/otp` and `/profil/perangkat`, mocked
+ * F01 `/masuk`, `/profil/edit/{id}?sign_up=true`, `/otp` and `/profil/perangkat`, mocked
  * end to end.
  *
  * Every `/api/v1/**` request is intercepted, so the file pins the CLIENT's branches -
@@ -105,7 +105,7 @@ const DEVICE_LAIN: DeviceUji = {
  * The same account BEFORE it is an account: a `users` row minted for a number, an empty
  * name, and no `pasien` relation at all.
  *
- * This is what `POST /auth/login` writes for a passwordless call naming a number it has
+ * This is what `POST /auth/masuk` writes for a passwordless call naming a number it has
  * never seen, and it is the only shape `ProfilEditPage` renders - it redirects to
  * `/dashboard` the moment `nama_lengkap !== ''` and a `pasien` row exists. A fixture that
  * kept the finished profile would therefore not test the completion form at all; it would
@@ -170,7 +170,7 @@ async function pasangMock(page: Page, opsi: OpsiMock = {}): Promise<MockState> {
      * It is what makes the file's "mocked end to end" true. Without it a screen the
      * mocks do not cover - `/dashboard` after a completed sign-up, say - reaches the real
      * server with `token-uji-f01`, is answered 401, and the transport tears the session
-     * down and redirects to `/login`. A test asserting "we navigated to `/dashboard`"
+     * down and redirects to `/masuk`. A test asserting "we navigated to `/dashboard`"
      * would then fail on a round trip it never intended to make, and the failure would
      * point at the assertion rather than at the missing mock.
      */
@@ -187,7 +187,7 @@ async function pasangMock(page: Page, opsi: OpsiMock = {}): Promise<MockState> {
         const jalur = url.pathname;
         const metode = request.method();
 
-        if (jalur === '/api/v1/auth/login' && metode === 'POST') {
+        if (jalur === '/api/v1/auth/masuk' && metode === 'POST') {
             const body = JSON.parse(request.postData() ?? '{}') as Record<string, unknown>;
 
             state.login.push(body);
@@ -543,7 +543,7 @@ for (const vp of VIEWPORTS) {
         test('f01-ac1-nomor-dua-bentuk', async ({ page }) => {
             const state = await pasangMock(page);
 
-            await page.goto('/login');
+            await page.goto('/masuk');
 
             await expect(page.getByLabel('Nomor telepon')).toBeVisible();
             await expect(
@@ -575,7 +575,7 @@ for (const vp of VIEWPORTS) {
             await expect(page).toHaveURL(/\/otp$/);
 
             // The local spelling still works and is sent unchanged too.
-            await page.goto('/login');
+            await page.goto('/masuk');
             await isiLogin(page, '081234567890');
             await page.getByRole('button', { name: 'Lanjutkan' }).click();
 
@@ -1019,7 +1019,7 @@ for (const vp of VIEWPORTS) {
                 }),
             });
 
-            await page.goto('/login');
+            await page.goto('/masuk');
             await isiLogin(page, '081299998888');
             await page.getByRole('button', { name: 'Lanjutkan' }).click();
 
@@ -1124,7 +1124,7 @@ for (const vp of VIEWPORTS) {
             await expect.poll(() => state.logout.length).toBe(1);
             expect(state.logout[0]).toEqual({ refresh_token: 'refresh-uji-f01' });
 
-            await expect(page).toHaveURL(/\/login$/);
+            await expect(page).toHaveURL(/\/masuk$/);
             await expect.poll(() => pesanFlash(page)).toContain('Anda telah keluar.');
 
             // The local pair is gone: a reload of a guarded page cannot resurrect it.
@@ -1164,7 +1164,7 @@ for (const vp of VIEWPORTS) {
             await page.locator('[data-slot="device-logout-all-confirm"]').click();
 
             await expect.poll(() => state.logoutAll).toBe(1);
-            await expect(page).toHaveURL(/\/login$/);
+            await expect(page).toHaveURL(/\/masuk$/);
             await expect
                 .poll(() => pesanFlash(page))
                 .toContain('Anda telah keluar dari semua perangkat.');
@@ -1179,7 +1179,7 @@ for (const vp of VIEWPORTS) {
                 pesanKonsol.push(pesan.text());
             });
 
-            await page.goto('/login');
+            await page.goto('/masuk');
 
             await expect(page).toHaveTitle('Masuk | Sehatly');
 
@@ -1211,13 +1211,13 @@ for (const vp of VIEWPORTS) {
         test('f01-ac12-a11y', async ({ page }) => {
             await pasangMock(page);
 
-            await page.goto('/login');
+            await page.goto('/masuk');
             await expectNoA11yViolations(page);
             await ukuranTarget(page.getByRole('button', { name: 'Lanjutkan' }));
             await ukuranTarget(page.getByRole('button', { name: 'Telepon' }));
 
             /**
-             * The session is installed only NOW, not before the `/login` pass above.
+             * The session is installed only NOW, not before the `/masuk` pass above.
              *
              * A signed-in visitor has no business on the sign-in screen, so the route
              * sends them elsewhere and the "Lanjutkan" button never renders - `addInitScript`
@@ -1297,7 +1297,7 @@ for (const lebar of [390, 1280] as const) {
 
         await pasangMock(page);
         await page.setViewportSize({ width: lebar, height: tinggi });
-        await page.goto('/login');
+        await page.goto('/masuk');
         await page.waitForLoadState('networkidle');
 
         await simpanBukti(page, 'login', lebar);

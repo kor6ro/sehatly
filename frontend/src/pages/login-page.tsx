@@ -77,11 +77,11 @@ const PESAN_KEAMANAN_EMAIL =
     'Kami akan mengirim kode 6 digit ke email ini untuk memastikan akun Anda aman.';
 
 /**
- * `/login`
+ * `/masuk`
  *
  * ## The response is not a session, and this screen is built around that
  *
- * `POST /auth/login` answers `{ success, data: { otp }, message }` and **no token**, by
+ * `POST /auth/masuk` answers `{ success, data: { otp }, message }` and **no token**, by
  * design. So a successful submit here does not sign anybody in; it records the identifier,
  * moves to `/otp` and waits for the code that was sent to the phone. A screen that treated
  * this response as a session would be silently broken, and the failure would only show up

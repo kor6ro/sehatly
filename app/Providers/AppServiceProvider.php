@@ -359,7 +359,7 @@ class AppServiceProvider extends ServiceProvider
      * missing line:
      *
      * - `otp-kirim` (3/min) and `otp-kirim-jam` (10/hour) are keyed on the
-     *   identifier and were written for `/auth/login` - the second endpoint that
+     *   identifier and were written for `/auth/masuk` - the second endpoint that
      *   mints an OTP, after the password matched. Mounting them there would make
      *   login's EFFECTIVE ceiling 3/min instead of the plan's 5, and would lock a
      *   legitimate patient out of login after ten attempts in an hour. Moving a
@@ -372,8 +372,8 @@ class AppServiceProvider extends ServiceProvider
      *
      * | limiter | key | ceiling | window | mounted on |
      * | --- | --- | --- | --- | --- |
-     * | `auth-login` | identifier | 5 | 60 s | `POST /auth/login` |
-     * | `auth-login-ip` | client IP | 60 | 60 s | `POST /auth/login` |
+     * | `auth-login` | identifier | 5 | 60 s | `POST /auth/masuk` |
+     * | `auth-login-ip` | client IP | 60 | 60 s | `POST /auth/masuk` |
      * | `auth-otp-send` | identifier + IP | 10 | 60 s | `POST /auth/sign-up` |
      * | `auth-otp-resend` | identifier + IP | 3 | 300 s | `POST /auth/otp/resend` |
      * | `otp-kirim` | identifier | 3 | 60 s | **not mounted - ceiling decision (F-002)** |
@@ -492,7 +492,7 @@ class AppServiceProvider extends ServiceProvider
     {
         // ---------------------------------------------------------- anonymous --
         //
-        // `POST /auth/login` returns NO token: it checks the password and sends an
+        // `POST /auth/masuk` returns NO token: it checks the password and sends an
         // OTP. The token pair is issued by `POST /auth/otp/verify`. The login
         // limiter therefore belongs here and nowhere else -- a test that expected a
         // token from this endpoint, or a limiter applied to `otp/verify` on the
@@ -509,7 +509,7 @@ class AppServiceProvider extends ServiceProvider
         ));
 
         // `auth-otp-send` is on `POST /auth/sign-up` only, and is the endpoint that
-        // mints an OTP with no prior credential. `POST /auth/login` also mints one,
+        // mints an OTP with no prior credential. `POST /auth/masuk` also mints one,
         // but only after the password matched, so its OTP volume is already bounded
         // by `auth-login`; `otp-kirim` below is the limiter to mount there when
         // `routes/api.php` is next edited.
@@ -899,7 +899,7 @@ class AppServiceProvider extends ServiceProvider
         $response->headers->set('Content-Security-Policy', self::API_CSP);
 
         // `POST /api/v1/auth/otp/verify` answers with a token pair and
-        // `POST /api/v1/auth/login` with a code. A shared cache that stored either
+        // `POST /api/v1/auth/masuk` with a code. A shared cache that stored either
         // would hand one patient's credentials to the next caller through the
         // infrastructure rather than through the code, so the API surface is
         // explicitly uncacheable. `Pragma` is here for HTTP/1.0 intermediaries,
