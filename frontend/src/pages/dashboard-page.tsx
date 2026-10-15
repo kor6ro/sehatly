@@ -23,6 +23,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { SkeletonRows } from '@/components/states/loading-state';
 import { ErrorState } from '@/components/states/error-state';
 import { ForbiddenState } from '@/components/states/error-state';
+import { PanelPencarian } from '@/features/dokter/panel-pencarian';
 import { PageHeader } from '@/components/layout/page-header';
 
 /**
@@ -113,6 +114,20 @@ export function DashboardPage() {
                     </Button>
                 }
             />
+
+            {/**
+             * The search, on the home the patient actually lands on.
+             *
+             * It used to exist only in the landing header, which means an account already
+             * signed in had to walk out to the marketing page to ask a question. This is
+             * the same act from the other door: the panel parks the term and goes to `/`,
+             * exactly as `PencarianBar` does, so both land in one directory.
+             *
+             * `max-w-2xl` rather than full width - the suggestion panel is as wide as this
+             * field, and a panel stretched to a 3-column page's edge turns two rows of
+             * history chips into one very long line.
+             */}
+            <PanelPencarian className="max-w-2xl" />
 
             <div className="grid gap-6 lg:grid-cols-3">
                 <Card className="lg:col-span-2">
