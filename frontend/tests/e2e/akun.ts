@@ -1,3 +1,4 @@
+import { randomInt } from 'node:crypto';
 import { expect, type Page } from '@playwright/test';
 
 /**
@@ -224,20 +225,46 @@ async function pasangSesi(
 }
 
 /**
- * A unique `no_telepon`, unique per call rather than per run.
+ * A unique `no_telepon`, unique across calls, workers, and previous runs.
  *
- * `Date.now()` alone repeats when two workers start in the same millisecond, and
- * `users.no_telepon` is `UNIQUE` - so a collision would be a 422 that looks like a
- * flake. The counter makes two calls in the same tick distinct, and the digit budget
- * stays inside the server's `/^\+?[0-9]{8,20}$/`.
+ * ## Why the counter was removed
+ *
+ * It used to end in a module-level `nomorBerturut`, and that counter is unique WITHIN one
+ * process and meaningless ACROSS one. Playwright runs every worker in its own Node
+ * process, so each worker started the counter at 0 - two workers reaching this function
+ * in the same millisecond produced the identical number, and a third did too. The
+ * docblock's own claim, "the counter makes two calls in the same tick distinct", was true
+ * only of a single-worker run.
+ *
+ * `users.no_telepon` is `UNIQUE`, so the collision surfaced as
+ * `UniqueConstraintViolationException` on the sign-up insert and a 500 back to the caller.
+ * The failure landed on whichever test lost the race - four unrelated tests failed in one
+ * run while the suite as a whole stayed green in another, which is the worst shape a
+ * fixture bug can take: it looks like the feature under test.
+ *
+ * `Date.now()` was then left carrying the whole burden on its own, and its last seven
+ * digits cycle every 10^7 ms - a little under 2.8 hours - so re-running a suite inside
+ * that window collided with the accounts the previous run had left in the database.
+ *
+ * ## Why randomness and not a shared counter
+ *
+ * A genuinely shared counter would need shared state - a file, a table, a lock - and the
+ * fixture helper is the one piece of this harness that must keep working when the server
+ * is under load and the database is the thing being stressed. Six digits of `randomInt`
+ * are per-process by construction, need no coordination, and put the chance of two calls
+ * in the same millisecond colliding at 1 in 10^6, far below the rate at which this suite
+ * creates accounts.
+ *
+ * The seven time-based digits stay even though uniqueness no longer depends on them: they
+ * let a reader put a number from a failure log back to the run that minted it.
+ *
+ * The budget stays inside the server's `/^\+?[0-9]{8,20}$/` - 4 + 7 + 6 digits - and the
+ * default prefix remains an Indonesian mobile prefix, so the number is shaped like the
+ * thing it stands for rather than like a synthetic key.
  */
-let nomorBerturut = 0;
-
 export function nomorTeleponBaru(prefix = '0896'): string {
-    nomorBerturut += 1;
-
     const waktu = String(Date.now()).slice(-7);
-    const urut = String(nomorBerturut % 10);
+    const acak = String(randomInt(0, 1_000_000)).padStart(6, '0');
 
-    return `${prefix}${waktu}${urut}`;
+    return `${prefix}${waktu}${acak}`;
 }
