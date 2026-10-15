@@ -181,6 +181,28 @@ for (const vp of VIEWPORTS) {
             await simpanGambar(page, vp, 'terbuka');
         });
 
+        /**
+         * The press that used to do nothing at all.
+         *
+         * `cari('')` returns early on a blank term, so the magnifier - which looks like the
+         * primary action of the whole control - silently swallowed the press whenever the
+         * field was empty. Reported as "the search shows nothing when clicked", and it was
+         * right: it showed nothing, ever, because nothing happened. It now opens the panel,
+         * which is the only useful answer when there is no term to run.
+         */
+        test('ikon lupanya dengan kolom kosong membuka panel, bukan diam', async ({ page }) => {
+            await bukaBeranda(page, `Pasien Panel Ikon ${vp.nama}`);
+
+            await expect(panel(page), 'panel harus tertutup sebelum ditekan').toHaveCount(0);
+
+            await wadah(page).getByRole('button', { name: 'Cari' }).click();
+
+            await expect(panel(page), 'tekanan pada ikon harus membuka panel').toBeVisible({
+                timeout: 30_000,
+            });
+            await expect(page, 'dan tidak boleh berpindah halaman').toHaveURL(/\/dashboard$/);
+        });
+
         test('kueri tidak pernah masuk alamat, dan dikirim tepat satu kali', async ({ page }) => {
             await bukaBeranda(page, `Pasien Panel Privasi ${vp.nama}`);
             await bukaPanel(page);
@@ -200,13 +222,43 @@ for (const vp of VIEWPORTS) {
                 }
             });
 
+            /**
+             * A promise, not a poll: the directory mounts and turns `visible` BEFORE React
+             * Query fires its request, so asserting the counter against visibility alone
+             * reads an empty array and fails intermittently. Waiting for the response
+             * itself removes the race; the counter below then still answers the part a
+             * single wait cannot - whether a SECOND request followed.
+             */
+            const menungguJawaban = page.waitForResponse(
+                (jawaban) => {
+                    const url = new URL(jawaban.url());
+
+                    return (
+                        url.pathname === '/api/v1/dokter' && url.searchParams.has('search')
+                    );
+                },
+                { timeout: 30_000 },
+            );
+
             await kolom(page).fill(KATA_UJI);
             await panel(page).locator('[data-slot="dashboard-cari-kueri"]').click();
 
             await expect(page, 'submit harus mendarat di beranda yang menjawab').toHaveURL(/\/$/, {
                 timeout: 30_000,
             });
-            await expect(page.locator('[data-slot="landing-direktori"]')).toBeVisible({
+
+            const jawaban = await menungguJawaban;
+
+            expect(
+                new URL(jawaban.url()).searchParams.get('search'),
+                'permintaan yang menjawab harus membawa kueri yang diketik',
+            ).toBe(KATA_UJI);
+
+            /**
+             * And now wait for the directory to have drawn its answer, so a second request
+             * that had not been sent yet would be counted rather than missed.
+             */
+            await expect(page.locator('[data-slot="dokter-count"]')).toBeVisible({
                 timeout: 30_000,
             });
 

@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
-import { Search } from 'lucide-react';
+import { Search, Tag } from 'lucide-react';
 import { dokterOptions } from '@/lib/api/dokter';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ErrorState } from '@/components/states/error-state';
-import { SkeletonRows } from '@/components/states/loading-state';
 import { serahkanKueri } from '@/features/dokter/direktori';
 
 /**
@@ -284,7 +283,41 @@ export function PanelPencarian({ className }: { className?: string }) {
                 data-slot="dashboard-cari"
                 onSubmit={(event) => {
                     event.preventDefault();
+
+                    /**
+                     * An empty submit OPENS rather than doing nothing.
+                     *
+                     * This is the one way a reader can press something in this field and be
+                     * told nothing had happened: `cari('')` returns early on a blank term, so
+                     * the magnifier - which looks like the primary action of the whole
+                     * control - used to swallow the press silently whenever the field was
+                     * empty. The reference opens its panel on that same press, and it is the
+                     * only sensible answer anyway: with nothing typed, the useful next step
+                     * is the list of things worth searching for, not a directory of
+                     * everything.
+                     */
+                    if (persis === '') {
+                        setTerbuka(true);
+                        return;
+                    }
+
                     cari(persis);
+                }}
+                /**
+                 * Any press in the field focuses it, not just a press on the caret.
+                 *
+                 * The form is 48 px tall around a text input, so a click on the padding, on
+                 * the leading space, or on the magnifier itself would otherwise leave the
+                 * field unfocused - and therefore leave the panel unopened, with no feedback
+                 * at all. Moving the caret to where the reader pressed is also what they
+                 * asked for; `preventDefault` on the icon press is dropped because the
+                 * submit that follows is the behaviour we now want.
+                 */
+                onPointerDown={(event) => {
+                    if (event.target === event.currentTarget) {
+                        event.preventDefault();
+                        event.currentTarget.querySelector('input')?.focus();
+                    }
                 }}
                 className="border-input bg-background focus-within:border-foreground/40 flex h-12 min-w-0 items-center gap-1 rounded-full border pl-4 pr-1 transition-colors"
             >
@@ -333,7 +366,12 @@ export function PanelPencarian({ className }: { className?: string }) {
                             }}
                             className="hover:bg-accent flex min-h-11 w-full items-center gap-3 px-4 py-3 text-left text-sm transition-colors"
                         >
-                            <Search aria-hidden className="text-muted-foreground size-4 shrink-0" />
+                            {/**
+                             * A tag, not another magnifier: this row IS the reader's own
+                             * term, and the reference marks it as such. Three identical
+                             * magnifiers in one panel would say nothing three times.
+                             */}
+                            <Tag aria-hidden className="text-muted-foreground size-4 shrink-0" />
 
                             <span className="min-w-0 flex-1 truncate">{persis}</span>
                         </button>
@@ -349,7 +387,7 @@ export function PanelPencarian({ className }: { className?: string }) {
                         <div data-slot="dashboard-cari-riwayat" className="bg-muted px-4 py-3">
                             <div className="flex items-center justify-between gap-3">
                                 <p className="text-foreground text-sm font-semibold">
-                                    Pencarian sebelumnya
+                                    Pencarian sebelumnya:
                                 </p>
 
                                 {/**
@@ -378,7 +416,20 @@ export function PanelPencarian({ className }: { className?: string }) {
                                                 setKueri(item);
                                                 cari(item);
                                             }}
-                                            className="border-input bg-background hover:bg-accent max-w-full min-h-11 truncate rounded-full border px-4 text-sm transition-colors"
+                                            /**
+                                             * A rounded RECTANGLE, not a pill.
+                                             *
+                                             * The reference draws its past searches as
+                                             * bordered rectangles, and the difference is
+                                             * not decoration: a pill is the app's tag
+                                             * shape, used for a status that is either
+                                             * true or false, while a rectangle reads as a
+                                             * thing you can press - which is what a chip
+                                             * here is. `min-h-11` still governs the touch
+                                             * target; the horizontal padding carries the
+                                             * rest of the shape.
+                                             */
+                                            className="border-input bg-background hover:bg-accent max-w-full min-h-11 truncate rounded-lg border px-4 text-sm transition-colors"
                                         >
                                             {item}
                                         </button>
@@ -403,7 +454,36 @@ export function PanelPencarian({ className }: { className?: string }) {
                         </p>
 
                         {saran.isPending ? (
-                            <SkeletonRows rows={BATAS_SARAN} className="mt-3" />
+                            /**
+                             * An inline skeleton, in this panel's own monochrome.
+                             *
+                             * `SkeletonRows` is the shared primitive and its bars are
+                             * `bg-primary/10` - the one blue thing that would appear in a
+                             * panel deliberately built without `primary`. Its `className`
+                             * governs the wrapper, not the bars, so the tint cannot be
+                             * passed away; the bars are redrawn here instead. The shape is
+                             * the shared one, so it still reads as the app's loading
+                             * affordance rather than as a new invention, and it is still a
+                             * skeleton rather than a spinner, which is what AGENTS.md asks
+                             * for. Six of them, because six is the row count that will
+                             * replace them - the panel does not change height when the
+                             * answer lands.
+                             */
+                            <div
+                                data-slot="dashboard-cari-skeleton"
+                                aria-hidden="true"
+                                className="mt-3 flex flex-col gap-2"
+                            >
+                                {Array.from(
+                                    { length: BATAS_SARAN },
+                                    (_unused, index) => (
+                                        <div
+                                            key={index}
+                                            className="bg-muted h-12 w-full animate-pulse rounded-md"
+                                        />
+                                    ),
+                                )}
+                            </div>
                         ) : saran.isError ? (
                             <ErrorState
                                 error={saran.error}
