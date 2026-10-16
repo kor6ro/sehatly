@@ -12,8 +12,10 @@ import { useEffect, useMemo, useState } from 'react';
  * A resend replaces `kedaluwarsaAt` with the new code's own deadline, and the effect below
  * re-runs against it, so one screen never shows two timers.
  *
- * Extracted from the OTP page because the sign-in dialog counts down against exactly the
- * same deadline and must not disagree with it about how long is left.
+ * It began as a page's countdown and was extracted when the sign-in dialog needed the
+ * same one; the page is gone and the dialog is the only caller left, but the hook stays
+ * where it is because "trust the server's deadline, never the browser's" is a rule about
+ * the exchange rather than about the screen it is drawn on.
  */
 export function useCountdown(kedaluwarsaAt: string | null, ttlDetik: number): number {
     const fallback = useMemo(

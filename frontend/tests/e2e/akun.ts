@@ -7,7 +7,7 @@ import { expect, type Page } from '@playwright/test';
  * ## Why it stopped driving a form
  *
  * `/register` no longer exists. Sehatly admits through ONE door - the phone number in
- * `login-dialog.tsx` - and finishes a new account at `/profil/edit/{id}?sign_up=true`,
+ * `masuk-dialog.tsx` - and finishes a new account at `/profil/edit/{id}?sign_up=true`,
  * the same path halodoc uses. That is the right product shape and the wrong shape for a
  * spec helper: six suites only want a row in `users` and a token in the tab, and
  * walking them through an OTP box they are not asserting anything about buys no
@@ -225,6 +225,110 @@ async function pasangSesi(
 }
 
 /**
+ * Sign in through the ONE surface the product has: the dialog on `/`.
+ *
+ * ## Why this drives a dialog instead of pasting a pair
+ *
+ * `POST /auth/masuk` answers `{otp}` and **no token**, and `POST /auth/otp/verify` is the
+ * only endpoint in `AuthController` that mints one. A helper that pasted a token into
+ * `sessionStorage` would be testing a session no visitor can obtain, so the two real
+ * requests are made here and the code is read out of the first response - never from a
+ * constant.
+ *
+ * ## Why `?masuk=1` rather than a click on the header
+ *
+ * It is the address every guard sends a visitor with no session to, which is exactly what
+ * replaced the `/masuk` page, and arriving with the dialog already open saves this helper
+ * from a selector whose only job is pressing a button. Pressing that button is covered by
+ * `landing.spec.ts`, which is where the door itself belongs.
+ *
+ * ## Why the digits lose their leading `0`
+ *
+ * The field sits after a fixed `+62`, so `0896…` would fail the dialog's `NASIONAL` rule
+ * (`/^8\d{7,11}$/`) before anything was sent. `+62896…`, `62896…` and `0896…` are one
+ * number to the server, which folds all three into the canonical `08…` anyway.
+ *
+ * ## Why the send button is found by being enabled
+ *
+ * Under `whatsapp` the step renders two channel buttons, "Kirim Kode melalui WhatsApp"
+ * and a permanently disabled "Kirim Kode melalui SMS". Both start with the same words, so
+ * a name alone is ambiguous between them and Playwright's strict mode would refuse to
+ * choose. Disambiguating on `:not([disabled])` picks the one that can be pressed whatever
+ * the deployment reports, and under `log` there is a single button to find.
+ */
+export async function masukLewatDialog(page: Page, telepon: string): Promise<void> {
+    await page.goto('/?masuk=1');
+
+    const kolom = page.getByRole('textbox', { name: 'Nomor ponsel', exact: true });
+
+    await expect(kolom).toBeVisible({ timeout: 60_000 });
+    await kolom.fill(nasionalDari(telepon));
+
+    /**
+     * "Lanjut" sends nothing - it only walks `nomor` -> `kanal`. The request is made by
+     * the channel button, which is why the response is awaited against THAT click.
+     */
+    await page.getByRole('button', { name: 'Lanjut', exact: true }).click();
+
+    const [respons] = await Promise.all([
+        page.waitForResponse((r) => r.url().includes('/api/v1/auth/masuk'), {
+            timeout: 60_000,
+        }),
+        page
+            .locator('form button:not([disabled])', { hasText: 'Kirim Kode' })
+            .click(),
+    ]);
+
+    expect(respons.status(), `POST /auth/masuk harus menjawab 200 - ${respons.status()}`).toBe(
+        200,
+    );
+
+    const body = (await respons.json()) as {
+        data: { otp: { kode: string | null } };
+    };
+
+    expect(body.data.otp.kode, 'OTP harus terbit pada APP_ENV=local').not.toBeNull();
+
+    /**
+     * Scoped to the form because at this step the dialog renders the code field and
+     * nothing else that takes digits - the phone input is not on screen in `kode`.
+     */
+    await page
+        .locator('form input[inputmode="numeric"]')
+        .fill(body.data.otp.kode as string);
+
+    await page.getByRole('button', { name: 'Verifikasi', exact: true }).click();
+
+    /**
+     * A finished account goes to `/` (the dialog's own destination), and an unfinished
+     * one to `/profil/edit/{id}?sign_up=true`. Both are asserted by the callers that
+     * care; this helper is for the seeded, finished rows and stops at the landing page.
+     */
+    await expect(page).toHaveURL(/\/$/, { timeout: 30_000 });
+}
+
+/**
+ * The digits the dialog's field wants: no prefix, no separator, leading `0` stripped.
+ *
+ * Returns the input unchanged when it is already in that shape, so a fixture that
+ * pre-strips one keeps working. It throws rather than sending a value the dialog would
+ * silently refuse - a number that never passes `NASIONAL` fails later as "the OTP never
+ * arrived", which is four steps from the cause.
+ */
+function nasionalDari(telepon: string): string {
+    const bersih = telepon.replace(/[\s-]/g, '').replace(/^\+?62/, '0').replace(/^0/, '');
+
+    if (!/^8\d{7,11}$/.test(bersih)) {
+        throw new Error(
+            `Nomor "${telepon}" tidak dapat dipakai untuk masuk lewat dialog: ` +
+                'kolomnya menerima 8-12 digit setelah +62.',
+        );
+    }
+
+    return bersih;
+}
+
+/**
  * A unique `no_telepon`, unique across calls, workers, and previous runs.
  *
  * ## Why the counter was removed
@@ -255,15 +359,26 @@ async function pasangSesi(
  * in the same millisecond colliding at 1 in 10^6, far below the rate at which this suite
  * creates accounts.
  *
- * The seven time-based digits stay even though uniqueness no longer depends on them: they
- * let a reader put a number from a failure log back to the run that minted it.
+ * Three time-based digits stay even though uniqueness no longer rests on them. They are a
+ * second factor: an arbitrary pair of numbers must agree on them (1 in 10^3) as well as on
+ * the six random ones, so the chance two rows collide drops from 1 in 10^6 to 1 in 10^9 -
+ * and because they are the millisecond's own residue, two calls a second apart can never
+ * share them either. What they no longer do is identify a run; the budget below took that
+ * away.
  *
- * The budget stays inside the server's `/^\+?[0-9]{8,20}$/` - 4 + 7 + 6 digits - and the
- * default prefix remains an Indonesian mobile prefix, so the number is shaped like the
- * thing it stands for rather than like a synthetic key.
+ * ## Why the budget is 4 + 3 + 6
+ *
+ * The field this number ends up typed into is the sign-in dialog's: a fixed `+62` followed
+ * by at most 12 digits (`NASIONAL`, `/^8\d{7,11}$/`). `0896` + 3 + 6 is 13 written digits
+ * - after the leading `0` is stripped, exactly the 12 the field accepts - so a generated
+ * number can pass `nasionalDari` like a real one. Seven time digits used to sit here; the
+ * dialog's ceiling is what shortened them, and the server's own `/^\+?[0-9]{8,20}$/` is
+ * still satisfied with room to spare. The default prefix remains an Indonesian mobile
+ * prefix, so the number is shaped like the thing it stands for rather than like a
+ * synthetic key.
  */
 export function nomorTeleponBaru(prefix = '0896'): string {
-    const waktu = String(Date.now()).slice(-7);
+    const waktu = String(Date.now()).slice(-3);
     const acak = String(randomInt(0, 1_000_000)).padStart(6, '0');
 
     return `${prefix}${waktu}${acak}`;

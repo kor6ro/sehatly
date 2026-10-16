@@ -9,9 +9,22 @@ import { ErrorState } from '@/components/states/error-state';
 import { serahkanKueri } from '@/features/dokter/direktori';
 
 /**
- * The dashboard's doctor search: a field that opens a suggestion panel when focused, in
- * the shape the reference (Zalora) uses - the term itself, then the searches this reader
- * made before, then a short list worth typing.
+ * The doctor search on BOTH doors that now have it - the patient dashboard's field and the
+ * landing bar's - as a field that opens a suggestion panel when focused, in the shape the
+ * reference (Zalora) uses: the term itself, then the searches this reader made before,
+ * then a short list worth typing.
+ *
+ * ## Two components, one panel
+ *
+ * Each door owns its own FIELD - the dashboard's pill here, `PencarianBar`'s in
+ * `landing-header.tsx` - so the file holds both halves of that split:
+ * {@link PanelPencarian} is the dashboard's wrapper, pill and open/close discipline, and
+ * {@link PanelSaranPencarian} is the PANEL ITSELF (term row, chips, six rows), rendered
+ * under whichever field opened it. Sharing the panel rather than the field is deliberate:
+ * a reader who asks from the bar must meet the same panel, the same labels and - because
+ * both write it through {@link catatRiwayatPencarian} - the same history, or the two
+ * doors would drift on the first change and "Pencarian sebelumnya" would depend on which
+ * door asked.
  *
  * ## What is borrowed, and what is not
  *
@@ -95,10 +108,14 @@ import { serahkanKueri } from '@/features/dokter/direktori';
  *
  * The submit is likewise NOT gated on `navigator.onLine`, unlike a booking form. It writes
  * to `sessionStorage` and navigates - neither uses the network - so a disabled button would
- * claim a dependency it does not have, and `PencarianBar` in the landing header has no
- * guard for the same reason. The two places the network IS needed own their own failure:
- * this panel's list renders `ErrorState`, and the directory that receives the term renders
- * `ErrorState` with the query preserved (F03 AC-8).
+ * claim a dependency it does not have. The two places the network IS needed own their own
+ * failure: this panel's list renders `ErrorState`, and the directory that receives the term
+ * renders `ErrorState` with the query preserved (F03 AC-8).
+ *
+ * The landing bar keeps its OWN `navigator.onLine` gate on submit. That gate predates this
+ * panel and is argued in `PencarianBar`'s own docblock, so it stays where it is: the two
+ * doors share the panel and the history, but the gate on the bar is the bar's, not the
+ * handoff's.
  */
 
 /**
@@ -174,23 +191,25 @@ function tulisRiwayat(riwayat: readonly string[]): void {
  * one entry rather than two chips that look identical; the FIRST spelling is the one kept,
  * because it is the one the reader typed. A term is stored ONLY here, on a successful
  * submit - never on keystroke - so an abandoned typo never becomes a record.
+ *
+ * Called by whichever door submits ({@link PanelPencarian} for the dashboard,
+ * `PencarianBar` for the bar) and no list is handed back: {@link PanelSaranPencarian}
+ * keeps its own state, reads it fresh on every opening, and is unmounted the moment the
+ * panel closes - so the write IS the update.
  */
-function catatRiwayat(kueri: string): string[] {
+export function catatRiwayatPencarian(kueri: string): void {
     const bersih = kueri.trim().replace(/\s+/g, ' ');
 
     if (bersih === '') {
-        return bacaRiwayat();
+        return;
     }
 
     const kunci = bersih.toLowerCase();
     const lama = bacaRiwayat().filter(
         (item) => item.trim().replace(/\s+/g, ' ').toLowerCase() !== kunci,
     );
-    const baru = [bersih, ...lama].slice(0, BATAS_RIWAYAT);
 
-    tulisRiwayat(baru);
-
-    return baru;
+    tulisRiwayat([bersih, ...lama].slice(0, BATAS_RIWAYAT));
 }
 
 export function PanelPencarian({ className }: { className?: string }) {
@@ -199,24 +218,6 @@ export function PanelPencarian({ className }: { className?: string }) {
 
     const [kueri, setKueri] = useState('');
     const [terbuka, setTerbuka] = useState(false);
-    const [riwayat, setRiwayat] = useState<string[]>(() => bacaRiwayat());
-
-    /**
-     * The suggestions, fetched only while the panel is open.
-     *
-     * `enabled` is the whole reason the dashboard costs no extra request to render: the
-     * list is asked for the first time the field is focused and then sits in the cache for
-     * every later opening.
-     *
-     * No `sort` is sent. `fetchDokter` omits `relevan` from the query string because it IS
-     * the server's default, so the request asks for nothing special and the server answers
-     * with its own order - which is the ranking this section is labelled for.
-     */
-    const saran = useQuery({
-        ...dokterOptions({ page: 1, per_page: BATAS_SARAN }),
-        enabled: terbuka,
-    });
-    const rows = saran.data?.data.dokter ?? [];
 
     /**
      * Close on a pointer-down anywhere that is not this panel.
@@ -257,7 +258,7 @@ export function PanelPencarian({ className }: { className?: string }) {
             return;
         }
 
-        setRiwayat(catatRiwayat(bersih));
+        catatRiwayatPencarian(bersih);
         setTerbuka(false);
 
         // The term is parked, never put in the address (F03 §9) - `LandingPage` finds the
@@ -271,7 +272,15 @@ export function PanelPencarian({ className }: { className?: string }) {
     return (
         <div
             ref={wadah}
-            className={cn('relative', className)}
+            /**
+             * `z-40`-while-open is the stacking context the shared panel needs. Its
+             * card rises AROUND this field (`-top-3`), so the pill has to paint on
+             * top of that card's own white - which it does with `relative z-10`
+             * against the panel's `z-0`. Inside this wrapper those two rank against
+             * each other and nothing else; outside it they would be sorted at page
+             * level, where the dashboard's `z-40` used to live on the panel itself.
+             */
+            className={cn('relative', terbuka ? 'z-40' : undefined, className)}
             onKeyDown={(event) => {
                 if (event.key === 'Escape' && terbuka) {
                     setTerbuka(false);
@@ -319,7 +328,7 @@ export function PanelPencarian({ className }: { className?: string }) {
                         event.currentTarget.querySelector('input')?.focus();
                     }
                 }}
-                className="border-input bg-background focus-within:border-foreground/40 flex h-12 min-w-0 items-center gap-1 rounded-full border pl-4 pr-1 transition-colors"
+                className="border-input bg-background focus-within:border-foreground/40 relative z-10 flex h-12 min-w-0 items-center gap-1 rounded-full border pl-4 pr-1 transition-colors"
             >
                 <input
                     type="search"
@@ -348,214 +357,290 @@ export function PanelPencarian({ className }: { className?: string }) {
             </form>
 
             {terbuka ? (
-                <div
-                    data-slot="dashboard-cari-panel"
-                    className="bg-popover text-popover-foreground absolute left-0 right-0 top-full z-40 mt-2 overflow-hidden rounded-2xl shadow-xl"
-                >
-                    {/**
-                     * The term itself, as its own row - the reference's shape, and a real
-                     * answer to the commonest case: the reader typed the whole name and
-                     * wants the results, not a list of things that are not it.
-                     */}
-                    {persis !== '' ? (
-                        <button
-                            type="button"
-                            data-slot="dashboard-cari-kueri"
-                            onClick={() => {
-                                cari(persis);
-                            }}
-                            className="hover:bg-accent flex min-h-11 w-full items-center gap-3 px-4 py-3 text-left text-sm transition-colors"
-                        >
-                            {/**
-                             * A tag, not another magnifier: this row IS the reader's own
-                             * term, and the reference marks it as such. Three identical
-                             * magnifiers in one panel would say nothing three times.
-                             */}
-                            <Tag aria-hidden className="text-muted-foreground size-4 shrink-0" />
-
-                            <span className="min-w-0 flex-1 truncate">{persis}</span>
-                        </button>
-                    ) : null}
-
-                    {/**
-                     * The past searches. A grey block rather than a list, because these are
-                     * chips to pick from rather than rows to read down - the reference's
-                     * arrangement, and the right one: a term is recognised by shape at a
-                     * glance, so they wrap.
-                     */}
-                    {riwayat.length > 0 ? (
-                        <div data-slot="dashboard-cari-riwayat" className="bg-muted px-4 py-3">
-                            <div className="flex items-center justify-between gap-3">
-                                <p className="text-foreground text-sm font-semibold">
-                                    Pencarian sebelumnya:
-                                </p>
-
-                                {/**
-                                 * `min-h-11` with a negative margin rather than padding:
-                                 * the hit area grows to the required 44 px while the words
-                                 * stay where the layout put them.
-                                 */}
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setRiwayat([]);
-                                        tulisRiwayat([]);
-                                    }}
-                                    className="text-muted-foreground hover:text-foreground -mx-3 min-h-11 px-3 text-sm underline-offset-4 transition-colors hover:underline"
-                                >
-                                    Hapus Semua
-                                </button>
-                            </div>
-
-                            <ul className="mt-1 flex flex-wrap gap-2">
-                                {riwayat.map((item) => (
-                                    <li key={item}>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setKueri(item);
-                                                cari(item);
-                                            }}
-                                            /**
-                                             * A rounded RECTANGLE, not a pill.
-                                             *
-                                             * The reference draws its past searches as
-                                             * bordered rectangles, and the difference is
-                                             * not decoration: a pill is the app's tag
-                                             * shape, used for a status that is either
-                                             * true or false, while a rectangle reads as a
-                                             * thing you can press - which is what a chip
-                                             * here is. `min-h-11` still governs the touch
-                                             * target; the horizontal padding carries the
-                                             * rest of the shape.
-                                             */
-                                            className="border-input bg-background hover:bg-accent max-w-full min-h-11 truncate rounded-lg border px-4 text-sm transition-colors"
-                                        >
-                                            {item}
-                                        </button>
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    ) : null}
-
-                    {/**
-                     * The catalogue's own first page, under the name it is actually ranked
-                     * by, and all three states F03 §6 requires of a list.
-                     *
-                     * The error branch matters most: without it a failed request would fall
-                     * through to `rows.length === 0` and print "Belum ada dokter
-                     * terverifikasi" - a confident answer about the catalogue when the truth
-                     * was that we could not reach it.
-                     */}
-                    <div data-slot="dashboard-cari-saran" className="px-4 py-3">
-                        <p className="text-foreground text-sm font-semibold">
-                            Dokter paling banyak dikonsultasikan
-                        </p>
-
-                        {saran.isPending ? (
-                            /**
-                             * An inline skeleton, in this panel's own monochrome.
-                             *
-                             * `SkeletonRows` is the shared primitive and its bars are
-                             * `bg-primary/10` - the one blue thing that would appear in a
-                             * panel deliberately built without `primary`. Its `className`
-                             * governs the wrapper, not the bars, so the tint cannot be
-                             * passed away; the bars are redrawn here instead. The shape is
-                             * the shared one, so it still reads as the app's loading
-                             * affordance rather than as a new invention, and it is still a
-                             * skeleton rather than a spinner, which is what AGENTS.md asks
-                             * for. Six of them, because six is the row count that will
-                             * replace them - the panel does not change height when the
-                             * answer lands.
-                             */
-                            <div
-                                data-slot="dashboard-cari-skeleton"
-                                aria-hidden="true"
-                                className="mt-3 flex flex-col gap-2"
-                            >
-                                {Array.from(
-                                    { length: BATAS_SARAN },
-                                    (_unused, index) => (
-                                        <div
-                                            key={index}
-                                            className="bg-muted h-12 w-full animate-pulse rounded-md"
-                                        />
-                                    ),
-                                )}
-                            </div>
-                        ) : saran.isError ? (
-                            <ErrorState
-                                error={saran.error}
-                                title="Gagal memuat saran."
-                                className="mt-3"
-                                onRetry={() => {
-                                    void saran.refetch();
-                                }}
-                            />
-                        ) : rows.length === 0 ? (
-                            <div className="mt-3">
-                                <p className="text-muted-foreground text-sm">
-                                    Belum ada dokter yang memenuhi syarat untuk tampil.
-                                </p>
-
-                                <Button
-                                    asChild
-                                    variant="outline"
-                                    className="mt-3 min-h-11"
-                                >
-                                    <Link
-                                        to="/?semua=1"
-                                        onClick={() => {
-                                            setTerbuka(false);
-                                        }}
-                                    >
-                                        Lihat dokter terdekat
-                                    </Link>
-                                </Button>
-                            </div>
-                        ) : (
-                            <ul className="mt-2 flex flex-col">
-                                {rows.map((dokter) => (
-                                    <li key={dokter.id}>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setKueri(dokter.nama_lengkap);
-                                                cari(dokter.nama_lengkap);
-                                            }}
-                                            className="hover:bg-accent flex min-h-11 w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left transition-colors"
-                                        >
-                                            <Search
-                                                aria-hidden
-                                                className="text-muted-foreground size-4 shrink-0"
-                                            />
-
-                                            <span className="min-w-0 flex-1">
-                                                <span className="block truncate text-sm">
-                                                    {dokter.nama_lengkap}
-                                                </span>
-
-                                                {/**
-                                                 * The secondary line is a specialisation or
-                                                 * a doctor type - neither is a medical fact
-                                                 * about anybody, and `spesialisasi` is a
-                                                 * `GROUP_CONCAT` string that may be `null`
-                                                 * (`DokterRingkas`), so `tipe` stands in
-                                                 * rather than an empty row.
-                                                 */}
-                                                <span className="text-muted-foreground block truncate text-xs">
-                                                    {dokter.spesialisasi ?? dokter.tipe}
-                                                </span>
-                                            </span>
-                                        </button>
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-                    </div>
-                </div>
+                <PanelSaranPencarian
+                    kueri={persis}
+                    onCari={cari}
+                    onTutup={() => setTerbuka(false)}
+                />
             ) : null}
+        </div>
+    );
+}
+
+/**
+ * The panel itself: the term, the past searches, and the catalogue's first page.
+ *
+ * Rendered by whichever door opened it, under that door's OWN field: the door owns the
+ * term, the open state and where a search goes, while everything that survives an opening
+ * lives here - the history read (fresh on every mount, and a closed panel is an unmounted
+ * one) and the suggestions fetch.
+ *
+ * ## Its shape when open
+ *
+ * The card does not hang beneath the field - it rises AROUND it. The shell starts a
+ * `-top-3` above the pill and the same inset past each of its sides, so the white begins
+ * over the field rather than under it, and the pill keeps painting on top of that band
+ * (`relative z-10` on both doors, against this root's `z-0`). What the reader sees is the
+ * reference's active state: ONE card holding the input, not a dropdown attached to a
+ * pill.
+ *
+ * Two numbers make the band work for both doors at once. `-top-3` is the white above the
+ * field; `pt-[68px]` is that 12, plus the taller of the two pills (the dashboard's `h-12`
+ * at 48), plus its 8 - the gap this panel has always had under the dashboard field. The
+ * header's shorter `h-10` pill reads the same padding as a 16 px gap, which is the
+ * reference's airier one.
+ *
+ * Only the BODY scrolls. A single scroll box would have its padding at the top scroll
+ * away with the rows, and the rows would then slide up under the field - the band is the
+ * one part of this card that must stay clean while the list moves, so the shell clips and
+ * the inner box is what has a max-height of its own.
+ */
+export function PanelSaranPencarian({
+    kueri,
+    onCari,
+    onTutup,
+}: {
+    /** The field's term, already trimmed - its own row when it is not empty. */
+    kueri: string;
+    /** Run this term: the door that owns the field decides where a search goes. */
+    onCari: (kueri: string) => void;
+    /** Close the panel - what "Lihat dokter terdekat" does before it navigates. */
+    onTutup: () => void;
+}) {
+    const [riwayat, setRiwayat] = useState<string[]>(() => bacaRiwayat());
+
+    /**
+     * The suggestions, fetched while the panel is MOUNTED - and a door mounts it only
+     * while it is open, so this costs nothing before the first focus and then sits in the
+     * cache for every later opening.
+     *
+     * No `sort` is sent. `fetchDokter` omits `relevan` from the query string because it IS
+     * the server's default, so the request asks for nothing special and the server answers
+     * with its own order - which is the ranking this section is labelled for.
+     */
+    const saran = useQuery({
+        ...dokterOptions({ page: 1, per_page: BATAS_SARAN }),
+    });
+    const rows = saran.data?.data.dokter ?? [];
+
+    const persis = kueri.trim();
+
+    return (
+        <div
+            data-slot="dashboard-cari-panel"
+            className="bg-popover text-popover-foreground absolute -left-3 -right-3 -top-3 z-0 max-h-[70vh] overflow-hidden rounded-3xl pb-2 pt-[68px] shadow-xl"
+        >
+            <div className="max-h-[calc(70vh-76px)] overflow-y-auto">
+                {/**
+                 * The term itself, as its own row - the reference's shape, and a real
+                 * answer to the commonest case: the reader typed the whole name and
+                 * wants the results, not a list of things that are not it.
+                 */}
+                {persis !== '' ? (
+                    <button
+                        type="button"
+                        data-slot="dashboard-cari-kueri"
+                        onClick={() => {
+                            onCari(persis);
+                        }}
+                        className="hover:bg-accent flex min-h-11 w-full items-center gap-3 px-7 py-3 text-left text-sm transition-colors"
+                    >
+                        {/**
+                         * A tag, not another magnifier: this row IS the reader's own
+                         * term, and the reference marks it as such. Three identical
+                         * magnifiers in one panel would say nothing three times.
+                         */}
+                        <Tag aria-hidden className="text-muted-foreground size-4 shrink-0" />
+
+                        <span className="min-w-0 flex-1 truncate">{persis}</span>
+                    </button>
+                ) : null}
+
+                {/**
+                 * The past searches. A grey BOX rather than a list, because these are
+                 * chips to pick from rather than rows to read down - the reference's
+                 * arrangement, and the right one: a term is recognised by shape at a
+                 * glance, so they wrap. The `mx-3` is the card's own band, so the box
+                 * starts at the pill's edges - wider than the 28 px content rail the
+                 * rows below sit on, which is the reference's proportion.
+                 */}
+                {riwayat.length > 0 ? (
+                    <div data-slot="dashboard-cari-riwayat" className="bg-muted mx-3 mt-1 rounded-xl p-3">
+                        <div className="flex items-center justify-between gap-3">
+                            <p className="text-foreground text-base font-semibold">
+                                Pencarian sebelumnya:
+                            </p>
+
+                            {/**
+                             * `min-h-11` with a negative margin rather than padding:
+                             * the hit area grows to the required 44 px while the words
+                             * stay where the layout put them.
+                             */}
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setRiwayat([]);
+                                    tulisRiwayat([]);
+                                }}
+                                className="text-muted-foreground hover:text-foreground -mx-3 min-h-11 px-3 text-sm underline-offset-4 transition-colors hover:underline"
+                            >
+                                Hapus Semua
+                            </button>
+                        </div>
+
+                        <ul className="mt-1 flex flex-wrap gap-2">
+                            {riwayat.map((item) => (
+                                <li key={item}>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            onCari(item);
+                                        }}
+                                        /**
+                                         * A rounded RECTANGLE, not a pill.
+                                         *
+                                         * The reference draws its past searches as
+                                         * bordered rectangles, and the difference is
+                                         * not decoration: a pill is the app's tag
+                                         * shape, used for a status that is either
+                                         * true or false, while a rectangle reads as a
+                                         * thing you can press - which is what a chip
+                                         * here is. `min-h-11` still governs the touch
+                                         * target; the horizontal padding carries the
+                                         * rest of the shape.
+                                         */
+                                        className="border-input bg-background hover:bg-accent max-w-full min-h-11 truncate rounded-lg border px-4 text-sm transition-colors"
+                                    >
+                                        {item}
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                ) : null}
+
+                {/**
+                 * The catalogue's own first page, under the name it is actually ranked
+                 * by, and all three states F03 §6 requires of a list.
+                 *
+                 * The error branch matters most: without it a failed request would fall
+                 * through to `rows.length === 0` and print "Belum ada dokter
+                 * terverifikasi" - a confident answer about the catalogue when the truth
+                 * was that we could not reach it.
+                 */}
+                <div data-slot="dashboard-cari-saran" className="px-7 py-3">
+                    <p className="text-foreground text-base font-semibold">
+                        Dokter paling banyak dikonsultasikan
+                    </p>
+
+                    {saran.isPending ? (
+                        /**
+                         * An inline skeleton, in this panel's own monochrome.
+                         *
+                         * `SkeletonRows` is the shared primitive and its bars are
+                         * `bg-primary/10` - the one blue thing that would appear in a
+                         * panel deliberately built without `primary`. Its `className`
+                         * governs the wrapper, not the bars, so the tint cannot be
+                         * passed away; the bars are redrawn here instead. The shape is
+                         * the shared one, so it still reads as the app's loading
+                         * affordance rather than as a new invention, and it is still a
+                         * skeleton rather than a spinner, which is what AGENTS.md asks
+                         * for. Six of them, because six is the row count that will
+                         * replace them - the panel does not change height when the
+                         * answer lands.
+                         */
+                        <div
+                            data-slot="dashboard-cari-skeleton"
+                            aria-hidden="true"
+                            className="-mx-2 mt-3 flex flex-col gap-2"
+                        >
+                            {Array.from(
+                                { length: BATAS_SARAN },
+                                (_unused, index) => (
+                                    <div
+                                        key={index}
+                                        className="bg-muted h-12 w-full animate-pulse rounded-md"
+                                    />
+                                ),
+                            )}
+                        </div>
+                    ) : saran.isError ? (
+                        <ErrorState
+                            error={saran.error}
+                            title="Gagal memuat saran."
+                            className="mt-3"
+                            onRetry={() => {
+                                void saran.refetch();
+                            }}
+                        />
+                    ) : rows.length === 0 ? (
+                        <div className="mt-3">
+                            <p className="text-muted-foreground text-sm">
+                                Belum ada dokter yang memenuhi syarat untuk tampil.
+                            </p>
+
+                            <Button
+                                asChild
+                                variant="outline"
+                                className="mt-3 min-h-11"
+                            >
+                                <Link
+                                    to="/?semua=1"
+                                    onClick={() => {
+                                        onTutup();
+                                    }}
+                                >
+                                    Lihat dokter terdekat
+                                </Link>
+                            </Button>
+                        </div>
+                    ) : (
+                        <ul className="-mx-2 mt-2 flex flex-col">
+                            {rows.map((dokter) => (
+                                <li key={dokter.id}>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            onCari(dokter.nama_lengkap);
+                                        }}
+                                        /**
+                                         * `px-2` is this hover card's own padding, and
+                                         * the `ul`'s `-mx-2` carries it back out: the
+                                         * magnifier then sits ON the 28 px rail under
+                                         * the heading rather than eight pixels to the
+                                         * right of it.
+                                         */
+                                        className="hover:bg-accent flex min-h-11 w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left transition-colors"
+                                    >
+                                        <Search
+                                            aria-hidden
+                                            className="text-muted-foreground size-4 shrink-0"
+                                        />
+
+                                        <span className="min-w-0 flex-1">
+                                            <span className="block truncate text-sm">
+                                                {dokter.nama_lengkap}
+                                            </span>
+
+                                            {/**
+                                             * The secondary line is a specialisation or
+                                             * a doctor type - neither is a medical fact
+                                             * about anybody, and `spesialisasi` is a
+                                             * `GROUP_CONCAT` string that may be `null`
+                                             * (`DokterRingkas`), so `tipe` stands in
+                                             * rather than an empty row.
+                                             */}
+                                            <span className="text-muted-foreground block truncate text-xs">
+                                                {dokter.spesialisasi ?? dokter.tipe}
+                                            </span>
+                                        </span>
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </div>
+            </div>
         </div>
     );
 }

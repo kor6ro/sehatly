@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Navigate, useSearchParams } from 'react-router';
 import { LandingHeader } from '@/components/layout/landing-header';
-import { LoginDialog } from '@/components/auth/login-dialog';
+import { MasukDialog } from '@/components/auth/masuk-dialog';
 import { Toaster } from '@/components/ui/sonner';
 import { useDocumentTitle } from '@/hooks/use-document-title';
 import { HeroCarousel } from '@/features/landing/hero-carousel';
@@ -30,8 +30,9 @@ import {
  * for their own profile. Both of those assumed a destination. The landing page does not
  * assume anything - it is the one screen a signed-out visitor, a patient, a doctor and an
  * admin can all read, so every door in the app now opens onto it instead of onto the
- * dashboard: OTP verification, the sign-in dialog, the sign-up completion form, and
- * `/masuk` itself when a session already exists.
+ * dashboard: the sign-in dialog, the sign-up completion form, and the guard that used to
+ * hand a visitor to the `/masuk` page. That page is gone; what used to be its address is
+ * this one with `?masuk=1`, which is what {@link masukDitanya} reads to open the dialog.
  *
  * The dashboard did not go away; it moved one menu entry away. `LandingHeader`'s account
  * pill carries it, which is also the only place a visitor learns that it exists.
@@ -65,7 +66,7 @@ import {
  * ## Why the page owns the dialog
  *
  * `LandingHeader` renders its "Masuk" action twice - in the top bar and inside the mobile
- * sheet - and two `LoginDialog` instances would each hold their own OTP challenge and race
+ * sheet - and two `MasukDialog` instances would each hold their own OTP challenge and race
  * over the one `sessionStorage` key that carries it. So the page owns the single instance
  * and hands the opener down, exactly as the previous `RootPage` did.
  *
@@ -81,7 +82,27 @@ export function LandingPage() {
     useDocumentTitle('Beranda | Sehatly');
 
     const [loginOpen, setLoginOpen] = useState(false);
-    const [params] = useSearchParams();
+    const [params, setParams] = useSearchParams();
+
+    /**
+     * `/?masuk=1` - the address that replaced the `/masuk` page.
+     *
+     * Every guard, every expired session and every 401 used to move the visitor to
+     * `/masuk`, a screen whose whole job was to collect one phone number before sending
+     * them on to `/otp`. There is no such screen any more: the dialog on THIS page holds
+     * the entire exchange, so the redirect target became this page with a flag on it.
+     *
+     * The flag opens the dialog rather than merely landing here, because the alternative
+     * answers an expired session with a marketing page and a button the visitor has to go
+     * and find. A visitor who dismisses it is not asked again - see {@link ubahMasuk}.
+     */
+    const mintaMasuk = masukDitanya(params);
+
+    useEffect(() => {
+        if (mintaMasuk) {
+            setLoginOpen(true);
+        }
+    }, [mintaMasuk]);
 
     /**
      * Read before anything renders, so an old address never paints a landing page that is
@@ -96,6 +117,26 @@ export function LandingPage() {
     }
 
     const bertanya = adaPertanyaanDirektori(params);
+
+    /**
+     * Closing drops the flag, so `?masuk=1` stays a request rather than becoming a state
+     * of this address: pressing "Masuk" in the header after dismissing the dialog must
+     * not reopen it, and a `replace` keeps the dismissed flag out of history so Kembali
+     * does not bring it back.
+     */
+    const ubahMasuk = (open: boolean): void => {
+        setLoginOpen(open);
+
+        if (open || !mintaMasuk) {
+            return;
+        }
+
+        const berikut = new URLSearchParams(params);
+
+        berikut.delete(MASUK_PARAM);
+
+        setParams(berikut, { replace: true });
+    };
 
     return (
         <div className="bg-background flex min-h-screen flex-col">
@@ -135,11 +176,26 @@ export function LandingPage() {
 
             <LandingFooter />
 
-            <LoginDialog open={loginOpen} onOpenChange={setLoginOpen} />
+            <MasukDialog open={loginOpen} onOpenChange={ubahMasuk} />
 
             <Toaster />
         </div>
     );
+}
+
+/**
+ * The flag that asks `/` to open the sign-in dialog.
+ *
+ * It is a parameter rather than a route because there is no route left to point at: the
+ * exchange it used to start lives inside the dialog, and a visitor sent here by
+ * `RequireAuth` or by an expired session is on the landing page either way. The value is
+ * `1` and nothing else, so a stray `?masuk=0` left by a bookmark is not read as a request.
+ */
+const MASUK_PARAM = 'masuk';
+
+/** Whether this address is asking for the dialog to be open. See {@link MASUK_PARAM}. */
+function masukDitanya(params: URLSearchParams): boolean {
+    return params.get(MASUK_PARAM) === '1';
 }
 
 /**

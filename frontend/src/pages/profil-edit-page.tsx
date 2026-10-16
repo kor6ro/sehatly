@@ -205,7 +205,14 @@ export function ProfilEditPage() {
         // on a decision that has already been made.
         clearTokens();
         queryClient.clear();
-        void navigate('/masuk', { replace: true });
+
+        /**
+         * `/?masuk=1` - the dialog, open on arrival. The `/masuk` page is gone, and this
+         * is the case it existed for: the shell is being thrown away on purpose so a
+         * different number can be started from nothing, so the very next thing the
+         * visitor needs is the field that asks for one.
+         */
+        void navigate('/?masuk=1', { replace: true });
     }
 
     async function onSubmit(values: LengkapiForm): Promise<void> {

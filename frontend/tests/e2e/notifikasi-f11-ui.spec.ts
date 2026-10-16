@@ -223,7 +223,7 @@ function meta(total: number, perPage: number, halaman = 1, lastPage = 1) {
 /**
  * Intercept every `/api/v1` call both screens make. The catch-all at the bottom is
  * load-bearing: an unmocked call would reach the Vite proxy and send the transport down
- * its session-expiry path, redirecting to `/masuk` for a reason unrelated to the
+ * its session-expiry path, redirecting to `/?masuk=1` for a reason unrelated to the
  * assertion.
  */
 async function pasangMock(page: Page, opsi: OpsiMock = {}): Promise<State> {

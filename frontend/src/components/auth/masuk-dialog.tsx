@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router';
 import { AlertCircle, ChevronDown, Mail, ShieldCheck, Smartphone } from 'lucide-react';
@@ -16,12 +16,9 @@ import {
     pesanTerlaluBanyakOtp,
 } from '@/lib/otp';
 import { useCountdown } from '@/hooks/use-countdown';
-import {
-    clearPendingOtp,
-    sebutanIdentifier,
-    setPendingOtp,
-    type PendingOtp,
-} from '@/stores/pending-otp';
+import { useOnlineStatus } from '@/hooks/use-online-status';
+import { OfflineBanner } from '@/components/offline-banner';
+import { sebutanIdentifier, type PendingOtp } from '@/lib/pending-otp';
 import { Field, FieldInput, FormErrorSummary } from '@/components/form/field';
 import { OtpInput } from '@/components/auth/otp-field';
 import { Button } from '@/components/ui/button';
@@ -38,10 +35,11 @@ import {
 /**
  * How long the resend button stays locked after a request, in seconds.
  *
- * Deliberately the same number as the OTP page's own constant rather than an import:
- * the two are two surfaces on one flow, and the countdown a user sees must not depend
- * on which surface sent the code. `frontend/src/lib/otp.ts` is where to move it if a third
- * surface appears.
+ * It is a local constant rather than an import from `frontend/src/lib/otp.ts` because
+ * the cooldown a visitor sees must not be something a future module edit can drift: it
+ * is the number printed on the button. Move it into `lib/otp.ts` if a surface OTHER
+ * than this dialog ever starts offering a resend - there is one surface today, so
+ * importing it from a shared module would only name the same number twice.
  */
 const COOLDOWN_KIRIM_ULANG = 60;
 
@@ -84,9 +82,9 @@ function WhatsAppIcon({ className }: { className?: string }) {
  * The header's action is the whole reason a visitor is here, and a route costs a page
  * load to collect one phone number. The dialog also has to hold the whole exchange -
  * number, then channel, then code - because sending the visitor to a page between them
- * is the half-measure this replaces. The `/masuk` route still exists for a reload of
- * `/otp` (which has no other way to recover its identifier) and for anyone holding an
- * old link.
+ * is the half-measure this replaces. There is no second page any more: `/masuk` and
+ * `/otp` were those two halves and they are gone, which is what makes this the only
+ * surface rather than the better one of two.
  *
  * ## Three states, and why "Lanjut" sends nothing
  *
@@ -142,7 +140,7 @@ function WhatsAppIcon({ className }: { className?: string }) {
  * the server declined, in its own words. A 403 (a suspended account) keeps the server's
  * wording for the same reason.
  */
-export function LoginDialog({
+export function MasukDialog({
     open,
     onOpenChange,
 }: {
@@ -207,6 +205,35 @@ export function LoginDialog({
     );
 
     const cooldownAktif = resendCooldown > 0;
+
+    /**
+     * The offline lock on verify and resend, and the banner that says why.
+     *
+     * The screen this dialog replaced carried both, and losing them with it would have
+     * turned F01 AC-8 into a promise the app no longer keeps: an offline visitor would
+     * be allowed to press a button whose request cannot leave the browser. `disabled`
+     * rather than `aria-disabled` alone, because a click that must not reach the server
+     * has to be refused by the browser - `aria-disabled` is the announcement of that
+     * fact for assistive technology, not the mechanism.
+     *
+     * The hint is what makes the refusal legible. A button that simply stops working
+     * with no sentence beside it leaves the reader to guess; this one is wired to both
+     * controls through `aria-describedby`, so a screen reader reads the reason at the
+     * same moment it reads the button's name.
+     */
+    const online = useOnlineStatus();
+    const offlineHintId = useId();
+    const resendTerkunci = !online || resending || cooldownAktif;
+
+    /**
+     * Whether the deadline has passed - and NOT the same question as `remaining === 0`.
+     *
+     * Before a challenge exists there is no deadline at all, and the hook answers that
+     * with `0` because a missing deadline is one that has already passed. The step this
+     * is read in only renders with a challenge, but gating on `pending` keeps the
+     * sentence honest rather than accidentally correct.
+     */
+    const kedaluwarsa = pending !== null && remaining <= 0;
 
     useEffect(() => {
         if (!cooldownAktif) {
@@ -333,7 +360,6 @@ export function LoginDialog({
             };
 
             setPending(challenge);
-            setPendingOtp(challenge);
             setKode('');
             setLangkah('kode');
         } catch (error) {
@@ -344,7 +370,7 @@ export function LoginDialog({
     }
 
     async function onVerifikasi(): Promise<void> {
-        if (pending === null || kode.length !== KODE_OTP_PANJANG) {
+        if (pending === null || kode.length !== KODE_OTP_PANJANG || !online) {
             return;
         }
 
@@ -372,8 +398,6 @@ export function LoginDialog({
             // After the pair is stored and before the first navigation, so the dashboard's
             // `/me` is a fresh read and no query made under a previous identity survives.
             queryClient.clear();
-
-            clearPendingOtp();
 
             /**
              * `profil_lengkap: false` means `login` minted a SHELL for this number: no
@@ -414,7 +438,10 @@ export function LoginDialog({
     }
 
     async function onKirimUlang(): Promise<void> {
-        if (pending === null || resending || resendLock.current || cooldownAktif) {
+        // `resendTerkunci` already carries `!online`, `resending` and the cooldown; it is
+        // the same predicate the button's own `disabled` is built from, so the guard and
+        // the control can never disagree about whether a click is answerable.
+        if (pending === null || resendTerkunci || resendLock.current) {
             return;
         }
 
@@ -444,7 +471,6 @@ export function LoginDialog({
             };
 
             setPending(diperbarui);
-            setPendingOtp(diperbarui);
             setKode('');
             setUpayaFokus((nilai) => nilai + 1);
             setResendNotice(
@@ -515,6 +541,14 @@ export function LoginDialog({
                             </DialogDescription>
                         </DialogHeader>
 
+                        {/**
+                         * Rendered inside the code step rather than on the landing page
+                         * behind it: the refusal it announces applies to the two buttons
+                         * on THIS surface, and a banner a modal covers is a banner nobody
+                         * reads.
+                         */}
+                        <OfflineBanner />
+
                         <form
                             onSubmit={(event) => {
                                 event.preventDefault();
@@ -548,7 +582,11 @@ export function LoginDialog({
                             ) : null}
 
                             {resendError !== null ? (
-                                <Alert variant="destructive" role="alert">
+                                <Alert
+                                    variant="destructive"
+                                    role="alert"
+                                    data-slot="otp-resend-error"
+                                >
                                     <ShieldCheck />
                                     <AlertTitle>Gagal mengirim ulang kode</AlertTitle>
                                     <AlertDescription>
@@ -569,6 +607,7 @@ export function LoginDialog({
                             {resendNotice === null ? null : (
                                 <p
                                     role="status"
+                                    data-slot="otp-resend-success"
                                     className="text-muted-foreground text-sm"
                                 >
                                     {resendNotice}
@@ -589,9 +628,20 @@ export function LoginDialog({
                                 />
                             </Field>
 
-                            {sisaPercobaan === null ? null : (
+                            {/**
+                             * The attempts box - and the count below which it is not
+                             * one.
+                             *
+                             * The limiter publishes `sisa_percobaan: 0` on the LAST
+                             * rejection, and "Sisa 0 percobaan" would not be
+                             * information: it sits beside the wait message saying the
+                             * same thing in worse words. By then a 429's own countdown
+                             * is already on screen, so zero renders no box at all.
+                             */}
+                            {sisaPercobaan === null || sisaPercobaan <= 0 ? null : (
                                 <div
                                     role="status"
+                                    data-slot="otp-attempts"
                                     className="border-warning/40 bg-warning/10 flex items-start gap-2 rounded-lg border p-3 text-sm"
                                 >
                                     <AlertCircle
@@ -603,12 +653,60 @@ export function LoginDialog({
                                 </div>
                             )}
 
+                            {/**
+                             * The deadline, above the two controls it governs.
+                             *
+                             * Two branches rather than one sentence that changes, because
+                             * an expired code is a different state from a counting one:
+                             * `role="timer"` would announce a countdown that no longer
+                             * counts, and the expired branch is a status the reader must
+                             * hear once rather than a number to keep watching.
+                             */}
+                            {kedaluwarsa ? (
+                                <div
+                                    role="status"
+                                    aria-live="polite"
+                                    data-slot="otp-countdown"
+                                    className="border-warning/40 bg-warning/10 flex items-start gap-2 rounded-lg border p-3 text-sm"
+                                >
+                                    <AlertCircle
+                                        aria-hidden
+                                        className="mt-0.5 size-4 shrink-0"
+                                    />
+
+                                    <p>Kode sudah kedaluwarsa. Kirim ulang untuk kode baru.</p>
+                                </div>
+                            ) : (
+                                <p
+                                    role="timer"
+                                    aria-live="off"
+                                    data-slot="otp-countdown"
+                                    className="text-muted-foreground text-center text-sm tabular-nums"
+                                >
+                                    {pesanHitungMundurOtp(remaining)}
+                                </p>
+                            )}
+
+                            {!online ? (
+                                <p id={offlineHintId} className="text-muted-foreground text-sm">
+                                    Anda sedang luring. Verifikasi dan kirim ulang tidak
+                                    tersedia sampai koneksi kembali.
+                                </p>
+                            ) : null}
+
                             <Button
                                 type="submit"
                                 className="min-h-11"
                                 disabled={
-                                    submitting || kode.length !== KODE_OTP_PANJANG
+                                    submitting || kode.length !== KODE_OTP_PANJANG || !online
                                 }
+                                aria-disabled={
+                                    submitting || kode.length !== KODE_OTP_PANJANG || !online
+                                        ? true
+                                        : undefined
+                                }
+                                aria-describedby={online ? undefined : offlineHintId}
+                                data-slot="otp-verify"
                             >
                                 {submitting ? <Spinner /> : null}
 
@@ -616,13 +714,21 @@ export function LoginDialog({
                             </Button>
 
                             <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                                {/**
+                                 * `min-h-11` and `inline-flex`: this is a text link that is
+                                 * also the only way out of a burnt code, and a 20 px line of
+                                 * underlined text is not something a thumb can hit. F01 AC-12
+                                 * pins the 44 px floor on it for the same reason it pins the
+                                 * submit button's.
+                                 */}
                                 <button
                                     type="button"
                                     onClick={() => void onKirimUlang()}
-                                    disabled={
-                                        resending || cooldownAktif
-                                    }
-                                    className="text-primary underline underline-offset-4 disabled:text-muted-foreground disabled:no-underline"
+                                    disabled={resendTerkunci}
+                                    aria-disabled={resendTerkunci ? true : undefined}
+                                    aria-describedby={online ? undefined : offlineHintId}
+                                    data-slot="otp-resend"
+                                    className="text-primary inline-flex min-h-11 items-center underline underline-offset-4 disabled:text-muted-foreground disabled:no-underline"
                                 >
                                     {labelKirimUlangOtp(resendCooldown, resending)}
                                 </button>
@@ -635,12 +741,6 @@ export function LoginDialog({
                                     Salah nomor? Ganti Nomor Ponsel
                                 </button>
                             </div>
-
-                            <p className="text-muted-foreground text-center text-sm tabular-nums">
-                                {remaining > 0
-                                    ? pesanHitungMundurOtp(remaining)
-                                    : 'Kode sudah kedaluwarsa. Kirim ulang untuk kode baru.'}
-                            </p>
                         </form>
                     </>
                 ) : (

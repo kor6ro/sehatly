@@ -4,9 +4,7 @@ import { RouteErrorBoundary } from '@/app/error-boundary';
 import { NotFoundPage, RequireAuth, AlihHalamanDokter } from '@/app/guards';
 import { RootLayout } from '@/app/root-layout';
 import { LandingPage } from '@/pages/landing-page';
-import { LoginPage } from '@/pages/login-page';
 import { ProfilEditPage } from '@/pages/profil-edit-page';
-import { OtpPage } from '@/pages/otp-page';
 import { DashboardPage } from '@/pages/dashboard-page';
 import { ProfilePage } from '@/pages/profile-page';
 import { DevicesPage } from '@/pages/devices-page';
@@ -55,11 +53,12 @@ import { SyaratKetentuanPage } from '@/pages/syarat-ketentuan-page';
  * ## Two layouts, and why
  *
  * `AppShell` renders the sidebar, which needs a signed-in account to mean anything, so the
- * seven patient screens live under `RequireAuth` -> `AppShell`. The three pre-session
- * screens render `AuthLayout` themselves, which is centred and carries no account
- * navigation - rendering a patient sidebar to someone who has just typed a wrong password
- * is worse than rendering none. The public doctor directory sits outside both, because the
- * API is public and a pre-authentication browse page is the case the controller's own
+ * seven patient screens live under `RequireAuth` -> `AppShell`. Before a session exists
+ * there is now only one screen: `/`, which renders the sign-in dialog over the landing page
+ * rather than standing alone - rendering a patient sidebar to somebody who has not signed
+ * in is worse than rendering none, and a centred card that collects one phone number did
+ * not earn a route of its own. The public doctor directory sits outside the shell, because
+ * the API is public and a pre-authentication browse page is the case the controller's own
  * docblock names explicitly.
  *
  * ## Every route carries its own `errorElement`, and that is not boilerplate
@@ -103,26 +102,31 @@ export const router = createBrowserRouter([
                 errorElement: <RouteErrorBoundary />,
             },
 
-            {
-                path: '/masuk',
-                element: <LoginPage />,
-                errorElement: <RouteErrorBoundary />,
-            },
             /**
-             * There is deliberately NO `/register`.
+             * There is deliberately NO `/register`, NO `/masuk` and NO `/otp`.
              *
-             * Registration is the same door as sign-in: the dialog takes the number,
-             * `POST /auth/masuk` mints an account for one that has none, `otp/verify`
-             * proves it, and `/profil/edit/{id}?sign_up=true` finishes it. A second
-             * route would be a second door to the same room, and every link that
-             * pointed at it would be pointing at a page that half the visitors to it
-             * had already been through.
+             * All three were the same door. Registration is the same exchange as sign-in:
+             * the dialog on `/` takes the number, `POST /auth/masuk` mints an account for
+             * one that has none, `otp/verify` proves it, and
+             * `/profil/edit/{id}?sign_up=true` finishes it. A second route would be a
+             * second door to the same room, and every link that pointed at it would be
+             * pointing at a page that half the visitors to it had already been through.
+             *
+             * `/masuk` and `/otp` were the OTHER HALF of that same exchange - the phone
+             * number on one screen, the code on the next - and a visitor was handed
+             * between them mid-flow, which is the exact thing the dialog was written to
+             * stop doing. There is one surface now, and it holds the whole exchange:
+             * `nomor` -> `kanal` -> `kode`.
+             *
+             * Anything that used to send somebody to `/masuk` sends them to `/?masuk=1`
+             * instead, which is `/` with the dialog already open - so an expired session
+             * still lands on a sign-in prompt rather than on a marketing page the visitor
+             * has to find the button for.
+             *
+             * A stale `/masuk` or `/otp` link is not redirected: it falls through to `*`
+             * and answers "Halaman tidak ditemukan", the same answer `/register` gives.
+             * A redirect would keep two addresses alive for one room.
              */
-            {
-                path: '/otp',
-                element: <OtpPage />,
-                errorElement: <RouteErrorBoundary />,
-            },
 
             /**
              * The doctor screen's OLD address, and one doctor's public profile.

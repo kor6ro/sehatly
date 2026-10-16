@@ -215,7 +215,7 @@ function galat(status: number, message: string): Record<string, unknown> {
  *
  * The catch-all at the bottom is load-bearing: an unmocked request would reach the real
  * API - or the Vite proxy's 401 - and send the transport down its session-expiry path,
- * which redirects to `/masuk` for a reason that has nothing to do with the assertion.
+ * which redirects to `/?masuk=1` for a reason that has nothing to do with the assertion.
  */
 async function pasangMock(page: Page, opsi: OpsiMock = {}): Promise<State> {
     const state: State = {

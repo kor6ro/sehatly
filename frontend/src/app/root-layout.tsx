@@ -21,7 +21,15 @@ export function RootLayout() {
     useEffect(
         () =>
             onSessionExpired(() => {
-                void navigate('/masuk', { replace: true });
+                /**
+                 * `/?masuk=1` rather than the `/masuk` page, which no longer exists.
+                 *
+                 * The flag matters more here than anywhere else: a token that has just
+                 * died is the one case where the visitor was in the middle of something,
+                 * and dropping them on a marketing page would ask them to work out for
+                 * themselves why the screen changed. See `LandingPage`.
+                 */
+                void navigate('/?masuk=1', { replace: true });
             }),
         [navigate],
     );

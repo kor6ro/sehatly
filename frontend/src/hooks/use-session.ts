@@ -12,7 +12,7 @@ import { getAccessToken, subscribeSession } from '@/lib/token';
  * header built on the plain read therefore shows "Masuk" to somebody who just signed
  * in, and - the failure that prompted this hook - keeps a `/me` query subscribed after
  * sign-out, so its refetch fires with no credentials and the transport answers by
- * bouncing the visitor to `/masuk`.
+ * bouncing the visitor to `/?masuk=1`.
  *
  * ## Why `useSyncExternalStore` and not `useState` + `useEffect`
  *

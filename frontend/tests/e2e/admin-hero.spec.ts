@@ -16,7 +16,7 @@ import { expectNoA11yViolations } from './a11y';
  * so the assertions read what the UI did rather than what a second canned payload
  * claims. The catch-all at the bottom is load-bearing: an unmocked request would reach
  * the real API, answer 401, and send the transport down its session-expiry path,
- * redirecting the test to `/masuk` for a reason unrelated to the assertion.
+ * redirecting the test to `/?masuk=1` for a reason unrelated to the assertion.
  *
  * ## The session is seeded, not registered
  *

@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test, type Page } from '@playwright/test';
+import { masukLewatDialog } from './akun';
 
 /**
  * Module 5's end-to-end walkthrough, driven against a **live** Laravel API.
@@ -95,43 +96,16 @@ async function isi(locator: import('@playwright/test').Locator, nilai: string): 
 }
 
 /**
- * Sign in through the real login screen, OTP included.
+ * Sign in through the real sign-in surface, OTP included.
  *
- * No password: the screen collects none, so the seeded account's own is never involved.
+ * No password: the dialog collects none, so the seeded account's own is never involved.
+ * The driving is `./akun`'s `masukLewatDialog`, shared with the three other specs that
+ * sign in this way.
  */
 async function masuk(page: Page): Promise<void> {
-    const telepon = wajib('SEHATLY_PASIEN_NO_TELEPON');
-
-    await page.goto('/masuk');
-
-    await expect(page.getByLabel('Nomor telepon')).toBeVisible({
-        timeout: 60_000,
-    });
-
-    // Settle the mode toggle first: it is what re-renders the identifier control.
-    await page.getByRole('button', { name: 'Telepon', exact: true }).click();
-
-    await isi(page.getByLabel('Nomor telepon'), telepon);
-
-    const [respons] = await Promise.all([
-        page.waitForResponse((r) => r.url().includes('/api/v1/auth/masuk'), {
-            timeout: 60_000,
-        }),
-        page.getByRole('button', { name: 'Lanjutkan' }).click(),
-    ]);
-
-    expect(respons.status()).toBe(200);
-    await expect(page).toHaveURL(/\/otp/, { timeout: 30_000 });
-
-    const body = (await respons.json()) as { data: { otp: { kode: string | null } } };
-
-    expect(body.data.otp.kode, 'OTP login harus terbit pada APP_ENV=local').not.toBeNull();
-
-    await isi(page.locator('form input[inputmode="numeric"]'), body.data.otp.kode as string);
-    await page.getByRole('button', { name: 'Verifikasi' }).click();
+    await masukLewatDialog(page, wajib('SEHATLY_PASIEN_NO_TELEPON'));
 
     // Sign-in lands on the landing page; the workspace is one navigation away.
-    await expect(page).toHaveURL(/\/$/, { timeout: 30_000 });
     await page.goto('/dashboard');
 }
 

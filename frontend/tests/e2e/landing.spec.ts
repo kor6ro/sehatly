@@ -158,10 +158,10 @@ test.describe('Landing page (/)', () => {
         await expect(page.getByRole('button', { name: 'Daftar', exact: true })).toHaveCount(0);
 
         /**
-         * The DIALOG's own vocabulary, which is not the `/masuk` page's. The door says
-         * "Nomor ponsel" and its first button says "Lanjut"; `/masuk` asks for "Nomor
-         * telepon" and says "Lanjutkan". Asserting the wrong pair would still pass
-         * against the other screen, which is why both strings are written out here.
+         * The door's own vocabulary, asserted by role rather than by text: "Nomor ponsel"
+         * and "Lanjut" are what a visitor meets on the one sign-in surface there is, and
+         * a future second door that asked for "Nomor telepon" and said "Lanjutkan" would
+         * fail this rather than quietly split the flow in two again.
          *
          * By role rather than `getByLabel`: the label carries a required marker in a
          * sibling span, so its element text is not the accessible name Playwright
@@ -724,7 +724,7 @@ test.describe('Landing page (/)', () => {
         await expect(panel).toBeVisible();
 
         await chat.click();
-        await expect(page).toHaveURL(/\/masuk/);
+        await expect(page).toHaveURL(/\/\?masuk=1/);
     });
 
     /**
@@ -917,6 +917,102 @@ test.describe('Landing page (/)', () => {
             page.locator('[data-slot="dokter-chip"]'),
             'tak ada lagi chip sisa dari rombak',
         ).toHaveCount(0);
+    });
+
+    /**
+     * The bar's field opens the very panel the dashboard's field opens - same body, same
+     * labels, one history key - because a reader asking from the marketing page must not
+     * meet a different panel than one asking from their own dashboard.
+     *
+     * The veil is asserted along with it: the reference dims the page behind a search
+     * panel, and this bar's own pill must NOT go dark with everything else (`z-20`), since
+     * a field dimmed under the panel it just opened reads as a field that was switched
+     * off. Escape is the dismissal the panel's docblock promises - close, no navigation.
+     */
+    test('f00-landing-cari-buka-panel-saran-lalu-tutup-dengan-escape', async ({ page }) => {
+        await page.goto('/');
+
+        const kolom = page.getByRole('searchbox', { name: 'Cari dokter' });
+        const panel = page.locator('[data-slot="dashboard-cari-panel"]');
+        const tirai = page.locator('[data-slot="landing-tirai-bar"]');
+
+        await expect(panel, 'panel harus terlipat sampai kolomnya disentuh').toHaveCount(0);
+        await expect(tirai, 'dan tirai harus gelap hanya bersama panel yang terbuka').toHaveClass(
+            /opacity-0/,
+        );
+
+        await kolom.click();
+
+        await expect(panel).toBeVisible();
+        await expect(panel.locator('[data-slot="dashboard-cari-saran"]')).toContainText(
+            'Dokter paling banyak dikonsultasikan',
+        );
+        await expect(
+            panel.locator('[data-slot="dashboard-cari-saran"] button').first(),
+            'katalog hidup harus menawarkan sekurangnya satu nama',
+        ).toBeVisible({ timeout: 30_000 });
+
+        await expect(tirai).toHaveClass(/opacity-100/);
+        await expect(
+            page.locator('[data-slot="landing-cari"]').locator('..'),
+            'kolomnya sendiri harus tetap terang di atas tirai',
+        ).toHaveClass(/z-20/);
+
+        await page.keyboard.press('Escape');
+
+        await expect(panel, 'Escape harus menutup panel tanpa berpindah').toHaveCount(0);
+        await expect(tirai).toHaveClass(/opacity-0/);
+        await expect(page).toHaveURL('/');
+    });
+
+    /**
+     * Running a SUGGESTION is the same handoff as typing one: the term is parked rather
+     * than addressed (F03 §9), the panel folds before the answer, and the term lands in
+     * the one history BOTH doors write - so reopening the same field after the search
+     * shows it as a chip. The second press is what needs proving as well: submitting
+     * leaves the field focused, and a `focus` event only fires on the way in.
+     */
+    test('f00-landing-cari-saran-menuju-direktori-lalu-menulis-riwayat', async ({ page }) => {
+        await page.goto('/');
+
+        const kolom = page.getByRole('searchbox', { name: 'Cari dokter' });
+        const panel = page.locator('[data-slot="dashboard-cari-panel"]');
+
+        await kolom.click();
+
+        const saran = panel.locator('[data-slot="dashboard-cari-saran"] button').first();
+
+        await expect(saran, 'katalog hidup harus menawarkan sekurangnya satu nama').toBeVisible({
+            timeout: 30_000,
+        });
+
+        // The name only: the row's second line is a specialisation, and it is not what
+        // this suggestion searches (`?search=` matches `users.nama_lengkap` and nothing
+        // else), so it must not appear in the count sentence below either.
+        const nama = (await saran.innerText()).split('\n')[0].trim();
+
+        await saran.click();
+
+        await expect(page).toHaveURL('/');
+        expect(new URL(page.url()).search, 'kueri tidak boleh ditulis ke alamat (F03 §9)').toBe('');
+        await expect(panel, 'panel harus menutup sebelum jawabannya tampil').toHaveCount(0);
+        await expect(
+            page.locator('[data-slot="dokter-count"]'),
+            'jawabannya harus mengikuti saran yang dipilih',
+        ).toContainText(nama, { timeout: 30_000 });
+
+        // The bar survives navigation, so this is the SAME field - press it again and the
+        // panel must come back with what was just searched sitting in it.
+        await kolom.click();
+
+        await expect(panel).toBeVisible();
+        await expect(
+            panel.locator('[data-slot="dashboard-cari-riwayat"]'),
+            'riwayat yang sama, pintu mana pun yang menulisnya',
+        ).toBeVisible();
+        await expect(
+            panel.locator('[data-slot="dashboard-cari-riwayat"] li button').first(),
+        ).toHaveText(nama);
     });
 
     /**

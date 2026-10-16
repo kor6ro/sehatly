@@ -37,7 +37,7 @@ export type RequestOptions = Options & {
      *
      * Everything below does with a 401 is one session-recovery path: refresh the pair,
      * replay, and when there is nothing to refresh *with*, end the session and send the
-     * visitor to `/masuk`. For a guarded endpoint that is right - its 401 means "the
+     * visitor to `/?masuk=1`. For a guarded endpoint that is right - its 401 means "the
      * token you presented no longer works".
      *
      * For an endpoint that answers 401 on purpose it is wrong. `POST /auth/masuk` returns
@@ -111,7 +111,7 @@ export const api = ky.create({
                 // is returned untouched before any branch below can mistake a credential
                 // refusal for a session expiry - including the "nothing to refresh with"
                 // branch, which is exactly where an anonymous visitor used to be bounced
-                // to `/masuk` out of the sign-in dialog. See `RequestOptions`.
+                // to `/?masuk=1` out of the sign-in dialog. See `RequestOptions`.
                 if ((options as RequestOptions).authRejection === true) {
                     return response;
                 }
@@ -310,7 +310,7 @@ export class ApiError extends Error {
      * The failure envelope's top-level `meta`, when the server sent one.
      *
      * `{}` rather than `null` so a caller never has to guard before reading a
-     * key. {@link sisaPercobaan} reads the one field the OTP screen needs and
+     * key. {@link sisaPercobaan} reads the one field the code step needs and
      * `retryAfter` already folds in `meta.retry_after`.
      */
     readonly meta: Record<string, unknown>;

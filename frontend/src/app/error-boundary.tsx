@@ -165,8 +165,8 @@ export function RouteErrorBoundary() {
  * Mounted above `QueryClientProvider` and `RouterProvider`, it renders on a failure that
  * happened before - or instead of - any of them. A sign-in survives it, because the tokens
  * live in `sessionStorage` and nothing here clears them. So the recovery is a real reload
- * of the same origin rather than a `navigate('/masuk')` that would throw a second time in
- * a router that has already failed.
+ * of the same origin rather than a `navigate('/?masuk=1')` that would throw a second time
+ * in a router that has already failed.
  */
 export class AppErrorBoundary extends Component<
     { children: ReactNode },

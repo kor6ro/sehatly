@@ -31,6 +31,7 @@ import type { LucideIcon } from 'lucide-react';
 import { logout } from '@/lib/api/auth';
 import { spesialisasiOptions } from '@/lib/api/dokter';
 import { serahkanKueri } from '@/features/dokter/direktori';
+import { catatRiwayatPencarian, PanelSaranPencarian } from '@/features/dokter/panel-pencarian';
 import { heroOptions } from '@/lib/api/hero';
 import { meOptions } from '@/lib/api/me';
 import { PROMO, SLIDE_HERO } from '@/features/landing/data';
@@ -89,8 +90,9 @@ import { cn } from '@/lib/utils';
  *   `/pesanan` exists - it is where a prescription order already lives.
  * - Every menu entry points at a route that is registered in `app/router.tsx`. There are
  *   no placeholder links: a signed-out visitor who picks "Chat dengan Dokter" lands on
- *   `RequireAuth`, which hands them to `/masuk` - the correct outcome, reached through
- *   the router rather than through a link that goes nowhere.
+ *   `RequireAuth`, which hands them to `/?masuk=1` - the landing page with the sign-in
+ *   dialog already open - the correct outcome, reached through the router rather than
+ *   through a link that goes nowhere.
  * - The nav shows its content before it asks for a click. Both entries with something
  *   behind them - "Dokter Terdekat" and "Layanan Kesehatan" - expand under a pointer
  *   instead of waiting to be clicked, so the visitor can see what is on offer without
@@ -774,8 +776,8 @@ function GridPromoPanel({
  * one of the five wearing a different hat.
  *
  * Every destination is honest about what it is: a route registered in `app/router.tsx`
- * - a signed-out visitor who picks one still lands on `RequireAuth` and its `/masuk`, the
- * correct outcome reached through the router - or the `#solusi` anchor above, which is
+ * - a signed-out visitor who picks one still lands on `RequireAuth` and its `/?masuk=1`,
+ * the correct outcome reached through the router - or the `#solusi` anchor above, which is
  * this page. Every one of them closes the panel on the way out (`hover.tutup`), so the
  * menu never lies open behind the page it opened.
  */
@@ -1460,90 +1462,281 @@ function NavList({
  *
  * `onCari` is the mobile sheet's hook: the form also renders inside the drawer, where
  * navigating without closing would leave the panel stacked over the page it just opened.
+ *
+ * ## The panel under the field
+ *
+ * Focusing this field - or pressing the bar anywhere, padding included - opens the SAME
+ * panel the dashboard's field opens: `PanelSaranPencarian`, holding the term row, the past
+ * searches and the catalogue's first six, rendered around this bar's own pill rather than
+ * as a second copy of that panel. What stays this bar's is the bar: its `h-10` pill and
+ * `size-8` circle are the reference's proportions for THIS row and predate F03 §8's 44 px
+ * floor (the floor is why the dashboard's own circle is `size-11`), so the panel is shared
+ * while the pill is not.
+ *
+ * When it opens, the card rises AROUND the pill instead of hanging under it - the white
+ * starts 12 px above the field, the field keeps painting on top of that band (`relative
+ * z-10` against the panel's `z-0`, both inside this bar's own `z-20` stacking context),
+ * and only the body below the field scrolls. That is the reference's active state: one
+ * card holding the input. None of it moves the pill - the wrapper's height never changes,
+ * so row one's centre line is the same open or closed.
+ *
+ * The history is shared as well - one `localStorage` key, one "Pencarian sebelumnya" -
+ * because both doors write it through {@link catatRiwayatPencarian} and a reader is one
+ * reader whichever door they asked.
+ *
+ * `bukaDariFokus` is the one thing the two instances disagree on. The sheet AUTO-FOCUSES
+ * this field the moment the drawer opens (it is the first tabbable inside `SheetContent`),
+ * so in the drawer a focus event is the DRAWER's doing, not the visitor's - and a panel
+ * appearing before anything was pressed covers the navigation links right beneath it,
+ * which is not a guess: the drawer's own e2e failed that way before this flag existed. The
+ * drawer therefore opens the panel on PRESS (tap the field, tap its padding) while the bar,
+ * which nothing ever auto-focuses, keeps focus as its trigger.
+ *
+ * `onPanel` reports the panel's state up to `LandingHeader`, which paints for it the same
+ * veil a nav panel gets: the reference dims the page behind a search panel, and this bar's
+ * own wrapper lifts to `z-20` while the panel is open so the pill and its panel stay bright
+ * above that veil. Only the DESKTOP bar passes it - the drawer already sits behind Radix's
+ * scrim, and a second dimmer beneath the first would be one shadow too many.
  */
 function PencarianBar({
     className,
     onCari,
+    onPanel,
+    bukaDariFokus = true,
 }: {
     className?: string;
     onCari?: () => void;
+    /** Open/closed, for the veil - see the docblock above. */
+    onPanel?: (buka: boolean) => void;
+    /** `false` in the drawer, whose sheet focuses this field by itself - see above. */
+    bukaDariFokus?: boolean;
 }) {
     const navigate = useNavigate();
     const [params] = useSearchParams();
+    const wadah = useRef<HTMLDivElement>(null);
+
     const [kueri, setKueri] = useState('');
+    const [terbuka, setTerbuka] = useState(false);
+
+    /**
+     * Close on a pointer-down anywhere that is not this field or its panel.
+     *
+     * `pointerdown` rather than `click`, and the same reason the dashboard's field gives:
+     * the second fires after the element under the pointer has changed, and a suggestion
+     * chosen during that window would navigate and then be dismissed by a listener that
+     * had already been removed. The PANEL is inside `wadah`, so pressing a chip does not
+     * count as outside - the chip's own `onCari` closes it.
+     */
+    useEffect(() => {
+        if (!terbuka) {
+            return;
+        }
+
+        const luar = (event: PointerEvent): void => {
+            if (wadah.current?.contains(event.target as Node) !== true) {
+                setTerbuka(false);
+            }
+        };
+
+        document.addEventListener('pointerdown', luar);
+
+        return () => {
+            document.removeEventListener('pointerdown', luar);
+        };
+    }, [terbuka]);
+
+    /**
+     * Report to the bar, which paints ONE veil for whichever panel is open.
+     *
+     * Reported per state rather than fire-and-forget so that navigating away, unmounting
+     * the drawer, or any other disappearance of this field takes its id off the veil with
+     * it - a veil left up by a component that no longer exists would dim a page nothing is
+     * open over.
+     */
+    useEffect(() => {
+        onPanel?.(terbuka);
+
+        return () => onPanel?.(false);
+    }, [terbuka, onPanel]);
+
+    const persis = kueri.trim();
+
+    /** Where every term this bar runs goes: parked, never written into the address. */
+    function menuju(kunci: string): void {
+        // The query never reaches the address (F03 §9); `/` knows a directory is what
+        // should be answering because the term is parked in `sessionStorage`.
+        serahkanKueri(kunci);
+
+        /**
+         * The specialisation already applied is CARRIED, because a search is a
+         * narrower question about the same shortlist rather than a new one. It is
+         * the same single key `tautanPilihan` writes above - dropping it would
+         * make the term the only thing the answer obeys, and "Spesialis Anak"
+         * then a doctor's name would answer with everybody of that name instead
+         * of that specialisation's.
+         *
+         * `tipe` and `telemedisin` are deliberately NOT carried. They are the two
+         * parameters `tautanPilihan` stopped writing for the same reason, and
+         * forwarding a stale one here would only ever produce the address
+         * `LandingPage` renders as the marketing sections - a search that narrows
+         * to nothing.
+         */
+        const berikut = new URLSearchParams();
+        const spesialisasi = params.get('spesialisasi');
+
+        if (spesialisasi !== null && spesialisasi !== '') {
+            berikut.set('spesialisasi', spesialisasi);
+        }
+
+        // No constraints means this was the front page, and it stays the front
+        // page - `?semua=1` is the DIRECTORY with nothing applied, which is a
+        // different screen than the one a search from `/` should land on.
+        const alamat = berikut.toString();
+
+        navigate(alamat === '' ? '/' : `/?${alamat}`);
+        onCari?.();
+    }
+
+    /**
+     * Submit one term - the form's own, or a panel row's.
+     *
+     * Recording happens only here, so the history holds terms that were actually run, and
+     * the panel folds before the route change: this bar SURVIVES navigation (it is the
+     * landing header), so a panel left open would arrive over an answer nobody has asked
+     * yet.
+     */
+    function cari(term: string): void {
+        const bersih = term.trim();
+
+        if (bersih === '') {
+            return;
+        }
+
+        // The same gate as `onSubmit` below, for a row pressed while the panel is open:
+        // the bar does not hand the directory a question it cannot answer (see below).
+        if (!navigator.onLine) {
+            return;
+        }
+
+        catatRiwayatPencarian(bersih);
+        setKueri(bersih);
+        setTerbuka(false);
+        menuju(bersih);
+    }
 
     return (
-        <form
-            role="search"
-            data-slot="landing-cari"
-            onSubmit={(event) => {
-                event.preventDefault();
-
-                /**
-                 * Offline, the term cannot go anywhere. Sending it would be worse than
-                 * ignoring it: the answer would render a failure the visitor never asked
-                 * for, and the banner on that answer (F03 AC-9) says in as many words
-                 * that nothing is sent until the connection is back.
-                 */
-                if (!navigator.onLine) {
-                    return;
+        <div
+            ref={wadah}
+            /**
+             * `relative` is the panel's containing block, and `z-20`-while-open is what
+             * keeps the pill BRIGHT: the veil `LandingHeader` paints sits at `z-10` over
+             * the whole header, and this bar is row one - in-flow, therefore beneath it.
+             * It is also the stacking context the open state needs: the panel's card
+             * rises AROUND the pill, and `z-10` on the form is what keeps the field
+             * painting on top of its own card's white - inside this wrapper it ranks
+             * against the panel's `z-0`, and outside it there would be nothing to rank
+             * against at all.
+             */
+            className={cn('relative', terbuka ? 'z-20' : undefined, className)}
+            onKeyDown={(event) => {
+                if (event.key === 'Escape' && terbuka) {
+                    setTerbuka(false);
                 }
-
-                // The query never reaches the address (F03 §9); `/` knows a directory is
-                // what should be answering because the term is parked in `sessionStorage`.
-                serahkanKueri(kueri.trim());
-
-                /**
-                 * The specialisation already applied is CARRIED, because a search is a
-                 * narrower question about the same shortlist rather than a new one. It is
-                 * the same single key `tautanPilihan` writes above - dropping it would
-                 * make the term the only thing the answer obeys, and "Spesialis Anak"
-                 * then a doctor's name would answer with everybody of that name instead
-                 * of that specialisation's.
-                 *
-                 * `tipe` and `telemedisin` are deliberately NOT carried. They are the two
-                 * parameters `tautanPilihan` stopped writing for the same reason, and
-                 * forwarding a stale one here would only ever produce the address
-                 * `LandingPage` renders as the marketing sections - a search that narrows
-                 * to nothing.
-                 */
-                const berikut = new URLSearchParams();
-                const spesialisasi = params.get('spesialisasi');
-
-                if (spesialisasi !== null && spesialisasi !== '') {
-                    berikut.set('spesialisasi', spesialisasi);
-                }
-
-                // No constraints means this was the front page, and it stays the front
-                // page - `?semua=1` is the DIRECTORY with nothing applied, which is a
-                // different screen than the one a search from `/` should land on.
-                const kueriBaru = berikut.toString();
-
-                navigate(kueriBaru === '' ? '/' : `/?${kueriBaru}`);
-                onCari?.();
             }}
-            className={cn(
-                'border-input bg-background focus-within:border-foreground/40 flex h-10 min-w-0 max-w-[42rem] flex-1 items-center gap-1 rounded-full border pl-4 pr-1 transition-colors',
-                className,
-            )}
         >
-            <input
-                type="search"
-                value={kueri}
-                onChange={(event) => setKueri(event.target.value)}
-                aria-label="Cari dokter"
-                placeholder="Cari nama dokter (contoh: dr. Rina)"
-                className="placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent text-sm outline-none"
-            />
+            <form
+                role="search"
+                data-slot="landing-cari"
+                onSubmit={(event) => {
+                    event.preventDefault();
 
-            <button
-                type="submit"
-                aria-label="Cari"
-                className="bg-foreground text-background hover:opacity-85 flex size-8 shrink-0 items-center justify-center rounded-full transition-opacity"
+                    /**
+                     * Offline, the term cannot go anywhere. Sending it would be worse than
+                     * ignoring it: the answer would render a failure the visitor never asked
+                     * for, and the banner on that answer (F03 AC-9) says in as many words
+                     * that nothing is sent until the connection is back.
+                     */
+                    if (!navigator.onLine) {
+                        return;
+                    }
+
+                    /**
+                     * An empty submit is the EMPTY marker - "I searched for nothing", the
+                     * one thing allowed to clear a query the directory is already carrying
+                     * - and it folds the panel, because the press was an answer rather
+                     * than a question about what to search for.
+                     */
+                    if (persis === '') {
+                        setTerbuka(false);
+                        menuju('');
+                        return;
+                    }
+
+                    cari(persis);
+                }}
+                /**
+                 * Any press in the field focuses it, not just a press on the caret - the
+                 * same trade the dashboard's field makes, for the same reason: the pill is
+                 * tall enough that a press on its padding would otherwise leave the field
+                 * unfocused and the panel unopened, with no feedback at all. `setTerbuka`
+                 * is called outright because `focus()` is a NO-OP when the field already
+                 * HAS focus - which it does after a submit, since submitting folds the
+                 * panel without ever taking focus away. The circle is NOT part of this
+                 * branch (`event.target` is the button), so the submit it triggers still
+                 * runs, and it does not flicker a panel open for the frame in between.
+                 */
+                onPointerDown={(event) => {
+                    if (event.target === event.currentTarget) {
+                        event.preventDefault();
+                        event.currentTarget.querySelector('input')?.focus();
+                        setTerbuka(true);
+                    }
+                }}
+                className="border-input bg-background focus-within:border-foreground/40 relative z-10 flex h-10 min-w-0 max-w-[42rem] flex-1 items-center gap-1 rounded-full border pl-4 pr-1 transition-colors"
             >
-                <Search aria-hidden="true" className="size-4" />
-            </button>
-        </form>
+                <input
+                    type="search"
+                    value={kueri}
+                    onChange={(event) => setKueri(event.target.value)}
+                    onFocus={() => {
+                        // See `bukaDariFokus`: in the drawer this event belongs to the
+                        // sheet's own autofocus, and opening on it would lay the panel
+                        // over the links before the visitor had pressed anything.
+                        if (bukaDariFokus) {
+                            setTerbuka(true);
+                        }
+                    }}
+                    /**
+                     * A second press must reopen it too: `focus` fires on the way IN, and
+                     * after a submit this field is still the focused one - clicking it
+                     * again would fire nothing at all, which is the exact silence that
+                     * made the dashboard's empty magnifier a reported bug (93bd872).
+                     */
+                    onClick={() => {
+                        setTerbuka(true);
+                    }}
+                    aria-label="Cari dokter"
+                    placeholder="Cari nama dokter (contoh: dr. Rina)"
+                    className="placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent text-sm outline-none"
+                />
+
+                <button
+                    type="submit"
+                    aria-label="Cari"
+                    className="bg-foreground text-background hover:opacity-85 flex size-8 shrink-0 items-center justify-center rounded-full transition-opacity"
+                >
+                    <Search aria-hidden="true" className="size-4" />
+                </button>
+            </form>
+
+            {terbuka ? (
+                <PanelSaranPencarian
+                    kueri={persis}
+                    onCari={cari}
+                    onTutup={() => setTerbuka(false)}
+                />
+            ) : null}
+        </div>
     );
 }
 
@@ -1560,7 +1753,7 @@ function PencarianBar({
  * broke that way: a visitor who signed in through the dialog on this very page kept the
  * "Masuk" button, and a visitor who signed out left the pill's `/me` query subscribed,
  * so its refetch fired with no credentials and the transport, reading that as a session
- * expiry, moved them to `/masuk`. `useSession` subscribes to the store instead, which
+ * expiry, moved them to `/?masuk=1`. `useSession` subscribes to the store instead, which
  * makes both directions a re-render of exactly this component.
  *
  * There is deliberately no "Daftar" button here, and "Masuk" opens a dialog rather than
@@ -1568,7 +1761,9 @@ function PencarianBar({
  * on behaves, and a visitor without an account meets "Nomor belum terdaftar" inside that
  * dialog with the one action that fixes it. `onMasuk` is handed in rather than this
  * component owning a dialog, because it renders twice - top bar and mobile sheet - and two
- * instances would each hold their own challenge and race over `sessionStorage`.
+ * instances would each hold their own phone number, their own challenge and their own
+ * countdown, so a visitor who opened one and then the other would be answering the other
+ * one's code.
  */
 function ActionButtons({
     className,
@@ -1655,7 +1850,7 @@ function AkunPill() {
      * The parent unmounts this pill the moment `clearTokens()` announces, but the two
      * updates race: if this component renders once in between, a query that refetches on
      * an empty cache would call `/me` with no `Authorization` header, and the transport
-     * answers that 401 by declaring the session expired and moving the page to `/masuk` -
+     * answers that 401 by declaring the session expired and moving the page to `/?masuk=1` -
      * which is how signing OUT of the landing page used to land you on the sign-IN
      * screen. Gated on the session, that refetch cannot start at all.
      */
@@ -1761,7 +1956,7 @@ function AkunPill() {
 /**
  * `onMasuk` belongs to the page, not to the header.
  *
- * The landing body has its own "Masuk" action, and two `LoginDialog` instances would each
+ * The landing body has its own "Masuk" action, and two `MasukDialog` instances would each
  * hold their own challenge and race over the one `sessionStorage` key that carries it -
  * so the page owns the dialog and hands the opener down. The header renders it nowhere.
  *
@@ -1781,14 +1976,18 @@ function AkunPill() {
  * - `landing-tirai-bar` is `inset-0` at `z-10`. That is above the header's own
  *   background (layer 1), above row one, which is in-flow (layer 3), and above row two,
  *   which is positioned with `z: auto` (layer 6) - so the wordmark, the search, the
- *   account cluster and the whole tab row all take the veil, full header width.
+ *   account cluster and the whole tab row all take the veil, full header width. The
+ *   search is the one of them with an exception built in: while its OWN panel is open it
+ *   reports that (`laporkanCari`) and its wrapper takes `z-20`, because a field dimmed
+ *   under the panel it just opened would read as a field the reader had switched off.
  * - `landing-tirai-halaman` is `top-full h-screen` at `z-0`, and it starts exactly where
  *   the bar ends. The bar is `sticky top-0`, so one viewport height from its bottom edge
  *   IS the rest of the screen; and living inside a `z-40` header already puts it above
  *   every element the landing page renders, with no z-index negotiation against them.
  *
  * What stays bright is exactly what the reference keeps bright: the open tab and its
- * panel. {@link NavPanelEntry} gives that entry `z-20`, which lands above the veil's
+ * panel, and the open search field with its panel. {@link NavPanelEntry} gives its entry
+ * `z-20`, and {@link PencarianBar} gives its wrapper `z-20` - both land above the veil's
  * `z-10` in the header's own stacking context.
  *
  * ## How dark: a quarter, not a wash
@@ -1836,6 +2035,21 @@ export function LandingHeader({ onMasuk }: { onMasuk: () => void }) {
         });
     }, []);
 
+    /**
+     * The search field's panel, reported under its own id for the same veil.
+     *
+     * A stable identity, because the field reports through an effect: a fresh arrow on
+     * every render would re-run that effect on every render. Only the BAR's field passes
+     * this - the drawer's field is already behind Radix's scrim, and a second dimmer
+     * under the first would be one shadow too many.
+     */
+    const laporkanCari = useCallback(
+        (buka: boolean) => {
+            laporkanPanel('cari-panel', buka);
+        },
+        [laporkanPanel],
+    );
+
     const adaPanel = panelTerbuka.size > 0;
     const tirai = (buka: boolean) =>
         cn(
@@ -1877,7 +2091,10 @@ export function LandingHeader({ onMasuk }: { onMasuk: () => void }) {
                     wordmark and the menu button - a phone still has the directory's own
                     search field, so nothing here is the only way to search.
                 */}
-                <PencarianBar className="col-start-2 hidden w-full max-w-[42rem] justify-self-center md:flex" />
+                <PencarianBar
+                    className="col-start-2 hidden w-full max-w-[42rem] justify-self-center md:flex"
+                    onPanel={laporkanCari}
+                />
 
                 {/*
                     The right-hand column, as one grid cell: theme, account, bag, menu.
@@ -1895,7 +2112,7 @@ export function LandingHeader({ onMasuk }: { onMasuk: () => void }) {
                         The bag the reference carries after the account, pointed at the one
                         route that answers it: `/pesanan` is where a prescription order
                         lives. It is offered signed-out on purpose, for the same reason every
-                        service link is - `RequireAuth` sends the visitor to `/masuk`, which
+                        service link is - `RequireAuth` sends the visitor to `/?masuk=1`, which
                         is the correct outcome reached through the router rather than a link
                         that pretends a cart exists. The reference's heart is deliberately
                         NOT reproduced: there is no wishlist route to point it at, and an
@@ -1947,10 +2164,16 @@ export function LandingHeader({ onMasuk }: { onMasuk: () => void }) {
                                 lays its children out in a COLUMN, and the bar's `flex-1`
                                 would grow the field to fill the drawer instead of
                                 leaving it at h-10.
+
+                                `bukaDariFokus={false}` because this sheet auto-focuses
+                                the field it opens (the first tabbable of its content):
+                                a panel opened by THAT focus would sit on top of the
+                                nav links below it before anyone had touched anything.
                             */}
                             <PencarianBar
                                 className="mx-4 flex-none"
                                 onCari={() => setOpen(false)}
+                                bukaDariFokus={false}
                             />
 
                             <NavList
@@ -2022,7 +2245,8 @@ export function LandingHeader({ onMasuk }: { onMasuk: () => void }) {
 
                 The bar's half: `inset-0` against a sticky header is that header's own
                 box, full width, both rows - the wordmark, the search, the account
-                cluster and the tab row all take it.
+                cluster and the tab row all take it, the search only ever EXCEPTED while
+                its own panel is open (it reports itself and lifts to `z-20`).
             */}
             <div
                 data-slot="landing-tirai-bar"

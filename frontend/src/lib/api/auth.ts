@@ -14,19 +14,24 @@ import type { OtpChallenge, OtpTujuan, User } from '@/lib/api/types';
  * ```
  *
  * `AuthController::login` returns no token on purpose: a phone-proved second factor is
- * only a control while the second step still requires the phone. So a login form that
- * expects a token from `/masuk` is not merely incomplete, it is wrong - and the screen
- * has to carry the identifier forward to the verify call, because `VerifyOtpRequest`
- * identifies the account by `no_telepon` **or** `email` and by nothing else.
+ * only a control while the second step still requires the phone. So a sign-in surface
+ * that expects a token from `POST /auth/masuk` is not merely incomplete, it is wrong - and
+ * the screen has to carry the identifier forward to the verify call, because
+ * `VerifyOtpRequest` identifies the account by `no_telepon` **or** `email` and by nothing
+ * else.
  */
 
 /**
- * How an account is named to `/masuk` and `/auth/otp/verify`.
+ * How an account is named to `POST /auth/masuk` and to `POST /auth/otp/verify`.
  *
  * `AuthRequest` requires **at least one** of the two and prefers `no_telepon` when both
  * are sent, and it attaches the same "Isi no_telepon atau email." message to both keys
- * when neither is. The union below is the whole of that contract, and the screens build
- * it from one field the user typed rather than asking which kind it was.
+ * when neither is. The union below is the whole of that contract.
+ *
+ * The sign-in dialog builds it from the digits after a fixed `+62`, so the `email` arm
+ * is reached only from `register` and from an account that carries an address - there is
+ * no screen left that asks for one, since `/masuk` (the page that offered the choice) is
+ * gone.
  */
 export type Identifier =
     | { no_telepon: string; email?: never }
@@ -92,7 +97,7 @@ export function login(input: LoginInput) {
         // every response regardless of the retry budget - so the transport is told
         // directly. Without the flag it found no refresh token, called
         // `endSession(null)`, and `RootLayout`'s subscriber threw the visitor out to
-        // `/masuk` with no flash: the OTP step never rendered. See
+        // `/?masuk=1` with no flash: the code step never rendered. See
         // `RequestOptions.authRejection`.
         retry: 0,
         authRejection: true,
@@ -117,13 +122,13 @@ export function register(input: RegisterInput) {
 /**
  * `POST /api/v1/auth/otp/verify`
  *
- * The only endpoint in `AuthController` that issues a token. Reached by both flows, and
- * the `tujuan` has to be the one the code was minted for: a `login` code will not verify
- * a `verifikasi_telepon` request.
+ * The only endpoint in `AuthController` that issues a token. Reached by the sign-in
+ * dialog and by the sign-up form alike, and the `tujuan` has to be the one the code was
+ * minted for: a `login` code will not verify a `verifikasi_telepon` request.
  *
- * Every rejection is a 422 with the reason in `errors.kode`, which is why the OTP screen
- * renders that key as a field error rather than a banner: "resend" and "start over" are
- * different recoveries and the message is what tells them apart.
+ * Every rejection is a 422 with the reason in `errors.kode`, which is why the dialog's
+ * code step renders that key as a field error rather than a banner: "resend" and "start
+ * over" are different recoveries and the message is what tells them apart.
  */
 export function verifyOtp(input: VerifyOtpInput) {
     return request<{
@@ -223,8 +228,7 @@ export type ResendOtpInput = Identifier & {
  * ("Jika akun terdaftar..."), so the client cannot learn whether the identifier
  * exists and must not try: it reuses the same identifier the verify step will send.
  * Success closes the previous code server-side (`OtpService::issue()`), which is why
- * the OTP screen replaces its countdown from the returned window rather than keeping
- * two.
+ * the dialog replaces its countdown from the returned window rather than keeping two.
  */
 export function resendOtp(input: ResendOtpInput) {
     return request<OtpResendResult>('auth/otp/resend', {

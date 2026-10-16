@@ -1,5 +1,11 @@
 /**
- * The phone rule shared by `/masuk` and the sign-in dialog on `/`.
+ * The client-side mirror of the server's phone rule.
+ *
+ * It used to be shared by the `/masuk` page and the sign-in dialog on `/`. The page is
+ * gone - the dialog is the only surface, and it validates the digits left after the
+ * fixed `+62` prefix rather than the whole spelling - so this is the rule for a value
+ * typed WITH its prefix, which is what `tests/unit/telepon.test.ts` keeps pinned to the
+ * server.
  *
  * `AuthRequest::prepareForValidation()` now folds `+62…` / `62…` into the canonical
  * local `08…` before any server rule runs (`App\Support\Telepon`), so the client no

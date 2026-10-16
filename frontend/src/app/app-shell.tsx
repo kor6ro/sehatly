@@ -58,7 +58,7 @@ function SignedInLayout() {
             <SidebarInset>
                 <MobileNavBar />
 
-                <main className="flex flex-1 flex-col gap-6 p-4 md:p-6">
+                <main className="flex flex-1 flex-col gap-6 overflow-visible p-4 md:p-6">
                     <Outlet />
                 </main>
             </SidebarInset>
@@ -146,7 +146,16 @@ function AppSidebar() {
 
             dispatchFlash({ level: 'info', message: 'Anda telah keluar.' });
 
-            void navigate('/masuk', { replace: true });
+            /**
+             * `/`, deliberately WITHOUT `?masuk=1`.
+             *
+             * The `/masuk` page this replaces stood behind a logout for years, but a
+             * sign-in form is not what somebody who just chose to leave should be shown:
+             * the flash above says so, and it is rendered by `LandingPage`'s `Toaster`,
+             * which a dialog would sit on top of. The header's own "Masuk" button is one
+             * click away for anyone who meant to change accounts rather than to stop.
+             */
+            void navigate('/', { replace: true });
         },
     });
 

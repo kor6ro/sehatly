@@ -83,7 +83,13 @@ export function DevicesPage() {
 
             dispatchFlash({ level: 'info', message: 'Anda telah keluar.' });
 
-            void navigate('/masuk', { replace: true });
+            /**
+         * `/` and not `/?masuk=1`: this is a deliberate exit, and the flash dispatched
+         * just above is rendered by `LandingPage`'s `Toaster` - a dialog opened over it
+         * would hide the one sentence this screen has to say. Replacing the `/masuk`
+         * page this used to land on.
+         */
+        void navigate('/', { replace: true });
         },
     });
 
@@ -98,7 +104,13 @@ export function DevicesPage() {
                 message: 'Anda telah keluar dari semua perangkat.',
             });
 
-            void navigate('/masuk', { replace: true });
+            /**
+         * `/` and not `/?masuk=1`: this is a deliberate exit, and the flash dispatched
+         * just above is rendered by `LandingPage`'s `Toaster` - a dialog opened over it
+         * would hide the one sentence this screen has to say. Replacing the `/masuk`
+         * page this used to land on.
+         */
+        void navigate('/', { replace: true });
         },
     });
 

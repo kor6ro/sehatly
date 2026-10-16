@@ -32,9 +32,17 @@ export function RequireAuth() {
     const location = useLocation();
 
     if (getAccessToken() === null) {
+        /**
+         * `/?masuk=1`, the address that replaced the `/masuk` page.
+         *
+         * The visitor did not choose to sign in - they asked for a screen that needs a
+         * session and have none - so arriving at a landing page they would then have to
+         * hunt for a button on would be the half-answer `/masuk` was there to avoid. The
+         * flag opens the dialog on arrival; see `LandingPage`.
+         */
         return (
             <Navigate
-                to="/masuk"
+                to="/?masuk=1"
                 replace
                 state={{ from: location.pathname + location.search }}
             />

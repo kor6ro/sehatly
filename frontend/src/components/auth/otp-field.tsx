@@ -16,9 +16,10 @@ import {
  * registry code). Slots are 44 px and 8 px apart so each one is a full touch target; the
  * whole row is one logical field with `autocomplete="one-time-code"`.
  *
- * Lives outside the OTP page because the sign-in dialog verifies a code too, and two
- * implementations of "six boxes that are one field" would drift on the first accessibility
- * fix.
+ * It is its own module rather than markup inside the dialog that renders it, because
+ * "six boxes that are one field" is a control and not a screen: it carries the
+ * `autocomplete="one-time-code"` contract and the focus behaviour, and keeping it apart
+ * is what stops a future second verifier from drifting on the first accessibility fix.
  */
 export function OtpInput({
     value,

@@ -4,19 +4,24 @@ import { expect, test, type Locator, type Page, type Route } from '@playwright/t
 import { expectNoA11yViolations } from './a11y';
 
 /**
- * F01 `/masuk`, `/profil/edit/{id}?sign_up=true`, `/otp` and `/profil/perangkat`, mocked
- * end to end.
+ * F01 `/?masuk=1` (the sign-in dialog), `/profil/edit/{id}?sign_up=true` and
+ * `/profil/perangkat`, mocked end to end.
  *
  * Every `/api/v1/**` request is intercepted, so the file pins the CLIENT's branches -
- * both accepted phone spellings, the two consent gates, the optional-field grouping, the
- * OTP slot behaviour, the inline 422 with `meta.sisa_percobaan`, the 429 wait from
+ * the national-only phone field and both legacy spellings it refuses, the two consent
+ * gates, the optional-field grouping, the OTP input behaviour (paste-shaped insertion,
+ * Backspace, focus), the inline 422 with `meta.sisa_percobaan`, the 429 wait from
  * `meta.retry_after`, resend with a 60-second cooldown and exactly one request, the
  * device revoke, and both logout actions - without a live Laravel API and without
  * touching real data. Fixtures are synthetic.
  *
  * `/register` is gone from this list because it is gone from the router: there is one
  * door, it takes a phone number, and the screen that finishes the account is
- * `/profil/edit/{id}?sign_up=true`.
+ * `/profil/edit/{id}?sign_up=true`. `/masuk` and `/otp` went with it - the dialog on
+ * `/` holds number -> channel -> code on one address, and `lib/pending-otp.ts` is that
+ * dialog's own state now, never storage. So the OTP scenarios DRIVE the exchange through
+ * its own controls (`bukaLangkahKode`) instead of seeding a sessionStorage challenge a
+ * second route used to read back.
  *
  * Two viewports for every scenario: 390x844 and 1280x900, pinned to `Asia/Jakarta`.
  */
@@ -148,6 +153,30 @@ function envelope(data: unknown, message = 'Berhasil.'): Record<string, unknown>
     return { success: true, message, data };
 }
 
+/**
+ * A login answer whose challenge is ALREADY past - two seconds after a real deadline ran
+ * out.
+ *
+ * The old spec seeded `kedaluwarsa_at` into sessionStorage for `/otp` to read back; the
+ * challenge now arrives on this response and nowhere else, so an expired state begins
+ * HERE rather than in storage the dialog never opens.
+ */
+function loginKedaluwarsa(): HasilPost {
+    return {
+        status: 200,
+        body: envelope(
+            {
+                otp: {
+                    tujuan: 'login',
+                    kedaluwarsa_at: new Date(Date.now() - 2_000).toISOString(),
+                    ttl_detik: 300,
+                },
+            },
+            'Kode OTP berhasil dikirim.',
+        ),
+    };
+}
+
 async function pasangMock(page: Page, opsi: OpsiMock = {}): Promise<MockState> {
     const state: MockState = {
         login: [],
@@ -170,7 +199,8 @@ async function pasangMock(page: Page, opsi: OpsiMock = {}): Promise<MockState> {
      * It is what makes the file's "mocked end to end" true. Without it a screen the
      * mocks do not cover - `/dashboard` after a completed sign-up, say - reaches the real
      * server with `token-uji-f01`, is answered 401, and the transport tears the session
-     * down and redirects to `/masuk`. A test asserting "we navigated to `/dashboard`"
+     * down and bounces them into the sign-in dialog at `/?masuk=1`. A test asserting "we
+     * navigated to `/dashboard`"
      * would then fail on a round trip it never intended to make, and the failure would
      * point at the assertion rather than at the missing mock.
      */
@@ -473,25 +503,63 @@ async function pesanFlash(page: Page): Promise<string[]> {
     });
 }
 
-async function pasangPendingOtp(
-    page: Page,
-    opsi: { kedaluwarsaMs?: number; noTelepon?: string } = {},
-): Promise<void> {
-    await page.addInitScript(
-        (nilai: { kedaluwarsaMs: number; noTelepon: string }) => {
-            sessionStorage.setItem('sehatly.device_id', 'dev-uji-otp');
-            sessionStorage.setItem(
-                'sehatly.pending_otp',
-                JSON.stringify({
-                    identifier: { no_telepon: nilai.noTelepon },
-                    tujuan: 'login',
-                    kedaluwarsa_at: new Date(Date.now() + nilai.kedaluwarsaMs).toISOString(),
-                    ttl_detik: Math.round(nilai.kedaluwarsaMs / 1000),
-                }),
-            );
-        },
-        { kedaluwarsaMs: opsi.kedaluwarsaMs ?? 300_000, noTelepon: opsi.noTelepon ?? '081299998888' },
-    );
+/**
+ * The device id the dialog stamps on `otp/verify` and `otp/resend`.
+ *
+ * `getDeviceId()` mints a fresh `crypto.randomUUID()` when storage holds none, which
+ * would leave every payload assertion comparing against an id nobody chose - the seed
+ * is what lets `state.resend[0]` be checked as a whole object rather than field by
+ * field. It is storage rather than a dialog step because there is no step: the id is
+ * read at the moment a request is built.
+ */
+async function pasangDeviceOtp(page: Page): Promise<void> {
+    await page.addInitScript(() => {
+        sessionStorage.setItem('sehatly.device_id', 'dev-uji-otp');
+    });
+}
+
+/**
+ * Open the one door there is: `/?masuk=1`, the address that replaced `/masuk`.
+ *
+ * Waiting on the field rather than on a load event, because the dialog is client state:
+ * the address only REQUESTS it, and a test that proceeds before the request lands races
+ * the component that answers it.
+ */
+async function bukaDialog(page: Page): Promise<void> {
+    await page.goto('/?masuk=1');
+
+    await expect(
+        page.getByRole('textbox', { name: 'Nomor ponsel', exact: true }),
+    ).toBeVisible();
+}
+
+/**
+ * Drive the dialog all the way to its code step, under mocks.
+ *
+ * This replaces what used to be `pasangPendingOtp` + `goto('/otp')` in a dozen tests.
+ * That helper wrote the challenge into `sessionStorage` for a SECOND route to read back;
+ * there is no second route, and `lib/pending-otp.ts` persists nothing, so a seeded
+ * challenge would be state the app never looks at. The only way to reach the code step
+ * now is the one a visitor uses - type the number, `Lanjut` (which sends nothing), press
+ * the channel button (which does) - and driving it also exercises the transition itself.
+ *
+ * The device seed rides along because every request built from this step carries the
+ * id, and the assertions on those payloads want it to be a chosen value.
+ *
+ * `nasional` is the spelling the field accepts - the digits after the fixed `+62`, no
+ * leading `0` - and the canonical `0...` the client derives from it is what the resend
+ * and login assertions compare against.
+ */
+async function bukaLangkahKode(page: Page, nasional = '81299998888'): Promise<void> {
+    await pasangDeviceOtp(page);
+    await bukaDialog(page);
+
+    await isiNomor(page, nasional);
+    await page.getByRole('button', { name: 'Lanjut', exact: true }).click();
+
+    await page.locator('form button:not([disabled])', { hasText: 'Kirim Kode' }).click();
+
+    await expect(page.locator('[data-slot="otp-verify"]')).toBeVisible();
 }
 
 async function ukuranTarget(locator: Locator): Promise<void> {
@@ -502,14 +570,21 @@ async function ukuranTarget(locator: Locator): Promise<void> {
 }
 
 /**
- * The login screen sends a number and nothing else.
+ * The dialog's field sends a number and nothing else.
  *
- * There is no password field on it, so this helper cannot fill one - a helper typing into
- * a control the screen does not have would fail before the first assertion rather than at
- * it. What the request carries is asserted directly on `state.login`, below.
+ * There is no password control anywhere in it, so this helper cannot fill one - a helper
+ * typing into something the screen does not have would fail before the first assertion
+ * rather than at it. What the request carries is asserted directly on `state.login`,
+ * below.
+ *
+ * The argument is the NATIONAL spelling only: the fixed `+62` belongs to the prefix box,
+ * and the dialog's `NASIONAL` rule refuses both legacy spellings before anything is
+ * sent - which is why the refusal cases type them directly instead of through here.
  */
-async function isiLogin(page: Page, identitas: string): Promise<void> {
-    await page.getByLabel('Nomor telepon').fill(identitas);
+async function isiNomor(page: Page, nasional: string): Promise<void> {
+    await page
+        .getByRole('textbox', { name: 'Nomor ponsel', exact: true })
+        .fill(nasional);
 }
 
 async function isiOtp(page: Page, kode: string): Promise<void> {
@@ -543,41 +618,75 @@ for (const vp of VIEWPORTS) {
         test('f01-ac1-nomor-dua-bentuk', async ({ page }) => {
             const state = await pasangMock(page);
 
-            await page.goto('/masuk');
+            await bukaDialog(page);
 
-            await expect(page.getByLabel('Nomor telepon')).toBeVisible();
             await expect(
                 page.getByText(
-                    'Gunakan nomor yang aktif di WhatsApp/SMS. Format 08xx atau +628xx sama-sama diterima.',
+                    'Masukkan nomor ponsel untuk masuk atau membuat akun baru di Sehatly.',
                 ),
             ).toBeVisible();
-            await expect(page.getByPlaceholder('08xx xxxx xxxx')).toBeVisible();
+            await expect(page.getByPlaceholder('82116927632')).toBeVisible();
+
+            /**
+             * Both legacy spellings are refused LOCALLY, and the reason names the fixed
+             * `+62` the digits sit after: `+62...` fails on its sign, `0...` on its
+             * leading zero. Neither reaches the network, which is what the empty
+             * `state.login` below measures - the old client sent both as typed and let
+             * the server sort them out.
+             */
+            await isiNomor(page, '+6281234567890');
+            await page.getByRole('button', { name: 'Lanjut', exact: true }).click();
+
             await expect(
                 page.getByText(
-                    'Kami akan mengirim kode 6 digit ke nomor ini untuk memastikan akun Anda aman.',
+                    'Nomor ponsel Indonesia diawali 8 setelah +62, contoh 8211 6927 632.',
                 ),
             ).toBeVisible();
 
-            // The international spelling is accepted now that the server normalises it,
-            // and it is sent as typed: the client does not canonicalise.
-            await isiLogin(page, '+6281234567890');
-            await page.getByRole('button', { name: 'Lanjutkan' }).click();
+            await isiNomor(page, '081234567890');
+            await page.getByRole('button', { name: 'Lanjut', exact: true }).click();
+
+            await expect(
+                page.getByText(
+                    'Nomor ponsel Indonesia diawali 8 setelah +62, contoh 8211 6927 632.',
+                ),
+            ).toBeVisible();
+
+            expect(state.login).toEqual([]);
+
+            /**
+             * The accepted spelling, typed the two ways a person writes their own number:
+             * with the spacing they read off the phone and with hyphens. Both cross the
+             * wire as ONE canonical number, and the address never moves - the exchange
+             * lives in this dialog, so there is no `/otp` to have arrived at.
+             */
+            await isiNomor(page, '8123 4567 890');
+            await page.getByRole('button', { name: 'Lanjut', exact: true }).click();
+            await page
+                .locator('form button:not([disabled])', { hasText: 'Kirim Kode' })
+                .click();
 
             /**
              * Exactly one key, on purpose.
              *
              * `toEqual` fails on an EXTRA property, so this is what proves the door is
              * the only one: a `password` reappearing in the request would fail here even
-             * though the field it came from is gone from the screen.
+             * though the control it came from is not in the dialog.
              */
             await expect.poll(() => state.login.length).toBe(1);
-            expect(state.login[0]).toEqual({ no_telepon: '+6281234567890' });
-            await expect(page).toHaveURL(/\/otp$/);
+            expect(state.login[0]).toEqual({ no_telepon: '081234567890' });
+            await expect(page).toHaveURL(/\?masuk=1/);
 
-            // The local spelling still works and is sent unchanged too.
-            await page.goto('/masuk');
-            await isiLogin(page, '081234567890');
-            await page.getByRole('button', { name: 'Lanjutkan' }).click();
+            // Back out of the code step, retype the number with the other separator, and
+            // watch it land as the same request: two spellings, one number, one payload.
+            await page
+                .getByRole('button', { name: 'Salah nomor? Ganti Nomor Ponsel' })
+                .click();
+            await isiNomor(page, '812-3456-7890');
+            await page.getByRole('button', { name: 'Lanjut', exact: true }).click();
+            await page
+                .locator('form button:not([disabled])', { hasText: 'Kirim Kode' })
+                .click();
 
             await expect.poll(() => state.login.length).toBe(2);
             expect(state.login[1]).toEqual({ no_telepon: '081234567890' });
@@ -721,9 +830,7 @@ for (const vp of VIEWPORTS) {
 
         test('f01-ac3-otp-input', async ({ page }) => {
             await pasangMock(page);
-            await pasangPendingOtp(page);
-
-            await page.goto('/otp');
+            await bukaLangkahKode(page);
 
             const input = page.locator('[data-input-otp]');
 
@@ -750,10 +857,9 @@ for (const vp of VIEWPORTS) {
         });
 
         test('f01-ac4-kedaluwarsa-kirim-ulang', async ({ page }) => {
-            const state = await pasangMock(page);
+            const state = await pasangMock(page, { onLogin: loginKedaluwarsa });
 
-            await pasangPendingOtp(page, { kedaluwarsaMs: -2_000 });
-            await page.goto('/otp');
+            await bukaLangkahKode(page);
 
             await expect(page.getByText('Kode sudah kedaluwarsa.')).toBeVisible();
             await expect(
@@ -806,8 +912,7 @@ for (const vp of VIEWPORTS) {
                 }),
             });
 
-            await pasangPendingOtp(page);
-            await page.goto('/otp');
+            await bukaLangkahKode(page);
 
             await isiOtp(page, '123456');
             await page.getByRole('button', { name: 'Verifikasi' }).click();
@@ -833,8 +938,7 @@ for (const vp of VIEWPORTS) {
                 }),
             });
 
-            await pasangPendingOtp(page);
-            await page.goto('/otp');
+            await bukaLangkahKode(page);
 
             await isiOtp(page, '123456');
             await page.getByRole('button', { name: 'Verifikasi' }).click();
@@ -860,8 +964,7 @@ for (const vp of VIEWPORTS) {
                 }),
             });
 
-            await pasangPendingOtp(page);
-            await page.goto('/otp');
+            await bukaLangkahKode(page);
 
             await isiOtp(page, '123456');
             await page.getByRole('button', { name: 'Verifikasi' }).click();
@@ -888,8 +991,7 @@ for (const vp of VIEWPORTS) {
                 }),
             });
 
-            await pasangPendingOtp(page);
-            await page.goto('/otp');
+            await bukaLangkahKode(page);
 
             await isiOtp(page, '123456');
             await page.getByRole('button', { name: 'Verifikasi' }).click();
@@ -913,8 +1015,7 @@ for (const vp of VIEWPORTS) {
                 }),
             });
 
-            await pasangPendingOtp(page);
-            await page.goto('/otp');
+            await bukaLangkahKode(page);
 
             await isiOtp(page, '123456');
             await page.getByRole('button', { name: 'Verifikasi' }).click();
@@ -928,8 +1029,7 @@ for (const vp of VIEWPORTS) {
         test('f01-ac7-resend-cooldown', async ({ page }) => {
             const state = await pasangMock(page);
 
-            await pasangPendingOtp(page);
-            await page.goto('/otp');
+            await bukaLangkahKode(page);
 
             const resend = page.locator('[data-slot="otp-resend"]');
 
@@ -961,8 +1061,7 @@ for (const vp of VIEWPORTS) {
         test('f01-ac8-offline', async ({ page, context }) => {
             const state = await pasangMock(page);
 
-            await pasangPendingOtp(page);
-            await page.goto('/otp');
+            await bukaLangkahKode(page);
 
             const input = page.locator('[data-input-otp]');
 
@@ -1019,12 +1118,32 @@ for (const vp of VIEWPORTS) {
                 }),
             });
 
-            await page.goto('/masuk');
-            await isiLogin(page, '081299998888');
-            await page.getByRole('button', { name: 'Lanjutkan' }).click();
+            await bukaDialog(page);
+            await isiNomor(page, '81299998888');
+            await page.getByRole('button', { name: 'Lanjut', exact: true }).click();
 
-            await expect(page.getByLabel('Nomor telepon')).toHaveValue('081299998888');
-            await expect(page.getByRole('button', { name: 'Coba lagi' })).toBeVisible();
+            /**
+             * The request belongs to the channel button, so its failure lands HERE: the
+             * dialog stays on this step with the number still in the field and the same
+             * button back at rest - pressing it again is the retry, and there is no
+             * second "Coba lagi" control to go looking for.
+             */
+            await page
+                .locator('form button:not([disabled])', { hasText: 'Kirim Kode' })
+                .click();
+
+            await expect(page.getByText('Gagal mengirim kode')).toBeVisible();
+            await expect(
+                page.getByText('Terjadi kesalahan pada server. Coba lagi nanti.'),
+            ).toBeVisible();
+
+            await expect(
+                page.getByRole('textbox', { name: 'Nomor ponsel', exact: true }),
+            ).toHaveValue('81299998888');
+            await expect(
+                page.locator('form button:not([disabled])', { hasText: 'Kirim Kode' }),
+            ).toBeEnabled();
+
             expect(state.login.length).toBe(1);
         });
 
@@ -1124,7 +1243,7 @@ for (const vp of VIEWPORTS) {
             await expect.poll(() => state.logout.length).toBe(1);
             expect(state.logout[0]).toEqual({ refresh_token: 'refresh-uji-f01' });
 
-            await expect(page).toHaveURL(/\/masuk$/);
+            await expect(page).toHaveURL(/\/$/);
             await expect.poll(() => pesanFlash(page)).toContain('Anda telah keluar.');
 
             // The local pair is gone: a reload of a guarded page cannot resurrect it.
@@ -1164,7 +1283,7 @@ for (const vp of VIEWPORTS) {
             await page.locator('[data-slot="device-logout-all-confirm"]').click();
 
             await expect.poll(() => state.logoutAll).toBe(1);
-            await expect(page).toHaveURL(/\/masuk$/);
+            await expect(page).toHaveURL(/\/$/);
             await expect
                 .poll(() => pesanFlash(page))
                 .toContain('Anda telah keluar dari semua perangkat.');
@@ -1179,16 +1298,22 @@ for (const vp of VIEWPORTS) {
                 pesanKonsol.push(pesan.text());
             });
 
-            await page.goto('/masuk');
+            await bukaLangkahKode(page, '81299998888');
 
-            await expect(page).toHaveTitle('Masuk | Sehatly');
+            /**
+             * The title is the landing page's, and it never becomes anything about the
+             * exchange: the dialog sets no title of its own, so there is no heading left
+             * to leak into a tab strip or a history entry.
+             */
+            await expect(page).toHaveTitle('Beranda | Sehatly');
 
-            await isiLogin(page, '081299998888');
-            await page.getByRole('button', { name: 'Lanjutkan' }).click();
-
-            await expect(page).toHaveURL(/\/otp$/);
-            await expect(page).toHaveTitle('Kode OTP | Sehatly');
-
+            /**
+             * The address IS the whole exchange now - `?masuk=1` opens it and nothing
+             * changes while the number and the code are typed over it. That is strictly
+             * less exposure than the two routes this replaces, where `/otp` at least had
+             * to carry the visitor from one screen to the next.
+             */
+            expect(page.url()).toContain('/?masuk=1');
             expect(page.url()).not.toContain('081299998888');
             expect(page.url()).not.toContain('123456');
 
@@ -1201,7 +1326,7 @@ for (const vp of VIEWPORTS) {
             expect(ariaLabels).not.toContain('081299998888');
             expect(ariaLabels).not.toContain('0812');
 
-            // The masked form is what the OTP screen shows, and the full number is nowhere.
+            // The masked form is what the code step shows, and the full number is nowhere.
             await expect(page.getByText(/0812\*+88/)).toBeVisible();
             await expect(page.getByText('081299998888')).toHaveCount(0);
             await expect(page.locator('[data-sonner-toast]')).toHaveCount(0);
@@ -1211,20 +1336,32 @@ for (const vp of VIEWPORTS) {
         test('f01-ac12-a11y', async ({ page }) => {
             await pasangMock(page);
 
-            await page.goto('/masuk');
+            await bukaDialog(page);
             await expectNoA11yViolations(page);
-            await ukuranTarget(page.getByRole('button', { name: 'Lanjutkan' }));
-            await ukuranTarget(page.getByRole('button', { name: 'Telepon' }));
+            await ukuranTarget(page.getByRole('button', { name: 'Lanjut', exact: true }));
 
             /**
-             * The session is installed only NOW, not before the `/masuk` pass above.
+             * The step that offers the channel, reached the way a visitor reaches it -
+             * a number in the field first, because `Lanjut` on an empty field is the
+             * refusal path and its own button never appears. It carries its own
+             * controls and so deserves its own pass.
+             */
+            await isiNomor(page, '81299998888');
+            await page.getByRole('button', { name: 'Lanjut', exact: true }).click();
+            await expectNoA11yViolations(page);
+            await ukuranTarget(
+                page.locator('form button:not([disabled])', { hasText: 'Kirim Kode' }),
+            );
+
+            /**
+             * The session is installed only NOW, not before the dialog pass above.
              *
-             * A signed-in visitor has no business on the sign-in screen, so the route
-             * sends them elsewhere and the "Lanjutkan" button never renders - `addInitScript`
-             * would have made the first half of this test assert against a page the app
-             * deliberately no longer shows them. `page.route` for `/me` is likewise
+             * That first pass is a visitor with nothing - no token, no `/me`, the state
+             * every guard and every expired session leaves a stranger in - and installing
+             * `addInitScript` earlier would have booted it signed-in instead. The session
+             * exists for the completion screen below, and `page.route` for `/me` is
              * registered after `pasangMock` so this shell, not the finished fixture, is
-             * what the completion screen reads.
+             * what that screen reads.
              */
             await pasangSesiCangkang(page);
 
@@ -1244,8 +1381,7 @@ for (const vp of VIEWPORTS) {
                 Math.round((kotakPersetujuan as { height: number }).height),
             ).toBeGreaterThanOrEqual(24);
 
-            await pasangPendingOtp(page);
-            await page.goto('/otp');
+            await bukaLangkahKode(page);
             await expectNoA11yViolations(page);
             await ukuranTarget(page.locator('[data-slot="otp-verify"]'));
             await ukuranTarget(page.locator('[data-slot="otp-resend"]'));
@@ -1297,7 +1433,10 @@ for (const lebar of [390, 1280] as const) {
 
         await pasangMock(page);
         await page.setViewportSize({ width: lebar, height: tinggi });
-        await page.goto('/masuk');
+        await page.goto('/?masuk=1');
+        await expect(
+            page.getByRole('textbox', { name: 'Nomor ponsel', exact: true }),
+        ).toBeVisible();
         await page.waitForLoadState('networkidle');
 
         await simpanBukti(page, 'login', lebar);
@@ -1324,9 +1463,8 @@ for (const lebar of [390, 1280] as const) {
         test.skip(!rekam, 'capture only on demand');
 
         await pasangMock(page);
-        await pasangPendingOtp(page);
         await page.setViewportSize({ width: lebar, height: tinggi });
-        await page.goto('/otp');
+        await bukaLangkahKode(page);
         await page.waitForLoadState('networkidle');
 
         await simpanBukti(page, 'otp', lebar);
@@ -1335,10 +1473,9 @@ for (const lebar of [390, 1280] as const) {
     test(`f01-bukti-otp-kedaluwarsa-${lebar}`, async ({ page }) => {
         test.skip(!rekam, 'capture only on demand');
 
-        await pasangMock(page);
-        await pasangPendingOtp(page, { kedaluwarsaMs: -2_000 });
+        await pasangMock(page, { onLogin: loginKedaluwarsa });
         await page.setViewportSize({ width: lebar, height: tinggi });
-        await page.goto('/otp');
+        await bukaLangkahKode(page);
         await page.waitForLoadState('networkidle');
 
         await simpanBukti(page, 'otp-kedaluwarsa', lebar);

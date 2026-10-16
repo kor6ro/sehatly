@@ -89,7 +89,7 @@ export function getAccessTokenExpiresAt(): string | null {
  * so the button stayed. The reverse direction is worse than cosmetic: the signed-in
  * header keeps a `/me` query subscribed, and a sign-out that left it mounted let that
  * refetch fire with no credentials, which the transport reads as "session expired" and
- * answers by bouncing the visitor off the landing page to `/masuk`.
+ * answers by bouncing the visitor off the landing page to `/?masuk=1`.
  *
  * No `useState` inside the header can fix either direction, because nothing in that
  * tree changes when the storage does. Notifying can: `useSession` subscribes through

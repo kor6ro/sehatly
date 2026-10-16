@@ -5,7 +5,7 @@ import {
     type BrowserContext,
     type Page,
 } from '@playwright/test';
-import { daftarDanMasuk } from './akun';
+import { daftarDanMasuk, masukLewatDialog } from './akun';
 
 /**
  * The shell's robustness guards: a failing ROUTE may not take the app down, and the whole
@@ -175,42 +175,15 @@ async function daftar(browser: Browser): Promise<void> {
  *
  * No password is typed because the screen collects none: it sends a number and mints a
  * code. The seeded account's own password is never involved in getting in.
+ *
+ * The driving itself lives in `./akun` - `masukLewatDialog` - because four specs need the
+ * same two steps and a fifth implementation of them would drift. What is left here is this
+ * spec's own bookkeeping: its seeded number, and the walk to the workspace, which is the
+ * state every caller of `masuk` was written against.
  */
 async function masuk(page: Page): Promise<void> {
-    await page.goto('/masuk');
+    await masukLewatDialog(page, telepon);
 
-    await expect(page.getByLabel('Nomor telepon')).toBeVisible({
-        timeout: 60_000,
-    });
-
-    await page.getByLabel('Nomor telepon').fill(telepon);
-
-    const [respons] = await Promise.all([
-        page.waitForResponse((r) => r.url().includes('/api/v1/auth/masuk')),
-        page.getByRole('button', { name: 'Lanjutkan' }).click(),
-    ]);
-
-    expect(respons.status()).toBe(200);
-
-    await expect(page).toHaveURL(/\/otp/, { timeout: 30_000 });
-
-    const body = (await respons.json()) as {
-        data: { otp: { kode: string | null } };
-    };
-
-    expect(body.data.otp.kode, 'OTP login harus terbit pada APP_ENV=local').not.toBeNull();
-
-    await page
-        .locator('form input[inputmode="numeric"]')
-        .fill(body.data.otp.kode as string);
-    await page.getByRole('button', { name: 'Verifikasi' }).click();
-
-    /**
-     * Sign-in lands on the landing page now - `/` is where every door puts a signed-in
-     * account - so the helper finishes by walking to the workspace itself, which is the
-     * state every caller of `masuk` was written against.
-     */
-    await expect(page).toHaveURL(/\/$/, { timeout: 30_000 });
     await page.goto('/dashboard');
 }
 

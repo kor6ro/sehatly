@@ -1,5 +1,5 @@
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
-import { daftarDanMasuk } from './akun';
+import { daftarDanMasuk, masukLewatDialog } from './akun';
 
 /**
  * Module 4's end-to-end proof, driven against a **live** Laravel API.
@@ -115,50 +115,27 @@ async function statusPanggil(
 }
 
 /**
- * Sign in through the real login screen, OTP included.
+ * Sign in through the real sign-in surface, OTP included.
  *
  * `AuthController::login` answers `{otp}` and **no token**; `POST /auth/otp/verify` is the
  * only endpoint in that controller that mints one.
  *
- * There is no password to type any more. The screen sends the number and nothing else,
+ * There is no password to type any more. The dialog sends the number and nothing else,
  * and the seeded account's own password is never involved - which is why this spec no
  * longer asks the environment for one. What is proven by driving it is the same thing it
  * always proved: two real requests, a real code read out of the first response, and a
  * real pair landing in `sessionStorage`.
+ *
+ * The driving itself is `./akun`'s `masukLewatDialog`, shared with the three other specs
+ * that sign in this way; what is here is this spec's credentials and its walk to the
+ * workspace.
  */
 async function masuk(page: Page, siapa: 'dokter' | 'apoteker'): Promise<void> {
     const { telepon } = kredensial(siapa);
 
-    await page.goto('/masuk');
-
-    await expect(page.getByLabel('Nomor telepon')).toBeVisible({
-        timeout: 60_000,
-    });
-
-    await page.getByLabel('Nomor telepon').fill(telepon);
-
-    const [respons] = await Promise.all([
-        page.waitForResponse((r) => r.url().includes('/api/v1/auth/masuk')),
-        page.getByRole('button', { name: 'Lanjutkan' }).click(),
-    ]);
-
-    expect(respons.status()).toBe(200);
-
-    await expect(page).toHaveURL(/\/otp/, { timeout: 30_000 });
-
-    const body = (await respons.json()) as {
-        data: { otp: { kode: string | null } };
-    };
-
-    expect(body.data.otp.kode, 'OTP login harus terbit pada APP_ENV=local').not.toBeNull();
-
-    await page
-        .locator('form input[inputmode="numeric"]')
-        .fill(body.data.otp.kode as string);
-    await page.getByRole('button', { name: 'Verifikasi' }).click();
+    await masukLewatDialog(page, telepon);
 
     // Sign-in lands on the landing page; the workspace is one navigation away.
-    await expect(page).toHaveURL(/\/$/, { timeout: 30_000 });
     await page.goto('/dashboard');
 }
 

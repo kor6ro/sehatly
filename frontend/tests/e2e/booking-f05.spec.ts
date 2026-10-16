@@ -146,7 +146,7 @@ function meta(total: number, perPage: number): Record<string, unknown> {
  *
  * The catch-all at the bottom is load-bearing: an unmocked request would reach the real
  * API, answer 401, and send the transport down its session-expiry path - which would
- * redirect the test to `/masuk` for a reason that has nothing to do with the assertion.
+ * redirect the test to `/?masuk=1` for a reason that has nothing to do with the assertion.
  */
 async function pasangMock(page: Page, opsi: OpsiMock = {}): Promise<void> {
     const slots = opsi.slots ?? [SLOT];
