@@ -641,7 +641,7 @@ test.describe('Module 4 prescription warn-then-override', () => {
         const jejakApotek = jejakNetwork(apoteker);
 
         await masuk(apoteker, 'apoteker');
-        await apoteker.goto('/apotek/resep');
+        await apoteker.goto('/apotek/resep?portal=apotek');
 
         /**
          * Opened from the queue, not from a typed id.

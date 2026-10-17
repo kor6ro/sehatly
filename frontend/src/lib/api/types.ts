@@ -63,15 +63,23 @@ export type Tanggal = string | null;
 // users
 // ============================================================================
 
-/** `users.tipe`, the seven-value ENUM at `telemedicine_test.sql:139`. */
+/**
+ * `users.tipe`, the eight-value ENUM at `telemedicine_test.sql:139`.
+ *
+ * DDL order: `pasien`, `dokter`, `perawat`, `apoteker`, `kurir`, `admin`, `superadmin`,
+ * `marketing`. Note there is no `bidan` member here - `bidan` belongs to `dokter.tipe`
+ * (line 412), and this union follows the `users` column, not the practitioner one.
+ * `marketing` is the multi-portal round's addition (plan section 1.4).
+ */
 export type UserTipe =
     | 'pasien'
     | 'dokter'
     | 'perawat'
-    | 'bidan'
     | 'apoteker'
+    | 'kurir'
     | 'admin'
-    | 'superadmin';
+    | 'superadmin'
+    | 'marketing';
 
 /** `users.status`, the four-value ENUM at `telemedicine_test.sql:140`. */
 export type UserStatus =
@@ -448,7 +456,7 @@ export type StatusBooking =
  * `booking.dibatalkan_oleh` ENUM('pasien','dokter','sistem') at `:517`.
  *
  * Nullable, and only ever set together with `status = 'dibatalkan'`.
- * `BookingService::dibatalkanOleh()` maps the seven `users.tipe` values onto exactly these
+ * `BookingService::dibatalkanOleh()` maps the eight `users.tipe` values onto exactly these
  * three, so the column is closed even though its input is not.
  */
 export type DibatalkanOleh = 'pasien' | 'dokter' | 'sistem';
@@ -572,7 +580,7 @@ export type TipeKonsultasi = 'chat' | 'video_call' | 'telepon';
  * `konsultasi_chat.pengirim_tipe`, the three-value ENUM at
  * `telemedicine_test.sql:567`.
  *
- * Not `users.tipe`, which is a seven-value ENUM at `:139`: `KonsultasiService::kirim()`
+ * Not `users.tipe`, which is an eight-value ENUM at `:139`: `KonsultasiService::kirim()`
  * derives this from which PROFILE row the caller owns, so a `superadmin` who is
  * party to nothing is refused and never reaches a value here.
  */
@@ -1149,7 +1157,7 @@ export type TujuanAkses =
 /**
  * `users.tipe` as the access log publishes it in `peran`.
  *
- * Seven values, exactly `docs/enums.json`'s `users.tipe` and
+ * Eight values, exactly `docs/enums.json`'s `users.tipe` and
  * `AksesRekamMedisResource`'s own list. This is deliberately NOT {@link UserTipe},
  * which is a broader union used elsewhere and does not mirror the generated dump.
  * The access log publishes the KIND of account that opened the record, never the
@@ -1162,7 +1170,8 @@ export type PeranAkses =
     | 'apoteker'
     | 'kurir'
     | 'admin'
-    | 'superadmin';
+    | 'superadmin'
+    | 'marketing';
 
 /**
  * One `akses_rekam_medis_log` row from `GET /api/v1/rekam-medis/{id}/akses`,

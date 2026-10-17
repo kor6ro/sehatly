@@ -662,7 +662,7 @@ for (const viewport of VIEWPORTS) {
             await masukPalsu(page);
             const catatan = await pasangMock(page, { halamanTerakhir: 2 });
 
-            await page.goto('/admin/dokter');
+            await page.goto('/admin/dokter?portal=admin');
 
             const baris = page.locator('[data-slot="admin-dokter-row"]');
             await expect(baris).toHaveCount(7);
@@ -707,7 +707,7 @@ for (const viewport of VIEWPORTS) {
             await masukPalsu(page);
             const catatan = await pasangMock(page);
 
-            await page.goto('/admin/dokter');
+            await page.goto('/admin/dokter?portal=admin');
 
             const baris = page.locator(
                 '[data-slot="admin-dokter-row"][data-dokter-id="1"]',
@@ -758,7 +758,7 @@ for (const viewport of VIEWPORTS) {
                 await route.fallback();
             });
 
-            await page.goto('/admin/dokter/1');
+            await page.goto('/admin/dokter/1?portal=admin');
 
             const tombol = page.locator('[data-slot="admin-nonaktif-dokter"]');
 
@@ -792,6 +792,16 @@ for (const viewport of VIEWPORTS) {
             await expect(page.getByText('Status dokter diperbarui.')).toBeVisible();
             await expect(page.locator('body')).toContainText('Nonaktif');
 
+            /**
+             * The toast is transient (sonner fades it out), and axe measures a node
+             * mid-dismiss at its reduced opacity - a contrast violation the settled page
+             * does not have, and one that made this check timing-dependent on machine
+             * load. The a11y property is asserted on the page AFTER the toast is gone.
+             */
+            await expect(
+                page.getByText('Status dokter diperbarui.'),
+            ).toBeHidden({ timeout: 10_000 });
+
             await expectNoA11yViolations(page);
         });
 
@@ -801,7 +811,7 @@ for (const viewport of VIEWPORTS) {
             await masukPalsu(page);
             const catatan = await pasangMock(page);
 
-            await page.goto('/admin/dokter/1?tab=jadwal');
+            await page.goto('/admin/dokter/1?tab=jadwal&portal=admin');
 
             await page.getByRole('button', { name: 'Tambah jadwal' }).first().click();
 
@@ -863,7 +873,7 @@ for (const viewport of VIEWPORTS) {
             await masukPalsu(page);
             await pasangMock(page, { postJadwalStatus: 422 });
 
-            await page.goto('/admin/dokter/1?tab=jadwal');
+            await page.goto('/admin/dokter/1?tab=jadwal&portal=admin');
 
             await page.getByRole('button', { name: 'Tambah jadwal' }).first().click();
 
@@ -899,7 +909,7 @@ for (const viewport of VIEWPORTS) {
             const opsi: OpsiMock = { liburDuplikat: true };
             const catatan = await pasangMock(page, opsi);
 
-            await page.goto('/admin/dokter/1?tab=libur');
+            await page.goto('/admin/dokter/1?tab=libur&portal=admin');
 
             const panel = page.locator('[aria-label="Libur dokter"]');
             await expect(panel).toBeVisible();
@@ -936,7 +946,7 @@ for (const viewport of VIEWPORTS) {
             await masukPalsu(page);
             const catatan = await pasangMock(page, { deleteJadwalStatus: 422 });
 
-            await page.goto('/admin/dokter/1?tab=jadwal');
+            await page.goto('/admin/dokter/1?tab=jadwal&portal=admin');
 
             const terisi = page.locator(
                 '[data-slot="admin-jadwal-row"][data-booking-aktif="3"]',
@@ -987,7 +997,7 @@ for (const viewport of VIEWPORTS) {
             await masukPalsu(page);
             const catatan = await pasangMock(page);
 
-            await page.goto('/admin/dokter');
+            await page.goto('/admin/dokter?portal=admin');
 
             const tiga = [
                 'dr. Dedi Kurniawan',
@@ -1072,7 +1082,7 @@ for (const viewport of VIEWPORTS) {
             await masukPalsu(page);
             const catatan = await pasangMock(page, { peringatanLedger: true });
 
-            await page.goto('/admin/laporan');
+            await page.goto('/admin/laporan?portal=admin');
 
             const kartu = page.locator('[data-slot="card-title"]');
 
@@ -1135,7 +1145,7 @@ for (const viewport of VIEWPORTS) {
             await masukPalsu(page);
             const catatan = await pasangMock(page);
 
-            await page.goto('/admin/audit-log');
+            await page.goto('/admin/audit-log?portal=admin');
 
             const barisMasked = page
                 .locator('[data-slot="admin-audit-row"]')
@@ -1190,14 +1200,20 @@ for (const viewport of VIEWPORTS) {
             await expectNoA11yViolations(page);
         });
 
-        test('AC-11 rbac: 403 -> ForbiddenState, tanpa tautan klinis, tanpa nav admin', async ({
+        test('AC-11 rbac: 403 -> ForbiddenState, dengan nav portal admin sendiri', async ({
             page,
         }) => {
             await masukPalsu(page);
             await pasangMock(page, { auditStatus: 403 });
 
-            await page.goto('/admin/audit-log');
+            await page.goto('/admin/audit-log?portal=admin');
 
+            /**
+             * The data-level refusal is unchanged by the portal split: the account IS
+             * an admin (so `RequirePortalAuth` admits it), the API answers 403 for the
+             * endpoint, and the page renders `ForbiddenState` - defence in depth behind
+             * the route-level guard.
+             */
             await expect(page.locator('[data-slot="forbidden-state"]')).toBeVisible();
             await expect(
                 page.getByText('Anda tidak memiliki izin untuk membuka halaman ini.'),
@@ -1206,13 +1222,13 @@ for (const viewport of VIEWPORTS) {
             await bukaNavigasiMobile(page, viewport.width);
 
             /**
-             * The shell renders the patient menu for an `admin` account now, so the
-             * clinical groups are absent for the same reason they always were here
-             * (the role holds no `rekam_medis.lihat`/`resep.lihat`), and the admin
-             * destinations are absent for the new reason: the practitioner and clinic
-             * entrances are held back from the sidebar until they get a door of their
-             * own. The route itself still answers the `tipe:` guard - this test is on
-             * `/admin/audit-log`, and the 403 above is the server's own.
+             * The sidebar is now the ADMIN portal's own menu, not the patient product:
+             * the practitioner entrances live on this subdomain's table (Steps 9-13),
+             * so the clinical groups are still absent for the same reason they always
+             * were here (the role holds no `rekam_medis.lihat`/`resep.lihat`), while
+             * the admin destinations are present for the new reason - this portal IS
+             * the admin door. The patient-only destinations are gone from this portal
+             * altogether.
              */
             await expect(
                 page.getByRole('link', { name: 'Rekam medis' }),
@@ -1220,39 +1236,57 @@ for (const viewport of VIEWPORTS) {
             await expect(page.getByRole('link', { name: 'Resep' })).toHaveCount(0);
 
             await expect(
-                page.getByRole('link', { name: 'Jejak audit' }),
-            ).toHaveCount(0);
+                page.getByRole('link', { name: 'Audit log' }),
+            ).toBeVisible();
             await expect(
                 page.getByRole('link', { name: 'Persetujuan PDP' }),
-            ).toHaveCount(0);
+            ).toBeVisible();
+            await expect(page.getByRole('link', { name: 'Laporan' })).toBeVisible();
 
-            // ...and the drawer really did open, rather than the two counts above
-            // passing because nothing rendered: the two destinations every `users.tipe`
-            // may open are on screen.
+            // ...and the drawer really did open, rather than the counts above
+            // passing because nothing rendered: the patient destinations that no
+            // longer exist on this portal stay absent.
+            await expect(page.getByRole('link', { name: 'Dashboard' })).toHaveCount(
+                0,
+            );
             await expect(
-                page.getByRole('link', { name: 'Dashboard' }).first(),
-            ).toBeVisible();
-            await expect(
-                page.getByRole('link', { name: 'Direktori dokter' }).first(),
-            ).toBeVisible();
+                page.getByRole('link', { name: 'Direktori dokter' }),
+            ).toHaveCount(0);
         });
 
-        test('AC-11b non-admin tidak melihat navigasi admin', async ({ page }) => {
+        test('AC-11b non-admin di portal admin mendapat halaman salah portal', async ({
+            page,
+        }) => {
             await masukPalsu(page);
-            await pasangMock(page, { user: BUKAN_ADMIN });
+            const catatan = await pasangMock(page, { user: BUKAN_ADMIN });
 
-            await page.goto('/admin/audit-log');
+            await page.goto('/admin/audit-log?portal=admin');
 
-            await expect(page.locator('[data-slot="forbidden-state"]')).toBeVisible();
-
-            await bukaNavigasiMobile(page, viewport.width);
+            /**
+             * The multi-portal contract replaces the in-page refusal: `/me` says
+             * `apoteker`, so `RequirePortalAuth` never mounts the workspace - the
+             * answer is the Halodoc-style "not found" page with a way home to the
+             * apotek portal, and the admin API is never asked at all.
+             */
+            await expect(
+                page.getByText('Halaman tidak ditemukan'),
+            ).toBeVisible();
+            await expect(page.getByText('Halaman ini tidak tersedia')).toBeVisible();
+            await expect(page.locator('[data-slot="forbidden-state"]')).toHaveCount(0);
 
             await expect(
-                page.getByRole('link', { name: 'Jejak audit' }),
-            ).toHaveCount(0);
+                page.getByRole('link', { name: 'Kembali ke beranda' }),
+            ).toHaveAttribute('href', /apotek\.sehatly\.test/);
+
             await expect(
                 page.getByRole('link', { name: 'Persetujuan PDP' }),
             ).toHaveCount(0);
+            await expect(page.getByRole('link', { name: 'Audit log' })).toHaveCount(0);
+
+            const panggilanAudit = catatan.permintaan.filter(
+                (item) => item.path === '/api/v1/admin/audit-log',
+            );
+            expect(panggilanAudit).toHaveLength(0);
         });
 
         test('AC-12 offline: banner, semua tulis disabled, isi sheet tetap, pulih + refetch', async ({
@@ -1262,7 +1296,7 @@ for (const viewport of VIEWPORTS) {
             await masukPalsu(page);
             const catatan = await pasangMock(page);
 
-            await page.goto('/admin/dokter/1?tab=jadwal');
+            await page.goto('/admin/dokter/1?tab=jadwal&portal=admin');
 
             await page.getByRole('button', { name: 'Tambah jadwal' }).first().click();
 
@@ -1315,7 +1349,7 @@ for (const viewport of VIEWPORTS) {
             await masukPalsu(page);
             await pasangMock(page);
 
-            await page.goto('/admin/dokter');
+            await page.goto('/admin/dokter?portal=admin');
 
             await expectNoA11yViolations(page);
 
@@ -1332,13 +1366,13 @@ for (const viewport of VIEWPORTS) {
 
             await tinggiAksiSetidaknya44(page);
 
-            await page.goto('/admin/dokter/1');
+            await page.goto('/admin/dokter/1?portal=admin');
             await expectNoA11yViolations(page);
 
-            await page.goto('/admin/laporan');
+            await page.goto('/admin/laporan?portal=admin');
             await expectNoA11yViolations(page);
 
-            await page.goto('/admin/audit-log');
+            await page.goto('/admin/audit-log?portal=admin');
             await expectNoA11yViolations(page);
         });
 
@@ -1348,7 +1382,7 @@ for (const viewport of VIEWPORTS) {
             await masukPalsu(page);
             await pasangMock(page);
 
-            await page.goto('/admin/dokter');
+            await page.goto('/admin/dokter?portal=admin');
 
             const baris = page.locator(
                 '[data-slot="admin-dokter-row"][data-dokter-id="1"]',
@@ -1362,7 +1396,7 @@ for (const viewport of VIEWPORTS) {
 
             await expect(page.getByText('Status dokter diperbarui.')).toBeVisible();
 
-            await page.goto('/admin/dokter/1?tab=jadwal');
+            await page.goto('/admin/dokter/1?tab=jadwal&portal=admin');
 
             await page.getByRole('button', { name: 'Tambah jadwal' }).first().click();
 
@@ -1374,7 +1408,7 @@ for (const viewport of VIEWPORTS) {
                 sheet.getByText('1 jadwal disimpan sebagai Draf.'),
             ).toBeVisible();
 
-            await page.goto('/admin/dokter/1');
+            await page.goto('/admin/dokter/1?portal=admin');
 
             await expect(page.getByText(STR_MASKED).first()).toBeVisible();
 
@@ -1400,7 +1434,7 @@ for (const viewport of VIEWPORTS) {
             await masukPalsu(page);
             await pasangMock(page);
 
-            await page.goto('/admin/dokter/1?tab=jadwal');
+            await page.goto('/admin/dokter/1?tab=jadwal&portal=admin');
 
             const baris = page.locator('[data-slot="admin-jadwal-row"]').first();
             await expect(baris).toContainText('08.00–12.00 WIB');

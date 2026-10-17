@@ -925,6 +925,18 @@ for (const vp of VIEWPORTS) {
             await tutupDrawer(page, vp);
 
             await page.locator('[data-slot="notifikasi-filter-unread"]').click();
+
+            /**
+             * The active filter repaints through a CSS color transition, and axe
+             * samples the INTERPOLATED color if it runs mid-transition - flagging the
+             * very button that passes once settled. The property under test is the
+             * page's contrast, not the animation's, so the transition is waited out.
+             */
+            await expect(
+                page.locator('[data-slot="notifikasi-filter-unread"]'),
+            ).toHaveAttribute('aria-pressed', 'true');
+            await page.waitForTimeout(300);
+
             await expectNoA11yViolations(page);
 
             for (const sasaran of [

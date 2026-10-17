@@ -312,6 +312,7 @@ export const LABEL_PERAN_AKSES: Readonly<Record<PeranAkses, string>> = {
     kurir: 'Kurir',
     admin: 'Admin',
     superadmin: 'Superadmin',
+    marketing: 'Marketing',
 };
 
 /**

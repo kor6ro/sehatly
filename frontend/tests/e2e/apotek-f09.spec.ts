@@ -321,7 +321,7 @@ test.describe('F09 antrean apoteker: daftar', () => {
             await page.unroute('**/api/v1/**');
             await pasangMock(page);
 
-            await page.goto('/apotek/resep');
+            await page.goto('/apotek/resep?portal=apotek');
 
             const baris = page.locator('[data-slot="antrean-resep-item"]');
 
@@ -378,7 +378,7 @@ test.describe('F09 antrean apoteker: daftar', () => {
             await page.unroute('**/api/v1/**');
             const pegangan = await pasangMock(page);
 
-            await page.goto('/apotek/resep');
+            await page.goto('/apotek/resep?portal=apotek');
 
             await expect(page.locator('[data-slot="antrean-resep-item"]')).toHaveCount(
                 2,
@@ -434,7 +434,7 @@ test.describe('F09 antrean apoteker: daftar', () => {
             await page.unroute('**/api/v1/**');
             await pasangMock(page);
 
-            await page.goto('/apotek/resep');
+            await page.goto('/apotek/resep?portal=apotek');
 
             await expect(page.locator('[data-slot="antrean-resep-item"]')).toHaveCount(
                 2,
@@ -451,7 +451,7 @@ test.describe('F09 antrean apoteker: daftar', () => {
             await expect(daftar).not.toContainText(NAMA_PASIEN);
             await expect(daftar).not.toContainText('7F3A-9K2D');
 
-            await expect(page).toHaveURL(/\/apotek\/resep$/);
+            await expect(page).toHaveURL(/\/apotek\/resep(\?.*)?$/);
             await expect(page).not.toHaveTitle(/RSP-|Amoxicillin/);
         }
     });
@@ -466,7 +466,7 @@ test.describe('F09 antrean apoteker: state', () => {
             await page.unroute('**/api/v1/**');
             await pasangMock(page, { mode: 'lambat' });
 
-            await page.goto('/apotek/resep');
+            await page.goto('/apotek/resep?portal=apotek');
 
             await expect(
                 page.locator('[data-slot="antrean-verifikasi"] .animate-pulse').first(),
@@ -487,7 +487,7 @@ test.describe('F09 antrean apoteker: state', () => {
             await page.unroute('**/api/v1/**');
             const pegangan = await pasangMock(page, { mode: 'kosong' });
 
-            await page.goto('/apotek/resep');
+            await page.goto('/apotek/resep?portal=apotek');
 
             const kosong = page.locator('[data-slot="empty-state"]');
 
@@ -530,7 +530,7 @@ test.describe('F09 antrean apoteker: state', () => {
             const opsi: OpsiMock = { mode: 'gagal' };
             const pegangan = await pasangMock(page, opsi);
 
-            await page.goto('/apotek/resep');
+            await page.goto('/apotek/resep?portal=apotek');
 
             await expect(page.locator('[data-slot="error-state"]')).toBeVisible({
                 timeout: 15_000,
@@ -567,7 +567,7 @@ test.describe('F09 antrean apoteker: state', () => {
 
             await page.unroute('**/api/v1/**');
             await pasangMock(page, { mode: 'terlarang' });
-            await page.goto('/apotek/resep');
+            await page.goto('/apotek/resep?portal=apotek');
 
             await expect(page.locator('[data-slot="forbidden-state"]')).toBeVisible();
             await expect(
@@ -576,7 +576,7 @@ test.describe('F09 antrean apoteker: state', () => {
 
             await page.unroute('**/api/v1/**');
             await pasangMock(page, { mode: 'hilang' });
-            await page.goto('/apotek/resep');
+            await page.goto('/apotek/resep?portal=apotek');
 
             await expect(page.locator('[data-slot="not-found-state"]')).toBeVisible();
             await expect(page.locator('[data-slot="not-found-state"]')).toContainText(
@@ -592,7 +592,7 @@ test.describe('F09 antrean apoteker: state', () => {
         await page.unroute('**/api/v1/**');
         await pasangMock(page);
 
-        await page.goto('/apotek/resep');
+        await page.goto('/apotek/resep?portal=apotek');
 
         await expect(page.locator('[data-slot="antrean-resep-item"]')).toHaveCount(2);
 
@@ -623,7 +623,7 @@ test.describe('F09 antrean apoteker: baris ke detail', () => {
             await page.unroute('**/api/v1/**');
             await pasangMock(page);
 
-            await page.goto('/apotek/resep');
+            await page.goto('/apotek/resep?portal=apotek');
 
             const baris = page
                 .locator('[data-slot="antrean-resep-item"]')
@@ -639,8 +639,8 @@ test.describe('F09 antrean apoteker: baris ke detail', () => {
                 NAMA_OBAT,
             );
 
-            // The id stays out of the URL.
-            await expect(page).toHaveURL(/\/apotek\/resep$/);
+            // The id stays out of the URL (`?portal=` is the e2e origin's portal selector).
+            await expect(page).toHaveURL(/\/apotek\/resep(\?.*)?$/);
 
             await expectNoA11yViolations(page);
 
@@ -677,7 +677,7 @@ test.describe('F09 antrean apoteker: rekaman visual', () => {
 
             await page.unroute('**/api/v1/**');
             await pasangMock(page);
-            await page.goto('/apotek/resep');
+            await page.goto('/apotek/resep?portal=apotek');
             await expect(page.locator('[data-slot="antrean-resep-item"]')).toHaveCount(
                 2,
             );
@@ -699,7 +699,7 @@ test.describe('F09 antrean apoteker: rekaman visual', () => {
 
             await page.unroute('**/api/v1/**');
             await pasangMock(page, { mode: 'kosong' });
-            await page.goto('/apotek/resep');
+            await page.goto('/apotek/resep?portal=apotek');
             await expect(page.locator('[data-slot="empty-state"]')).toBeVisible();
             await page.screenshot({
                 path: path.join(direktori, `kosong-${lebar}.png`),
@@ -708,7 +708,7 @@ test.describe('F09 antrean apoteker: rekaman visual', () => {
 
             await page.unroute('**/api/v1/**');
             await pasangMock(page, { mode: 'gagal' });
-            await page.goto('/apotek/resep');
+            await page.goto('/apotek/resep?portal=apotek');
             await expect(page.locator('[data-slot="error-state"]')).toBeVisible({
                 timeout: 15_000,
             });
