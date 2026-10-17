@@ -94,9 +94,10 @@ function sktUser(string $nama, string $tipe = 'pasien'): int
 /**
  * A user carrying `$role`, or carrying NO role at all.
  *
- * `perawat` and `kurir` are real `users.tipe` values (telemedicine_test.sql:139) that
- * hold no role in `RbacCatalog::ROLES`, so a helper that always assigned one would
- * make the only two account types a `permission:` gate locks out untestable.
+ * `perawat` is a real `users.tipe` value (telemedicine_test.sql:139) that holds no
+ * role in `RbacCatalog::ROLES` - since the multi-portal round gave `kurir` and
+ * `marketing` roles it is the ONLY such value - so a helper that always assigned one
+ * would make the account type a `permission:` gate locks out untestable.
  */
 function sktPengguna(string $tipe, ?string $role = null): User
 {
@@ -742,7 +743,7 @@ test('every DDL line number cited by this todo is the line it claims to be', fun
         // Reached through the second hop.
         134 => 'uuid CHAR(36) NOT NULL UNIQUE',
         135 => 'nama_lengkap VARCHAR(150) NOT NULL',
-        139 => "tipe ENUM('pasien','dokter','perawat','apoteker','kurir','admin','superadmin') NOT NULL DEFAULT 'pasien'",
+        139 => "tipe ENUM('pasien','dokter','perawat','apoteker','kurir','admin','superadmin','marketing') NOT NULL DEFAULT 'pasien'",
         // Was `nik CHAR(16) NULL UNIQUE` until migration
         // `2026_10_01_000079` renamed the column to `nik_cipher` and widened it to
         // `TEXT`, dropping the inline `UNIQUE` - a `TEXT` column cannot carry an
@@ -861,16 +862,19 @@ test('every guard this todo writes resolves against the RBAC catalogue', functio
     expect(RbacCatalog::permissionsFor('dokter'))->toContain('surat_keterangan.buat')
         ->and(RbacCatalog::permissionsFor('admin'))->not->toContain('surat_keterangan.buat');
 
-    // `perawat` and `kurir` are real `users.tipe` values that hold NO role, so any
-    // `permission:` locks them out of the create permanently. The DDL makes the gap
+    // `perawat` is a real `users.tipe` value that holds NO role, so any
+    // `permission:` locks it out of the create permanently. The DDL makes the gap
     // sharper: `pasien_tanda_vital.sumber` is `ENUM('mandiri','dokter','perawat',
     // 'iot_device')` at :325, so this schema gives a nurse a clinical role of her
     // own while the RBAC vocabulary gives her no grant that could let her write a
     // letter. Reported as a data change in `app/Support/Rbac/`, not fixed here.
+    // (`kurir` and `marketing` gained roles in the multi-portal round; `perawat` is
+    // now the only ENUM value without one - asserted below.)
     expect(RbacCatalog::isUserType('perawat'))->toBeTrue()
         ->and(RbacCatalog::isUserType('kurir'))->toBeTrue()
         ->and(RbacCatalog::isRole('perawat'))->toBeFalse()
-        ->and(RbacCatalog::isRole('kurir'))->toBeFalse();
+        ->and(RbacCatalog::isRole('kurir'))->toBeTrue()
+        ->and(RbacCatalog::isRole('marketing'))->toBeTrue();
 });
 
 // =====================================================================
@@ -1380,15 +1384,18 @@ test('perawat and kurir are refused, and the reason is the permission they hold 
     $account = sktDoctorAccount();
     $sesi = sktKonsultasi($account['pasien'], $account['dokter']);
 
-    // Both are real `users.tipe` values (:139) that hold NO role, so `permission:`
-    // answers 403 for them permanently. This is a real gap rather than a correct
-    // refusal and it is reported: the DDL gives a nurse a clinical role of her own
+    // Both are real `users.tipe` values (:139) and both are refused at the
+    // `permission:` gate for reasons the catalogue itself supplies: `perawat` holds
+    // no role at all (since the multi-portal round it is the only such type), while
+    // `kurir` carries its real portal role, whose three grants are delivery-side and
+    // contain no `surat_keterangan.buat`. The nurse's refusal is the reported gap
+    // rather than a correct one: the DDL gives a nurse a clinical role of her own
     // (`pasien_tanda_vital.sumber` at :325 includes `perawat`), so this schema lets a
     // nurse write vital signs while the RBAC vocabulary gives her no grant that could
     // let her write a letter. The fix is a data change in `app/Support/Rbac/` plus a
     // re-seed, and it is not this todo's to make.
-    foreach (['perawat', 'kurir'] as $tipe) {
-        $akun = sktPengguna($tipe);
+    foreach (['perawat' => null, 'kurir' => 'kurir'] as $tipe => $role) {
+        $akun = sktPengguna($tipe, $role);
 
         expect($akun->tipe)->toBe($tipe);
 

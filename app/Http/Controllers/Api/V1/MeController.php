@@ -37,7 +37,7 @@ use Illuminate\Http\Request;
  *
  * ## `pasien` and `dokter` are mutually exclusive in practice, and both are optional
  *
- * `users.tipe` is a seven-value ENUM (`:139`) and only `pasien` and `dokter` own one of
+ * `users.tipe` is an eight-value ENUM (`:139`) and only `pasien` and `dokter` own one of
  * these two rows, so a caller normally has exactly one. Nothing enforces that: an account
  * with neither - a `perawat`, a `kurir`, an `admin` - is a legitimate caller of `/me` and
  * gets `null` for both, and an account with both would get both. **`/me` therefore never

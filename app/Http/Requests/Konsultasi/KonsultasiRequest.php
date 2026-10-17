@@ -68,9 +68,10 @@ abstract class KonsultasiRequest extends FormRequest
      * `KonsultasiChat.pengirim_tipe` ENUM at `telemedicine_test.sql:567`, in the DDL's
      * own order.
      *
-     * **This three-value column is not `users.tipe`, which is a seven-value ENUM at
-     * `:139`.** Four of those seven - `perawat`, `apoteker`, `kurir`, `admin` - have
-     * no name in this list, and MySQL answers an unstoreable value in strict mode
+     * **This three-value column is not `users.tipe`, which is an eight-value ENUM at
+     * `:139`.** Six of those eight - `perawat`, `apoteker`, `kurir`, `admin`,
+     * `superadmin`, `marketing` - have no name in this list, and MySQL answers an
+     * unstoreable value in strict mode
      * with 1264, so copying `users.tipe` into this column is a 500 on a legitimate
      * write rather than a wrong label. The value written is therefore the SIDE the
      * caller is party to, derived from which profile row it owns; the reasoning is

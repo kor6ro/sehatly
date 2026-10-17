@@ -369,36 +369,49 @@ test.describe('Module 2 booking', () => {
         });
     });
 
-    test('the doctor-side list is a 403 capability refusal, not a retryable error', async ({
+    test('a patient on the doctor portal gets the wrong-portal page, and the doctor API is never called', async ({
         page,
     }) => {
         await daftarDanMasuk(page, { nama: 'Pasien E2E Booking' });
         await catatConsentWajib(page);
 
-        const [respons] = await Promise.all([
-            page.waitForResponse((r) =>
-                r.url().includes('/api/v1/dokter/booking'),
-            ),
-            page.goto('/dokter/booking'),
-        ]);
+        const panggilanDokter: string[] = [];
 
-        expect(respons.status()).toBe(403);
+        page.on('request', (r) => {
+            if (r.url().includes('/api/v1/dokter/booking')) {
+                panggilanDokter.push(r.url());
+            }
+        });
 
-        await expect(
-            page.getByText('Akun ini tidak berhak'),
-        ).toBeVisible();
+        await page.goto('/dokter/booking?portal=dokter');
 
         /**
-         * `ErrorState` withholds its retry button for a 403 because no retry can change
-         * the answer. Asserting its absence is what separates a capability refusal from a
-         * transient failure in the UI.
+         * The multi-portal contract replaces the old in-page 403: `/dokter/booking` is
+         * registered on the DOCTOR portal's table, and `RequirePortalAuth` reads
+         * `/me` - which says `pasien` - before any page or API for the workspace is
+         * reached. The answer is the Halodoc-style "not found" with a way home, and
+         * the doctor's list endpoint is never asked, so there is no 403 to render and
+         * no retry to withhold. The server-side capability refusal itself stays
+         * covered by the API tests.
          */
+        await expect(
+            page.getByText('Halaman tidak ditemukan'),
+        ).toBeVisible();
+        await expect(page.getByText('Halaman ini tidak tersedia')).toBeVisible();
+
+        await expect(
+            page.getByRole('link', { name: 'Kembali ke beranda' }),
+            // A pasien's home is the PATIENT portal: the root domain, no prefix.
+        ).toHaveAttribute('href', /^https?:\/\/sehatly\.test\/$/);
+
         await expect(
             page.getByRole('button', { name: 'Coba lagi' }),
         ).toHaveCount(0);
 
+        expect(panggilanDokter).toHaveLength(0);
+
         await page.screenshot({
-            path: 'playwright-report/booking-dokter-403.png',
+            path: 'playwright-report/booking-pasien-di-portal-dokter.png',
             fullPage: true,
         });
     });

@@ -80,7 +80,7 @@ const BKU_BIAYA = '150000.00';
  * A `users` row. `uuid` (:133), `nama_lengkap` (:135), `no_telepon` (:137) and
  * `kata_sandi_hash` (:138) are the four NOT NULL columns with no default.
  * `status` is `aktif` (:140) so nothing here is ever excluded on the ACCOUNT's
- * state, and `tipe` is the seven-value ENUM at :139.
+ * state, and `tipe` is the eight-value ENUM at :139.
  */
 function bkuUser(string $nama, string $tipe = 'pasien'): int
 {
@@ -1101,11 +1101,11 @@ test('a booking that is already over cannot be cancelled', function (): void {
     }
 });
 
-test('dibatalkan_oleh is drawn from users.tipe and is total over the seven ENUM values', function (): void {
+test('dibatalkan_oleh is drawn from users.tipe and is total over the eight ENUM values', function (): void {
     // `RbacCatalog::ROLES` is asserted to be a strict subset of `users.tipe`
     // precisely because `dibatalkan_oleh` is drawn from `users.tipe`. The mapping
-    // is total over the seven `tipe` values: the two account types that can own a
-    // booking map to themselves and the remaining five map to `sistem`, which is
+    // is total over the eight `tipe` values: the two account types that can own a
+    // booking map to themselves and the remaining six map to `sistem`, which is
     // the only third value the ENUM offers.
     foreach (RbacCatalog::USER_TYPES as $tipe) {
         expect(BookingService::dibatalkanOleh($tipe))->toBeIn(['pasien', 'dokter', 'sistem']);
@@ -1118,6 +1118,7 @@ test('dibatalkan_oleh is drawn from users.tipe and is total over the seven ENUM 
         ->and(BookingService::dibatalkanOleh('apoteker'))->toBe('sistem')
         ->and(BookingService::dibatalkanOleh('perawat'))->toBe('sistem')
         ->and(BookingService::dibatalkanOleh('kurir'))->toBe('sistem')
+        ->and(BookingService::dibatalkanOleh('marketing'))->toBe('sistem')
         // Total, not partial: a value outside the ENUM still answers, because a
         // missing entry must not become a `null` that MySQL 1264 would reject.
         ->and(BookingService::dibatalkanOleh('tipe-yang-tidak-ada'))->toBe('sistem');

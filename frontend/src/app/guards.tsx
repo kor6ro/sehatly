@@ -1,6 +1,12 @@
+import { useQuery } from '@tanstack/react-query';
 import { Link, Navigate, Outlet, useLocation, useSearchParams } from 'react-router';
+import { meOptions } from '@/lib/api/me';
 import { getAccessToken } from '@/lib/token';
+import { PORTAL_TIPE, type Portal } from '@/lib/portal';
+import { PortalSalahPage } from '@/app/portal-states';
 import { EmptyState } from '@/components/states/empty-state';
+import { ErrorState } from '@/components/states/error-state';
+import { LoadingState, SkeletonRows } from '@/components/states/loading-state';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
 
@@ -120,4 +126,96 @@ export function NotFoundPage() {
             />
         </main>
     );
+}
+
+/**
+ * `RequirePortalAuth` - the gate for the five staff portals (plan section 2.4), and the
+ * reason the two guards can coexist rather than one replacing the other.
+ *
+ * ## Why the staff portals ask `/me` and the patient portal does not
+ *
+ * `RequireAuth` above answers "is there a session" from local state, deliberately. That
+ * is the right question on the patient portal, where every `tipe` may legitimately land
+ * (`/dashboard` reads the account's own profile; a fresh shell account is mid-sign-up)
+ * and the per-screen 403s already gate the patient-record endpoints.
+ *
+ * A staff portal is the opposite: its ENTIRE route table is one role's workspace, so
+ * "which `tipe` is this session" is not a server-side question to defer - it is the
+ * question that decides whether this bundle should render at all. The answer can only
+ * come from the server (`GET /me`, cached 60s by `meOptions`), never from a flag stored
+ * in localStorage: a client that trusted its own copy would show the admin workspace to
+ * anybody who edited it, and the real guard remains the `tipe:`/`permission:` middleware
+ * on every API route behind these screens.
+ *
+ * ## Why a guest is sent to `/login` and not shown the error page
+ *
+ * Plan section 2.4's redirect, and the right call: `/login` is a PUBLIC route of every
+ * portal by design (that is where a wrong-portal visitor gets the chance to sign in
+ * with the right account), so forwarding a guest there leaks nothing. The Halodoc-style
+ * page below is for the one case a redirect cannot answer - the session is valid and
+ * STILL refused.
+ *
+ * ## Why the refusal says "not found" and offers a way home
+ *
+ * The plan's `ForbiddenState` spelled out the portal's allowed `tipe`. That wording
+ * turns a refusal into a hint about which accounts the portal wants; the version the
+ * user chose instead - `PortalSalahPage` - answers as a 404 would, while still giving
+ * the signed-in visitor a working "Kembali ke beranda" to their own portal. The tipe is
+ * read from `/me` here and passed along only to compute that exit.
+ *
+ * `/profil/edit/:userId` sits inside this guard but OUTSIDE `AppShell`, exactly as on
+ * the patient portal: a staff account that also wants to be a patient completes the
+ * one-door form, and the dialog's post-verify navigation (`/` for a finished account)
+ * resolves to `PORTAL_HOME` on every portal - so no path through here dead-ends.
+ */
+export function RequirePortalAuth({ portal }: { portal: Portal }) {
+    const location = useLocation();
+    const me = useQuery(meOptions());
+
+    if (getAccessToken() === null) {
+        /**
+         * The deep link is carried in `state.from` for the same reason `RequireAuth`
+         * carries it, even though today's single-door dialog always resumes at `/`:
+         * the state is the router's own record of where the visitor was headed, and
+         * dropping it here would make the guard the one screen that forgets.
+         */
+        return (
+            <Navigate
+                to="/login"
+                replace
+                state={{ from: location.pathname + location.search }}
+            />
+        );
+    }
+
+    if (me.isPending) {
+        /**
+         * A named, announced wait rather than a blank frame - the same reasoning as
+         * every `LoadingState` in the app, applied to the one screen that can be
+         * reached before a single portal request has answered.
+         */
+        return (
+            <LoadingState label="Memeriksa akun...">
+                <SkeletonRows rows={4} />
+            </LoadingState>
+        );
+    }
+
+    if (me.isError) {
+        /**
+         * A transport-level failure, not a refusal: the 401 path in `lib/http.ts`
+         * refreshes or signs out before react-query sees it, so what reaches here is a
+         * network or server error - which gets the same status words and retry as
+         * anywhere else rather than a portal answer it has no basis to give.
+         */
+        return <ErrorState error={me.error} />;
+    }
+
+    const tipe = me.data?.data.user?.tipe;
+
+    if (!PORTAL_TIPE[portal].includes(tipe ?? '')) {
+        return <PortalSalahPage portal={portal} tipe={tipe} />;
+    }
+
+    return <Outlet />;
 }

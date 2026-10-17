@@ -317,7 +317,7 @@ for (const viewport of VIEWPORTS) {
             await masukPalsu(page);
             const catatan = await pasangMock(page);
 
-            await page.goto('/admin/hero');
+            await page.goto('/admin/hero?portal=admin');
 
             const barisLokator = page.locator('[data-testid="admin-hero-daftar"] > li');
             await expect(barisLokator).toHaveCount(3);
@@ -351,7 +351,7 @@ for (const viewport of VIEWPORTS) {
             await masukPalsu(page);
             const catatan = await pasangMock(page);
 
-            await page.goto('/admin/hero');
+            await page.goto('/admin/hero?portal=admin');
 
             const barisLokator = page.locator('[data-testid="admin-hero-daftar"] > li');
             await expect(barisLokator.first()).toContainText('Draf');
@@ -388,7 +388,7 @@ for (const viewport of VIEWPORTS) {
             await masukPalsu(page);
             const catatan = await pasangMock(page);
 
-            await page.goto('/admin/hero');
+            await page.goto('/admin/hero?portal=admin');
 
             await page.getByTestId('admin-hero-baru').click();
 
@@ -438,7 +438,7 @@ for (const viewport of VIEWPORTS) {
             await masukPalsu(page);
             await pasangMock(page, { postStatus: 422 });
 
-            await page.goto('/admin/hero');
+            await page.goto('/admin/hero?portal=admin');
 
             await page.getByTestId('admin-hero-baru').click();
 
@@ -486,7 +486,7 @@ for (const viewport of VIEWPORTS) {
             await masukPalsu(page);
             const catatan = await pasangMock(page);
 
-            await page.goto('/admin/hero');
+            await page.goto('/admin/hero?portal=admin');
 
             const barisLokator = page.locator('[data-testid="admin-hero-daftar"] > li');
             await barisLokator.first().getByRole('button', { name: 'Ubah' }).click();
@@ -547,7 +547,7 @@ for (const viewport of VIEWPORTS) {
             await masukPalsu(page);
             const catatan = await pasangMock(page);
 
-            await page.goto('/admin/hero');
+            await page.goto('/admin/hero?portal=admin');
 
             const barisLokator = page.locator('[data-testid="admin-hero-daftar"] > li');
             await expect(barisLokator).toHaveCount(3);

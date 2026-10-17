@@ -54,7 +54,7 @@ use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
  * | the id does not exist | **404** | the same answer as "not yours", so the two are indistinguishable |
  *
  * `admin` and `superadmin` are the oversight allowance. `RekamMedisRead::PETUGAS`
- * is read from `users.tipe`'s seven-value ENUM (:139) and both names are members,
+ * is read from `users.tipe`'s eight-value ENUM (:139) and both names are members,
  * so the list cannot name an account type the schema does not have.
  */
 final class RekamMedisAccess
@@ -129,9 +129,10 @@ final class RekamMedisAccess
         }
 
         // Neither profile row, and not an oversight type: the refusal is about the
-        // caller. `apoteker`, `perawat` and `kurir` all land here, and they all hold
-        // no role in `RbacCatalog::ROLES` so no `permission:` gate could have let
-        // them through either.
+        // caller. `apoteker`, `perawat` and `kurir` all land here, and none holds a
+        // `rekam_medis.*` grant - perawat no role at all, kurir the delivery portal
+        // role, apoteker's role pharmacy-side - so no `permission:` gate could have
+        // let them through either.
         if ($pasien === null && $dokter === null) {
             throw new AccessDeniedHttpException('Rekam medis hanya dapat diakses oleh pasien, dokter, atau petugas.');
         }
@@ -190,10 +191,12 @@ final class RekamMedisAccess
      * - `audit` - an oversight account.
      *
      * `klaim` and `kepentingan_hukum` have NO producer, and that is a DDL fact
-     * rather than an omission: `RbacCatalog::USER_TYPES` holds seven `users.tipe`
+     * rather than an omission: `RbacCatalog::USER_TYPES` holds eight `users.tipe`
      * values (:139) and not one of them is a claims officer or a legal officer, so
      * there is no account this application can authenticate that would deserve
-     * either value. Inventing an eighth `tipe` is a DDL change, which is forbidden.
+     * either value. Inventing a claims or legal `tipe` is a DDL change, which is
+     * forbidden - the multi-portal round's `marketing` (the eighth value) is the
+     * shape such a change takes: a migration plus the reference line in step.
      *
      * The value is DERIVED and never supplied by the wire, which is a deliberate
      * departure from the plan's `log(int $rekamMedisId, User $accessor, string

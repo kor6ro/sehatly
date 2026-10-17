@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\BuatDokterRequest;
 use App\Http\Requests\Admin\IndexAdminDokterRequest;
 use App\Http\Requests\Admin\StatusDokterRequest;
 use App\Http\Requests\Admin\VerifikasiDokterRequest;
@@ -84,6 +85,24 @@ class AdminDokterController extends Controller
     public function __construct(
         private readonly AdminDokterService $dokter,
     ) {}
+
+    /**
+     * `POST /api/v1/admin/dokter`
+     *
+     * Creates a `users` row (`tipe: dokter`, `status: aktif`) and a `dokter` row
+     * in one transaction, then assigns the `dokter` role. The new account starts
+     * `status_verifikasi: pending`; the admin verifies through the dedicated
+     * `PUT /admin/dokter/{id}/verifikasi` endpoint.
+     */
+    public function store(BuatDokterRequest $request): JsonResponse
+    {
+        $dokter = $this->dokter->buat($request->validated());
+
+        return ApiResponse::success([
+            'dokter' => new AdminDokterResource($dokter),
+            'dampak' => $this->dokter->dampak($dokter),
+        ], 'Akun dokter berhasil dibuat.', Response::HTTP_CREATED);
+    }
 
     /**
      * `GET /api/v1/admin/dokter`

@@ -1285,31 +1285,44 @@ test('notifikasi is READ-ONLY from a clients perspective, and no request can wri
 // The guards, one at a time
 // =====================================================================
 
-test('a nurse and a courier are refused by permission:notifikasi.lihat, and the consent routes are ungated by design', function (): void {
-    // `notifikasi.lihat` is granted to all FIVE roles and to no sixth, so
-    // `perawat` and `kurir` - real `users.tipe` values (`:139`) that hold NO role
-    // in `RbacCatalog::ROLES` - are permanently locked out of these three
-    // routes. That is a real gap, it is asserted rather than described, and
-    // the fix is a data change in `RbacCatalog` plus a re-seed, not a code
-    // change. The alternative - dropping the guard - would make the only
-    // permission code naming this action decorative, and would put the allowlist
-    // in a controller where it could not be revoked.
-    foreach (['perawat', 'kurir'] as $tipe) {
-        $user = pd47User('Peran '.$tipe, $tipe);
+test('a nurse is refused by permission:notifikasi.lihat while a roled courier passes, and the consent routes are ungated by design', function (): void {
+    // `notifikasi.lihat` is held by every one of the SEVEN roles in
+    // `RbacCatalog::ROLES`, so `perawat` - the one real `users.tipe` (`:139`) with
+    // no role at all - is the only account these three routes lock out. That gap is
+    // asserted rather than described, and the fix is a data change in `RbacCatalog`
+    // plus a re-seed, not a code change. The alternative - dropping the guard -
+    // would make the only permission code naming this action decorative, and would
+    // put the allowlist in a controller where it could not be revoked.
+    //
+    // This test originally refused `perawat` AND `kurir`, and said the courier's
+    // lockout was a gap whose fix would be exactly such a data change. Multi-portal
+    // Section 1.3 (`docs/update-plan-pilihan-a.md`) made that change, so the courier half
+    // is now pinned from the passing side: a courier carrying the real role reads
+    // the centre, which is what the portal's assignment notifications are for.
+    $perawat = pd47User('Peran perawat', 'perawat');
 
-        expect($user->getKey())->toBeInt();
+    expect($perawat->getKey())->toBeInt();
 
-        pd47As($user)->getJson('/api/v1/notifikasi')->assertStatus(403)
-            ->assertJsonPath('message', 'This action is unauthorized.');
+    pd47As($perawat)->getJson('/api/v1/notifikasi')->assertStatus(403)
+        ->assertJsonPath('message', 'This action is unauthorized.');
 
-        pd47As($user)->putJson('/api/v1/notifikasi/1/baca')->assertStatus(403);
-        pd47As($user)->putJson('/api/v1/notifikasi/baca-semua')->assertStatus(403);
+    pd47As($perawat)->putJson('/api/v1/notifikasi/1/baca')->assertStatus(403);
+    pd47As($perawat)->putJson('/api/v1/notifikasi/baca-semua')->assertStatus(403);
 
-        // The CONSENT routes are not gated, and the same two account types may
-        // read the catalogue, read and record their OWN consent. Consent belongs
-        // to a person whoever that person is at work, and
-        // `persetujuan_pdp.user_id` (`:1136`) is a `users` foreign key, not a
-        // `pasien` one.
+    $kurir = pd47User('Peran kurir', 'kurir', 'kurir');
+
+    expect(RbacCatalog::permissionsFor('kurir'))->toContain('notifikasi.lihat');
+
+    pd47As($kurir)->getJson('/api/v1/notifikasi')->assertOk();
+
+    // The CONSENT routes are not gated, and the same two account types may
+    // read the catalogue, read and record their OWN consent. Consent belongs
+    // to a person whoever that person is at work, and
+    // `persetujuan_pdp.user_id` (`:1136`) is a `users` foreign key, not a
+    // `pasien` one.
+    foreach (['perawat' => $perawat, 'kurir' => $kurir] as $tipe => $user) {
+        expect($user->tipe)->toBe($tipe);
+
         pd47As($user)->getJson('/api/v1/pdp/dokumen')
             ->assertOk()
             ->assertJsonPath('meta.total', 5);
@@ -1325,10 +1338,12 @@ test('a nurse and a courier are refused by permission:notifikasi.lihat, and the 
         ])->assertCreated();
     }
 
-    // The four roles that DO hold `notifikasi.lihat` pass, and `dokter` and
-    // `apoteker` are on the list because the catalogue puts them there - a
-    // doctor's booking and prescription notifications are real.
-    foreach (['pasien', 'dokter', 'apoteker', 'admin', 'superadmin'] as $role) {
+    // Every role in the catalogue holds `notifikasi.lihat` - all seven of them since
+    // the multi-portal round - so this loop walks `RbacCatalog::ROLES` in full and
+    // doubles as the tripwire that the centre stays reachable for every portal. The
+    // doctors and pharmacists on it are not decoration: a doctor's booking and
+    // prescription notifications are real.
+    foreach (RbacCatalog::ROLES as $role) {
         $user = pd47User('Pemegang '.$role, $role, $role);
 
         expect(RbacCatalog::permissionsFor($role))->toContain('notifikasi.lihat');

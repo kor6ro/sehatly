@@ -88,7 +88,7 @@ const SLOT_TANGGAL_HARI_LAIN = '2026-12-08'; // Tuesday, hari = 2
 */
 
 /**
- * A `users` row. `tipe` is the seven-value ENUM at `:139`; `status` is `aktif`
+ * A `users` row. `tipe` is the eight-value ENUM at `:139`; `status` is `aktif`
  * (`:140`) so no test is ever excluding a doctor on the *account's* state.
  */
 function slotUser(string $nama, string $tipe = 'dokter'): int

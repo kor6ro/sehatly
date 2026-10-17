@@ -48,11 +48,11 @@ use Symfony\Component\HttpFoundation\Response;
  *    asked for. This is the same reasoning `AuthController`'s docblock gives for
  *    omitting `permission:` and `tipe:` from all eight of its routes.
  * 2. **It would lock out two real account types.** `perawat` and `kurir` are
- *    `users.tipe` ENUM values (`:139`) that hold **no role** in
- *    `RbacCatalog::ROLES` (`:152`-`:158`) and therefore no grant through
- *    `role_permissions` at all. `RbacCatalog`'s own docblock says so and points at
- *    todos 20/21/22 as the place that has to decide whether they need permissions.
- *    A `permission:dokter.lihat` gate answers 403 for a `perawat` who is trying to
+ *    `users.tipe` ENUM values (`:139`) that hold no `dokter.lihat` grant: `perawat`
+ *    has **no role** in `RbacCatalog::ROLES` (`:152`-`:158`) at all, and `kurir`'s
+ *    multi-portal role carries only the delivery codes. `RbacCatalog`'s own
+ *    docblock records the nurse as the one account type the policy never speaks
+ *    for. A `permission:dokter.lihat` gate answers 403 for a `perawat` who is trying to
  *    read the public directory, and no data change can fix that while the gate is
  *    written on the route.
  *
@@ -64,7 +64,7 @@ use Symfony\Component\HttpFoundation\Response;
  * bypass the two eligibility rules that service exists to enforce.
  *
  * A third option was considered and rejected: gating only the *detail* endpoint.
- * `dokter.lihat` and `dokter.profil` (`:207`) are both held by all five roles, so
+ * `dokter.lihat` and `dokter.profil` (`:207`) are both held by five of the seven roles, so
  * gating the detail endpoint would still exclude `perawat` and `kurir`, and it would
  * break the plan's own todo 23 requirement that both clients render a doctor's
  * profile.

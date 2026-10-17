@@ -656,7 +656,7 @@ test('the ENUM catalogue in the document is exactly docs/enums.json', function (
     // well-known columns, read out of the document.
     expect($enums['booking.status'])->toContain('menunggu_pembayaran');
     expect($enums['booking.status'])->toContain('kadaluarsa');
-    expect($enums['users.tipe'])->toHaveCount(7);
+    expect($enums['users.tipe'])->toHaveCount(8);
 });
 
 test('request bodies are the live FormRequest rules, with closed sets as real enums', function () use ($document) {

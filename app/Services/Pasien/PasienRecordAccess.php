@@ -92,9 +92,10 @@ use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
  * step 1 and be refused with a 403 anyway - so the service is load-bearing regardless,
  * and two gates answering one question is one more thing to keep in sync.
  *
- * `perawat` and `kurir` are real `users.tipe` values that hold **no** role, so any
- * `permission:` code would permanently lock those two account types out of every route
- * carrying it. That is not this todo's problem - neither type owns a `pasien` row - but
+ * `perawat` and `kurir` are real `users.tipe` values that hold **none** of the
+ * codes on these routes (`perawat` no role at all, `kurir` the delivery portal
+ * role), so a `permission:` here would permanently lock those two account types out.
+ * That is not this todo's problem - neither type owns a `pasien` row - but
  * it is why the rule is a data check rather than a grant.
  */
 final class PasienRecordAccess

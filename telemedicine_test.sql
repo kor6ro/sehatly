@@ -136,7 +136,7 @@ CREATE TABLE users (
   email VARCHAR(255) NULL UNIQUE,
   no_telepon VARCHAR(20) NOT NULL UNIQUE,
   kata_sandi_hash VARCHAR(255) NOT NULL COMMENT 'bcrypt/argon2',
-  tipe ENUM('pasien','dokter','perawat','apoteker','kurir','admin','superadmin') NOT NULL DEFAULT 'pasien',
+  tipe ENUM('pasien','dokter','perawat','apoteker','kurir','admin','superadmin','marketing') NOT NULL DEFAULT 'pasien',
   status ENUM('pending_verifikasi','aktif','nonaktif','ditangguhkan') NOT NULL DEFAULT 'pending_verifikasi',
   foto_profil VARCHAR(500) NULL,
   bahasa ENUM('id','en') NOT NULL DEFAULT 'id',

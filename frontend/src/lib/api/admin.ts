@@ -1,5 +1,6 @@
-import { queryOptions } from '@tanstack/react-query';
+import { mutationOptions, queryOptions } from '@tanstack/react-query';
 import { request } from '@/lib/http';
+import { queryClient } from '@/lib/query-client';
 import type { Decimal, Iso, Tanggal } from '@/lib/api/types';
 
 /**
@@ -615,5 +616,40 @@ export function adminLaporanKehadiranOptions(
     return queryOptions({
         queryKey: [...adminLaporanQueryKey, 'kehadiran', range],
         queryFn: () => fetchLaporanKehadiran(range),
+    });
+}
+
+// ============================================================================
+// Buat dokter
+// ============================================================================
+
+export type BuatDokterInput = {
+    nama_lengkap: string;
+    no_telepon: string;
+    email?: string | null;
+    kata_sandi: string;
+    tipe: 'dokter_umum' | 'dokter_spesialis' | 'dokter_gigi' | 'psikolog' | 'bidan' | 'perawat' | 'apoteker';
+    nomor_str: string;
+    str_berlaku_sampai: string;
+    nomor_sip?: string | null;
+    sip_berlaku_sampai?: string | null;
+    pengalaman_tahun?: number | null;
+    biaya_konsultasi_online?: number | null;
+};
+
+export async function buatDokter(input: BuatDokterInput) {
+    return request<{ dokter: AdminDokter; dampak: AdminDampak }>('admin/dokter', {
+        method: 'POST',
+        json: input,
+        retry: 0,
+    });
+}
+
+export function buatDokterMutation() {
+    return mutationOptions({
+        mutationFn: buatDokter,
+        onSuccess: () => {
+            void queryClient.invalidateQueries({ queryKey: adminDokterQueryKey });
+        },
     });
 }

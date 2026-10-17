@@ -284,7 +284,9 @@ test('every account type but dokter is refused both routes with the 403 envelope
     // cannot be explained by a missing grant: `superadmin` holds BOTH codes
     // (`RbacCatalog::ROLE_PERMISSIONS`) and is still refused, which is what
     // makes `tipe:dokter` load-bearing rather than a restatement of the
-    // permission gate. `pasien`, `perawat` and `kurir` hold no role at all.
+    // permission gate. `pasien`, `perawat` and `kurir` hold neither code: pasien's
+    // role grants neither, perawat has no role at all, and kurir's portal role is
+    // delivery-side.
     foreach (['pasien' => null, 'perawat' => null, 'apoteker' => 'apoteker', 'kurir' => null, 'admin' => 'admin', 'superadmin' => 'superadmin'] as $tipe => $peran) {
         $orang = rx39Pengguna($tipe, $peran);
 

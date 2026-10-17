@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 /**
- * Seeds the RBAC kernel: 5 roles, 28 permissions and their 77 role/permission
+ * Seeds the RBAC kernel: 7 roles, 33 permissions and their 90 role/permission
  * grants.
  *
  * ## None of this data is in `telemedicine_test.sql`
@@ -35,9 +35,9 @@ use RuntimeException;
  *
  * | Table | Contract | Consequence for this seeder |
  * | --- | --- | --- |
- * | `roles` | `:152-154`, `id SMALLINT UNSIGNED AUTO_INCREMENT`, `nama VARCHAR(50) NOT NULL UNIQUE`, `deskripsi VARCHAR(255) NULL` | 5 rows, no timestamps |
- * | `permissions` | `:158-160`, `id SMALLINT UNSIGNED AUTO_INCREMENT`, `kode VARCHAR(100) NOT NULL UNIQUE`, `nama VARCHAR(100) NOT NULL` | 27 rows, `kode` and `nama` both mandatory |
- * | `role_permissions` | `:164-168`, composite `PRIMARY KEY (role_id, permission_id)`, **no `id`**, both FKs `ON DELETE CASCADE` | 75 rows of exactly the pair |
+ * | `roles` | `:152-154`, `id SMALLINT UNSIGNED AUTO_INCREMENT`, `nama VARCHAR(50) NOT NULL UNIQUE`, `deskripsi VARCHAR(255) NULL` | 7 rows, no timestamps |
+ * | `permissions` | `:158-160`, `id SMALLINT UNSIGNED AUTO_INCREMENT`, `kode VARCHAR(100) NOT NULL UNIQUE`, `nama VARCHAR(100) NOT NULL` | 33 rows, `kode` and `nama` both mandatory |
+ * | `role_permissions` | `:164-168`, composite `PRIMARY KEY (role_id, permission_id)`, **no `id`**, both FKs `ON DELETE CASCADE` | 90 rows of exactly the pair |
  *
  * **None of the three has `dibuat_at` or `diubah_at`.** Passing timestamps here would
  * be MySQL 1054 on all three, so this seeder inserts bare column sets and the models
@@ -47,7 +47,7 @@ use RuntimeException;
  *
  * `role_permissions` needs `role_id` and `permission_id`, and both are looked up from
  * `roles.nama` and `permissions.kode` after the inserts rather than assumed to be
- * 1..5 and 1..27. An `AUTO_INCREMENT` that does not start at 1 - a re-seed into a
+ * 1..7 and 1..33. An `AUTO_INCREMENT` that does not start at 1 - a re-seed into a
  * populated database, a restore from a dump - would otherwise write grants that point
  * at the wrong role, and nothing would fail. The lookups throw rather than inserting a
  * dangling id.
@@ -75,7 +75,7 @@ use RuntimeException;
  * | --- | --- | --- |
  * | `roles` | `upsert` keyed on `nama`, updating `deskripsi` only | a duplicate `nama` is **not** proof of a correct row - the `deskripsi` beside it can be stale, and a seeder that leaves stale admin-facing copy in place while reporting success is worse than one that repairs it |
  * | `permissions` | `upsert` keyed on `kode`, updating `nama` only | same, and `nama` is *derived* from `kode` by {@see RbacCatalog::displayNameFor()}, so a mismatch is drift by definition |
- * | `role_permissions` | `insertOrIgnore` | the row is nothing but its own composite primary key. A duplicate pair therefore means "already granted" and there is no third column that *could* be updated; writing the two key columns back to the values they already hold would be pure churn across 75 rows |
+ * | `role_permissions` | `insertOrIgnore` | the row is nothing but its own composite primary key. A duplicate pair therefore means "already granted" and there is no third column that *could* be updated; writing the two key columns back to the values they already hold would be pure churn across 90 rows |
  *
  * **Neither upsert touches `id`.** `role_permissions` and `user_roles` both
  * reference `roles.id`, and `user_roles` is the one table this seeder tree never
@@ -154,6 +154,28 @@ use RuntimeException;
  * medicine search "is doctor-only (`tipe:dokter`)", so granting a pharmacist drug
  * lookup would assert a consumer the plan does not name. Flagged, not filled.
  *
+ * **`kurir` (3 grants)** - the multi-portal round's courier portal (§1.3 of
+ * `docs/update-plan-pilihan-a.md`). `pesanan.antar` and `pesanan.update` are the §5.2
+ * delivery endpoints' own codes: `PUT /kurir/pesanan/{id}/ambil` and `.../antar` will
+ * carry `tipe:kurir` + `permission:pesanan.antar`, and no route guards either code
+ * today. `notifikasi.lihat` is the assignment ping the portal's notification centre
+ * needs, on the same footing as every other role's. `pesanan.lihat` from the plan's
+ * §1.3 list is deliberately NOT granted: §5.2's own endpoint table says
+ * "`GET /pesanan-obat/{id}` ... Tidak - kurir tidak punya `pesanan.lihat`", and F46
+ * pins that refusal at `routes/api.php:1272` - the courier reads its parcels through
+ * the planned `/kurir/*` routes, not through the patient's order read. Where the
+ * plan's two sections disagree, the one written against the live routes wins; the
+ * deviation is recorded here and in `RbacCatalog` rather than papered over.
+ *
+ * **`marketing` (5 grants)** - the marketing portal (§5.3). `artikel.kelola`,
+ * `promo.kelola` and `laporan.marketing` are the three surfaces §5.3 names for
+ * `MarketingArtikelController`/`MarketingPromoController`; `promo.kelola` is a
+ * different code from `promo.validasi` on purpose (that one is the patient's checkout
+ * validation, not content management), and `laporan.marketing` is not `laporan.lihat`
+ * (F14's admin report). `notifikasi.lihat` is the shared centre. `dokter.lihat` is the
+ * directory read every role but the courier's already holds, so the portal can browse
+ * the doctors its campaigns reference. **No clinical write**, exactly like `admin`.
+ *
  * **`admin` (13 grants)** - `promo.validasi` and `pdp.kelola` are the two
  * administrative registries, and `audit.lihat` is separated from everything clinical
  * on purpose: the plan's own audit-log acceptance criterion argues that widening
@@ -172,7 +194,7 @@ use RuntimeException;
  * not a clinician, and giving the role clinical write would put a write-capable
  * grant on the account type that can read the audit log.
  *
- * **`superadmin` (all 28)** - written out in full, not computed, so the seeded table
+ * **`superadmin` (all 33)** - written out in full, not computed, so the seeded table
  * *is* the policy and can be read without running code. There is no code-level
  * bypass anywhere in the middleware; see {@see RbacCatalog}.
  */
@@ -201,7 +223,7 @@ class RbacSeeder extends Seeder
     }
 
     /**
-     * The 5 `roles` rows, with their `deskripsi`.
+     * The 7 `roles` rows, with their `deskripsi`.
      *
      * `deskripsi` is `VARCHAR(255) NULL` and every description here is well inside
      * that; they are written in Indonesian because the rest of the seeded master
@@ -228,7 +250,7 @@ class RbacSeeder extends Seeder
     }
 
     /**
-     * The 27 `permissions` rows.
+     * The 33 `permissions` rows.
      *
      * Both columns are `NOT NULL` and `kode` is `UNIQUE`, so a duplicate or a null
      * label is a MySQL error rather than a silent bad row. Each `nama` is

@@ -661,7 +661,7 @@ async function bukaDasbor(page: Page): Promise<State> {
 
     const state = await pasangMock(page);
 
-    await page.goto('/dokter/dashboard');
+    await page.goto('/dokter/dashboard?portal=dokter');
 
     await expect(page.locator('[data-slot="f13-antrean"]')).toBeVisible();
 
@@ -869,7 +869,7 @@ for (const vp of VIEWPORTS) {
                 new RegExp(`/konsultasi/${KONSULTASI_AKTIF}$`),
             );
 
-            await page.goto('/dokter/dashboard');
+            await page.goto('/dokter/dashboard?portal=dokter');
 
             await expect(page.locator('[data-slot="f13-antrean"]')).toBeVisible();
 
@@ -928,7 +928,7 @@ for (const vp of VIEWPORTS) {
 
             const state = await pasangMock(page, { terimaStatus: 422 });
 
-            await page.goto('/dokter/dashboard');
+            await page.goto('/dokter/dashboard?portal=dokter');
 
             await expect(page.locator('[data-slot="f13-menunggu"]')).toBeVisible();
 
@@ -1004,7 +1004,7 @@ for (const vp of VIEWPORTS) {
 
             const state = await pasangMock(page, { bookings: [] });
 
-            await page.goto('/dokter/dashboard');
+            await page.goto('/dokter/dashboard?portal=dokter');
 
             await expect(
                 page.getByText(new RegExp(`Belum ada booking pada`)),
@@ -1070,7 +1070,7 @@ for (const vp of VIEWPORTS) {
 
             const state = await pasangMock(page);
 
-            await page.goto('/dokter/dashboard');
+            await page.goto('/dokter/dashboard?portal=dokter');
 
             await expect(page.locator('[data-slot="f13-menunggu"]')).toBeVisible();
 

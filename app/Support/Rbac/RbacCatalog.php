@@ -29,15 +29,15 @@ use LogicException;
  * ## Every `tipe` value here is read from the DDL, not chosen
  *
  * `telemedicine_test.sql:139` is
- * `tipe ENUM('pasien','dokter','perawat','apoteker','kurir','admin','superadmin') NOT NULL DEFAULT 'pasien'`
- * on the `users` table, so {@see USER_TYPES} is those seven values in that order.
- * **Two of them - `perawat` and `kurir` - have no role in {@see ROLES}**, because the
- * plan's todo 4 names exactly five roles and inventing a sixth and seventh would be
- * inventing policy. The consequence is recorded rather than papered over: a
- * `perawat` or `kurir` account exists in the schema, can authenticate, and holds
- * no role at all, so it is authorised by `tipe:` only and by no `permission:`.
- * Todos 20/21/22 must decide whether those two account types need permissions; the
- * answer is a data change in this file plus a re-seed, not a code change.
+ * `tipe ENUM('pasien','dokter','perawat','apoteker','kurir','admin','superadmin','marketing') NOT NULL DEFAULT 'pasien'`
+ * on the `users` table, so {@see USER_TYPES} is those eight values in that order.
+ * **One of them - `perawat` - has no role in {@see ROLES}**, because the plan's todo 4
+ * named five roles and the multi-portal round (§1.3 of `docs/update-plan-pilihan-a.md`)
+ * added `kurir` and `marketing`, leaving the nurse the one account type the policy
+ * never speaks for. The consequence is recorded rather than papered over: a `perawat`
+ * account exists in the schema, can authenticate, and holds no role at all, so it is
+ * authorised by `tipe:` only and by no `permission:`. Whether it needs permissions is
+ * a data change in this file plus a re-seed, not a code change.
  *
  * `RbacCatalogTest` re-parses `telemedicine_test.sql` with the project's own
  * {@see SqlSchemaParser} - the same parser
@@ -55,7 +55,7 @@ use LogicException;
  * `superadmin_web` would be a second, conflicting vocabulary. `RbacCatalogTest`
  * asserts the subset property so that adding an off-DDL role name fails the suite.
  *
- * ## Every permission code is a plan-named action, plus three owner-approved additions
+ * ## Every permission code is a plan-named action, plus owner-approved additions
  *
  * The first 24 codes in {@see PERMISSIONS} are the 23 listed by the plan's own todo 4
  * ("covering at minimum: `booking.buat`, ...") plus `resep.verifikasi`, which the
@@ -91,8 +91,8 @@ use LogicException;
  * `PUT /dokter/ulasan/{id}/balas` lets a doctor answer a review of their own, and the
  * owner's F04 decision authorises adding a code when none fits. None does: the only
  * candidate close in name was `dokter.profil` ("Profil Dokter"), and it is held by
- * ALL FIVE roles including `pasien`, so reusing it on a write would silently widen a
- * grant that every account holds and leave only the `tipe:dokter` party gate between
+ * five of the seven roles including `pasien`, so reusing it on a write would silently widen a
+ * grant those five hold and leave only the `tipe:dokter` party gate between
  * a patient and a public reply - the exact failure mode F14's block in
  * `routes/api.php` rejected for its own writes. `ulasan.balas` ("Balas Ulasan") is
  * granted to `dokter` and `superadmin`, following the same one-rule mapping every
@@ -111,6 +111,25 @@ use LogicException;
  * `/admin`, and the public read (`GET /hero`) carries no code at all: it is content
  * for a signed-out visitor, exactly like `GET /master-spesialisasi`.
  *
+ * **The five multi-portal codes (29th-33rd) name the two new portals' own actions.**
+ * §1.3 of `docs/update-plan-pilihan-a.md` appends `pesanan.antar` ("Antar Pesanan") and
+ * `pesanan.update` ("Update Pesanan") for the courier portal's §5.2 delivery routes,
+ * plus `artikel.kelola` ("Kelola Artikel"), `promo.kelola` ("Kelola Promo") and
+ * `laporan.marketing` ("Marketing Laporan" - {@see displayNameFor()} puts the action
+ * first, so the plan's prose spelling "Laporan Marketing" is not what the rule
+ * produces, and the derived label wins because it is the one the test checks) for the
+ * marketing portal's §5.3 ones. All five are APPENDED for the same reason as every
+ * addition above: the seeded `permissions` ids of the original catalogue stay in
+ * catalogue order, which `RbacCatalogTest` compares.
+ *
+ * `pesanan.lihat` was considered for `kurir` and deliberately NOT granted. §5.2's own
+ * endpoint table says "`GET /pesanan-obat/{id}` | `permission:pesanan.lihat` | Tidak -
+ * kurir tidak punya `pesanan.lihat`", and F46's contract pins that refusal
+ * (`routes/api.php:1272`): the courier's parcels arrive through the planned
+ * `tipe:kurir` + `permission:pesanan.antar` routes instead. The plan's §1.3 grant list
+ * and its §5.2 table disagree with each other; this catalogue follows the table, which
+ * is the one written against the live routes.
+ *
  * The two verbs a developer is most likely to reach for instead are deliberately
  * **absent**: `booking.create` and `booking.cancel` are not codes. `EnsurePermission`
  * treats an unknown code as a programming error and fails with 500, so a route
@@ -120,16 +139,17 @@ use LogicException;
  * ## `permissions.nama` is derived, not authored
  *
  * `permissions.nama` is `VARCHAR(100) NOT NULL` (`:160`), so a label must exist, but
- * no label is authoritative anywhere. Rather than hand-writing 27 of them and
+ * no label is authoritative anywhere. Rather than hand-writing 33 of them and
  * risking a typo that ships to an admin screen, {@see displayNameFor()} derives each
  * one from its code with one rule - the action first, then the resource, both
  * title-cased and underscores turned into spaces - and `RbacCatalogTest` asserts
  * that every value in {@see PERMISSIONS} equals `displayNameFor()` of its own key.
  * A hand-typed label that drifts from the rule therefore fails the suite.
  *
- * The rule produces mildly awkward Indonesian in two places (`pembayaran.bayar` ->
- * "Bayar Pembayaran", `pdp.kelola` -> "Kelola PDP"). That is accepted deliberately:
- * a consistent mechanical label that is slightly stiff beats 26 hand-written labels
+ * The rule produces mildly awkward Indonesian in three places (`pembayaran.bayar` ->
+ * "Bayar Pembayaran", `pdp.kelola` -> "Kelola PDP", `laporan.marketing` ->
+ * "Marketing Laporan"). That is accepted deliberately:
+ * a consistent mechanical label that is slightly stiff beats 33 hand-written labels
  * with no rule behind them, and these strings are admin-facing labels, not
  * user-facing copy.
  *
@@ -149,12 +169,12 @@ use LogicException;
  *   medicine search "is doctor-only (`tipe:dokter`)". A pharmacist verifying a
  *   prescription will plausibly need drug lookup; the plan does not say so, so the
  *   narrow reading was taken and this is flagged for the pharmacy todos.
- * - `perawat` and `kurir` hold nothing, as described above.
+ * - `perawat` holds nothing, as described above.
  *
  * ## `superadmin` has no code-level bypass
  *
  * `EnsurePermission` contains no "if the user is a superadmin, allow everything"
- * branch. `superadmin` is instead granted all 27 permissions explicitly in
+ * branch. `superadmin` is instead granted all 33 permissions explicitly in
  * {@see ROLE_PERMISSIONS}, and `RbacCatalogTest` asserts that it holds exactly the
  * whole catalogue. A hidden bypass would make every permission revocable in name
  * only - `audit.lihat` would look granted in `role_permissions` and be
@@ -164,7 +184,7 @@ use LogicException;
 final class RbacCatalog
 {
     /**
-     * The seven `users.tipe` values, verbatim from `telemedicine_test.sql:139` and
+     * The eight `users.tipe` values, verbatim from `telemedicine_test.sql:139` and
      * in the DDL's order.
      *
      * @var list<string>
@@ -177,6 +197,10 @@ final class RbacCatalog
         'kurir',
         'admin',
         'superadmin',
+        // Multi-portal (docs/update-plan-pilihan-a.md §1.4): the marketing portal's
+        // account type, appended last so MySQL's ENUM indices of the original seven
+        // do not move. Migraton 000089 applies the same member in the same position.
+        'marketing',
     ];
 
     /**
@@ -184,13 +208,18 @@ final class RbacCatalog
      *
      * Note the plan's todo 4 cites `telemedicine_test.sql:137` for `users.tipe`;
      * **that citation is wrong** - `:137` is `no_telepon VARCHAR(20) NOT NULL UNIQUE`
-     * and the ENUM is at `:139`. The count of seven values is right. See
-     * `.omo/evidence/task-4-sehatly.md`.
+     * and the ENUM is at `:139`. Seven values was the count when todo 4 was written;
+     * the multi-portal round appended `marketing` inside the same line (§1.4 of
+     * `docs/update-plan-pilihan-a.md`), so the line - and the list above - now carry
+     * eight. See `.omo/evidence/task-4-sehatly.md`.
      */
     public const DDL_USER_TYPES_LINE = 'telemedicine_test.sql:139';
 
     /**
-     * The five roles, each of which is a member of {@see USER_TYPES}.
+     * The seven roles, each of which is a member of {@see USER_TYPES}.
+     *
+     * `perawat` is the one DDL value with no role: the plan's todo 4 named five, and
+     * the multi-portal round added `kurir` and `marketing`.
      *
      * @var list<string>
      */
@@ -198,6 +227,8 @@ final class RbacCatalog
         'pasien',
         'dokter',
         'apoteker',
+        'kurir',
+        'marketing',
         'admin',
         'superadmin',
     ];
@@ -211,12 +242,14 @@ final class RbacCatalog
         'pasien' => 'Akun pasien: memesan, membayar, dan membaca data miliknya sendiri.',
         'dokter' => 'Akun dokter: menjalankan konsultasi dan menulis rekam medis serta resep.',
         'apoteker' => 'Akun apoteker: memverifikasi resep dan memantau pesanan obat.',
+        'kurir' => 'Akun kurir: mengambil dan mengantarkan pesanan obat.',
+        'marketing' => 'Akun marketing: mengelola konten artikel dan promosi.',
         'admin' => 'Akun admin operasional: mengelola promo, PDP, dan audit.',
-        'superadmin' => 'Akun(super)administrator dengan seluruh 27 izin.',
+        'superadmin' => 'Akun(super)administrator dengan seluruh 33 izin.',
     ];
 
     /**
-     * The 28 permission codes and their derived display names.
+     * The 33 permission codes and their derived display names.
      *
      * Keys are `permissions.kode VARCHAR(100) NOT NULL UNIQUE` (`:159`); values are
      * `permissions.nama VARCHAR(100) NOT NULL` (`:160`). Every value must equal
@@ -224,8 +257,9 @@ final class RbacCatalog
      * `RbacCatalogTest` assertion that enforces it.
      *
      * `laporan.lihat` is F14's owner-approved addition, `pasien.kelola` is F01's,
-     * `ulasan.balas` is F04's and `hero.kelola` is the landing hero's; every other
-     * row is plan-named. See the class docblock. Each addition is APPENDED, so the
+     * `ulasan.balas` is F04's, `hero.kelola` is the landing hero's, and the last five
+     * are the multi-portal round's (§1.3 of `docs/update-plan-pilihan-a.md`); every
+     * other row is plan-named. See the class docblock. Each addition is APPENDED, so the
      * seeded `permissions` ids of the original catalogue stay stable.
      *
      * @var array<string, string>
@@ -259,6 +293,14 @@ final class RbacCatalog
         'pasien.kelola' => 'Kelola Pasien',
         'ulasan.balas' => 'Balas Ulasan',
         'hero.kelola' => 'Kelola Hero',
+        // Multi-portal (docs/update-plan-pilihan-a.md §1.3), appended so the seeded
+        // ids above stay put. Display names are derived, so `laporan.marketing` reads
+        // "Marketing Laporan" (action first) rather than the plan's prose order.
+        'pesanan.antar' => 'Antar Pesanan',
+        'pesanan.update' => 'Update Pesanan',
+        'artikel.kelola' => 'Kelola Artikel',
+        'promo.kelola' => 'Kelola Promo',
+        'laporan.marketing' => 'Marketing Laporan',
     ];
 
     /**
@@ -318,6 +360,27 @@ final class RbacCatalog
             'pesanan.lihat',
             'notifikasi.lihat',
         ],
+        // Multi-portal §1.3: the courier's three. `pesanan.antar` and `pesanan.update`
+        // are the §5.2 delivery endpoints' own codes (no route guards them yet) and
+        // `notifikasi.lihat` is the assignment ping. `pesanan.lihat` from the plan's
+        // §1.3 list is deliberately ABSENT - F46's order read refuses the courier and
+        // §5.2's own table says so in as many words. See the class docblock.
+        'kurir' => [
+            'pesanan.antar',
+            'pesanan.update',
+            'notifikasi.lihat',
+        ],
+        // Multi-portal §1.3: the marketing portal's five. `dokter.lihat` lets the
+        // portal browse the directory it advertises; `promo.kelola` is NOT
+        // `promo.validasi` (that one is the patient's checkout validation) and
+        // `laporan.marketing` is NOT `laporan.lihat` (that one is F14's admin report).
+        'marketing' => [
+            'artikel.kelola',
+            'promo.kelola',
+            'laporan.marketing',
+            'notifikasi.lihat',
+            'dokter.lihat',
+        ],
         'admin' => [
             'jadwal.lihat',
             'booking.lihat',
@@ -370,11 +433,16 @@ final class RbacCatalog
             // F01's support path: correcting a patient's registered phone number
             // is patient-data administration, and no other code names it.
             'pasien.kelola',
-            // F04's reply grant, then the landing hero's. Both are appended LAST so
-            // this list order still equals `permissionCodes()` exactly, which
-            // `RbacCatalogTest` asserts.
+            // F04's reply grant, then the landing hero's, then the five multi-portal
+            // codes. All are appended in catalogue order so this list still equals
+            // `permissionCodes()` exactly, which `RbacCatalogTest` asserts.
             'ulasan.balas',
             'hero.kelola',
+            'pesanan.antar',
+            'pesanan.update',
+            'artikel.kelola',
+            'promo.kelola',
+            'laporan.marketing',
         ],
     ];
 

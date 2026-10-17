@@ -209,11 +209,12 @@ test('the permission middleware answers 401 itself when the route forgets the gu
 });
 
 test('the permission check costs at most two queries whatever the caller holds', function (): void {
-    // The plan's own criterion, with the caller holding all five roles and 71 grants:
-    // the cost must be flat in the number of roles, which is exactly what a
-    // per-role loop or an eager load would not be.
+    // The plan's own criterion, with the caller holding all seven roles - 90
+    // catalogue grants resolving to 33 distinct codes: the cost must be flat in
+    // the number of roles, which is exactly what a per-role loop or an eager
+    // load would not be.
     Sanctum::actingAs(rbacTestUser('superadmin', [
-        'pasien', 'dokter', 'apoteker', 'admin', 'superadmin',
+        'pasien', 'dokter', 'apoteker', 'kurir', 'marketing', 'admin', 'superadmin',
     ]));
 
     $queries = 0;
@@ -301,10 +302,12 @@ test('tipe ignores roles and reads the users column', function (): void {
 });
 
 test('tipe accepts an ENUM value, and such an account holds no permission', function (): void {
-    // `perawat` is one of the DDL's seven `users.tipe` values and has no role in
-    // RbacCatalog::ROLES, because the plan names five and inventing two more would
-    // be inventing policy. The asymmetry is real and is reported rather than hidden:
-    // such an account is gated by `tipe:` and by no `permission:` at all.
+    // `perawat` is one of the DDL's eight `users.tipe` values and the only one
+    // with no role in RbacCatalog::ROLES: the plan's todo 4 named five and the
+    // multi-portal round added `kurir` and `marketing`, leaving the nurse the one
+    // account type the policy never speaks for. The asymmetry is real and is
+    // reported rather than hidden: such an account is gated by `tipe:` and by no
+    // `permission:` at all.
     Sanctum::actingAs(rbacTestUser('perawat'));
 
     $this->get('/api/v1/_rbac/apoteker-only')->assertStatus(403);

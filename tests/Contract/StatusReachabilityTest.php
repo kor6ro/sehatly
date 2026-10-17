@@ -334,7 +334,7 @@ it('answers 404 with the error envelope when a public read is given an absent id
   * published, and for the non-paginating eight the rule set is unreachable in
   * every legitimate use.
   */
-it('finds_thirty_seven_gets_publishing_a_422_with_nothing_to_describe_what_fails_it', function (): void {
+it('finds_thirty_six_gets_publishing_a_422_with_nothing_to_describe_what_fails_it', function (): void {
     $with422NoBody = [];
 
     foreach (ContractSpec::specOperations() as $key => $operation) {
@@ -350,9 +350,16 @@ it('finds_thirty_seven_gets_publishing_a_422_with_nothing_to_describe_what_fails
     // and really does answer 422 for a bad one, and the document publishes none of
     // the four. F11's `GET /api/v1/pengingat` joins it for the same defect class:
     // `IndexPengingatRequest` validates `status`/`page`/`per_page` and the
-    // document publishes none of the three. The count moved 35 -> 36 -> 37; the
-    // defect is the same one.
-    expect($with422NoBody)->toHaveCount(37);
+    // document publishes none of the three. The count moved 35 -> 36 -> 37, then
+    // back to 36 when `23d10cc` detached the family surface:
+    // `GET /api/v1/pasien/anggota-keluarga` was the thirty-seventh member and no
+    // longer exists - this update re-measured the regenerated document and found
+    // the stale pin beside its twin in `ContractDivergenceTest`. The count is a
+    // finding, not an achievement: every member here is a real document defect
+    // (a reachable 422 the document never describes), so a DROP is one less
+    // endpoint carrying it. The courier's two reads join neither list - they
+    // inject no FormRequest, so they publish no 422 at all.
+    expect($with422NoBody)->toHaveCount(36);
 
     // And not one of them publishes the query parameter its 422 is about.
     foreach ($with422NoBody as $key) {

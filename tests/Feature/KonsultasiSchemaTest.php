@@ -404,13 +404,13 @@ test('the DDL has a system author TYPE and no system author ACCOUNT', function (
     // `konsultasi_chat.pengirim_tipe` offers a system author TYPE (:567) while
     // `konsultasi_chat.pengirim_user_id` is `BIGINT UNSIGNED NOT NULL` with a foreign key to
     // `users(id)` (:566, :577) - so the row must name a real account. The account's
-    // own type is a seven-value ENUM at :139 and NOT ONE of the seven means system,
+    // own type is an eight-value ENUM at :139 and NOT ONE of the eight means system,
     // service, bot or robot. The schema therefore has an author type with no author
     // account.
     $tipe = knsEnum('users', 'tipe');
 
-    expect($tipe)->toHaveCount(7)
-        ->and($tipe)->toBe(['pasien', 'dokter', 'perawat', 'apoteker', 'kurir', 'admin', 'superadmin'])
+    expect($tipe)->toHaveCount(8)
+        ->and($tipe)->toBe(['pasien', 'dokter', 'perawat', 'apoteker', 'kurir', 'admin', 'superadmin', 'marketing'])
         // A marker list rather than a substring test: `sistem` is a real Indonesian
         // word, so the assertion is that the whole set carries no system marker.
         ->and(array_values(array_intersect($tipe, ['sistem', 'system', 'layanan', 'service', 'bot', 'robot'])))
@@ -832,7 +832,7 @@ test('every DDL line number cited by this todo is the line it claims to be', fun
         135 => 'nama_lengkap VARCHAR(150) NOT NULL',
         137 => 'no_telepon VARCHAR(20) NOT NULL UNIQUE',
         138 => 'kata_sandi_hash VARCHAR(255) NOT NULL',
-        139 => "tipe ENUM('pasien','dokter','perawat','apoteker','kurir','admin','superadmin') NOT NULL DEFAULT 'pasien'",
+        139 => "tipe ENUM('pasien','dokter','perawat','apoteker','kurir','admin','superadmin','marketing') NOT NULL DEFAULT 'pasien'",
         140 => "status ENUM('pending_verifikasi','aktif','nonaktif','ditangguhkan')",
         220 => 'user_id BIGINT UNSIGNED NOT NULL UNIQUE',
         225 => "jenis_kelamin ENUM('L','P') NOT NULL",

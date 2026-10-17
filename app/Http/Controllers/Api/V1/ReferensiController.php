@@ -35,8 +35,9 @@ use Symfony\Component\HttpFoundation\Response;
  * `permission:` here would mean inventing policy - and `EnsurePermission` answers an
  * unknown code with a **500**, not a 403. A `tipe:` gate would be worse than useless:
  * `perawat` and `kurir` are real `users.tipe` ENUM values
- * (`telemedicine_test.sql:139`) that hold no role in `RbacCatalog::ROLES` and
- * therefore no grant, so ANY gate locks those two account types out of a dropdown.
+ * (`telemedicine_test.sql:139`) with no grant behind them - `perawat` holds no role
+ * in `RbacCatalog::ROLES`, `kurir` carries the delivery portal role - so ANY gate
+ * locks those two account types out of a dropdown.
  *
  * The public `/dokter` routes make the same argument (see `DokterController`), and the
  * price of being public - which is paid here too - is that the responses carry the

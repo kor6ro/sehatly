@@ -44,6 +44,24 @@ return [
         'http://127.0.0.1:5173',
         'http://localhost:5174',
         'http://127.0.0.1:5174',
+        // Multi-portal (docs/update-plan-pilihan-a.md §1.1): one SPA served on six
+        // hosts. The `.test` spellings are the Laragon dev hosts of §3.1, the
+        // `.com` spellings production. The base `sehatly.test`/`sehatly.com` are
+        // included because the patient portal IS an origin of its own once the
+        // portals split - `localhost:8000` never appears, so a page served from the
+        // API's own origin is still covered by the same-origin rule, not by CORS.
+        'http://sehatly.test',
+        'http://admin.sehatly.test',
+        'http://dokter.sehatly.test',
+        'http://apotek.sehatly.test',
+        'http://kurir.sehatly.test',
+        'http://marketing.sehatly.test',
+        'https://sehatly.com',
+        'https://admin.sehatly.com',
+        'https://dokter.sehatly.com',
+        'https://apotek.sehatly.com',
+        'https://kurir.sehatly.com',
+        'https://marketing.sehatly.com',
     ]))),
 
     'allowed_origins_patterns' => [],

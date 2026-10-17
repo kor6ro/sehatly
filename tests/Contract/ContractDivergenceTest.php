@@ -232,7 +232,17 @@ it('types_every_meta_operation_as_paginated', function (): void {
     // envelope component. F11's `GET /api/v1/pengingat` is the forty-second: the
     // reminder list answers `pageMeta()` like the inbox does, while its
     // preference read is a single object and deliberately has no `meta`.
-    expect($paginated)->toHaveCount(42);
+    //
+    // RE-MEASURED to forty-one: `23d10cc` detached the whole family surface,
+    // and `GET /api/v1/pasien/anggota-keluarga` was the forty-second member.
+    // Its removal did not update this pin (or its twin in
+    // `StatusReachabilityTest`), so `composer run contract` went red on both
+    // counts until this update re-measured the regenerated document - the same
+    // drift this comment exists to stop, on the other foot. The courier's
+    // `GET /api/v1/kurir/pesanan` is deliberately NOT a member: the queue
+    // answers its rows with no `pageMeta()`, because a delivery worklist is a
+    // bounded set of actionable orders rather than a browsable collection.
+    expect($paginated)->toHaveCount(41);
 
     expect($paginated)->toContain('get /api/v1/dokter @200');
     expect($paginated)->toContain('get /api/v1/dokter/{dokter}/ulasan @200');

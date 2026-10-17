@@ -49,7 +49,8 @@ use Symfony\Component\HttpFoundation\Response;
  * `dokter` and to `superadmin`; `tipe:dokter` is what excludes `superadmin`, and it is
  * present because issuing a clinical letter is not a thing an oversight account does.
  * `perawat` and `kurir` are real `users.tipe` values (`telemedicine_test.sql:139`) that
- * hold NO role, so any `permission:` locks them out permanently - a real gap, reported
+ * hold no `surat_keterangan.*` grant - `perawat` NO role at all, `kurir` the delivery
+ * portal role - so any `permission:` locks them out permanently - a real gap, reported
  * rather than worked around, because the DDL gives a nurse a clinical role of her own
  * (`pasien_tanda_vital.sumber` at `:325`).
  *

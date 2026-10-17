@@ -12,7 +12,7 @@ info:
     drift from the code: a route added, renamed or removed changes it on the next run, and
     `--check` fails until the regenerated file is committed.
 
-    This document describes 116 routes across 100 distinct paths, read from the live route table.
+    This document describes 120 routes across 104 distinct paths, read from the live route table.
 
     ## Envelopes
 
@@ -97,6 +97,9 @@ tags:
   -
     name: konsultasi
     description: '`/api/v1/konsultasi` operations. See the module summaries in `docs/modules/` for the curl recipes and the business rules behind these endpoints.'
+  -
+    name: kurir
+    description: '`/api/v1/kurir` operations. See the module summaries in `docs/modules/` for the curl recipes and the business rules behind these endpoints.'
   -
     name: master-spesialisasi
     description: '`/api/v1/master-spesialisasi` operations. See the module summaries in `docs/modules/` for the curl recipes and the business rules behind these endpoints.'
@@ -2515,6 +2518,173 @@ paths:
         500:
           description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+  /api/v1/kurir/pesanan:
+    get:
+      operationId: getApiV1KurirPesanan
+      summary: 'Read /api/v1/kurir/pesanan.'
+      tags:
+        - kurir
+      security:
+        -
+          sanctum: []
+      x-route-name: kurir.pesanan.index
+      x-laravel-action: App\Http\Controllers\Api\V1\KurirController@index
+      x-middleware:
+        - 'auth:sanctum'
+        - 'tipe:kurir'
+        - 'permission:pesanan.update'
+      x-auth:
+        scheme: sanctum
+        transport: bearer
+      responses:
+        200:
+          description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
+        401:
+          description: 'Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        403:
+          description: 'Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        404:
+          description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        500:
+          description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+  '/api/v1/kurir/pesanan/{id}':
+    parameters:
+      -
+        name: id
+        type: integer
+        required: true
+    get:
+      operationId: getApiV1KurirPesananId
+      summary: 'Read /api/v1/kurir/pesanan/{id}.'
+      tags:
+        - kurir
+      security:
+        -
+          sanctum: []
+      x-route-name: kurir.pesanan.show
+      x-laravel-action: App\Http\Controllers\Api\V1\KurirController@show
+      x-middleware:
+        - 'auth:sanctum'
+        - 'tipe:kurir'
+        - 'permission:pesanan.update'
+      x-auth:
+        scheme: sanctum
+        transport: bearer
+      responses:
+        200:
+          description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
+        401:
+          description: 'Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        403:
+          description: 'Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        404:
+          description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        500:
+          description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+  '/api/v1/kurir/pesanan/{id}/ambil':
+    parameters:
+      -
+        name: id
+        type: integer
+        required: true
+    put:
+      operationId: putApiV1KurirPesananIdAmbil
+      summary: 'Replace /api/v1/kurir/pesanan/{id}/ambil.'
+      tags:
+        - kurir
+      security:
+        -
+          sanctum: []
+      x-route-name: kurir.pesanan.ambil
+      x-laravel-action: App\Http\Controllers\Api\V1\KurirController@ambil
+      x-middleware:
+        - 'auth:sanctum'
+        - 'tipe:kurir'
+        - 'permission:pesanan.update'
+      x-auth:
+        scheme: sanctum
+        transport: bearer
+      requestBody:
+        required: true
+        description: 'Validated by `App\Http\Requests\Kurir\AmbilPesananRequest::rules()`, which is read at generation time -- these properties are the live rules, not a transcription.'
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/AmbilPesananRequestBody' } }
+      responses:
+        200:
+          description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
+        422:
+          description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ValidationErrorEnvelope' } } }
+        401:
+          description: 'Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        403:
+          description: 'Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        404:
+          description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        500:
+          description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+  '/api/v1/kurir/pesanan/{id}/antar':
+    parameters:
+      -
+        name: id
+        type: integer
+        required: true
+    put:
+      operationId: putApiV1KurirPesananIdAntar
+      summary: 'Replace /api/v1/kurir/pesanan/{id}/antar.'
+      tags:
+        - kurir
+      security:
+        -
+          sanctum: []
+      x-route-name: kurir.pesanan.antar
+      x-laravel-action: App\Http\Controllers\Api\V1\KurirController@antar
+      x-middleware:
+        - 'auth:sanctum'
+        - 'tipe:kurir'
+        - 'permission:pesanan.antar'
+      x-auth:
+        scheme: sanctum
+        transport: bearer
+      requestBody:
+        required: true
+        description: 'Validated by `App\Http\Requests\Kurir\AntarPesananRequest::rules()`, which is read at generation time -- these properties are the live rules, not a transcription.'
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/AntarPesananRequestBody' } }
+      responses:
+        200:
+          description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
+        422:
+          description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ValidationErrorEnvelope' } } }
+        401:
+          description: 'Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        403:
+          description: 'Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        404:
+          description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        500:
+          description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
   /api/v1/master-spesialisasi:
     get:
       operationId: getApiV1MasterSpesialisasi
@@ -4631,6 +4801,42 @@ components:
           - rekam_medis.status_dokumen
         tipe_kunjungan:
           - rekam_medis.tipe_kunjungan
+    AmbilPesananRequestBody:
+      type: object
+      title: AmbilPesananRequest
+      description: 'Request body for operations validated by `App\Http\Requests\Kurir\AmbilPesananRequest`. The properties below are read from that class''s `rules()` at generation time.'
+      x-form-request: App\Http\Requests\Kurir\AmbilPesananRequest
+      properties:
+        keterangan:
+          type: string
+          x-laravel-rule: [string, 'max:255']
+        lokasi:
+          type: string
+          x-laravel-rule: [string, 'max:255']
+        no_resi:
+          type: string
+          x-laravel-rule: [string, 'max:50']
+      required: []
+      additionalProperties: false
+      x-enum-fields: []
+    AntarPesananRequestBody:
+      type: object
+      title: AntarPesananRequest
+      description: 'Request body for operations validated by `App\Http\Requests\Kurir\AntarPesananRequest`. The properties below are read from that class''s `rules()` at generation time.'
+      x-form-request: App\Http\Requests\Kurir\AntarPesananRequest
+      properties:
+        keterangan:
+          type: string
+          x-laravel-rule: [string, 'max:255']
+        lokasi:
+          type: string
+          x-laravel-rule: [string, 'max:255']
+        no_resi:
+          x-laravel-prohibited: true
+          description: "PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one."
+      required: []
+      additionalProperties: false
+      x-enum-fields: []
     AntreanResepRequestBody:
       type: object
       title: AntreanResepRequest
@@ -7936,3 +8142,4 @@ components:
         - kurir
         - admin
         - superadmin
+        - marketing

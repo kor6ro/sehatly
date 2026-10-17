@@ -66,7 +66,8 @@ use Symfony\Component\HttpFoundation\Response;
  * the choice is semantic rather than behavioural.
  *
  * `perawat` and `kurir` are real `users.tipe` values (`telemedicine_test.sql:139`)
- * that hold NO role in `RbacCatalog::ROLES`, so any `permission:` locks them out of
+ * with no `rekam_medis.*` grant - `perawat` holds NO role at all, `kurir` carries
+ * the delivery portal role - so any `permission:` locks them out of
  * every one of the four writes permanently. That is a real gap and it is reported: the
  * DDL gives a nurse a clinical role of its own - `pasien_tanda_vital.sumber` is
  * `ENUM('mandiri','dokter','perawat','iot_device')` at :325 - so a nurse writes

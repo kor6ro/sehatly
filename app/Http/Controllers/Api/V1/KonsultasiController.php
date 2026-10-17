@@ -136,7 +136,8 @@ use Throwable;
  *   reasoning rather than repeating it.
  *
  * `perawat` and `kurir` are real `users.tipe` values (`telemedicine_test.sql:139`)
- * that hold no role, so any `permission:` would lock them out permanently. They are
+ * with no `konsultasi.*` grant - `perawat` holds no role at all, `kurir` carries the
+ * portal's delivery-side role - so any `permission:` would lock them out permanently. They are
  * refused anyway - 403 on the two chat writes, 403 from `ownPasien()` on
  * `POST /mulai`, 404 on the three party reads, 403 at `tipe:dokter` on
  * `GET /konsultasi` - and the reason is a fact about rows they do not own rather
@@ -343,8 +344,8 @@ class KonsultasiController extends Controller
      * `POST /api/v1/konsultasi/{id}/chat` - 201.
      *
      * `pengirim_tipe` is the SIDE the caller is on, derived from which profile row
-     * it owns - never a copy of `users.tipe`, which is a seven-value ENUM against a
-     * three-value column and would be a MySQL 1264 for four of its seven values.
+     * it owns - never a copy of `users.tipe`, which is an eight-value ENUM against a
+     * three-value column and would be a MySQL 1264 for six of its eight values.
      * The system message types `resep`, `surat_keterangan` and `sistem` are 422
      * here: the service writes those when the document is created.
      */

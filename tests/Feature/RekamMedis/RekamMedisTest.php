@@ -93,9 +93,10 @@ function rmdUser(string $nama, string $tipe = 'pasien'): int
 /**
  * A user carrying `$role`, or carrying NO role at all.
  *
- * `perawat` and `kurir` are real `users.tipe` values (`telemedicine_test.sql:139`)
- * that hold no role in `RbacCatalog::ROLES`, so a helper that always assigned one
- * would make the only two account types a `permission:` gate locks out untestable.
+ * `perawat` is a real `users.tipe` value (`telemedicine_test.sql:139`) that holds
+ * no role in `RbacCatalog::ROLES` - the only such value since the multi-portal
+ * round - so a helper that always assigned one would make the account type a
+ * `permission:` gate locks out untestable.
  */
 function rmdPengguna(string $tipe, ?string $role = null): User
 {
