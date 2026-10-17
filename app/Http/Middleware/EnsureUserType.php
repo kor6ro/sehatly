@@ -47,10 +47,11 @@ use Symfony\Component\HttpFoundation\Response;
  * asserted equal to the DDL's ENUM by `RbacCatalogTest`, so the accepted set cannot
  * drift from the schema.
  *
- * A value that *is* in the ENUM but is not a seeded role - `perawat` and `kurir` -
- * works here, and holds no `permission:` grant at all. That asymmetry is recorded in
+ * A value that *is* in the ENUM but is not a seeded role - `perawat`, the one left
+ * after the multi-portal round gave `kurir` and `marketing` roles - works here, and
+ * holds no `permission:` grant at all. That asymmetry is recorded in
  * {@see RbacCatalog}'s docblock and in `.omo/evidence/task-4-sehatly.md`; it is a
- * finding for todos 20/21/22, not something this middleware papers over.
+ * finding for the RBAC catalogue, not something this middleware papers over.
  *
  * ## 401 before 403, and never a redirect
  *

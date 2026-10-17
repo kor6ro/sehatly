@@ -450,7 +450,7 @@ test('me returns the caller with a masked patient NIK and no password hash anywh
 });
 
 test('me publishes null for a relation the account does not own, and never refuses for it', function (): void {
-    // A `superadmin` holds all 26 permissions and owns neither a `pasien` nor a `dokter`
+    // A `superadmin` holds all 33 permissions and owns neither a `pasien` nor a `dokter`
     // row. "What does your account look like" is not an authorisation question, so `/me`
     // answers rather than 403s - the patient routes are where a missing row IS a 403.
     $admin = User::factory()->create(['tipe' => 'superadmin', 'status' => 'aktif']);
@@ -770,15 +770,16 @@ test('a profile update is a partial update, so an absent key leaves the stored v
 // =====================================================================
 
 test('a non-patient account is refused with 403 on every mutating route, whatever it holds', function (string $method, string $uri): void {
-    // A `superadmin` holds all 26 permission codes in `RbacCatalog::ROLE_PERMISSIONS` and
+    // A `superadmin` holds all 33 permission codes in `RbacCatalog::ROLE_PERMISSIONS` and
     // it still cannot act on a patient self-service record. That is the strongest available
     // statement that the gate is a data check and not a grant: no amount of permission
     // turns a non-patient into a patient.
     //
-    // `perawat` and `kurir` are in the list on purpose: `RbacCatalog` documents them as
-    // real `users.tipe` values holding no role, so a `permission:` gate here would be a
-    // permanent lockout for exactly these two, and the test proves they are refused as
-    // patients rather than as role-holders.
+    // `perawat` and `kurir` are in the list on purpose. `perawat` is the one real
+    // `users.tipe` holding no role at all; `kurir` has carried the portal's role since
+    // the multi-portal round. A `permission:` gate here would be a permanent lockout
+    // for such accounts, and the test proves they are refused as patients rather than
+    // as role-holders.
     foreach (['superadmin', 'dokter', 'admin', 'perawat', 'kurir', 'apoteker'] as $tipe) {
         $account = User::factory()->create(['tipe' => $tipe, 'status' => 'aktif']);
 
@@ -1437,8 +1438,9 @@ test('the route table exposes the twelve auth routes and the seven patient route
     // The three doctor-directory routes are also anonymous, and that is todo 22's decision
     // rather than an omission on its part: the plan makes `GET /api/v1/dokter` a pre-
     // authentication browsing surface, so gating it with `permission:dokter.lihat` would
-    // 401 every anonymous visitor and 403 `perawat` and `kurir`, which are real `users.tipe`
-    // values that hold no role and therefore no grant. They were wired into this file after
+    // 401 every anonymous visitor and 403 `perawat` (no role at all) and `kurir` (whose
+    // portal role holds no `dokter.lihat`) - real `users.tipe` values with no such grant.
+    // They were wired into this file after
     // this test was written, so the anonymous set is stated here explicitly rather than
     // inferred - an inferred set would have silently stopped covering new public routes.
     //
@@ -1620,10 +1622,11 @@ test('the route table exposes the twelve auth routes and the seven patient route
             // yours", which `PromoController` answers through
             // `PasienRecordAccess::ownPasien()`.
             //
-            // `perawat` and `kurir` hold no role at all in `RbacCatalog::ROLES`,
-            // so any `permission:` locks them out of this route permanently;
-            // they are refused here with a 403 from `ownPasien()` instead, which
-            // is a fact about rows they do not own rather than a role they lack.
+            // `perawat` holds no role at all in `RbacCatalog::ROLES` and `kurir`'s
+            // portal role holds no `promo.*` code, so any `permission:` locks them
+            // out of this route permanently; they are refused here with a 403 from
+            // `ownPasien()` instead, which is a fact about rows they do not own
+            // rather than a role they lack.
             'POST api/v1/promo/validasi' => [],
             // Todo 46's three, read off the routes rather than guessed:
             // `POST resep/{id}/checkout` carries `permission:pesanan.buat` and
@@ -1684,10 +1687,10 @@ test('the route table exposes the twelve auth routes and the seven patient route
             'POST api/v1/pdp/persetujuan' => [],
             // The three notification routes take the permission and NO `tipe:`,
             // for the reason `pembayaran.bayar` above takes no `tipe:`:
-            // `notifikasi.lihat` is granted to `pasien` and `superadmin` and to
-            // nobody else, so it already refuses `dokter`, `apoteker`, `admin`,
-            // `perawat` and `kurir` - the last two holding no role at all, and so
-            // no grant - without a second gate that could only narrow further.
+            // `notifikasi.lihat` is held by every role in the catalogue - all
+            // seven since the multi-portal round - so the gate refuses only
+            // `perawat`, the one `users.tipe` with no role and therefore no
+            // grant, without a second gate that could only narrow further.
             // The per-row half is the controller's `user_id` scoping, so another
             // account's notification is a 404 and not a disclosure.
             'GET api/v1/notifikasi' => ['permission:notifikasi.lihat'],

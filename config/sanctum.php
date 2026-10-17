@@ -19,8 +19,17 @@ return [
     */
 
     'stateful' => explode(',', env('SANCTUM_STATEFUL_DOMAINS', sprintf(
-        '%s%s',
-        'localhost,localhost:3000,127.0.0.1,127.0.0.1:8000,::1',
+        '%s%s%s',
+        'localhost,localhost:3000,127.0.0.1,127.0.0.1:8000,::1,',
+        // Multi-portal (docs/update-plan-pilihan-a.md §1.2): every portal host, dev
+        // (`.test`, Laragon §3.1) and production (`.com`), so a cookie-bearing request
+        // from any of the six SPAs is stateful. `Sanctum::currentApplicationUrlWithPort()`
+        // below still contributes `sehatly.test` from `config/app.php`; the duplicates
+        // that can produce are harmless - this is a membership list, not a set.
+        'sehatly.test,admin.sehatly.test,dokter.sehatly.test,'
+        .'apotek.sehatly.test,kurir.sehatly.test,marketing.sehatly.test,'
+        .'sehatly.com,admin.sehatly.com,dokter.sehatly.com,'
+        .'apotek.sehatly.com,kurir.sehatly.com,marketing.sehatly.com,',
         Sanctum::currentApplicationUrlWithPort(),
         // Sanctum::currentRequestHost(),
     ))),

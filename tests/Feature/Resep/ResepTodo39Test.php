@@ -181,11 +181,14 @@ test('the two routes exist with exactly the guards the plan names', function ():
             );
     }
 
-    foreach (['perawat', 'kurir'] as $tanpaPeran) {
-        expect(RbacCatalog::isUserType($tanpaPeran))->toBeTrue()
-            ->and(RbacCatalog::isRole($tanpaPeran))->toBeFalse()
-            ->and(RbacCatalog::permissionsFor('dokter'))->toContain('obat.cari', 'resep.buat');
-    }
+    // `perawat` holds NO role at all, and `kurir`'s multi-portal role carries
+    // neither code, so the two gates refuse both account types for a reason the
+    // catalogue states - not a rule written to exclude them.
+    expect(RbacCatalog::isUserType('perawat'))->toBeTrue()
+        ->and(RbacCatalog::isRole('perawat'))->toBeFalse()
+        ->and(RbacCatalog::permissionsFor('kurir'))->not->toContain('obat.cari')
+        ->and(RbacCatalog::permissionsFor('kurir'))->not->toContain('resep.buat')
+        ->and(RbacCatalog::permissionsFor('dokter'))->toContain('obat.cari', 'resep.buat');
 });
 
 test('the write route is the only post that CREATES a prescription', function (): void {

@@ -101,13 +101,13 @@ use Symfony\Component\HttpFoundation\Response;
  * ## No `permission:` and no `tipe:` on any route in this controller
  *
  * This is a deliberate decision with a catalogue behind it, not an omission.
- * `RbacCatalog::PERMISSIONS` holds 26 codes and **none of them names an auth, session,
+ * `RbacCatalog::PERMISSIONS` holds 33 codes and **none of them names an auth, session,
  * token, device or notification-registration action**; the closest names are
  * `notifikasi.lihat` (view notifications) and `dokter.lihat`. Writing
  * `permission:notifikasi.lihat` on `POST /auth/devices` would be wrong twice over: it
  * would make a push-registration call a read-permission check, and `RbacCatalog`
- * documents that `perawat` and `kurir` are real `users.tipe` values that hold **no**
- * role and therefore no grant at all -- so that gate would make those two account types
+ * documents that `perawat` is a real `users.tipe` value that holds **no**
+ * role and therefore no grant at all -- so that gate would make that account type
  * permanently unable to register a device. A `tipe:` gate on `POST /auth/logout` would
  * be worse: every account type must be able to end its own session.
  *

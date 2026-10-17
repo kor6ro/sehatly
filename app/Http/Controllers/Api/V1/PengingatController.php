@@ -29,9 +29,10 @@ use Symfony\Component\HttpFoundation\Response;
  *
  * `permission:notifikasi.lihat` is the same guard the inbox uses, on purpose:
  * a reminder is a personal notification artefact, and the permission is
- * withheld from `perawat`/`kurir` (who hold no role at all) exactly as the
- * inbox is. A separate code would need a catalogue and re-seed change for no
- * behavioural difference.
+ * withheld from `perawat` - the one `users.tipe` with no role at all, so it is
+ * as absent there as in the inbox. (`kurir` and `marketing` gained roles, and
+ * this grant, in the multi-portal round.) A separate code would need a
+ * catalogue and re-seed change for no behavioural difference.
  *
  * ## Foreign ids are 404, never 403
  *

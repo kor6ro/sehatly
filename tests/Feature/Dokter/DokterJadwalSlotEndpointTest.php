@@ -66,7 +66,7 @@ const JSL_TANGGAL_LAIN = '2026-12-08';   // Tuesday, hari = 2
 const JSL_HARI_KE = 1;                   // the DDL's 0=Minggu s.d. 6=Sabtu, so Monday
 
 /**
- * A `users` row. `tipe` is the seven-value ENUM at `:139`; `status` is `aktif`
+ * A `users` row. `tipe` is the eight-value ENUM at `:139`; `status` is `aktif`
  * (`:140`), so no test here is ever excluding a doctor on the ACCOUNT's state --
  * that would be a different rule from the three the directory owns.
  */

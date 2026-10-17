@@ -135,7 +135,7 @@ function direktoriSpesialisasi(string $kode, string $nama, string $tipe = 'spesi
 /**
  * Insert a `users` row and return it.
  *
- * `tipe` is the seven-value `users.tipe` ENUM (`:139`). `status` is `aktif`
+ * `tipe` is the eight-value `users.tipe` ENUM (`:139`). `status` is `aktif`
  * (`:140`), so a test that wants a doctor excluded is always excluding on a
  * *doctor* column and never on the account's own state.
  */
@@ -1616,12 +1616,13 @@ test('RbacCatalog is why a permission gate here would be wrong', function (): vo
         ->and(RbacCatalog::permissionsFor('pasien'))->toContain('dokter.lihat')
         ->and(RbacCatalog::isRole('pasien'))->toBeTrue();
 
-    // Two real `users.tipe` values (`:139`) hold NO role, therefore no grant, so a
-    // `permission:dokter.lihat` gate would 403 them on a public page and no data
-    // change in RbacCatalog could fix that while the gate is on the route.
-    foreach (['perawat', 'kurir'] as $tipe) {
-        expect(RbacCatalog::isUserType($tipe))->toBeTrue()
-            ->and(RbacCatalog::isRole($tipe))->toBeFalse()
-            ->and(RbacCatalog::USER_TYPES)->toContain($tipe);
-    }
+    // Two real `users.tipe` values (`:139`) fail a `permission:dokter.lihat` gate on
+    // this public page, for reasons the catalogue states: `perawat` holds NO role,
+    // therefore no grant at all, and `kurir`'s multi-portal role simply omits
+    // `dokter.lihat`. No data change in RbacCatalog can put `perawat` on the page
+    // while the gate is on the route.
+    expect(RbacCatalog::isRole('perawat'))->toBeFalse()
+        ->and(RbacCatalog::permissionsFor('kurir'))->not->toContain('dokter.lihat')
+        ->and(RbacCatalog::USER_TYPES)->toContain('perawat')
+        ->and(RbacCatalog::USER_TYPES)->toContain('kurir');
 });

@@ -73,7 +73,8 @@ use Illuminate\Support\Facades\Route;
 | session, token or device action, so there is no code that could be written
 | here without inventing policy -- and todo 4's brief forbids exactly that.
 | `tipe:` is worse than absent: `perawat` and `kurir` are real `users.tipe` ENUM
-| values that hold no role and therefore no grant, so a `tipe:` gate on logout
+| values with no auth/session grant of any kind - `perawat` holds no role at all,
+| `kurir` carries the portal's delivery-side role - so a `tipe:` gate on logout
 | or on device registration would lock those two account types out of their own
 | account. The full reasoning is in `AuthController`'s class docblock.
 |
@@ -381,8 +382,9 @@ use App\Http\Controllers\Api\V1\KonsultasiController;
 | `permission:` resolves through `EnsurePermission`, which answers 401 for an
 | anonymous caller - so the gate would 401 every visitor who has not registered
 | yet, which is the opposite of a directory. And it would 403 `perawat` and
-| `kurir`, which are real `users.tipe` ENUM values (telemedicine_test.sql:139)
-| that hold no role in `RbacCatalog::ROLES` and therefore no grant at all.
+| `kurir`, real `users.tipe` ENUM values (telemedicine_test.sql:139) with no
+| `dokter.lihat` grant - `perawat` holds no role in `RbacCatalog::ROLES`,
+| `kurir` carries the delivery portal role.
 |
 | `dokter.lihat` is not dead vocabulary, it is the wrong vocabulary *here*: it
 | belongs on an administrative directory that is supposed to list unverified,
@@ -550,8 +552,9 @@ Route::get('hero', [HeroController::class, 'index'])
 |    and this route follows that reasoning instead of restating it.
 |
 | `perawat` and `kurir` are real `users.tipe` values (`telemedicine_test.sql:139`)
-| that hold no role, so ANY `permission:` would lock them out of that route
-| permanently. They are refused on all eight anyway, and the reason is rows they do
+| with no `konsultasi.*` grant - `perawat` holds no role at all, `kurir` carries
+| the portal's delivery-side role - so ANY `permission:` would lock them out of that
+| route permanently. They are refused on all eight anyway, and the reason is rows they do
 | not own rather than a role they lack: 403 on the two chat writes and on
 | `POST /mulai`, 404 on the three party reads, 403 at `tipe:dokter` on the two
 | doctor-only writes and on `GET /konsultasi`.
@@ -706,8 +709,9 @@ use App\Http\Controllers\Api\V1\RekamMedisController;
 | than behavioural.
 |
 | `perawat` and `kurir` are real `users.tipe` values (`telemedicine_test.sql:139`)
-| that hold no role, so any `permission:` locks them out of all four writes
-| permanently. The DDL gives a nurse a clinical role of its own -
+| with no `rekam_medis.*` grant - `perawat` holds no role at all, `kurir` carries
+| the portal's delivery-side role - so any `permission:` locks them out of all four
+| writes permanently. The DDL gives a nurse a clinical role of its own -
 | `pasien_tanda_vital.sumber` is `ENUM('mandiri','dokter','perawat','iot_device')`
 | at `:325` - so this is a real gap and it is reported: the fix is a data change in
 | `app/Support/Rbac/` plus a re-seed, not a code change here.
@@ -807,8 +811,10 @@ use App\Http\Controllers\Api\V1\SuratKeteranganController;
 | is there because issuing a clinical letter is not a thing an oversight account does.
 |
 | **`perawat` and `kurir` are real `users.tipe` values** (`telemedicine_test.sql:139`)
-| that hold NO role in `RbacCatalog::ROLES`, so any `permission:` locks them out of the
-| create permanently. The DDL makes the gap sharper rather than softer: the migrate
+| that hold no `surat_keterangan.*` grant - `perawat` has NO role in
+| `RbacCatalog::ROLES`, `kurir` carries the portal's delivery-side role - so any
+| `permission:` locks them out of the create permanently. The DDL makes the gap
+| sharper rather than softer: the migrate
 | side has no nurse role at all, so a nurse is a real account with no grant that could
 | let her write a letter. Reported as a data change in `app/Support/Rbac/` plus a
 | re-seed, and it is not this todo's to make. On the list route they are refused with a
@@ -919,10 +925,10 @@ use App\Support\Reference\ReferensiEndpoint;
 | `permission:` is the same argument todo 22 makes for the public `dokter` routes,
 | and it is stronger here: `RbacCatalog` holds no code that names reference data,
 | so a gate would mean inventing policy - and `EnsurePermission` answers an
-| unknown code with a 500, not a 403. `tipe:` is worse than absent: `perawat` and
-| `kurir` are real `users.tipe` ENUM values (:139) that hold no role in
-| `RbacCatalog::ROLES` and therefore no grant at all, so ANY `tipe:` gate would
-| lock those two account types out of a dropdown forever.
+| unknown code with a 500, not a 403. `tipe:` is worse than absent: `perawat` is a
+| real `users.tipe` ENUM value (:139) that holds no role in `RbacCatalog::ROLES`
+| and therefore no grant at all, so ANY `tipe:` gate would lock that account type
+| out of a dropdown forever.
 |
 | The price of being public is paid deliberately: the responses carry the
 | MINIMUM. All 13 tables are lookup vocabularies seeded from the DDL - labels,
@@ -992,7 +998,8 @@ use App\Http\Controllers\Api\V1\ResepController;
 | `RbacCatalog`'s own docblock.
 |
 | `perawat` and `kurir` are real `users.tipe` values (`telemedicine_test.sql:139`)
-| that hold NO role in `RbacCatalog::ROLES`, so any `permission:` locks them out of
+| with no `obat.cari`/`resep.buat` grant - `perawat` holds no role at all, `kurir`
+| carries the portal's delivery-side role - so any `permission:` locks them out of
 | both routes permanently. Reported as a data change in `app/Support/Rbac/` plus a
 | re-seed, and not this todo's to make.
 |
@@ -1046,7 +1053,8 @@ use App\Http\Controllers\Api\V1\ResepController;
 | account that owns no profile.
 |
 | `perawat` and `kurir` are real `users.tipe` ENUM values
-| (`telemedicine_test.sql:139`) that hold NO role in `RbacCatalog::ROLES`, so
+| (`telemedicine_test.sql:139`) that hold none of these codes - `perawat` has NO
+| role in `RbacCatalog::ROLES`, `kurir` the portal's delivery role - so
 | ANY `permission:` would lock those two out permanently. On this route they are
 | refused with a 403 from `ownPasien()` - a fact about rows they do not own
 | rather than a role they lack, which is the honest shape of the refusal.
@@ -1164,7 +1172,8 @@ Route::middleware('auth:sanctum')->group(function (): void {
 | and `users.tipe` are independent columns.
 |
 | `perawat` and `kurir` are real `users.tipe` values (`telemedicine_test.sql:139`)
-| that hold NO role in `RbacCatalog::ROLES`, so any `permission:` locks them out
+| with no `resep.*`/`obat.cari` grant - `perawat` holds no role at all, `kurir`
+| carries the portal's delivery-side role - so any `permission:` locks them out
 | of all four permanently. Reported as a data change in `app/Support/Rbac/`
 | plus a re-seed, and not this todo's to make.
 |
@@ -1294,8 +1303,9 @@ use App\Http\Controllers\Api\V1\PesananObatController;
 | "is my prescription in stock before I pay for it", which is the entire
 | purpose of the endpoint and of the spec's `cek stok` rule. `tipe:` is worse
 | than absent here for the reason it is everywhere else in this file: `perawat`
-| and `kurir` are real `users.tipe` values (`:139`) that hold NO role in
-| `RbacCatalog::ROLES` and therefore no grant at all, so ANY gate would lock
+| and `kurir` are real `users.tipe` values (`:139`) with no grant for a gate to
+| admit - `perawat` holds NO role in `RbacCatalog::ROLES`, `kurir` carries the
+| delivery portal role - so ANY gate would lock
 | those two account types out of a read that concerns neither of them. The route
 | DOES name `auth:sanctum`, because a stock figure for an arbitrary drug at an
 | arbitrary facility is a query, not a public catalogue entry, and the
@@ -1553,12 +1563,14 @@ use App\Http\Controllers\Api\V1\PreferensiNotifikasiController;
 | `permission:`. `PdpNotificationTest`'s claim is updated in the same commit so
 | the two files cannot disagree about who holds the code.
 |
-| `perawat` and `kurir` are the flip side. They are real `users.tipe` values
-| (:139) that hold NO role, so any `permission:` would lock them out of these
-| routes permanently - so the consent routes are open to them, and the three
-| notification routes are not. The asymmetry is asserted by the test, and its fix
-| is a data change in `app/Support/Rbac/RbacCatalog.php` plus a re-seed, not a
-| change here.
+| `perawat` is the flip side. It is a real `users.tipe` value (:139) that holds
+| NO role, so any `permission:` would lock it out of these routes permanently -
+| so the consent routes are open to it, and the three notification routes are
+| not. That asymmetry is asserted by the test; its fix is a data change in
+| `app/Support/Rbac/RbacCatalog.php` plus a re-seed, not a change here. The
+| multi-portal round's grant of `notifikasi.lihat` to `kurir` and `marketing`
+| WAS exactly that data change: the courier now reads the centre (pinned by the
+| test from the passing side), and `perawat` alone remains locked out.
 |
 | ## The plan says FOUR new routes. There are FIVE, and F02 added a sixth.
 |
@@ -2046,8 +2058,8 @@ Route::middleware(['auth:sanctum', 'tipe:admin,superadmin'])
 | The public read carries no gate for the argument the five public `dokter` routes
 | above already make: the F04 profile is a pre-authentication surface, and
 | `permission:dokter.lihat` would answer 401 for every anonymous visitor and 403
-| for `perawat` and `kurir`, which are real `users.tipe` values (`:139`) that hold
-| no role and therefore no grant. `DokterController::ulasanIndex()` reuses
+| for `perawat` (no role at all) and `kurir` (the portal's delivery role) - real
+| `users.tipe` values (`:139`) with no such grant. `DokterController::ulasanIndex()` reuses
 | `DokterDirectoryService::find()` for eligibility, so a doctor the profile 404s
 | cannot have a readable review list either.
 |
@@ -2069,8 +2081,8 @@ Route::middleware(['auth:sanctum', 'tipe:admin,superadmin'])
 | `dokter_id` and answers 404 for another doctor's review.
 |
 | `ulasan.balas` is F04's owner-approved addition to `RbacCatalog::PERMISSIONS`.
-| The closest existing code, `dokter.profil`, is held by ALL FIVE roles including
-| `pasien`, so reusing it on a write would leave only the party gate between a
+| The closest existing code, `dokter.profil`, is held by five of the seven roles
+| including `pasien`, so reusing it on a write would leave only the party gate between a
 | patient and a public reply - the exact failure mode F14's block records for its
 | own writes. The catalogue docblock carries the full argument.
 |

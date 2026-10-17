@@ -32,9 +32,9 @@ use Illuminate\Support\Facades\DB;
 |
 | **`RbacCatalog::PERMISSIONS` cannot be derived, only constrained.** The DDL
 | documents *no* permission values: it fixes the column, its length, its
-| uniqueness and one example in a comment (`:159`), and nothing else. The 27 codes
-| are the plan's list, so the strongest honest claim available is that each is
-| well-formed under the DDL's own `<resource>.<aksi>` example, that each fits
+| uniqueness and one example in a comment (`:159`), and nothing else. The 33 codes
+| are the plan's list plus later owner-approved additions; the strongest honest claim
+| available is that each is well-formed under the DDL's own `<resource>.<aksi>` example, that each fits
 | `VARCHAR(100)`, that each is granted to at least one role so no route guards a
 | code nothing holds, and that `superadmin` holds the whole catalogue so no code is
 | dead.
@@ -94,10 +94,11 @@ test('the user type list is the DDL enum verbatim, in the DDL order', function (
     expect(rbacEnumValuesFromDdl('users', 'tipe'))->toBe(RbacCatalog::USER_TYPES);
 });
 
-test('the user type list is seven values wide', function (): void {
+test('the user type list is eight values wide', function (): void {
     // Stated separately so a truncated DDL read cannot pass by agreeing with a
-    // catalogue that is wrong in exactly the same way.
-    expect(RbacCatalog::USER_TYPES)->toHaveCount(7);
+    // catalogue that is wrong in exactly the same way. Seven before the multi-portal
+    // round; migration 000089 appended `marketing`.
+    expect(RbacCatalog::USER_TYPES)->toHaveCount(8);
 });
 
 test('every role name is a DDL user type', function (): void {
@@ -134,7 +135,7 @@ test('the DDL citation constant still points at the users tipe enum', function (
     // is a comment: if this fails, the constant cites a line that is no longer the
     // users.tipe declaration - which is exactly the todo-4 `:137` mistake.
     expect($lines[(int) $line - 1])->toContain(
-        "tipe ENUM('pasien','dokter','perawat','apoteker','kurir','admin','superadmin')"
+        "tipe ENUM('pasien','dokter','perawat','apoteker','kurir','admin','superadmin','marketing')"
     );
 });
 
@@ -166,12 +167,12 @@ test('every permission code follows the DDL own naming convention', function ():
 // -------------------------------------------------------- catalogue invariants
 
 test('the catalogue holds at least the plan twenty two permissions', function (): void {
-    // The plan's acceptance bar is ">= 22". 28 is what the catalogue carries after
+    // The plan's acceptance bar is ">= 22". 33 is what the catalogue carries after
     // F14's owner-approved `laporan.lihat`, F01's `pasien.kelola`, F04's
-    // `ulasan.balas` and the landing hero's `hero.kelola`; the second assertion is
-    // written at the actual number so a trim or an addition has to be a deliberate
-    // edit of this line.
-    expect(RbacCatalog::PERMISSIONS)->toHaveCount(28)
+    // `ulasan.balas`, the landing hero's `hero.kelola` and the multi-portal round's
+    // five; the second assertion is written at the actual number so a trim or an
+    // addition has to be a deliberate edit of this line.
+    expect(RbacCatalog::PERMISSIONS)->toHaveCount(33)
         ->and(count(RbacCatalog::PERMISSIONS))->toBeGreaterThanOrEqual(22);
 });
 
@@ -289,11 +290,13 @@ test('the seeded role permission pairs are exactly the catalogue mapping', funct
     usort($expected, static fn (array $a, array $b): int => [$a['nama'], $a['kode']] <=> [$b['nama'], $b['kode']]);
 
     expect($actual)->toBe($expected)
-        // 13 + 17 + 6 + 13 + 28, stated so a trim of the mapping is a visible edit.
-        // Admin's 13 includes F14's `laporan.lihat`, F01's `pasien.kelola` and the
-        // landing hero's `hero.kelola`; dokter's 17 includes F04's `ulasan.balas`;
-        // superadmin holds all 28.
-        ->and($actual)->toHaveCount(77);
+        // 13 + 17 + 6 + 3 + 5 + 13 + 33 = 90, stated so a trim of the mapping is a
+        // visible edit. Admin's 13 includes F14's `laporan.lihat`, F01's
+        // `pasien.kelola` and the landing hero's `hero.kelola`; dokter's 17 includes
+        // F04's `ulasan.balas`; kurir's 3 and marketing's 5 are the multi-portal
+        // round's (§1.3, with `pesanan.lihat` dropped per §5.2 - see RbacSeeder);
+        // superadmin holds all 33.
+        ->and($actual)->toHaveCount(90);
 });
 
 test('the seeder writes no user roles rows', function (): void {

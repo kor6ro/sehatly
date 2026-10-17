@@ -41,8 +41,8 @@ use Illuminate\Support\Carbon;
  *
  * ## `peran` is `users.tipe`, not the RBAC role name
  *
- * `users.tipe` is a seven-value ENUM (`:139`, `RbacCatalog::USER_TYPES`) - `pasien`,
- * `dokter`, `perawat`, `apoteker`, `kurir`, `admin`, `superadmin`. It is a single
+ * `users.tipe` is an eight-value ENUM (`:139`, `RbacCatalog::USER_TYPES`) - `pasien`,
+ * `dokter`, `perawat`, `apoteker`, `kurir`, `admin`, `superadmin`, `marketing`. It is a single
  * column on a row the query already joins for the FK, so it publishes the coarsest
  * accurate answer with no extra join into the permission tables. It pairs with
  * `tujuan_akses` and never replaces it: `audit` names an oversight purpose, and

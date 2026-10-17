@@ -1941,9 +1941,10 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         "'permission:pembayaran.bayar'",
         // Todo 47's notification centre contributes THREE more, for THIRTY-FOUR
         // in total before F09. All three carry the same code and no `tipe:`:
-        // `notifikasi.lihat` is granted to `pasien` and `superadmin`, so the
-        // permission alone already refuses `perawat` and `kurir` - which are
-        // real `users.tipe` values that hold no role, and so hold no grant.
+        // `notifikasi.lihat` is held by every role in the catalogue, so the
+        // permission alone already refuses `perawat` - the one real `users.tipe`
+        // with no role, and so no grant. (It covers `kurir` and `marketing` too
+        // since the multi-portal round's data change.)
         // Adding a `tipe:pasien` on top would be the wrong gate here, for the
         // same reason `pembayaran.bayar` above carries no `tipe:`: the
         // permission already narrows the audience, and a second gate would

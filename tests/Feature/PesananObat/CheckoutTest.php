@@ -791,13 +791,14 @@ test('the checkout guard refuses every account type that does not hold pesanan.b
         'apoteker' => 'apoteker',
         'admin' => 'admin',
         'superadmin' => 'superadmin',
-        // `perawat` and `kurir` are real `users.tipe` values (`:139`) that hold
-        // NO role in `RbacCatalog::ROLES` at all, so there is no role to assign
-        // and `RoleAssigner` refuses the name. That is the point: they are
-        // refused by the `permission:` gate because they hold no grant, not
-        // because a rule was written to exclude them.
+        // `perawat` is a real `users.tipe` (`:139`) with NO role in
+        // `RbacCatalog::ROLES` at all, so there is no role to assign and
+        // `RoleAssigner` refuses the name. `kurir` has carried a real role since
+        // the multi-portal round - it is assigned below - and still lacks
+        // `pesanan.buat`, so both are refused by the `permission:` gate because
+        // they hold no grant, not because a rule was written to exclude them.
         'perawat' => null,
-        'kurir' => null,
+        'kurir' => 'kurir',
     ] as $tipe => $role) {
         $akun = po46User('Akun '.$tipe, $tipe, $role);
 
@@ -906,13 +907,13 @@ test('the stock read is ungated: a nurse, a courier and an admin all read a shel
     // code in `RbacCatalog::PERMISSIONS` names reading one. `obat.cari` IS real
     // but is granted to `dokter` alone, so gating this on it would 403 the
     // PATIENT - the one account type that has to ask this question. `perawat`
-    // and `kurir` hold no role at all, so ANY gate would lock them out of a
-    // read that concerns neither of them.
+    // holds no role at all, and `kurir`'s portal role carries only delivery
+    // grants, so either would be locked out of a read that concerns neither.
     $apotek = po46Faskes();
     $obat = po46Obat();
     po46Stok($apotek, $obat, 7);
 
-    foreach (['perawat' => null, 'kurir' => null, 'admin' => 'admin', 'apoteker' => 'apoteker'] as $tipe => $role) {
+    foreach (['perawat' => null, 'kurir' => 'kurir', 'admin' => 'admin', 'apoteker' => 'apoteker'] as $tipe => $role) {
         $akun = po46User('Pembaca '.$tipe, $tipe, $role);
 
         test()->withToken(po46As($akun)['Authorization'])
@@ -1016,8 +1017,11 @@ test('the order read is a DISJUNCTION: a pharmacist or an oversight account read
 
 test('the order read refuses dokter, perawat and kurir', function (): void {
     // `dokter` holds NO `pesanan.lihat` in `RbacCatalog::ROLE_PERMISSIONS`, so a
-    // prescriber is refused the parcel they prescribed. `perawat` and `kurir`
-    // hold no role at all.
+    // prescriber is refused the parcel they prescribed. `perawat` has no role at
+    // all, and the multi-portal round's `kurir` role carries the delivery grants
+    // (`pesanan.antar`, `pesanan.update`) but deliberately NOT `pesanan.lihat` -
+    // Section 5.2 of the plan says so in as many words - so a courier holding its real
+    // role is refused the patient's parcel read too.
     $dunia = po46Dunia();
 
     $created = test()->withToken(po46As($dunia['user'])['Authorization'])
@@ -1026,7 +1030,7 @@ test('the order read refuses dokter, perawat and kurir', function (): void {
 
     $id = (int) $created->json('data.pesanan.id');
 
-    foreach (['dokter' => 'dokter', 'perawat' => null, 'kurir' => null] as $tipe => $role) {
+    foreach (['dokter' => 'dokter', 'perawat' => null, 'kurir' => 'kurir'] as $tipe => $role) {
         $akun = po46User('Pembaca Ditolak '.$tipe, $tipe, $role);
 
         test()->withToken(po46As($akun)['Authorization'])

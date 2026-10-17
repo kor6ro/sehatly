@@ -52,13 +52,14 @@ use Symfony\Component\HttpFoundation\Response;
  *
  * ## The 403 that DOES exist here is a role, not an ownership fact
  *
- * `permission:notifikasi.lihat` is granted to all five roles in
- * `RbacCatalog::ROLE_PERMISSIONS`, so it refuses `perawat` and `kurir` - real
- * `users.tipe` values (`:139`) holding no role at all. The guard is kept rather
- * than dropped for two reasons: it is the only named code for the action, and
- * dropping it would put the allowlist in a controller where it could not be
- * revoked by a data change. The cost is asserted by this todo's test, and its fix
- * is a data change in `RbacCatalog` plus a re-seed - not a code change here.
+ * `permission:notifikasi.lihat` is granted to every role in
+ * `RbacCatalog::ROLE_PERMISSIONS` - all seven since the multi-portal round - so it
+ * now refuses only `perawat`, the real `users.tipe` value (`:139`) that holds no
+ * role at all. The guard is kept rather than dropped for two reasons: it is the
+ * only named code for the action, and dropping it would put the allowlist in a
+ * controller where it could not be revoked by a data change. The cost is asserted
+ * by this todo's test, and both halves of it - the nurse refused, the courier
+ * admitted - are data in `RbacCatalog` plus a re-seed, not code here.
  *
  * ## `meta.unread` is the BADGE, and it is not the page's count
  *

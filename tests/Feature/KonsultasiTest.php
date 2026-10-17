@@ -72,11 +72,11 @@ function knsAs(User $user): mixed
 /**
  * A user carrying `$role`, or no role at all.
  *
- * `perawat` and `kurir` are real `users.tipe` values (`telemedicine_test.sql:139`)
- * that hold NO role in `RbacCatalog::ROLES`, so they can authenticate and reach
- * nothing that carries a `permission:`. A helper that always assigned a role would
- * make the two of them untestable, which is the mistake this signature exists to
- * prevent.
+ * `perawat` is a real `users.tipe` value (`telemedicine_test.sql:139`) that holds
+ * NO role in `RbacCatalog::ROLES` - the only one since the multi-portal round gave
+ * `kurir` and `marketing` roles - so it can authenticate and reach nothing that
+ * carries a `permission:`. A helper that always assigned a role would make that
+ * account type untestable, which is the mistake this signature exists to prevent.
  */
 function knsPengguna(string $tipe, ?string $role = null, array $ubah = []): User
 {
@@ -1502,7 +1502,7 @@ test('the message event is sent inline and never pushed onto the queue', functio
 
 test('a new consultation does not create a user row, and the system author is the acting account', function (): void {
     // The DDL has a system author TYPE (`pengirim_tipe = 'sistem'`, :567) and no
-    // system author ACCOUNT: `users.tipe` is a seven-value ENUM (:139) with no
+    // system author ACCOUNT: `users.tipe` is an eight-value ENUM (:139) with no
     // system value, and `pengirim_user_id` is `BIGINT UNSIGNED NOT NULL` with a
     // foreign key (:566, :577). The rule enforced is therefore that a system notice
     // is attributed to the account whose action caused it, and this asserts both

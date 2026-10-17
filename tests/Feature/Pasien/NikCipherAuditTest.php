@@ -394,18 +394,22 @@ test('the DDL changed by exactly the ONE authorised line, and the migration made
     //   F08     0f943eb81f1a1d8b133ee28b3d8724c62c8c19420a55bc9f9854f4c8a0e7e0a1
     //   F01     1b9264fcdeb76767fcb855b29a3b2c430d54cbea01961b7084d050dad67d47cb
     //   F11     4e883afceeed582c3e76d39acece80dd55519dd0fb97011d6e18319ed5ac3e7c
+    //   multi   c766b9b6ab088bc1e27d4302448616841a5bb84f9c6e9d7acda5a9ab310659d8
     //
     // The NIK change touched line 222 only. F02 then replaced line 1144's
     // `UNIQUE KEY uq_consent ...` with a comment recording the drop. F08 then
     // APPENDED section [17] (`konsultasi_baca`) after the final SELECT, so every
     // F02-era line number still resolves - the file was 1364 lines then. F11
     // APPENDED section [18] (four tables) the same way, so it is 1429 lines now
-    // and no pre-existing line moved; the digest below is the new one. F01
+    // and no pre-existing line moved. F01
     // folded `user_refresh_tokens.device_id` and the named
     // `idx_refresh_device` onto the existing `:206` and `:211` lines (see
     // docs/schema-notes.md), so the line count and every citation did not move.
+    // The multi-portal round edited `:139` IN PLACE - a `,` and a final
+    // `,'marketing'` on the `users.tipe` ENUM, the one line the plan
+    // authorises there - so the count is still 1429 and only the digest moved.
     expect(hash_file('sha256', base_path('telemedicine_test.sql')))
-        ->toBe('4e883afceeed582c3e76d39acece80dd55519dd0fb97011d6e18319ed5ac3e7c');
+        ->toBe('c766b9b6ab088bc1e27d4302448616841a5bb84f9c6e9d7acda5a9ab310659d8');
 
     // No table named after the proposed columns exists. Still true, and still
     // worth saying: the payload is a COLUMN, not a table.

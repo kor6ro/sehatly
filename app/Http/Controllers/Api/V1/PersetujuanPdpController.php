@@ -64,15 +64,17 @@ use Symfony\Component\HttpFoundation\Response;
  *
  * ## `perawat` and `kurir` are NOT locked out here
  *
- * They are real `users.tipe` values (`:139`) that hold no role, so any
- * `permission:` would lock them out of these routes permanently. They are not,
- * because consent belongs to a person whoever that person is at work -
- * `persetujuan_pdp.user_id` (`:1136`) is a `users` foreign key, not a `pasien`
- * one, so a nurse or a courier's consent record is a real row and the endpoint
- * would be lying about it if it 403'd them. The same two types ARE locked out of
- * the notification centre, which does carry `permission:notifikasi.lihat`; that
- * asymmetry is asserted, not described, and its fix is a data change in
- * `RbacCatalog` plus a re-seed.
+ * They are real `users.tipe` values (`:139`) with no `pdp.*` grant - `perawat`
+ * holds no role, `kurir` the delivery portal role - so any `permission:` would
+ * lock them out of these routes permanently. They are not, because consent
+ * belongs to a person whoever that person is at work - `persetujuan_pdp.user_id`
+ * (`:1136`) is a `users` foreign key, not a `pasien` one, so a nurse or a
+ * courier's consent record is a real row and the endpoint would be lying about it
+ * if it 403'd them. `perawat` alone IS still locked out of the notification
+ * centre, which does carry `permission:notifikasi.lihat`; that asymmetry is
+ * asserted, not described - and the courier's half of it closed when the
+ * multi-portal round granted the code to `kurir`, the data change the assertion
+ * was always pointing at.
  *
  * ## No `Route::resource`
  *

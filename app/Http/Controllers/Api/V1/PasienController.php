@@ -51,8 +51,9 @@ use Symfony\Component\HttpFoundation\Response;
  * - `tipe:pasien` would resolve, and is deliberately not used: it answers "which account
  *   type is this" rather than "is this row yours", and a `pasien`-typed account with no
  *   `pasien` row passes it and is then refused by {@see ownPasien()} anyway.
- * - `perawat` and `kurir` are real `users.tipe` values holding **no** role, so any
- *   `permission:` code is a permanent lockout for those two account types.
+ * - `perawat` and `kurir` are real `users.tipe` values that hold **none** of the
+ *   patient-data codes (`perawat` no role at all, `kurir` the delivery portal role),
+ *   so any `permission:` code is a permanent lockout for those two account types.
  *
  * ## Deletes are HARD deletes, and the schema forces it
  *

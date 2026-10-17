@@ -76,8 +76,8 @@ function kdlUser(string $nama, string $tipe = 'pasien'): int
 }
 
 /**
- * An account carrying `$role`, or no role at all - `perawat` and `kurir` are
- * real `users.tipe` values that hold none.
+ * An account carrying `$role`, or no role at all - `perawat` is the real
+ * `users.tipe` value that holds none.
  */
 function kdlPengguna(string $tipe, ?string $role = null): User
 {

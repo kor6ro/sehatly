@@ -64,8 +64,8 @@ function kbtUser(string $nama, string $tipe = 'pasien'): int
 /**
  * An account carrying `$role`, or no role at all.
  *
- * `perawat` and `kurir` are real `users.tipe` values that hold no role, so the
- * role is nullable and defaults to none.
+ * `perawat` is a real `users.tipe` value that holds no role, so the role is
+ * nullable and defaults to none.
  */
 function kbtPengguna(string $tipe, ?string $role = null): User
 {

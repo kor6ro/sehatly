@@ -82,7 +82,7 @@ function f14BersihkanAuditPengguna(): void
  *
  * `uuid` (:133), `nama_lengkap` (:135), `no_telepon` (:137) and
  * `kata_sandi_hash` (:138) are the four NOT NULL columns with no default, and
- * `tipe` is the seven-value ENUM at :139. `status` is `aktif` (:140) so no test in
+ * `tipe` is the eight-value ENUM at :139. `status` is `aktif` (:140) so no test in
  * this directory is ever excluded on the ACCOUNT's state - every exclusion under
  * test is on a `dokter` column, which is what the F14 rule is about.
  */

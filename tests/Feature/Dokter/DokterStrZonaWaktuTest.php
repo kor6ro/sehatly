@@ -83,7 +83,7 @@ const STR51B_JAM_MALAM = '2026-09-29T18:30:00Z';
 const STR51B_JAM_TENGAH = '2026-09-30T06:30:00Z';
 
 /**
- * A `users` row. `status` is `aktif` (`:140`) and `tipe` is the seven-value
+ * A `users` row. `status` is `aktif` (`:140`) and `tipe` is the eight-value
  * ENUM at `:139`, so no fixture here is ever excluded on the ACCOUNT's state --
  * that would be a different rule from the one under test.
  */

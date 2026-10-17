@@ -103,8 +103,9 @@ use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
  * printed on a letter, handed to a patient, carried to another facility, photographed
  * by whoever is standing there, and scanned by a receptionist who has no account and
  * never will. A `permission:` gate on it would answer 401 for an anonymous caller and
- * 403 for `perawat` and `kurir` (real `users.tipe` values at `:139` that hold no role),
- * which makes the capability useless in the only situation it exists for.
+ * 403 for `perawat` (no role at all) and `kurir` (a portal role holding no
+ * `surat_keterangan.buat`) alike, which makes the capability useless in the only
+ * situation it exists for.
  *
  * **What a stranger learns from a VALID token, exactly:**
  * that the document number is real; what KIND of document it is; which doctor signed

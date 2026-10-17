@@ -152,7 +152,7 @@ function pd47Blok(string $tabel): array
 /**
  * A `users` row. `uuid` (:134), `nama_lengkap` (:135), `no_telepon` (:137) and
  * `kata_sandi_hash` (:138) are the four NOT NULL columns with no default, and
- * `tipe` is the seven-value ENUM at :139.
+ * `tipe` is the eight-value ENUM at :139.
  */
 function pd47User(string $nama, string $tipe = 'pasien', ?string $role = null): User
 {
