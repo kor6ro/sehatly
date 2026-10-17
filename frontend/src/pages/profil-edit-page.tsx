@@ -112,7 +112,7 @@ type LengkapiForm = z.infer<typeof schema>;
  * is where the next navigation goes.
  */
 export function ProfilEditPage() {
-    useDocumentTitle('Yuk, Buat Akun Kamu! | Sehatly');
+    useDocumentTitle('Lengkapi Profil Kamu! | Sehatly');
 
     const navigate = useNavigate();
     const { userId } = useParams();
@@ -292,7 +292,7 @@ export function ProfilEditPage() {
                  */}
                 <section className="flex flex-col gap-3">
                     <h1 className="text-3xl font-bold tracking-tight md:text-4xl">
-                        Yuk, Buat Akun Kamu!
+                        Lengkapi Profil Kamu!
                     </h1>
 
                     <p className="text-muted-foreground max-w-md text-base leading-relaxed">

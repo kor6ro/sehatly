@@ -15,6 +15,7 @@ import {
     ShieldAlert,
     ShieldCheck,
     Stethoscope,
+    Tag,
 } from 'lucide-react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { detectPortal, type Portal } from '@/lib/portal';
@@ -89,7 +90,10 @@ const MENU_PORTAL: Record<Exclude<Portal, 'pasien'>, readonly GrupMenuPortal[]> 
     apotek: [
         {
             grup: 'Apotek',
-            item: [{ to: '/apotek/resep', icon: Pill, label: 'Antrean resep' }],
+            item: [
+                { to: '/apotek/dashboard', icon: ClipboardList, label: 'Dashboard' },
+                { to: '/apotek/resep', icon: Pill, label: 'Antrean resep' },
+            ],
         },
     ],
     kurir: [
@@ -103,6 +107,8 @@ const MENU_PORTAL: Record<Exclude<Portal, 'pasien'>, readonly GrupMenuPortal[]> 
             grup: 'Marketing',
             item: [
                 { to: '/marketing/dashboard', icon: ClipboardCheck, label: 'Dashboard' },
+                { to: '/marketing/artikel', icon: FileHeart, label: 'Artikel' },
+                { to: '/marketing/promo', icon: Tag, label: 'Promo' },
             ],
         },
     ],

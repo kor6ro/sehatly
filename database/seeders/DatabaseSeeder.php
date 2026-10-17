@@ -287,6 +287,7 @@ class DatabaseSeeder extends Seeder
         // of times against a populated database, exactly like `RbacSeeder` and
         // for exactly the reason F2 raised.
         $this->call(DemoDataSeeder::class);
+        $this->call(AdminSeeder::class);
     }
 
     /**

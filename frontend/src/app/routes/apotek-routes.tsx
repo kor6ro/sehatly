@@ -6,6 +6,7 @@ import { PortalTidakDitemukanPage } from '@/app/portal-states';
 import { AppShell } from '@/app/app-shell';
 import { PortalLoginPage } from '@/pages/portal-login-page';
 import { ProfilEditPage } from '@/pages/profil-edit-page';
+import { ApotekDashboardPage } from '@/pages/apotek-dashboard-page';
 import { ApotekQueuePage } from '@/pages/apotek-queue-page';
 import { ResepDetailPage } from '@/pages/resep-detail-page';
 import { KebijakanPrivasiPage } from '@/pages/kebijakan-privasi-page';
@@ -51,7 +52,7 @@ export const apotekRoutes = [
                 children: [
                     {
                         path: '/',
-                        element: <Navigate to="/apotek/resep" replace />,
+                        element: <Navigate to="/apotek/dashboard" replace />,
                         errorElement: <RouteErrorBoundary />,
                     },
                     {
@@ -62,6 +63,11 @@ export const apotekRoutes = [
                     {
                         element: <AppShell />,
                         children: [
+                            {
+                                path: '/apotek/dashboard',
+                                element: <ApotekDashboardPage />,
+                                errorElement: <RouteErrorBoundary />,
+                            },
                             {
                                 path: '/apotek/resep',
                                 element: <ApotekQueuePage />,

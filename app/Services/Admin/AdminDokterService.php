@@ -8,15 +8,18 @@ use App\Models\Booking;
 use App\Models\Dokter;
 use App\Models\DokterJadwal;
 use App\Models\DokterLibur;
+use App\Models\User;
 use App\Services\Booking\SlotAvailabilityService;
 use App\Services\Dokter\DokterDirectoryService;
 use App\Support\Dokter\StrBerlaku;
+use App\Support\Rbac\RoleAssigner;
 use App\Support\WaktuIndonesia;
 use DateTimeInterface;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
@@ -121,6 +124,49 @@ final class AdminDokterService
      * `users.nama_lengkap` is `VARCHAR(150) NOT NULL` (`:135`).
      */
     public const SEARCH_MAX = 150;
+
+    /**
+     * Create a new doctor account: one `users` row + one `dokter` row + role grant.
+     *
+     * `status_verifikasi` starts `pending` — the admin verifies through the
+     * dedicated `PUT /admin/dokter/{id}/verifikasi` endpoint. `status` starts
+     * `aktif` so the account can log in immediately after the admin communicates
+     * the password out-of-band.
+     *
+     * @param  array<string, mixed>  $data  validated output from BuatDokterRequest
+     */
+    public function buat(array $data): Dokter
+    {
+        return DB::transaction(function () use ($data): Dokter {
+            $user = new User;
+            $user->nama_lengkap = $data['nama_lengkap'];
+            $user->no_telepon   = $data['no_telepon'];
+            $user->email        = $data['email'] ?? null;
+            $user->kata_sandi_hash = Hash::make($data['kata_sandi']);
+            $user->tipe         = 'dokter';
+            $user->status       = 'aktif';
+            $user->telepon_terverifikasi = false;
+            $user->email_terverifikasi   = false;
+            $user->save();
+
+            $dokter = new Dokter;
+            $dokter->user_id             = (int) $user->getKey();
+            $dokter->tipe                = $data['tipe'];
+            $dokter->nomor_str           = $data['nomor_str'];
+            $dokter->str_berlaku_sampai  = $data['str_berlaku_sampai'];
+            $dokter->nomor_sip           = $data['nomor_sip'] ?? null;
+            $dokter->sip_berlaku_sampai  = $data['sip_berlaku_sampai'] ?? null;
+            $dokter->pengalaman_tahun    = $data['pengalaman_tahun'] ?? 0;
+            $dokter->biaya_konsultasi_online = $data['biaya_konsultasi_online'] ?? 0;
+            $dokter->status_verifikasi   = 'pending';
+            $dokter->status_aktif        = true;
+            $dokter->save();
+
+            app(RoleAssigner::class)->assign((int) $user->getKey(), 'dokter');
+
+            return $this->find((int) $dokter->getKey()) ?? $dokter;
+        });
+    }
 
     /**
      * One page of the admin directory: every `dokter` row, no eligibility filter.

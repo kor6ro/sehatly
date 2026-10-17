@@ -1857,6 +1857,9 @@ Route::middleware(['auth:sanctum', 'tipe:admin,superadmin'])
         | above records. `dokter` is a one-segment literal registered BEFORE the
         | `{id}` wildcard.
         */
+        Route::post('dokter', [AdminDokterController::class, 'store'])
+            ->name('dokter.store');
+
         Route::get('dokter', [AdminDokterController::class, 'index'])
             ->middleware('permission:dokter.lihat')
             ->name('dokter.index');
@@ -2133,4 +2136,100 @@ Route::middleware('auth:sanctum')->group(function (): void {
         ->whereNumber('id')
         ->middleware(['tipe:dokter', 'permission:ulasan.balas'])
         ->name('dokter.ulasan.balas');
+});
+
+use App\Http\Controllers\Api\V1\KurirController;
+
+/*
+|--------------------------------------------------------------------------
+| M6 -- the courier's delivery surface: four routes (plan section 5.2)
+|--------------------------------------------------------------------------
+|
+| APPENDED by the multi-portal plan's section 5.2. Nothing above this line is
+| touched, and the block is last in the file for the reason every appended
+| block gives: `kurir` is a literal first segment no route above uses at all
+| (`grep "'kurir" routes/api.php` before this block answered nothing), so no
+| route above can swallow `kurir/pesanan`, `kurir/pesanan/{id}` or the two
+| four-segment action paths, and none of them can swallow a path above.
+|
+| ## Why this module exists instead of a widened F46
+|
+| `GET /pesanan-obat/{id}` (F46) REFUSES the courier: `RbacCatalog` grants the
+| courier `pesanan.antar`, `pesanan.update` and `notifikasi.lihat` and
+| deliberately withholds `pesanan.lihat`, because F46's payload carries the
+| patient id, the prescription link and the three money columns. Plan section
+| 5.2 says the same thing from the other side ("kurir tidak punya
+| `pesanan.lihat`") and asks for four delivery routes of its own. This block is
+| that answer: a courier-shaped queue and detail (no money, no `resep_id`, no
+| `pasien_id` -- see `KurirPesananResource`) plus the two state moves.
+|
+| ## The four routes and their guards
+|
+| | route | `permission:` | what it does |
+| | --- | --- | --- |
+| | `GET /kurir/pesanan` | `pesanan.update` | the queue: `siap` first, then `sedang_dikirim` |
+| | `GET /kurir/pesanan/{id}` | `pesanan.update` | one order + its tracking trail |
+| | `PUT /kurir/pesanan/{id}/ambil` | `pesanan.update` | claim: `siap -> sedang_dikirim` |
+| | `PUT /kurir/pesanan/{id}/antar` | `pesanan.antar` | confirm: `sedang_dikirim -> selesai` |
+|
+| **The permission split is an interpretation of the plan, and here it is
+| stated plainly.** Section 5.2's prose names one guard for the block
+| (`tipe:kurir` + `permission:pesanan.antar`); `RbacCatalog`'s kurir comment
+| (update 1, reviewed) calls BOTH `pesanan.antar` and `pesanan.update` "the
+| section 5.2 delivery endpoints' own codes". The mapping above gives each code
+| the act its name describes -- `update` is the workflow-state code (queue read
+| and the claim both move through courier-owned states), `antar` is the
+| delivery confirmation -- so neither code guards nothing. A courier holds
+| both, so every courier can use every route either way; the split only matters
+| to a future role granted one code alone, and then it matters correctly.
+|
+| ## The party gate is `tipe:kurir` ALONE -- superadmin is excluded, unlike F14
+|
+| The F14 admin group admits `tipe:admin,superadmin` because editing a banner
+| is a content decision an oversight account may make. A delivery confirmation
+| is an OPERATIONAL act: it asserts a parcel physically changed hands, and an
+| account that never carried the parcel has no means to know that. Superadmin
+| still HOLDS both codes in the catalogue (the catalogue test asserts it holds
+| all of them) and is still refused here, by the party gate -- the same
+| two-layer construction F14 documents, aimed the other way. Section 5.2's own
+| prose says `tipe:kurir`, and this block follows it literally.
+|
+| ## `whereNumber` on every wildcard
+|
+| `pesanan_obat.id` is `BIGINT UNSIGNED AUTO_INCREMENT` (`:798`), so a
+| non-numeric segment is a router 404 and no request reaches the service with
+| `abc` where an identifier belongs.
+|
+| ## No `Route::resource`, and only GET/PUT
+|
+| The queue is system-owned (rows enter it when an apotek marks an order
+| `siap`), so there is nothing to POST and -- a delivery fact being append-only
+| evidence once written -- nothing to DELETE. The two writes are PUTs because
+| each is an idempotent-looking move of a state the service re-reads under a
+| lock; a second `ambil` is a 404, not a second tracking row.
+|
+| @see \App\Services\Kurir\KurirPesananService
+| @see \App\Http\Controllers\Api\V1\KurirController
+*/
+Route::middleware('auth:sanctum')->group(function (): void {
+    Route::prefix('kurir')->name('kurir.')->middleware('tipe:kurir')->group(function (): void {
+        Route::get('pesanan', [KurirController::class, 'index'])
+            ->middleware('permission:pesanan.update')
+            ->name('pesanan.index');
+
+        Route::get('pesanan/{id}', [KurirController::class, 'show'])
+            ->whereNumber('id')
+            ->middleware('permission:pesanan.update')
+            ->name('pesanan.show');
+
+        Route::put('pesanan/{id}/ambil', [KurirController::class, 'ambil'])
+            ->whereNumber('id')
+            ->middleware('permission:pesanan.update')
+            ->name('pesanan.ambil');
+
+        Route::put('pesanan/{id}/antar', [KurirController::class, 'antar'])
+            ->whereNumber('id')
+            ->middleware('permission:pesanan.antar')
+            ->name('pesanan.antar');
+    });
 });

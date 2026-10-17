@@ -1409,6 +1409,15 @@ test('the route table exposes the twelve auth routes and the seven patient route
         'DELETE api/v1/admin/hero/{id}',
         'POST api/v1/admin/hero/{id}/gambar',
         'DELETE api/v1/admin/hero/{id}/gambar',
+        // M6's courier FOUR - plan section 5.2 - appended after F04's block as
+        // the LAST routes in `routes/api.php` (a new literal `kurir` prefix, so
+        // no route above could swallow them). Listed here for the same closed-
+        // set reason every entry above is: two reads, the claim and the
+        // confirmation.
+        'GET api/v1/kurir/pesanan',
+        'GET api/v1/kurir/pesanan/{id}',
+        'PUT api/v1/kurir/pesanan/{id}/ambil',
+        'PUT api/v1/kurir/pesanan/{id}/antar',
     ]);
 
     // TEN under the `pasien` filter: the six above (profil read + write, two for
@@ -1774,6 +1783,19 @@ test('the route table exposes the twelve auth routes and the seven patient route
             'GET api/v1/dokter/{dokter}/ulasan' => [],
             'POST api/v1/konsultasi/{id}/ulasan' => [],
             'PUT api/v1/dokter/ulasan/{id}/balas' => ['tipe:dokter', 'permission:ulasan.balas'],
+            // M6's courier FOUR. `tipe:kurir` sits on the wrapping prefix group
+            // (like F14's `tipe:admin,superadmin`), so it is listed here because
+            // it applies - and neither F14 nor these routes add a second `tipe:`
+            // string to the file, which is why the regex census in this file and
+            // in `AuthFlowTest` counts ONE `tipe:kurir` for four routes. The
+            // permission split is the M6 block's documented one: the two reads
+            // and the claim ride `pesanan.update` (the courier's workflow code),
+            // the confirmation rides `pesanan.antar` (named after the act), and
+            // `pesanan.lihat` - F46's withheld code - appears on none of them.
+            'GET api/v1/kurir/pesanan' => ['permission:pesanan.update', 'tipe:kurir'],
+            'GET api/v1/kurir/pesanan/{id}' => ['permission:pesanan.update', 'tipe:kurir'],
+            'PUT api/v1/kurir/pesanan/{id}/ambil' => ['permission:pesanan.update', 'tipe:kurir'],
+            'PUT api/v1/kurir/pesanan/{id}/antar' => ['permission:pesanan.antar', 'tipe:kurir'],
         ];
 
         expect($guards)->toEqualCanonicalizing(
@@ -1986,6 +2008,15 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         // holds the grant).
         "'permission:ulasan.balas'",
         "'tipe:dokter'",
+        // M6's courier block, the file's last routes: `tipe:kurir` once on the
+        // wrapping group, `pesanan.update` three times (two reads + the claim)
+        // and `pesanan.antar` once (the confirmation). Duplicated deliberately
+        // from `AuthFlowTest` over the same regex for the reason stated above.
+        "'tipe:kurir'",
+        "'permission:pesanan.update'",
+        "'permission:pesanan.update'",
+        "'permission:pesanan.update'",
+        "'permission:pesanan.antar'",
     ]);
 });
 

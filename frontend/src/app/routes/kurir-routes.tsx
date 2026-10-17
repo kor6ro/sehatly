@@ -2,15 +2,14 @@ import { Navigate } from 'react-router';
 import { RootLayout } from '@/app/root-layout';
 import { RouteErrorBoundary } from '@/app/error-boundary';
 import { RequirePortalAuth } from '@/app/guards';
-import {
-    PortalDalamPengerjaan,
-    PortalTidakDitemukanPage,
-} from '@/app/portal-states';
+import { PortalTidakDitemukanPage } from '@/app/portal-states';
 import { AppShell } from '@/app/app-shell';
 import { PortalLoginPage } from '@/pages/portal-login-page';
 import { ProfilEditPage } from '@/pages/profil-edit-page';
 import { KebijakanPrivasiPage } from '@/pages/kebijakan-privasi-page';
 import { SyaratKetentuanPage } from '@/pages/syarat-ketentuan-page';
+import { KurirPesananPage } from '@/pages/kurir-pesanan-page';
+import { KurirPesananDetailPage } from '@/pages/kurir-pesanan-detail-page';
 
 /**
  * The kurir portal's route table, served from `kurir.sehatly.test` (plan section 2.3).
@@ -64,7 +63,12 @@ export const kurirRoutes = [
                         children: [
                             {
                                 path: '/kurir/pesanan',
-                                element: <PortalDalamPengerjaan portal="kurir" />,
+                                element: <KurirPesananPage />,
+                                errorElement: <RouteErrorBoundary />,
+                            },
+                            {
+                                path: '/kurir/pesanan/:id',
+                                element: <KurirPesananDetailPage />,
                                 errorElement: <RouteErrorBoundary />,
                             },
                         ],

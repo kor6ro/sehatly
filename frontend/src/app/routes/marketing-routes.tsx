@@ -2,15 +2,15 @@ import { Navigate } from 'react-router';
 import { RootLayout } from '@/app/root-layout';
 import { RouteErrorBoundary } from '@/app/error-boundary';
 import { RequirePortalAuth } from '@/app/guards';
-import {
-    PortalDalamPengerjaan,
-    PortalTidakDitemukanPage,
-} from '@/app/portal-states';
+import { PortalTidakDitemukanPage } from '@/app/portal-states';
 import { AppShell } from '@/app/app-shell';
 import { PortalLoginPage } from '@/pages/portal-login-page';
 import { ProfilEditPage } from '@/pages/profil-edit-page';
 import { KebijakanPrivasiPage } from '@/pages/kebijakan-privasi-page';
 import { SyaratKetentuanPage } from '@/pages/syarat-ketentuan-page';
+import { MarketingDashboardPage } from '@/pages/marketing-dashboard-page';
+import { MarketingArtikelPage } from '@/pages/marketing-artikel-page';
+import { MarketingPromoPage } from '@/pages/marketing-promo-page';
 
 /**
  * The marketing portal's route table, served from `marketing.sehatly.test` (plan
@@ -62,7 +62,17 @@ export const marketingRoutes = [
                         children: [
                             {
                                 path: '/marketing/dashboard',
-                                element: <PortalDalamPengerjaan portal="marketing" />,
+                                element: <MarketingDashboardPage />,
+                                errorElement: <RouteErrorBoundary />,
+                            },
+                            {
+                                path: '/marketing/artikel',
+                                element: <MarketingArtikelPage />,
+                                errorElement: <RouteErrorBoundary />,
+                            },
+                            {
+                                path: '/marketing/promo',
+                                element: <MarketingPromoPage />,
                                 errorElement: <RouteErrorBoundary />,
                             },
                         ],

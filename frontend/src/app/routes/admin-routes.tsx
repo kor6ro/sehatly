@@ -4,8 +4,9 @@ import { RouteErrorBoundary } from '@/app/error-boundary';
 import { RequirePortalAuth } from '@/app/guards';
 import { PortalTidakDitemukanPage } from '@/app/portal-states';
 import { AppShell } from '@/app/app-shell';
-import { PortalLoginPage } from '@/pages/portal-login-page';
+import { AdminLoginPage } from '@/pages/admin-login-page';
 import { ProfilEditPage } from '@/pages/profil-edit-page';
+import { AdminDokterBuatPage } from '@/pages/admin-dokter-buat-page';
 import { AdminDokterPage } from '@/pages/admin-dokter-page';
 import { AdminDokterDetailPage } from '@/pages/admin-dokter-detail-page';
 import { AdminLaporanPage } from '@/pages/admin-laporan-page';
@@ -50,7 +51,7 @@ export const adminRoutes = [
         children: [
             {
                 path: '/login',
-                element: <PortalLoginPage portal="admin" />,
+                element: <AdminLoginPage />,
                 errorElement: <RouteErrorBoundary />,
             },
 
@@ -91,6 +92,11 @@ export const adminRoutes = [
                          * table: a page failure must replace one leaf, never the shell.
                          */
                         children: [
+                            {
+                                path: '/admin/dokter/buat',
+                                element: <AdminDokterBuatPage />,
+                                errorElement: <RouteErrorBoundary />,
+                            },
                             {
                                 path: '/admin/dokter',
                                 element: <AdminDokterPage />,

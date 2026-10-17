@@ -239,7 +239,11 @@ function AdminDokterContent() {
                 title="Dokter"
                 description="Seluruh dokter, termasuk yang belum terverifikasi dan nonaktif."
                 action={
-                    <div data-testid="admin-aksi">
+                    <div data-testid="admin-aksi" className="flex gap-2">
+                        <Button asChild variant="default" className="h-11">
+                            <Link to="/admin/dokter/buat">Buat dokter</Link>
+                        </Button>
+
                         <Button
                             type="button"
                             variant="outline"
