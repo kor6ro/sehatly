@@ -26,7 +26,7 @@ require_once __DIR__.'/demo3c-helpers.php';
 | ## The rule this file holds itself to
 |
 | **The seeder creates the PRECONDITIONS; this file creates the JOURNEY.**
-| `DemoDataSeeder` writes the three accounts, the doctor's schedule, the
+| `DemoDataSeeder` writes the five demo accounts, the doctor's schedule, the
 | pharmacy and its stock - the things no public API can create. Every row that
 | makes up a journey is written HERE, by the production services, through the
 | production endpoints, on behalf of an account that really logged in. Nothing

@@ -38,6 +38,19 @@ use RuntimeException;
  * the real two-step login, and a row appearing in `notifikasi` or `pesanan_obat`
  * is the only thing any of those tests counts.
  *
+ * ## The two MULTI-PORTAL accounts, appended without touching the three above
+ *
+ * The multi-portal round (§1.3 of `docs/update-plan-pilihan-a.md`) adds a courier
+ * portal and a marketing portal. Both are role-gated, so both need a loginable
+ * account the same way the doctor and the pharmacist did: a portal whose only
+ * accounts hold no role is 403 on every route it exists to serve. Two accounts are
+ * therefore appended - `kurir` and `marketing` - and they are deliberately the
+ * SIMPLEST accounts this class writes: neither has a domain profile table, so each
+ * is one `users` row and one `user_roles` grant and nothing else. They add no
+ * schedule, no stock and no allergy, because the courier and marketing journeys
+ * have no such preconditions. They are listed LAST in {@see AKUN} so the three
+ * journey accounts keep the ids, phone numbers and UUIDs they had before.
+ *
  * ## IT IS IDEMPOTENT, and that is the load-bearing property
  *
  * `RbacSeeder` was made idempotent by the F2 gate after it proved fatal on a
@@ -69,10 +82,11 @@ use RuntimeException;
  *
  * ## THE PII IS OBVIOUSLY FAKE, and here is the list
  *
- * - **Phone numbers are `081000000001`, `081000000002`, `081000000003`.** `0810`
- *   is not an allocated Indonesian mobile operator prefix, so no dialled number
- *   in this repository can reach a person. `no_telepon` is `VARCHAR(20)`, and the
- *   OTP path is `LogOtpSender`, so nothing is sent anywhere either.
+ * - **Phone numbers are `081000000001`, `081000000002`, `081000000003`,
+ *   `081000000004` and `081000000005`.** `0810` is not an allocated Indonesian
+ *   mobile operator prefix, so no dialled number in this repository can reach a
+ *   person. `no_telepon` is `VARCHAR(20)`, and the OTP path is `LogOtpSender`, so
+ *   nothing is sent anywhere either.
  * - **Email addresses are `@sehatly.test`.** `.test` is reserved by RFC 6761 and
  *   can never resolve.
  * - **NO NIK IS WRITTEN, ANYWHERE.** `pasien.nik` is left `NULL`. F3-03 records
@@ -83,7 +97,7 @@ use RuntimeException;
  *   masking**, and that is stated rather than papered over. Writing a
  *   16-digit placeholder would put a number in the repository that reads as a
  *   person's NIK and would make the masking question look answered.
- * - **No token and no OTP is committed.** The only credentials here are three
+ * - **No token and no OTP is committed.** The only credentials here are five
  *   documented demo passwords, and a demo account whose password nobody knows is
  *   precisely the defect this seeder exists to remove.
  *
@@ -106,13 +120,18 @@ use RuntimeException;
 final class DemoDataSeeder extends Seeder
 {
     /**
-     * The three account keys, and the only three this class creates.
+     * The five account keys, and the only five this class creates.
      *
-     * They are exactly the three roles the four unreachable journeys need: a
-     * patient who can book and check out, a doctor who can consult, prescribe
-     * and open a medical record, and a pharmacist who can sign a prescription
-     * so it becomes dispensable at all
+     * The first three are exactly the three roles the four unreachable journeys
+     * need: a patient who can book and check out, a doctor who can consult,
+     * prescribe and open a medical record, and a pharmacist who can sign a
+     * prescription so it becomes dispensable at all
      * ({@see ResepVerifikasiService::siapDipenuhi()}).
+     *
+     * `kurir` and `marketing` were APPENDED by the multi-portal round for the two
+     * new portals' own role-gated routes. They are named here so no test or README
+     * has to hard-code a phone number, and they are appended LAST so the three
+     * journey accounts keep their existing ids and UUIDs - see the class docblock.
      */
     public const AKUN_PASIEN = 'pasien';
 
@@ -120,8 +139,12 @@ final class DemoDataSeeder extends Seeder
 
     public const AKUN_APOTEKER = 'apoteker';
 
+    public const AKUN_KURIR = 'kurir';
+
+    public const AKUN_MARKETING = 'marketing';
+
     /**
-     * The three demo passwords, in public constants rather than in a private
+     * The five demo passwords, in public constants rather than in a private
      * array, because a demo credential that cannot be read from the code is a
      * demo credential nobody can use.
      *
@@ -134,8 +157,12 @@ final class DemoDataSeeder extends Seeder
 
     public const KATA_SANDI_APOTEKER = 'Demo#Apoteker2026';
 
+    public const KATA_SANDI_KURIR = 'Demo#Kurir2026';
+
+    public const KATA_SANDI_MARKETING = 'Demo#Marketing2026';
+
     /**
-     * The three accounts, by their natural key.
+     * The five accounts, by their natural key.
      *
      * `uuid` is a FIXED string per account rather than a generated one, because
      * `users.uuid` is `UNIQUE` and a re-run that generated a fresh UUID would
@@ -143,6 +170,13 @@ final class DemoDataSeeder extends Seeder
      * bcrypt literal for the same reason - `password_hash()` is salted, so a
      * fresh hash on every run would make "the second run changed nothing" false
      * by construction.
+     *
+     * The last two entries are the multi-portal accounts. Each is one `users` row
+     * plus the single `user_roles` grant {@see tulisAkun()} derives from `role`,
+     * and nothing else - `kurir` and `marketing` have no profile table, so they
+     * need no `tulis*()` method of their own. `tipe` and `role` are the same word
+     * for both, because `RbacCatalog::ROLES` is a strict subset of
+     * `RbacCatalog::USER_TYPES` and every role name is a `users.tipe` value.
      *
      * @var array<string, array{no_telepon: string, email: string, nama: string, tipe: string, role: string, uuid: string, kata_sandi: string, hash: string}>
      */
@@ -176,6 +210,32 @@ final class DemoDataSeeder extends Seeder
             'uuid' => '00000000-0000-4000-8000-000000000003',
             'kata_sandi' => self::KATA_SANDI_APOTEKER,
             'hash' => '$2y$10$nSQAcWX/4E77GTtCAwT1EuVnwdq.4hEtRJuWFELM9SOCRKFwhqz8W',
+        ],
+        self::AKUN_KURIR => [
+            'no_telepon' => '081000000004',
+            'email' => 'demo.kurir@sehatly.test',
+            'nama' => 'Demo Kurir Sehatly',
+            'tipe' => 'kurir',
+            'role' => 'kurir',
+            'uuid' => '00000000-0000-4000-8000-000000000004',
+            'kata_sandi' => self::KATA_SANDI_KURIR,
+            // bcrypt literal for `self::KATA_SANDI_KURIR`, computed once with
+            // `password_hash('Demo#Kurir2026', PASSWORD_BCRYPT, ['cost' => 10])`
+            // and pasted here rather than re-hashed at runtime, so a re-run writes
+            // a byte-identical row - the idempotency the class docblock states.
+            'hash' => '$2y$10$frjNrIvfypJdNXdaZXP3YeItXraYZ6L2W7uk5ll2YDA9/GN3Dl5p2',
+        ],
+        self::AKUN_MARKETING => [
+            'no_telepon' => '081000000005',
+            'email' => 'demo.marketing@sehatly.test',
+            'nama' => 'Demo Marketing Sehatly',
+            'tipe' => 'marketing',
+            'role' => 'marketing',
+            'uuid' => '00000000-0000-4000-8000-000000000005',
+            'kata_sandi' => self::KATA_SANDI_MARKETING,
+            // See the note on the courier hash above: fixed literal for
+            // `self::KATA_SANDI_MARKETING`, cost 10 to match the four siblings.
+            'hash' => '$2y$10$dWKAE3trg1IMR7Lw5FiutO12JFbCIOg75n2y11HAI023ThQQRcGsG',
         ],
     ];
 
@@ -256,7 +316,7 @@ final class DemoDataSeeder extends Seeder
     private const ALERGI_KEPARAHAN = 'anafilaksis';
 
     /**
-     * The demo accounts, keyed by {@see AKUN_PASIEN} and its two siblings.
+     * The demo accounts, keyed by {@see AKUN_PASIEN} and its four siblings.
      *
      * The public accessor, so a test or a README can state a demo login
      * without hard-coding a phone number in a second place.
@@ -333,7 +393,7 @@ final class DemoDataSeeder extends Seeder
     // =================================================================
 
     /**
-     * The three `users` rows and their three `user_roles` grants.
+     * The five `users` rows and their five `user_roles` grants.
      *
      * `no_telepon` is chosen over `email` as the conflict target because it is
      * `NOT NULL UNIQUE` (`:137`) while `email` is nullable-unique (`:136`) - two
@@ -345,6 +405,11 @@ final class DemoDataSeeder extends Seeder
      * The role grants go through {@see RoleAssigner}, which is
      * `insertOrIgnore` on the composite primary key, so a re-run grants nothing
      * twice and never revokes a grant it did not make.
+     *
+     * The loop is driven by {@see AKUN}, so the `kurir` and `marketing` accounts
+     * are written by exactly the same two statements as the other three - no
+     * per-account branch, because a branch is where one of them would silently be
+     * forgotten.
      */
     private function tulisAkun(): void
     {

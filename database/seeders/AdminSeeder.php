@@ -65,7 +65,7 @@ final class AdminSeeder extends Seeder
      *
      * The public accessor, so `RbacMigrateFreshSeedTest` can name the demo role set
      * without hard-coding a phone number in a second place - the reason
-     * {@see DemoDataSeeder::namaAkun()} exists for the three journey accounts.
+     * {@see DemoDataSeeder::namaAkun()} exists for the five demo accounts.
      *
      * @return list<string>
      */

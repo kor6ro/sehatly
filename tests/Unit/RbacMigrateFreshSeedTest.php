@@ -154,16 +154,20 @@ class RbacMigrateFreshSeedTest extends TestCase
         // and a pharmacist who hold no role are 403 on every route they exist to
         // use - which is exactly the BLOCKER (F3-02) the demo seeder removes.
         //
-        // CHANGED AGAIN BY THE MULTI-PORTAL WORK, stated the same way: an `/admin`
-        // portal whose accounts hold no role is unreachable, so `AdminSeeder`
-        // grants `admin` and `superadmin` to its two named accounts. That is the
-        // 3 -> 5 movement; the shape of the guard below does not change.
+        // CHANGED AGAIN BY THE MULTI-PORTAL WORK, stated the same way, TWICE.
+        // First `AdminSeeder`: an `/admin` portal whose accounts hold no role is
+        // unreachable, so it grants `admin` and `superadmin` to its two named
+        // accounts. Then the courier and marketing portals in the SAME round, which
+        // need the same thing - so `DemoDataSeeder` now names five accounts, not
+        // three, and the total grant count moves 5 -> 7. The shape of the guard
+        // below does not change, and this is why it was written against the named
+        // account sets rather than against a bare count in the first place.
         //
         // What SURVIVES, and is asserted below, is the part that was actually
         // load-bearing: the RBAC kernel itself grants nothing, and the only
         // grants in the tree belong to the accounts `DemoDataSeeder::namaAkun()`
         // and `AdminSeeder::noTeleponAkun()` name. A count of zero would have been
-        // the wrong assertion; a count of exactly five, on exactly the right
+        // the wrong assertion; a count of exactly seven, on exactly the right
         // users, is a stronger one.
         $demo = [];
 
@@ -186,9 +190,9 @@ class RbacMigrateFreshSeedTest extends TestCase
         }
 
         $this->assertSame(
-            5,
+            7,
             DB::table('user_roles')->count(),
-            'Exactly the five demo accounts (the three journey demos and the two portal admins) may hold a role after migrate:fresh --seed, and nobody else does.',
+            'Exactly the seven accounts (the three journey demos, the courier and marketing demos, and then the two admin-console accounts) may hold a role after migrate:fresh --seed, and nobody else does.',
         );
 
         $penerima = DB::table('user_roles')->orderBy('user_id')->pluck('user_id')->map(static fn ($id): int => (int) $id)->all();
@@ -303,16 +307,29 @@ class RbacMigrateFreshSeedTest extends TestCase
 
     public function test_the_f3c_demo_accounts_land_too(): void
     {
-        // The other half of the change above: the chain now ALSO produces three
+        // The other half of the change above: the chain now ALSO produces five
         // loginable demo accounts and the relationships the four unreachable
         // journeys need. Counting them is the assertion that the documented boot
-        // path produces a usable system, which is the whole point of F3-02.
-        $this->assertSame(3, DemoDataSeeder::namaAkun() === [] ? 0 : count(DemoDataSeeder::namaAkun()));
+        // path produces a usable system, which is the whole point of F3-02 - and
+        // the five now include the multi-portal `kurir` and `marketing` accounts,
+        // which are one `users` row and one grant each and nothing more.
+        //
+        // Counting is the FLOOR, not the whole assertion: the loop below proves
+        // each of the five rows exists exactly once and its published password
+        // really verifies against the stored hash, and
+        // `test_no_role_is_granted_to_an_account_outside_the_demo_set` above
+        // proves the matching grant for every one of the five.
+        $this->assertSame(5, DemoDataSeeder::namaAkun() === [] ? 0 : count(DemoDataSeeder::namaAkun()));
 
         foreach (DemoDataSeeder::namaAkun() as $nama) {
             $akun = DemoDataSeeder::akun($nama);
 
             $this->assertSame(1, DB::table('users')->where('no_telepon', $akun['no_telepon'])->count());
+            $this->assertSame(
+                $akun['tipe'],
+                (string) DB::table('users')->where('no_telepon', $akun['no_telepon'])->value('tipe'),
+                "The demo account [{$nama}] does not hold the users.tipe its AKUN entry declares.",
+            );
             $this->assertTrue(
                 password_verify($akun['kata_sandi'], (string) DB::table('users')->where('no_telepon', $akun['no_telepon'])->value('kata_sandi_hash')),
                 "The demo account [{$nama}] does not authenticate with its published password.",
