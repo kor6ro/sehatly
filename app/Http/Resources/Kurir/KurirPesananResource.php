@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Resources\Kurir;
 
+use App\Http\Resources\PesananObatResource;
 use App\Http\Resources\PesananObatTrackingResource;
 use App\Models\PesananObat;
 use Illuminate\Http\Request;
@@ -11,7 +12,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * One order as the COURIER workflow publishes it - deliberately not
- * {@see \App\Http\Resources\PesananObatResource}.
+ * {@see PesananObatResource}.
  *
  * ## The absence of a field is the module's privacy boundary
  *

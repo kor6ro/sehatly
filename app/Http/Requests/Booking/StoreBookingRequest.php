@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Booking;
 
+use App\Models\Booking;
 use App\Models\DokterJadwal;
 use Closure;
 use Illuminate\Validation\Rule;
@@ -17,7 +18,7 @@ use Illuminate\Validation\Rule;
  *
  * `anggota_keluarga_id` is `prohibited` for the opposite reason: the column is
  * real and nullable (`2026_10_01_000037_booking_table.php:178`) and
- * {@see \App\Models\Booking::anggotaKeluarga()} still points at it, but the
+ * {@see Booking::anggotaKeluarga()} still points at it, but the
  * four routes that let a patient populate `pasien_anggota_keluarga` were
  * removed on 2026-10-15 (see `routes/api.php` for why). Accepting an id with
  * no way to have registered one would either fail the foreign key or point at

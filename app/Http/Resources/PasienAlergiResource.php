@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Resources;
 
 use App\Models\PasienAlergi;
+use App\Services\Pasien\PasienRecordAccess;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -27,7 +28,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * is one whose `dicatat_oleh_user_id` equals the caller's `id`.
  *
  * `pasien_id` is not published: the list is built by
- * {@see \App\Services\Pasien\PasienRecordAccess::alergiQuery()}, which scopes the query
+ * {@see PasienRecordAccess::alergiQuery()}, which scopes the query
  * to the caller's own row, so the response can only ever hold one account's rows and the
  * column would repeat what the token already establishes.
  *

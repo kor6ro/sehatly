@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Kurir;
 
 use App\Enums\PesananObatStatus;
+use App\Http\Resources\Kurir\KurirPesananResource;
 use App\Models\PesananObat;
 use App\Services\PesananObat\PesananObatService;
 use Illuminate\Database\Eloquent\Collection;
@@ -26,7 +27,7 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
  * goes (`alamat_kirim`, a free-text SNAPSHOT the patient wrote at checkout -
  * `PesananObatService::alamat()`, no address table and no re-read), which carrier
  * carries it and its tracking number. That is the whole of
- * {@see \App\Http\Resources\Kurir\KurirPesananResource}.
+ * {@see KurirPesananResource}.
  *
  * What is NOT published, on purpose: the money (`subtotal`/`biaya_kirim`/`total`),
  * the prescription link (`resep_id`) and with it the drug list, and the patient's
@@ -115,7 +116,7 @@ final class KurirPesananService
      * One order the courier workflow may show, with its full tracking trail.
      *
      * @throws ModelNotFoundException when the order does not exist or is outside
-     *                               {@see TERLIHAT} - the same answer for both, deliberately
+     *                                {@see TERLIHAT} - the same answer for both, deliberately
      */
     public function cari(int $id): PesananObat
     {

@@ -140,26 +140,26 @@ final class AdminDokterService
         return DB::transaction(function () use ($data): Dokter {
             $user = new User;
             $user->nama_lengkap = $data['nama_lengkap'];
-            $user->no_telepon   = $data['no_telepon'];
-            $user->email        = $data['email'] ?? null;
+            $user->no_telepon = $data['no_telepon'];
+            $user->email = $data['email'] ?? null;
             $user->kata_sandi_hash = Hash::make($data['kata_sandi']);
-            $user->tipe         = 'dokter';
-            $user->status       = 'aktif';
+            $user->tipe = 'dokter';
+            $user->status = 'aktif';
             $user->telepon_terverifikasi = false;
-            $user->email_terverifikasi   = false;
+            $user->email_terverifikasi = false;
             $user->save();
 
             $dokter = new Dokter;
-            $dokter->user_id             = (int) $user->getKey();
-            $dokter->tipe                = $data['tipe'];
-            $dokter->nomor_str           = $data['nomor_str'];
-            $dokter->str_berlaku_sampai  = $data['str_berlaku_sampai'];
-            $dokter->nomor_sip           = $data['nomor_sip'] ?? null;
-            $dokter->sip_berlaku_sampai  = $data['sip_berlaku_sampai'] ?? null;
-            $dokter->pengalaman_tahun    = $data['pengalaman_tahun'] ?? 0;
+            $dokter->user_id = (int) $user->getKey();
+            $dokter->tipe = $data['tipe'];
+            $dokter->nomor_str = $data['nomor_str'];
+            $dokter->str_berlaku_sampai = $data['str_berlaku_sampai'];
+            $dokter->nomor_sip = $data['nomor_sip'] ?? null;
+            $dokter->sip_berlaku_sampai = $data['sip_berlaku_sampai'] ?? null;
+            $dokter->pengalaman_tahun = $data['pengalaman_tahun'] ?? 0;
             $dokter->biaya_konsultasi_online = $data['biaya_konsultasi_online'] ?? 0;
-            $dokter->status_verifikasi   = 'pending';
-            $dokter->status_aktif        = true;
+            $dokter->status_verifikasi = 'pending';
+            $dokter->status_aktif = true;
             $dokter->save();
 
             app(RoleAssigner::class)->assign((int) $user->getKey(), 'dokter');

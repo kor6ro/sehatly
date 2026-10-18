@@ -37,21 +37,21 @@ class BuatDokterRequest extends FormRequest
     {
         return [
             // users fields
-            'nama_lengkap'      => ['required', 'string', 'max:150'],
-            'no_telepon'        => ['required', 'string', 'max:20', 'unique:users,no_telepon'],
-            'email'             => ['nullable', 'email', 'max:255', 'unique:users,email'],
-            'kata_sandi'        => ['required', 'string', 'min:8', 'max:255'],
+            'nama_lengkap' => ['required', 'string', 'max:150'],
+            'no_telepon' => ['required', 'string', 'max:20', 'unique:users,no_telepon'],
+            'email' => ['nullable', 'email', 'max:255', 'unique:users,email'],
+            'kata_sandi' => ['required', 'string', 'min:8', 'max:255'],
 
             // dokter fields
-            'tipe'              => ['required', 'string', Rule::in([
+            'tipe' => ['required', 'string', Rule::in([
                 'dokter_umum', 'dokter_spesialis', 'dokter_gigi',
                 'psikolog', 'bidan', 'perawat', 'apoteker',
             ])],
-            'nomor_str'         => ['required', 'string', 'max:30', 'unique:dokter,nomor_str'],
+            'nomor_str' => ['required', 'string', 'max:30', 'unique:dokter,nomor_str'],
             'str_berlaku_sampai' => ['required', 'date_format:Y-m-d'],
-            'nomor_sip'         => ['nullable', 'string', 'max:50'],
+            'nomor_sip' => ['nullable', 'string', 'max:50'],
             'sip_berlaku_sampai' => ['nullable', 'date_format:Y-m-d'],
-            'pengalaman_tahun'  => ['nullable', 'integer', 'min:0', 'max:65535'],
+            'pengalaman_tahun' => ['nullable', 'integer', 'min:0', 'max:65535'],
             'biaya_konsultasi_online' => ['nullable', 'numeric', 'min:0'],
         ];
     }
