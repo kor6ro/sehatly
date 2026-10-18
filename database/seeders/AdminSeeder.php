@@ -41,24 +41,38 @@ final class AdminSeeder extends Seeder
     /** Fixed bcrypt hashes so a re-seed writes byte-identical rows. */
     private const AKUN = [
         [
-            'no_telepon'  => '081900000001',
-            'email'       => 'admin@sehatly.test',
-            'nama'        => 'Admin Sehatly',
-            'tipe'        => 'admin',
-            'role'        => 'admin',
-            'uuid'        => '00000000-0000-4000-8000-000000000010',
-            'hash'        => '$2y$10$gCs4Yn1cWNioZK8if1Y2fuOgbTfS.fukQlgl5Qd6SqPNPiZqi0S8e', // Admin#Sehatly2026
+            'no_telepon' => '081900000001',
+            'email' => 'admin@sehatly.test',
+            'nama' => 'Admin Sehatly',
+            'tipe' => 'admin',
+            'role' => 'admin',
+            'uuid' => '00000000-0000-4000-8000-000000000010',
+            'hash' => '$2y$10$gCs4Yn1cWNioZK8if1Y2fuOgbTfS.fukQlgl5Qd6SqPNPiZqi0S8e', // Admin#Sehatly2026
         ],
         [
-            'no_telepon'  => '081900000002',
-            'email'       => 'superadmin@sehatly.test',
-            'nama'        => 'Superadmin Sehatly',
-            'tipe'        => 'superadmin',
-            'role'        => 'superadmin',
-            'uuid'        => '00000000-0000-4000-8000-000000000011',
-            'hash'        => '$2y$10$OocB9/OjPV79hIoHcczP1umT7Nt2O5EDpLU6.0y7YUmvOvETkR3We', // Superadmin#Sehatly2026
+            'no_telepon' => '081900000002',
+            'email' => 'superadmin@sehatly.test',
+            'nama' => 'Superadmin Sehatly',
+            'tipe' => 'superadmin',
+            'role' => 'superadmin',
+            'uuid' => '00000000-0000-4000-8000-000000000011',
+            'hash' => '$2y$10$OocB9/OjPV79hIoHcczP1umT7Nt2O5EDpLU6.0y7YUmvOvETkR3We', // Superadmin#Sehatly2026
         ],
     ];
+
+    /**
+     * The phone numbers this class creates an account for, in the order it creates them.
+     *
+     * The public accessor, so `RbacMigrateFreshSeedTest` can name the demo role set
+     * without hard-coding a phone number in a second place - the reason
+     * {@see DemoDataSeeder::namaAkun()} exists for the three journey accounts.
+     *
+     * @return list<string>
+     */
+    public static function noTeleponAkun(): array
+    {
+        return array_map(static fn (array $akun): string => (string) $akun['no_telepon'], self::AKUN);
+    }
 
     public function run(): void
     {
@@ -72,16 +86,16 @@ final class AdminSeeder extends Seeder
 
         foreach (self::AKUN as $akun) {
             $rows[] = [
-                'uuid'                   => $akun['uuid'],
-                'nama_lengkap'           => $akun['nama'],
-                'email'                  => $akun['email'],
-                'no_telepon'             => $akun['no_telepon'],
-                'kata_sandi_hash'        => $akun['hash'],
-                'tipe'                   => $akun['tipe'],
-                'status'                 => 'aktif',
-                'bahasa'                 => 'id',
-                'telepon_terverifikasi'  => 1,
-                'email_terverifikasi'    => 1,
+                'uuid' => $akun['uuid'],
+                'nama_lengkap' => $akun['nama'],
+                'email' => $akun['email'],
+                'no_telepon' => $akun['no_telepon'],
+                'kata_sandi_hash' => $akun['hash'],
+                'tipe' => $akun['tipe'],
+                'status' => 'aktif',
+                'bahasa' => 'id',
+                'telepon_terverifikasi' => 1,
+                'email_terverifikasi' => 1,
             ];
         }
 
@@ -89,7 +103,7 @@ final class AdminSeeder extends Seeder
             $rows,
             ['no_telepon'],
             ['uuid', 'nama_lengkap', 'email', 'kata_sandi_hash', 'tipe', 'status',
-             'bahasa', 'telepon_terverifikasi', 'email_terverifikasi'],
+                'bahasa', 'telepon_terverifikasi', 'email_terverifikasi'],
         );
 
         $assigner = app(RoleAssigner::class);

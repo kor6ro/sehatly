@@ -94,15 +94,21 @@ use Illuminate\Support\Facades\DB;
  * | 10 | {@see RbacSeeder} | no | `role_permissions` (FKs `:167`-`:168`), `user_roles` (FK `:176`) |
  * | **11** | **{@see DevFixtureSeeder}** | - | **must be last**: it reads 2, 3, 7 and 8 back and writes `users`, `pasien`, `faskes`, `dokter`, `dokter_spesialisasi`, `dokter_faskes`, `lab_paket_item`, `obat_interaksi` |
  * | **12** | **{@see DemoDataSeeder}** | `OBT-0002`, `OBT-0005`, `UMUM`, kode `31` | `users`, `user_roles`, `pasien`, `dokter`, `dokter_spesialisasi`, `dokter_jadwal`, `faskes`, `apotek_stok`, `pasien_alergi` - the three accounts the four unreachable journeys need, plus the schedule, pharmacy and stock that have no public API at all |
+ * | **13** | **{@see AdminSeeder}** | no | `users`, `user_roles` - the two portal admin accounts, each granted the role its `/admin` gate requires, so it depends on `roles` the same way 12 does |
  *
  * `RbacSeeder` sits between the two groups because it has no dependency on either:
  * it writes only `roles`, `permissions` and `role_permissions`, resolves every id
  * by natural key, and reads nothing. Its position is for readability.
  *
- * `DemoDataSeeder` is last because it depends on EVERYTHING: it grants roles, so
- * it needs `roles`; it stocks `master_obat` rows, so it needs `ObatSeeder`; it
- * links a `master_spesialisasi`, so it needs `SpesialisasiSeeder`; and it names a
+ * `DemoDataSeeder` depends on EVERYTHING: it grants roles, so it needs `roles`; it
+ * stocks `master_obat` rows, so it needs `ObatSeeder`; it links a
+ * `master_spesialisasi`, so it needs `SpesialisasiSeeder`; and it names a
  * province on the demo pharmacy, so it needs `MasterWilayahSeeder`.
+ *
+ * `AdminSeeder` is last of all, for the same shape of reason: it writes two
+ * `users` rows and then grants `admin`/`superadmin` through
+ * {@see RoleAssigner}, so `roles` (and `permissions`, through
+ * `role_permissions`) must exist first.
  *
  * ## Row totals
  *
@@ -112,7 +118,8 @@ use Illuminate\Support\Facades\DB;
  * | {@see RbacSeeder} (no DDL source) | 3 | **98** |
  * | {@see DevFixtureSeeder} (no DDL source) | 8 | **27** |
  * | {@see DemoDataSeeder} (no DDL source) | 9 | **22** |
- * | **total written** | **32** | **298** |
+ * | {@see AdminSeeder} (no DDL source) | 2 | **4** |
+ * | **total written** | **32** | **302** |
  *
  * **The 26th owned table, `user_roles`, is written by nobody in this tree.** It is
  * listed in `SEEDED_TABLES` so a re-seed clears a developer's manual grants, and
@@ -129,7 +136,23 @@ use Illuminate\Support\Facades\DB;
  * claim still holds: the RBAC kernel itself grants nothing, and
  * `RbacSeederIdempotencyTest` still proves it. What changed is that a seeder in
  * this tree may now write `user_roles`, and it may only ever do so for accounts
- * {@see DemoDataSeeder::namaAkun()} names.
+ * the demo seeders name - see the third correction below.
+ *
+ * ### Third correction: `AdminSeeder` grants roles too, and the row total moves to 302
+ *
+ * The sentence above (and its F3-02 predecessor) named
+ * {@see DemoDataSeeder::namaAkun()} as the only permitted source of a grant.
+ * **The multi-portal work made that incomplete the same way F3-02 did**:
+ * {@see AdminSeeder} writes two `users` rows and grants `admin` and `superadmin`
+ * to them, because an `/admin` portal with no role-bearing account is 403 on
+ * every route it exists to serve. The permitted set is the union of
+ * {@see DemoDataSeeder::namaAkun()} and {@see AdminSeeder::noTeleponAkun()}, and
+ * `RbacMigrateFreshSeedTest` asserts exactly that union rather than a count on
+ * its own.
+ *
+ * Two `users` rows and two `user_roles` grants come with it, so the row total
+ * above moves **298 -> 302**. The distinct-table total stays **32**: both tables
+ * were already owned, and row 13 adds no new one.
  *
  * The **151** is derived by parsing the DDL's own INSERT tuples - 15 statements,
  * one per table - and every per-table count is recorded in the individual

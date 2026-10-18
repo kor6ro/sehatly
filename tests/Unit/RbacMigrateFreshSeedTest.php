@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Unit;
 
 use App\Support\Rbac\RbacCatalog;
+use Database\Seeders\AdminSeeder;
 use Database\Seeders\DemoDataSeeder;
 use Database\Seeders\RbacSeeder;
 use Illuminate\Support\Facades\Artisan;
@@ -153,11 +154,17 @@ class RbacMigrateFreshSeedTest extends TestCase
         // and a pharmacist who hold no role are 403 on every route they exist to
         // use - which is exactly the BLOCKER (F3-02) the demo seeder removes.
         //
+        // CHANGED AGAIN BY THE MULTI-PORTAL WORK, stated the same way: an `/admin`
+        // portal whose accounts hold no role is unreachable, so `AdminSeeder`
+        // grants `admin` and `superadmin` to its two named accounts. That is the
+        // 3 -> 5 movement; the shape of the guard below does not change.
+        //
         // What SURVIVES, and is asserted below, is the part that was actually
         // load-bearing: the RBAC kernel itself grants nothing, and the only
         // grants in the tree belong to the accounts `DemoDataSeeder::namaAkun()`
-        // names. A count of zero would have been the wrong assertion; a count of
-        // exactly three, on exactly the right users, is a stronger one.
+        // and `AdminSeeder::noTeleponAkun()` name. A count of zero would have been
+        // the wrong assertion; a count of exactly five, on exactly the right
+        // users, is a stronger one.
         $demo = [];
 
         foreach (DemoDataSeeder::namaAkun() as $nama) {
@@ -170,10 +177,18 @@ class RbacMigrateFreshSeedTest extends TestCase
             $demo[] = $userId;
         }
 
+        foreach (AdminSeeder::noTeleponAkun() as $noTelepon) {
+            $userId = (int) DB::table('users')->where('no_telepon', $noTelepon)->value('id');
+
+            $this->assertGreaterThan(0, $userId, "The portal admin account [{$noTelepon}] has no users row after migrate:fresh --seed.");
+
+            $demo[] = $userId;
+        }
+
         $this->assertSame(
-            3,
+            5,
             DB::table('user_roles')->count(),
-            'Exactly the three demo accounts may hold a role after migrate:fresh --seed, and nobody else does.',
+            'Exactly the five demo accounts (the three journey demos and the two portal admins) may hold a role after migrate:fresh --seed, and nobody else does.',
         );
 
         $penerima = DB::table('user_roles')->orderBy('user_id')->pluck('user_id')->map(static fn ($id): int => (int) $id)->all();

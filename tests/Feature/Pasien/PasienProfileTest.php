@@ -1368,6 +1368,11 @@ test('the route table exposes the twelve auth routes and the seven patient route
         // is party-gated to `admin`/`superadmin`, so a patient token cannot reach
         // it even where a patient role holds the permission (`dokter.lihat`,
         // `jadwal.lihat`), which is what the F14 feature tests assert directly.
+        //
+        // The multi-portal work registers `POST /admin/dokter` ahead of the read
+        // routes in this block - the one write the admin portal needs that F14's
+        // doctor surface did not have. Listed here for the same closed-set reason.
+        'POST api/v1/admin/dokter',
         'GET api/v1/admin/dokter',
         'GET api/v1/admin/dokter/{id}',
         'PUT api/v1/admin/dokter/{id}/verifikasi',
@@ -1735,6 +1740,13 @@ test('the route table exposes the twelve auth routes and the seven patient route
             // mutation IS covered by a code: `pasien.kelola`, F01's owner-approved
             // addition, granted to `admin` and `superadmin`. `pdp.kelola` was
             // rejected because its surface is the read-only consent ledger.
+            // The multi-portal work appends an EIGHTEENTH route to the group -
+            // `POST /admin/dokter`, the one write the admin portal needs that F14's
+            // doctor surface did not have. It carries the party gate ALONE, for the
+            // same reason the eight F14 writes do: no owner-approved code names
+            // creating a doctor account, and reusing `dokter.lihat` on a mutation
+            // would widen a read grant `pasien`, `dokter` and `apoteker` all hold.
+            'POST api/v1/admin/dokter' => ['tipe:admin,superadmin'],
             'GET api/v1/admin/dokter' => ['permission:dokter.lihat', 'tipe:admin,superadmin'],
             'GET api/v1/admin/dokter/{id}' => ['permission:dokter.lihat', 'tipe:admin,superadmin'],
             'PUT api/v1/admin/dokter/{id}/verifikasi' => ['tipe:admin,superadmin'],

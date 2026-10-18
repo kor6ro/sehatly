@@ -1154,11 +1154,12 @@ test('no admin route offers an export, and none sends a Content-Disposition', fu
         ->values()
         ->all();
 
-    // Twenty-three since the landing work appended the six `/admin/hero` routes
+    // Twenty-four since the landing work appended the six `/admin/hero` routes
     // (index/store/show/update/unggah/lepas) to F01's seventeen - the last of
-    // which was `PUT /admin/pasien/{id}/telepon`. Every one of them is checked
-    // for the forbidden words; the hero routes add none.
-    expect($rute)->toHaveCount(23);
+    // which was `PUT /admin/pasien/{id}/telepon` - and the multi-portal work
+    // appended `POST /admin/dokter`. Every one of them is checked for the
+    // forbidden words; neither addition brings one.
+    expect($rute)->toHaveCount(24);
 
     foreach ($rute as $satu) {
         expect($satu)->not->toContain('export')
