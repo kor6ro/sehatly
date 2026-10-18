@@ -79,11 +79,11 @@ class MarketingArtikelController extends Controller
      *
      * `penulis_user_id` diisi dari akun yang terautentikasi, bukan dari body.
      */
-    public function store(StoreArtikelRequest $request, Request $httpRequest): JsonResponse
+    public function store(StoreArtikelRequest $request): JsonResponse
     {
         $artikel = $this->artikel->buat(
             $request->isi(),
-            (int) $httpRequest->user()->getKey(),
+            (int) auth()->user()->getKey(),
         );
 
         return ApiResponse::success(
