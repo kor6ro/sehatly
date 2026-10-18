@@ -415,3 +415,61 @@ test('a courier can walk a packed order to delivered and it leaves the queue', f
         ->assertJsonPath('data.pesanan.status', 'selesai')
         ->assertJsonPath('data.pesanan.no_resi', 'RESI-LIVE-1');
 });
+
+// ------------------------------------------------------------- notifikasi pasien (DG9)
+
+test('mengambil pesanan membuat notifikasi pesanan telah diambil untuk pasien pemesan', function (): void {
+    $h = kurAs(kurUser());
+
+    $id = kurPesanan('siap');
+    $nomorPesanan = (string) DB::table('pesanan_obat')->where('id', $id)->value('nomor_pesanan');
+    $pasienUserId = (int) DB::table('pasien')
+        ->where('id', (int) DB::table('pesanan_obat')->where('id', $id)->value('pasien_id'))
+        ->value('user_id');
+
+    $this->putJson('/api/v1/kurir/pesanan/'.$id.'/ambil', [], $h)
+        ->assertOk()
+        ->assertJsonPath('data.pesanan.status', 'sedang_dikirim');
+
+    $baris = DB::table('notifikasi')
+        ->where('user_id', $pasienUserId)
+        ->where('judul', 'Pesanan telah diambil')
+        ->where('tipe', 'sistem')
+        ->first();
+
+    expect($baris)->not->toBeNull();
+
+    $payload = json_decode((string) $baris->payload, true);
+
+    expect((string) $baris->isi)->toContain($nomorPesanan)
+        ->and((string) $baris->isi)->toContain('sedang dikirim')
+        ->and($baris->tautan)->toBe('/api/v1/pesanan-obat/'.$id)
+        ->and($baris->dibaca_at)->toBeNull()
+        ->and($payload)->toBeArray()
+        ->and($payload['pesanan_id'])->toBe((int) $id)
+        ->and($payload['nomor_pesanan'])->toBe($nomorPesanan)
+        ->and($payload['status'])->toBe('sedang_dikirim');
+});
+
+test('antar membuat notifikasi pesanan telah diterima untuk pasien pemesan', function (): void {
+    $h = kurAs(kurUser());
+
+    $id = kurPesanan('sedang_dikirim');
+    $nomorPesanan = (string) DB::table('pesanan_obat')->where('id', $id)->value('nomor_pesanan');
+    $pasienUserId = (int) DB::table('pasien')
+        ->where('id', (int) DB::table('pesanan_obat')->where('id', $id)->value('pasien_id'))
+        ->value('user_id');
+
+    $this->putJson('/api/v1/kurir/pesanan/'.$id.'/antar', [], $h)
+        ->assertOk()
+        ->assertJsonPath('data.pesanan.status', 'selesai');
+
+    $baris = DB::table('notifikasi')
+        ->where('user_id', $pasienUserId)
+        ->where('judul', 'Pesanan telah diterima')
+        ->where('tipe', 'sistem')
+        ->first();
+
+    expect($baris)->not->toBeNull()
+        ->and((string) $baris->isi)->toContain($nomorPesanan);
+});

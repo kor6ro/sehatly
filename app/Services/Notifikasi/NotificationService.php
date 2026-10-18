@@ -7,6 +7,7 @@ namespace App\Services\Notifikasi;
 use App\Enums\NotifikasiTipe;
 use App\Models\Notifikasi;
 use App\Models\User;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -296,6 +297,80 @@ final class NotificationService
                 'platform' => (string) $satu->platform,
             ]);
         }
+    }
+
+    /**
+     * Menulis satu baris `notifikasi` ke inbox satu user pasien, lalu mencoba
+     * meng-push-nya ke setiap perangkat aktif miliknya.
+     *
+     * ## Kolom `tipe` adalah ENUM milik DDL, dan bukan kata bebas
+     *
+     * `notifikasi.tipe` anggota-anggotanya ditetapkan sekali untuk always di
+     * `telemedicine_test.sql:1041` (`booking`, `pembayaran`, `resep`, `chat`,
+     * `lab`, `promo`, `sistem`) dan MySQL menolak baris bernama di luar daftar
+     * itu. Notifikasi "pesanan diambil" dan "pesanan dikirimkan" dari kurir
+     * TIDAK bernama `pesanan_diambil`/`pesanan_dikirimkan` — keduanya bukan
+     * anggota ENUM dan tabel ini sengaja TIDAK dibuka migration baru untuk
+     * menambahkannya. Kedua event ditulis sebagai `sistem`, yang skema gunakan
+     * untuk pemberitahuan layanan (sama seperti baris lifecycle di
+     * `konsultasi_chat.pengirim_tipe`).
+     *
+     * Argumen `$tipe` divalidasi terhadap `NotifikasiTipe` sebelum ditulis;
+     * nilai yang bukan anggota ENUM dilemparkan sebagai
+     * `\InvalidArgumentException` dan baris TIDAK tercipta, karena caller
+     * tidak boleh berharap pada notifikasi yang justru tidak pernah ada.
+     *
+     * ## Best-effort: kegagalan notifikasi tidak membatalkan pemanggil
+     *
+     * Baris ditulis melalui `catat()` dulu. Push dipanggil melalui `dorong()`
+     * di dalam try/catch: jika push gagal, kesalahan dicatat log dan
+     * `kirimKePasien()` tetap mengembalikan baris yang sudah dibuat. Pemanggil
+     * (`KurirPesananService`) menangkap seluruhnya, jadi notifikasi yang
+     * gagal TIDAK membatalkan transaksi ambil/antar.
+     *
+     * @param  int  $pasienUserId  `users.id` milik pasien pemesan obat
+     * @param  string  $judul  Judul notifikasi; dipotong ke 200 karakter
+     * @param  string  $isi  Isi notifikasi; dipotong ke 500 karakter
+     * @param  string  $tipe  Anggota ENUM `notifikasi.tipe` — kurir
+     *                        menulis `sistem`
+     * @param  string|null  $tautan  Path API, mis. `/api/v1/pesanan-obat/{id}`;
+     *                               dipotong ke 500 karakter
+     * @param  array|null  $payload  Objek kunci, mis.
+     *                               `['pesanan_id' => 123, 'nomor_pesanan' =>
+     *                               'KUR...', 'status' => 'sedang_dikirim']`
+     * @return Notifikasi Baris baru (push-nya mungkin belum terkirim;
+     *                    kegagalan push tidak mengubah kembalian)
+     *
+     * @throws \InvalidArgumentException saat `$tipe` bukan anggota ENUM
+     * @throws ModelNotFoundException saat user pasien tidak ada
+     */
+    public function kirimKePasien(int $pasienUserId, string $judul, string $isi, string $tipe, ?string $tautan = null, ?array $payload = null): Notifikasi
+    {
+        try {
+            $tipa = NotifikasiTipe::from($tipe);
+        } catch (\ValueError $e) {
+            throw new \InvalidArgumentException(
+                "tipe notifikasi '$tipe' tidak diizinkan; gunakan salah satu: ".implode(', ', NotifikasiTipe::nilai()).'.',
+                previous: $e,
+            );
+        }
+
+        $user = User::query()->findOrFail($pasienUserId);
+
+        $baris = $this->catat($user, $tipa, $judul, $isi, $tautan, $payload ?? []);
+
+        try {
+            $this->dorong($user, $baris);
+        } catch (\Throwable $e) {
+            Log::error('notifikasi.pasien.push_gagal', [
+                'notifikasi_id' => (int) $baris->getKey(),
+                'user_id' => $pasienUserId,
+                'tipe' => $tipe,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return $baris;
     }
 
     /**
