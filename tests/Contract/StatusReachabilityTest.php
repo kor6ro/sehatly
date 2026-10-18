@@ -121,16 +121,17 @@ it('binds every published 401 and 403 to the same error envelope', function (): 
     }
 });
 
-it('publishes a 404 for all 120 operations, bound to the error envelope', function (): void {
+it('publishes a 404 for all 121 operations, bound to the error envelope', function (): void {
     // Structural, not reachability. The claim is that no operation advertises a
-    // 404 the error envelope cannot describe, and that the count is 120 -- so a
+    // 404 the error envelope cannot describe, and that the count is 121 -- so a
     // route appearing or disappearing moves this number rather than passing
     // quietly. F04 added the three review routes, which is the 102 -> 105 move;
     // F11 added the six preference/reminder routes, which is 105 -> 111; the
     // sign-in dialog's `GET /auth/otp/kanal` is the 111 -> 112 move; the one-door
     // flow's `POST /auth/sign-up/lengkapi` is the 112 -> 113 move; the landing-hero
     // module adds seven more (`GET /hero` plus six `/admin/hero` routes), which is
-    // the 113 -> 120 move.
+    // the 113 -> 120 move; the multi-portal `POST /admin/dokter` is bearer, which
+    // is the 120 -> 121 move.
     $count = 0;
 
     foreach (ContractSpec::specOperations() as $key => $operation) {
@@ -141,20 +142,21 @@ it('publishes a 404 for all 120 operations, bound to the error envelope', functi
         $count++;
     }
 
-    expect($count)->toBe(120);
+    expect($count)->toBe(121);
 });
 
 it('publishes 401 and 403 together, or neither, on every bearer operation', function (): void {
     // Both statuses come from `auth:sanctum` and the RBAC middleware, and both are
     // reachable on every bearer route. Publishing one without the other would tell
     // the mobile team to handle a status it can never see, or to miss one it can.
-    // The 401 half is proven live for all 91 in `SanctumAuthConformanceTest`; the
+    // The 401 half is proven live for all 92 in `SanctumAuthConformanceTest`; the
     // 403 half needs a role-bearing token and is documented as uncovered. F04's
     // two bearer writes are the 76 -> 78 move; its public review read is anonymous.
     // F11's six preference/reminder operations are all bearer, the 78 -> 84 move;
     // `POST /auth/sign-up/lengkapi` is bearer, the 84 -> 85 move; the landing-hero
     // module's six `/admin/hero` routes are all bearer and none anonymous, the
-    // 85 -> 91 move (its seventh route, `GET /hero`, is anonymous).
+    // 85 -> 91 move (its seventh route, `GET /hero`, is anonymous). The
+    // multi-portal `POST /admin/dokter` is bearer, the 91 -> 92 move.
     $count = 0;
 
     foreach (ContractSpec::specOperations() as $key => $operation) {
@@ -168,7 +170,7 @@ it('publishes 401 and 403 together, or neither, on every bearer operation', func
         $count++;
     }
 
-    expect($count)->toBe(91);
+    expect($count)->toBe(92);
 });
 
 it('publishes 429 only where a named rate limiter is registered', function (): void {
