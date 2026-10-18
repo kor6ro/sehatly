@@ -12,7 +12,7 @@ info:
     drift from the code: a route added, renamed or removed changes it on the next run, and
     `--check` fails until the regenerated file is committed.
 
-    This document describes 120 routes across 104 distinct paths, read from the live route table.
+    This document describes 121 routes across 104 distinct paths, read from the live route table.
 
     ## Envelopes
 
@@ -208,6 +208,46 @@ paths:
         200:
           description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
           content: { application/json: { schema: { $ref: '#/components/schemas/PaginatedEnvelope' } } }
+        422:
+          description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ValidationErrorEnvelope' } } }
+        401:
+          description: 'Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        403:
+          description: 'Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        404:
+          description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        500:
+          description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    post:
+      operationId: postApiV1AdminDokter
+      summary: 'Create /api/v1/admin/dokter.'
+      tags:
+        - admin
+      security:
+        -
+          sanctum: []
+      x-route-name: admin.dokter.store
+      x-laravel-action: App\Http\Controllers\Api\V1\AdminDokterController@store
+      x-middleware:
+        - 'auth:sanctum'
+        - 'tipe:admin,superadmin'
+      x-auth:
+        scheme: sanctum
+        transport: bearer
+      requestBody:
+        required: true
+        description: 'Validated by `App\Http\Requests\Admin\BuatDokterRequest::rules()`, which is read at generation time -- these properties are the live rules, not a transcription.'
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/BuatDokterRequestBody' } }
+      responses:
+        201:
+          description: 'Created. `data` holds the created resource.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
         422:
           description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
           content: { application/json: { schema: { $ref: '#/components/schemas/ValidationErrorEnvelope' } } }
@@ -4926,6 +4966,72 @@ components:
         - metode_id
       additionalProperties: false
       x-enum-fields: []
+    BuatDokterRequestBody:
+      type: object
+      title: BuatDokterRequest
+      description: 'Request body for operations validated by `App\Http\Requests\Admin\BuatDokterRequest`. The properties below are read from that class''s `rules()` at generation time.'
+      x-form-request: App\Http\Requests\Admin\BuatDokterRequest
+      properties:
+        biaya_konsultasi_online:
+          type: number
+          x-laravel-rule: [numeric, 'min:0']
+        email:
+          x-laravel-rule: [email, 'max:255', 'unique:users,email']
+        kata_sandi:
+          type: string
+          x-laravel-rule: [string, 'min:8', 'max:255']
+        nama_lengkap:
+          type: string
+          x-laravel-rule: [string, 'max:150']
+        no_telepon:
+          type: string
+          x-laravel-rule: [string, 'max:20', 'unique:users,no_telepon']
+        nomor_sip:
+          type: string
+          x-laravel-rule: [string, 'max:50']
+        nomor_str:
+          type: string
+          x-laravel-rule: [string, 'max:30', 'unique:dokter,nomor_str']
+        pengalaman_tahun:
+          type: integer
+          x-laravel-rule: [integer, 'min:0', 'max:65535']
+        sip_berlaku_sampai:
+          type: string
+          format: date
+          x-laravel-rule: ['date_format:Y-m-d']
+        str_berlaku_sampai:
+          type: string
+          format: date
+          x-laravel-rule: ['date_format:Y-m-d']
+        tipe:
+          type: string
+          enum: [dokter_umum, dokter_spesialis, dokter_gigi, psikolog, bidan, perawat, apoteker]
+          x-laravel-rule: [string, 'in:["dokter_umum","dokter_spesialis","dokter_gigi","psikolog","bidan","perawat","apoteker"]']
+      required:
+        - kata_sandi
+        - nama_lengkap
+        - no_telepon
+        - nomor_str
+        - str_berlaku_sampai
+        - tipe
+      additionalProperties: false
+      x-enum-fields:
+        tipe:
+          - dokter.tipe
+          - faskes.tipe
+          - konsultasi.tipe
+          - master_metode_pembayaran.tipe
+          - master_penjamin.tipe
+          - master_spesialisasi.tipe
+          - notifikasi.tipe
+          - pasien_riwayat_penyakit.tipe
+          - pesanan_obat.tipe
+          - preferensi_notifikasi_tipe.tipe
+          - rekam_medis_lampiran.tipe
+          - rekam_medis_persetujuan.tipe
+          - resep.tipe
+          - surat_keterangan.tipe
+          - users.tipe
     BuatSuratKeteranganRequestBody:
       type: object
       title: BuatSuratKeteranganRequest
