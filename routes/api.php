@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BookingController;
+use App\Http\Controllers\Api\V1\MarketingArtikelController;
+use App\Http\Controllers\Api\V1\MarketingPromoController;
 use App\Http\Controllers\Api\V1\MeController;
 use App\Http\Controllers\Api\V1\PasienController;
 use Illuminate\Support\Facades\Route;
@@ -2231,5 +2233,53 @@ Route::middleware('auth:sanctum')->group(function (): void {
             ->whereNumber('id')
             ->middleware('permission:pesanan.antar')
             ->name('pesanan.antar');
+    });
+
+    Route::prefix('marketing')->name('marketing.')->middleware('tipe:marketing')->group(function (): void {
+        Route::get('artikel', [MarketingArtikelController::class, 'index'])
+            ->middleware('permission:artikel.kelola')
+            ->name('artikel.index');
+
+        Route::get('artikel/{id}', [MarketingArtikelController::class, 'show'])
+            ->whereNumber('id')
+            ->middleware('permission:artikel.kelola')
+            ->name('artikel.show');
+
+        Route::post('artikel', [MarketingArtikelController::class, 'store'])
+            ->middleware('permission:artikel.kelola')
+            ->name('artikel.store');
+
+        Route::put('artikel/{id}', [MarketingArtikelController::class, 'update'])
+            ->whereNumber('id')
+            ->middleware('permission:artikel.kelola')
+            ->name('artikel.update');
+
+        Route::delete('artikel/{id}', [MarketingArtikelController::class, 'destroy'])
+            ->whereNumber('id')
+            ->middleware('permission:artikel.kelola')
+            ->name('artikel.destroy');
+
+        Route::get('promo', [MarketingPromoController::class, 'index'])
+            ->middleware('permission:promo.kelola')
+            ->name('promo.index');
+
+        Route::get('promo/{id}', [MarketingPromoController::class, 'show'])
+            ->whereNumber('id')
+            ->middleware('permission:promo.kelola')
+            ->name('promo.show');
+
+        Route::post('promo', [MarketingPromoController::class, 'store'])
+            ->middleware('permission:promo.kelola')
+            ->name('promo.store');
+
+        Route::put('promo/{id}', [MarketingPromoController::class, 'update'])
+            ->whereNumber('id')
+            ->middleware('permission:promo.kelola')
+            ->name('promo.update');
+
+        Route::delete('promo/{id}', [MarketingPromoController::class, 'destroy'])
+            ->whereNumber('id')
+            ->middleware('permission:promo.kelola')
+            ->name('promo.destroy');
     });
 });
