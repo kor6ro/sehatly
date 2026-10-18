@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Navigate } from 'react-router';
 import { RootLayout } from '@/app/root-layout';
 import { RouteErrorBoundary } from '@/app/error-boundary';
@@ -6,12 +7,22 @@ import { PortalTidakDitemukanPage } from '@/app/portal-states';
 import { AppShell } from '@/app/app-shell';
 import { PortalLoginPage } from '@/pages/portal-login-page';
 import { ProfilEditPage } from '@/pages/profil-edit-page';
-import { DokterDashboardPage } from '@/pages/dokter-dashboard-page';
-import { DoctorBookingsPage } from '@/pages/doctor-bookings-page';
-import { KonsultasiPage } from '@/pages/konsultasi-page';
-import { ResepComposePage } from '@/pages/resep-compose-page';
 import { KebijakanPrivasiPage } from '@/pages/kebijakan-privasi-page';
 import { SyaratKetentuanPage } from '@/pages/syarat-ketentuan-page';
+import { LoadingState } from '@/components/states/loading-state';
+
+const DokterDashboardPage = lazy(() =>
+  import('@/pages/dokter-dashboard-page').then((mod) => ({ default: mod.DokterDashboardPage }))
+);
+const DoctorBookingsPage = lazy(() =>
+  import('@/pages/doctor-bookings-page').then((mod) => ({ default: mod.DoctorBookingsPage }))
+);
+const KonsultasiPage = lazy(() =>
+  import('@/pages/konsultasi-page').then((mod) => ({ default: mod.KonsultasiPage }))
+);
+const ResepComposePage = lazy(() =>
+  import('@/pages/resep-compose-page').then((mod) => ({ default: mod.ResepComposePage }))
+);
 
 /**
  * The doctor portal's route table, served from `dokter.sehatly.test` (plan section 2.3).
@@ -77,12 +88,20 @@ export const dokterRoutes = [
                                  * patient portal as the public profile).
                                  */
                                 path: '/dokter/dashboard',
-                                element: <DokterDashboardPage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat dashboard dokter..." />}>
+                                        <DokterDashboardPage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                             {
                                 path: '/dokter/booking',
-                                element: <DoctorBookingsPage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat booking dokter..." />}>
+                                        <DoctorBookingsPage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                             {
@@ -94,7 +113,11 @@ export const dokterRoutes = [
                                  * decides which side of the SOAP form the account sees.
                                  */
                                 path: '/konsultasi/:id',
-                                element: <KonsultasiPage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat konsultasi..." />}>
+                                        <KonsultasiPage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                             {
@@ -105,7 +128,11 @@ export const dokterRoutes = [
                                  * ordering constraint is relied on.
                                  */
                                 path: '/konsultasi/:id/resep',
-                                element: <ResepComposePage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat komposisi resep..." />}>
+                                        <ResepComposePage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                         ],

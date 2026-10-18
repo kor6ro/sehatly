@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Navigate } from 'react-router';
 import { RootLayout } from '@/app/root-layout';
 import { RouteErrorBoundary } from '@/app/error-boundary';
@@ -6,15 +7,35 @@ import { PortalTidakDitemukanPage } from '@/app/portal-states';
 import { AppShell } from '@/app/app-shell';
 import { AdminLoginPage } from '@/pages/admin-login-page';
 import { ProfilEditPage } from '@/pages/profil-edit-page';
-import { AdminDokterBuatPage } from '@/pages/admin-dokter-buat-page';
-import { AdminDokterPage } from '@/pages/admin-dokter-page';
-import { AdminDokterDetailPage } from '@/pages/admin-dokter-detail-page';
-import { AdminLaporanPage } from '@/pages/admin-laporan-page';
-import { AdminAuditLogPage } from '@/pages/admin-audit-log-page';
-import { AdminPersetujuanPdpPage } from '@/pages/admin-persetujuan-pdp-page';
-import { AdminHeroPage } from '@/pages/admin-hero-page';
 import { KebijakanPrivasiPage } from '@/pages/kebijakan-privasi-page';
 import { SyaratKetentuanPage } from '@/pages/syarat-ketentuan-page';
+import { LoadingState } from '@/components/states/loading-state';
+
+const AdminDokterBuatPage = lazy(() =>
+  import('@/pages/admin-dokter-buat-page').then((mod) => ({ default: mod.AdminDokterBuatPage }))
+);
+const AdminDokterPage = lazy(() =>
+  import('@/pages/admin-dokter-page').then((mod) => ({ default: mod.AdminDokterPage }))
+);
+const AdminDokterDetailPage = lazy(() =>
+  import('@/pages/admin-dokter-detail-page').then((mod) => ({
+    default: mod.AdminDokterDetailPage,
+  }))
+);
+const AdminLaporanPage = lazy(() =>
+  import('@/pages/admin-laporan-page').then((mod) => ({ default: mod.AdminLaporanPage }))
+);
+const AdminAuditLogPage = lazy(() =>
+  import('@/pages/admin-audit-log-page').then((mod) => ({ default: mod.AdminAuditLogPage }))
+);
+const AdminPersetujuanPdpPage = lazy(() =>
+  import('@/pages/admin-persetujuan-pdp-page').then((mod) => ({
+    default: mod.AdminPersetujuanPdpPage,
+  }))
+);
+const AdminHeroPage = lazy(() =>
+  import('@/pages/admin-hero-page').then((mod) => ({ default: mod.AdminHeroPage }))
+);
 
 /**
  * The admin portal's route table, served from `admin.sehatly.test` (plan section 2.3).
@@ -94,50 +115,74 @@ export const adminRoutes = [
                         children: [
                             {
                                 path: '/admin/dokter/buat',
-                                element: <AdminDokterBuatPage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat buat dokter..." />}>
+                                        <AdminDokterBuatPage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                             {
                                 path: '/admin/dokter',
-                                element: <AdminDokterPage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat daftar dokter..." />}>
+                                        <AdminDokterPage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                             {
                                 path: '/admin/dokter/:id',
-                                element: <AdminDokterDetailPage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat detail dokter..." />}>
+                                        <AdminDokterDetailPage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                             {
                                 path: '/admin/dokter/:id/jadwal',
-                                element: <AdminDokterDetailPage tabAwal="jadwal" />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat jadwal dokter..." />}>
+                                        <AdminDokterDetailPage tabAwal="jadwal" />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                             {
                                 path: '/admin/laporan',
-                                element: <AdminLaporanPage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat laporan..." />}>
+                                        <AdminLaporanPage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                             {
                                 path: '/admin/audit-log',
-                                element: <AdminAuditLogPage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat audit log..." />}>
+                                        <AdminAuditLogPage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                             {
                                 path: '/admin/persetujuan-pdp',
-                                element: <AdminPersetujuanPdpPage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat persetujuan PDP..." />}>
+                                        <AdminPersetujuanPdpPage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                             {
-                                /**
-                                 * The seventh admin leaf, and the only one whose subject
-                                 * is PUBLIC content: `/admin/hero` edits the carousel a
-                                 * signed-out visitor reads at `GET /hero`. The API route
-                                 * is `auth:sanctum` + `tipe:admin,superadmin` (plus its
-                                 * own `hero.kelola`), and `AdminGate` still gates the
-                                 * page itself as defence in depth.
-                                 */
                                 path: '/admin/hero',
-                                element: <AdminHeroPage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat hero..." />}>
+                                        <AdminHeroPage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                         ],
