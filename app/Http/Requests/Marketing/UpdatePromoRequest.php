@@ -24,10 +24,15 @@ class UpdatePromoRequest extends FormRequest
      */
     public function rules(): array
     {
-        $id = $this->route('id');
+        $id = $this->idYangDiubah();
+
+        $kode = ['sometimes', 'string', 'max:30'];
+        if ($id !== null) {
+            $kode[] = 'unique:master_promo,kode,'.$id;
+        }
 
         return [
-            'kode' => ['sometimes', 'string', 'max:30', 'unique:master_promo,kode,'.$id],
+            'kode' => $kode,
             'nama' => ['sometimes', 'string', 'max:150'],
             'tipe_diskon' => ['sometimes', 'in:persen,nominal,gratis_ongkir'],
             'nilai' => ['sometimes', 'numeric'],
@@ -39,6 +44,21 @@ class UpdatePromoRequest extends FormRequest
             'selesai_at' => ['sometimes', 'date_format:Y-m-d H:i:s'],
             'status_aktif' => ['sometimes', 'boolean'],
         ];
+    }
+
+    /**
+     * Route parameter id saat request nyata; null saat generator OpenAPI
+     * membaca rules() di luar konteks route yang ter-bind (sehatly:openapi).
+     */
+    private function idYangDiubah(): ?int
+    {
+        try {
+            $id = $this->route('id');
+        } catch (\LogicException) {
+            return null;
+        }
+
+        return is_numeric($id) ? (int) $id : null;
     }
 
     /**

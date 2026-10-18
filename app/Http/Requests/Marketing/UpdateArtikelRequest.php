@@ -24,17 +24,37 @@ class UpdateArtikelRequest extends FormRequest
      */
     public function rules(): array
     {
-        $id = $this->route('id');
+        $id = $this->idYangDiubah();
+
+        $slug = ['sometimes', 'string', 'max:255'];
+        if ($id !== null) {
+            $slug[] = 'unique:artikel,slug,'.$id;
+        }
 
         return [
             'kategori_id' => ['sometimes', 'integer', 'exists:artikel_kategori,id'],
             'judul' => ['sometimes', 'string', 'max:255'],
-            'slug' => ['sometimes', 'string', 'max:255', 'unique:artikel,slug,'.$id],
+            'slug' => $slug,
             'ringkasan' => ['nullable', 'string', 'max:500'],
             'konten' => ['sometimes', 'string'],
             'cover_url' => ['nullable', 'string', 'max:500'],
             'status' => ['sometimes', 'in:draft,review,terbit,arsip'],
         ];
+    }
+
+    /**
+     * Route parameter id saat request nyata; null saat generator OpenAPI
+     * membaca rules() di luar konteks route yang ter-bind (sehatly:openapi).
+     */
+    private function idYangDiubah(): ?int
+    {
+        try {
+            $id = $this->route('id');
+        } catch (\LogicException) {
+            return null;
+        }
+
+        return is_numeric($id) ? (int) $id : null;
     }
 
     /**
