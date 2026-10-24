@@ -242,7 +242,7 @@ it('types_every_meta_operation_as_paginated', function (): void {
     // `GET /api/v1/kurir/pesanan` is deliberately NOT a member: the queue
     // answers its rows with no `pageMeta()`, because a delivery worklist is a
     // bounded set of actionable orders rather than a browsable collection.
-    expect($paginated)->toHaveCount(41);
+    expect($paginated)->toHaveCount(43);
 
     expect($paginated)->toContain('get /api/v1/dokter @200');
     expect($paginated)->toContain('get /api/v1/dokter/{dokter}/ulasan @200');
@@ -253,6 +253,8 @@ it('types_every_meta_operation_as_paginated', function (): void {
     expect($paginated)->toContain('get /api/v1/pdp/dokumen @200');
     expect($paginated)->toContain('get /api/v1/pasien/surat-keterangan @200');
     expect($paginated)->toContain('get /api/v1/pasien/refund @200');
+    expect($paginated)->toContain('get /api/v1/marketing/artikel @200');
+    expect($paginated)->toContain('get /api/v1/marketing/promo @200');
     expect($paginated)->toContain('get /api/v1/resep @200');
     expect($paginated)->toContain('get /api/v1/konsultasi @200');
     expect($paginated)->toContain('get /api/v1/rekam-medis @200');
