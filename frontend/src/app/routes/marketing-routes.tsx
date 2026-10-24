@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Navigate } from 'react-router';
 import { RootLayout } from '@/app/root-layout';
 import { RouteErrorBoundary } from '@/app/error-boundary';
@@ -8,9 +9,23 @@ import { PortalLoginPage } from '@/pages/portal-login-page';
 import { ProfilEditPage } from '@/pages/profil-edit-page';
 import { KebijakanPrivasiPage } from '@/pages/kebijakan-privasi-page';
 import { SyaratKetentuanPage } from '@/pages/syarat-ketentuan-page';
-import { MarketingDashboardPage } from '@/pages/marketing-dashboard-page';
-import { MarketingArtikelPage } from '@/pages/marketing-artikel-page';
-import { MarketingPromoPage } from '@/pages/marketing-promo-page';
+import { LoadingState } from '@/components/states/loading-state';
+
+const MarketingDashboardPage = lazy(() =>
+  import('@/pages/marketing-dashboard-page').then((mod) => ({
+    default: mod.MarketingDashboardPage,
+  }))
+);
+const MarketingArtikelPage = lazy(() =>
+  import('@/pages/marketing-artikel-page').then((mod) => ({
+    default: mod.MarketingArtikelPage,
+  }))
+);
+const MarketingPromoPage = lazy(() =>
+  import('@/pages/marketing-promo-page').then((mod) => ({
+    default: mod.MarketingPromoPage,
+  }))
+);
 
 /**
  * The marketing portal's route table, served from `marketing.sehatly.test` (plan
@@ -62,17 +77,29 @@ export const marketingRoutes = [
                         children: [
                             {
                                 path: '/marketing/dashboard',
-                                element: <MarketingDashboardPage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat dashboard marketing..." />}>
+                                        <MarketingDashboardPage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                             {
                                 path: '/marketing/artikel',
-                                element: <MarketingArtikelPage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat artikel..." />}>
+                                        <MarketingArtikelPage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                             {
                                 path: '/marketing/promo',
-                                element: <MarketingPromoPage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat promo..." />}>
+                                        <MarketingPromoPage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                         ],

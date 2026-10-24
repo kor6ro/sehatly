@@ -72,27 +72,53 @@ test('the demo accounts exist, hold the right roles, and authenticate for real',
     $pasien = demo3cUser(DemoDataSeeder::AKUN_PASIEN);
     $dokter = demo3cUser(DemoDataSeeder::AKUN_DOKTER);
     $apoteker = demo3cUser(DemoDataSeeder::AKUN_APOTEKER);
+    $kurir = demo3cUser(DemoDataSeeder::AKUN_KURIR);
+    $marketing = demo3cUser(DemoDataSeeder::AKUN_MARKETING);
 
     expect($pasien->tipe)->toBe('pasien')
         ->and($dokter->tipe)->toBe('dokter')
         ->and($apoteker->tipe)->toBe('apoteker')
+        ->and($kurir->tipe)->toBe('kurir')
+        ->and($marketing->tipe)->toBe('marketing')
         ->and($pasien->status)->toBe('aktif')
         ->and($dokter->status)->toBe('aktif')
-        ->and($apoteker->status)->toBe('aktif');
+        ->and($apoteker->status)->toBe('aktif')
+        ->and($kurir->status)->toBe('aktif')
+        ->and($marketing->status)->toBe('aktif');
 
     expect(demo3cRoles((int) $pasien->getKey()))->toBe(['pasien'])
         ->and(demo3cRoles((int) $dokter->getKey()))->toBe(['dokter'])
-        ->and(demo3cRoles((int) $apoteker->getKey()))->toBe(['apoteker']);
+        ->and(demo3cRoles((int) $apoteker->getKey()))->toBe(['apoteker'])
+        // The multi-portal grants: one role each, matching the `users.tipe` above,
+        // and no extra grant - the courier portal's routes and the marketing
+        // portal's routes each key off exactly one of these.
+        ->and(demo3cRoles((int) $kurir->getKey()))->toBe(['kurir'])
+        ->and(demo3cRoles((int) $marketing->getKey()))->toBe(['marketing']);
 
     // The password is documented and hash-verifiable, which is the whole point
     // of a demo account and the whole reason F3 could not reach anything.
     expect(Hash::check(DemoDataSeeder::KATA_SANDI_PASIEN, (string) $pasien->kata_sandi_hash))->toBeTrue()
         ->and(Hash::check(DemoDataSeeder::KATA_SANDI_DOKTER, (string) $dokter->kata_sandi_hash))->toBeTrue()
-        ->and(Hash::check(DemoDataSeeder::KATA_SANDI_APOTEKER, (string) $apoteker->kata_sandi_hash))->toBeTrue();
+        ->and(Hash::check(DemoDataSeeder::KATA_SANDI_APOTEKER, (string) $apoteker->kata_sandi_hash))->toBeTrue()
+        ->and(Hash::check(DemoDataSeeder::KATA_SANDI_KURIR, (string) $kurir->kata_sandi_hash))->toBeTrue()
+        ->and(Hash::check(DemoDataSeeder::KATA_SANDI_MARKETING, (string) $marketing->kata_sandi_hash))->toBeTrue();
 });
 
 test('every demo account logs in through the real two-step auth flow', function (): void {
-    foreach ([DemoDataSeeder::AKUN_PASIEN, DemoDataSeeder::AKUN_DOKTER, DemoDataSeeder::AKUN_APOTEKER] as $nama) {
+    $daftar = DemoDataSeeder::namaAkun();
+
+    // Pin the list itself, so this loop cannot silently shrink back to the three
+    // accounts it started with - and cannot silently grow either: a sixth demo
+    // account is a deliberate edit that has to be written down here.
+    expect($daftar)->toBe([
+        DemoDataSeeder::AKUN_PASIEN,
+        DemoDataSeeder::AKUN_DOKTER,
+        DemoDataSeeder::AKUN_APOTEKER,
+        DemoDataSeeder::AKUN_KURIR,
+        DemoDataSeeder::AKUN_MARKETING,
+    ]);
+
+    foreach ($daftar as $nama) {
         $akun = DemoDataSeeder::akun($nama);
         $token = demo3cToken($akun['no_telepon'], $akun['kata_sandi']);
 
@@ -100,6 +126,41 @@ test('every demo account logs in through the real two-step auth flow', function 
 
         // A minted token that the API does not accept would prove nothing, so
         // it is spent on the one endpoint every role can reach.
+        demo3cAs($token)->getJson('/api/v1/me')
+            ->assertOk()
+            ->assertJsonPath('data.user.tipe', $akun['tipe']);
+    }
+});
+
+test('the demo courier and marketing accounts are one users row and one grant each', function (): void {
+    // The multi-portal accounts are DELIBERATELY the simplest the seeder writes:
+    // neither `kurir` nor `marketing` owns a profile table, so the only rows
+    // either is entitled to are its `users` row and its single `user_roles`
+    // grant. This test pins that, so an edit that invented a courier- or
+    // marketing-specific table - or a second grant - fails here instead of
+    // passing unnoticed.
+    foreach ([DemoDataSeeder::AKUN_KURIR, DemoDataSeeder::AKUN_MARKETING] as $nama) {
+        $akun = DemoDataSeeder::akun($nama);
+        $user = demo3cUser($nama);
+        $userId = (int) $user->getKey();
+
+        // (a) the `users` row exists with the ENUM `tipe` its AKUN entry declares.
+        expect($user->tipe)->toBe($akun['tipe']);
+
+        // (b) exactly one grant, and it is the role the portal gate requires.
+        expect(demo3cRoles($userId))->toBe([$akun['role']]);
+
+        // And no domain profile row, because neither portal reads one.
+        expect(DB::table('pasien')->where('user_id', $userId)->count())->toBe(0)
+            ->and(DB::table('dokter')->where('user_id', $userId)->count())->toBe(0);
+
+        // (c) the REAL two-step login issues a token the API accepts and reports
+        // the right `tipe`. The login is driven here rather than assumed from the
+        // loop above, so this test stands on its own if that one is ever narrowed.
+        $token = demo3cToken($akun['no_telepon'], $akun['kata_sandi']);
+
+        expect($token)->not->toBeNull();
+
         demo3cAs($token)->getJson('/api/v1/me')
             ->assertOk()
             ->assertJsonPath('data.user.tipe', $akun['tipe']);

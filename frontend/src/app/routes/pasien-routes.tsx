@@ -1,40 +1,106 @@
+import { lazy, Suspense } from 'react';
 import { AlihHalamanDokter, NotFoundPage, RequireAuth } from '@/app/guards';
 import { RootLayout } from '@/app/root-layout';
 import { RouteErrorBoundary } from '@/app/error-boundary';
 import { AppShell } from '@/app/app-shell';
 import { LandingPage } from '@/pages/landing-page';
 import { ProfilEditPage } from '@/pages/profil-edit-page';
-import { DashboardPage } from '@/pages/dashboard-page';
-import { ProfilePage } from '@/pages/profile-page';
-import { DevicesPage } from '@/pages/devices-page';
-import { AllergyPage } from '@/pages/allergy-page';
-import { DoctorDetailPage } from '@/pages/doctor-detail-page';
-import { MyBookingsPage } from '@/pages/my-bookings-page';
-import { BookingCreatePage } from '@/pages/booking-create-page';
-import { KonsultasiPage } from '@/pages/konsultasi-page';
-import { KonsultasiUlasanPage } from '@/pages/konsultasi-ulasan-page';
-import {
-    KonsultasiIndexPage,
-} from '@/pages/rekam-dan-konsultasi-index-page';
-import { RiwayatRekamMedisPage } from '@/pages/riwayat-rekam-medis-page';
-import { RekamMedisPage } from '@/pages/rekam-medis-page';
-import { PasienRiwayatResepPage } from '@/pages/pasien-resep-page';
-import { ResepComposePage } from '@/pages/resep-compose-page';
-import { ResepDetailPage } from '@/pages/resep-detail-page';
-import { CheckoutIndexPage } from '@/pages/checkout-index-page';
-import { CheckoutPage } from '@/pages/checkout-page';
-import {
-    PembayaranIndexPage,
-    PesananIndexPage,
-} from '@/pages/pesanan-dan-pembayaran-index-page';
-import { PesananPage } from '@/pages/pesanan-page';
-import { PembayaranPage } from '@/pages/pembayaran-page';
-import { NotifikasiPage } from '@/pages/notifikasi-page';
-import { ProfilNotifikasiPage } from '@/pages/profil-notifikasi-page';
-import { PengingatPage } from '@/pages/pengingat-page';
-import { PrivasiPage } from '@/pages/privasi-page';
 import { KebijakanPrivasiPage } from '@/pages/kebijakan-privasi-page';
 import { SyaratKetentuanPage } from '@/pages/syarat-ketentuan-page';
+import { LoadingState } from '@/components/states/loading-state';
+
+const DoctorDetailPage = lazy(() =>
+  import('@/pages/doctor-detail-page').then((mod) => ({ default: mod.DoctorDetailPage }))
+);
+
+
+
+const DashboardPage = lazy(() =>
+  import('@/pages/dashboard-page').then((mod) => ({ default: mod.DashboardPage }))
+);
+const ProfilePage = lazy(() =>
+  import('@/pages/profile-page').then((mod) => ({ default: mod.ProfilePage }))
+);
+const DevicesPage = lazy(() =>
+  import('@/pages/devices-page').then((mod) => ({ default: mod.DevicesPage }))
+);
+const AllergyPage = lazy(() =>
+  import('@/pages/allergy-page').then((mod) => ({ default: mod.AllergyPage }))
+);
+const MyBookingsPage = lazy(() =>
+  import('@/pages/my-bookings-page').then((mod) => ({ default: mod.MyBookingsPage }))
+);
+const BookingCreatePage = lazy(() =>
+  import('@/pages/booking-create-page').then((mod) => ({ default: mod.BookingCreatePage }))
+);
+const KonsultasiIndexPage = lazy(() =>
+  import('@/pages/rekam-dan-konsultasi-index-page').then((mod) => ({
+    default: mod.KonsultasiIndexPage,
+  }))
+);
+const KonsultasiPage = lazy(() =>
+  import('@/pages/konsultasi-page').then((mod) => ({ default: mod.KonsultasiPage }))
+);
+const KonsultasiUlasanPage = lazy(() =>
+  import('@/pages/konsultasi-ulasan-page').then((mod) => ({
+    default: mod.KonsultasiUlasanPage,
+  }))
+);
+const RiwayatRekamMedisPage = lazy(() =>
+  import('@/pages/riwayat-rekam-medis-page').then((mod) => ({
+    default: mod.RiwayatRekamMedisPage,
+  }))
+);
+const RekamMedisPage = lazy(() =>
+  import('@/pages/rekam-medis-page').then((mod) => ({ default: mod.RekamMedisPage }))
+);
+const PasienRiwayatResepPage = lazy(() =>
+  import('@/pages/pasien-resep-page').then((mod) => ({
+    default: mod.PasienRiwayatResepPage,
+  }))
+);
+const ResepComposePage = lazy(() =>
+  import('@/pages/resep-compose-page').then((mod) => ({ default: mod.ResepComposePage }))
+);
+const ResepDetailPage = lazy(() =>
+  import('@/pages/resep-detail-page').then((mod) => ({ default: mod.ResepDetailPage }))
+);
+const CheckoutIndexPage = lazy(() =>
+  import('@/pages/checkout-index-page').then((mod) => ({ default: mod.CheckoutIndexPage }))
+);
+const CheckoutPage = lazy(() =>
+  import('@/pages/checkout-page').then((mod) => ({ default: mod.CheckoutPage }))
+);
+const PembayaranIndexPage = lazy(() =>
+  import('@/pages/pesanan-dan-pembayaran-index-page').then((mod) => ({
+    default: mod.PembayaranIndexPage,
+  }))
+);
+const PesananIndexPage = lazy(() =>
+  import('@/pages/pesanan-dan-pembayaran-index-page').then((mod) => ({
+    default: mod.PesananIndexPage,
+  }))
+);
+const PesananPage = lazy(() =>
+  import('@/pages/pesanan-page').then((mod) => ({ default: mod.PesananPage }))
+);
+const PembayaranPage = lazy(() =>
+  import('@/pages/pembayaran-page').then((mod) => ({ default: mod.PembayaranPage }))
+);
+const NotifikasiPage = lazy(() =>
+  import('@/pages/notifikasi-page').then((mod) => ({ default: mod.NotifikasiPage }))
+);
+const ProfilNotifikasiPage = lazy(() =>
+  import('@/pages/profil-notifikasi-page').then((mod) => ({
+    default: mod.ProfilNotifikasiPage,
+  }))
+);
+const PengingatPage = lazy(() =>
+  import('@/pages/pengingat-page').then((mod) => ({ default: mod.PengingatPage }))
+);
+const PrivasiPage = lazy(() =>
+  import('@/pages/privasi-page').then((mod) => ({ default: mod.PrivasiPage }))
+);
 
 /**
  * The patient portal's route table - the bundle served from the root domain.
@@ -160,7 +226,11 @@ export const pasienRoutes = [
             },
             {
                 path: '/dokter/:id',
-                element: <DoctorDetailPage />,
+                element: (
+                    <Suspense fallback={<LoadingState label="Memuat profil dokter..." />}>
+                        <DoctorDetailPage />
+                    </Suspense>
+                ),
                 errorElement: <RouteErrorBoundary />,
             },
 
@@ -218,43 +288,56 @@ export const pasienRoutes = [
                         children: [
                             {
                                 path: '/dashboard',
-                                element: <DashboardPage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat dashboard..." />}>
+                                        <DashboardPage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                             {
                                 path: '/profil',
-                                element: <ProfilePage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat profil..." />}>
+                                        <ProfilePage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                             {
-                                /**
-                                 * F01 §4.3/§10: the device list. Inside `RequireAuth`
-                                 * because `GET|DELETE /auth/devices` are the caller's own
-                                 * sessions and carry `auth:sanctum`.
-                                 */
                                 path: '/profil/perangkat',
-                                element: <DevicesPage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat perangkat..." />}>
+                                        <DevicesPage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                             {
                                 path: '/profil/alergi',
-                                element: <AllergyPage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat alergi..." />}>
+                                        <AllergyPage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                             {
                                 path: '/profil/privasi',
-                                element: <PrivasiPage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat privasi..." />}>
+                                        <PrivasiPage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                             {
-                                /**
-                                 * F11's preference surface. `GET|PUT /profil/notifikasi`
-                                 * carry `auth:sanctum` + `permission:notifikasi.lihat`,
-                                 * so it sits inside `RequireAuth` like every other
-                                 * profile leaf.
-                                 */
                                 path: '/profil/notifikasi',
-                                element: <ProfilNotifikasiPage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat notifikasi..." />}>
+                                        <ProfilNotifikasiPage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
 
@@ -277,12 +360,20 @@ export const pasienRoutes = [
                              */
                             {
                                 path: '/booking',
-                                element: <MyBookingsPage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat booking Anda..." />}>
+                                        <MyBookingsPage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                             {
                                 path: '/booking/:dokterId',
-                                element: <BookingCreatePage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat buat booking..." />}>
+                                        <BookingCreatePage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
 
@@ -308,35 +399,47 @@ export const pasienRoutes = [
                              */
                             {
                                 path: '/konsultasi',
-                                element: <KonsultasiIndexPage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat daftar konsultasi..." />}>
+                                        <KonsultasiIndexPage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                             {
                                 path: '/konsultasi/:id',
-                                element: <KonsultasiPage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat ruangan konsultasi..." />}>
+                                        <KonsultasiPage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                             {
-                                /**
-                                 * F04's patient write surface, and the SPA destination
-                                 * of `NotificationService::ulasanDiminta()`'s
-                                 * `/api/v1/konsultasi/{id}/ulasan` link (see
-                                 * `features/notifikasi/deep-link.ts`). A three-segment
-                                 * path, so it is a distinct route from `/konsultasi/:id`
-                                 * and no ordering constraint is relied on.
-                                 */
                                 path: '/konsultasi/:id/ulasan',
-                                element: <KonsultasiUlasanPage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat ulasan konsultasi..." />}>
+                                        <KonsultasiUlasanPage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                             {
                                 path: '/rekam-medis',
-                                element: <RiwayatRekamMedisPage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat rekam medis..." />}>
+                                        <RiwayatRekamMedisPage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                             {
                                 path: '/rekam-medis/:id',
-                                element: <RekamMedisPage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat detail rekam medis..." />}>
+                                        <RekamMedisPage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
 
@@ -357,17 +460,29 @@ export const pasienRoutes = [
                              */
                             {
                                 path: '/konsultasi/:id/resep',
-                                element: <ResepComposePage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat komposisi resep..." />}>
+                                        <ResepComposePage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                             {
                                 path: '/resep/:id',
-                                element: <ResepDetailPage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat detail resep..." />}>
+                                        <ResepDetailPage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                             {
                                 path: '/pasien/resep',
-                                element: <PasienRiwayatResepPage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat riwayat resep..." />}>
+                                        <PasienRiwayatResepPage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
 
@@ -394,47 +509,74 @@ export const pasienRoutes = [
                              */
                             {
                                 path: '/checkout',
-                                element: <CheckoutIndexPage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat checkout..." />}>
+                                        <CheckoutIndexPage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                             {
                                 path: '/checkout/:resepId',
-                                element: <CheckoutPage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat halaman checkout..." />}>
+                                        <CheckoutPage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                             {
                                 path: '/pesanan',
-                                element: <PesananIndexPage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat pesanan Anda..." />}>
+                                        <PesananIndexPage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                             {
                                 path: '/pesanan/:id',
-                                element: <PesananPage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat detail pesanan..." />}>
+                                        <PesananPage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                             {
                                 path: '/pembayaran',
-                                element: <PembayaranIndexPage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat pembayaran..." />}>
+                                        <PembayaranIndexPage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                             {
                                 path: '/pembayaran/:pesananId',
-                                element: <PembayaranPage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat halaman pembayaran..." />}>
+                                        <PembayaranPage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                             {
                                 path: '/notifikasi',
-                                element: <NotifikasiPage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat notifikasi..." />}>
+                                        <NotifikasiPage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                             {
-                                /**
-                                 * F11's reminder CRUD. All four routes carry the same
-                                 * `permission:notifikasi.lihat` guard as the inbox, so
-                                 * the page lives in the same shell group.
-                                 */
                                 path: '/pengingat',
-                                element: <PengingatPage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat pengingat..." />}>
+                                        <PengingatPage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                         ],

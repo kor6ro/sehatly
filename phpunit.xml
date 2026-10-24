@@ -23,6 +23,7 @@
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>
+        <env name="CORS_ALLOWED_ORIGINS" value="http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,http://sehatly.test,http://admin.sehatly.test,http://dokter.sehatly.test,http://apotek.sehatly.test,http://kurir.sehatly.test,http://marketing.sehatly.test"/>
         <env name="DB_CONNECTION" value="mysql"/>
         <env name="DB_DATABASE" value="telemedisin_db_test"/>
         <env name="DB_URL" value=""/>

@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Navigate } from 'react-router';
 import { RootLayout } from '@/app/root-layout';
 import { RouteErrorBoundary } from '@/app/error-boundary';
@@ -8,8 +9,16 @@ import { PortalLoginPage } from '@/pages/portal-login-page';
 import { ProfilEditPage } from '@/pages/profil-edit-page';
 import { KebijakanPrivasiPage } from '@/pages/kebijakan-privasi-page';
 import { SyaratKetentuanPage } from '@/pages/syarat-ketentuan-page';
-import { KurirPesananPage } from '@/pages/kurir-pesanan-page';
-import { KurirPesananDetailPage } from '@/pages/kurir-pesanan-detail-page';
+import { LoadingState } from '@/components/states/loading-state';
+
+const KurirPesananPage = lazy(() =>
+  import('@/pages/kurir-pesanan-page').then((mod) => ({ default: mod.KurirPesananPage }))
+);
+const KurirPesananDetailPage = lazy(() =>
+  import('@/pages/kurir-pesanan-detail-page').then((mod) => ({
+    default: mod.KurirPesananDetailPage,
+  }))
+);
 
 /**
  * The kurir portal's route table, served from `kurir.sehatly.test` (plan section 2.3).
@@ -63,12 +72,20 @@ export const kurirRoutes = [
                         children: [
                             {
                                 path: '/kurir/pesanan',
-                                element: <KurirPesananPage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat pesanan..." />}>
+                                        <KurirPesananPage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                             {
                                 path: '/kurir/pesanan/:id',
-                                element: <KurirPesananDetailPage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat detail pesanan..." />}>
+                                        <KurirPesananDetailPage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                         ],

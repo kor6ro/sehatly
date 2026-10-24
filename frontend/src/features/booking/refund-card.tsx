@@ -2,10 +2,11 @@ import { Ban, CircleCheck, Clock, RefreshCw } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { labelStatusRefund } from '@/lib/api/refund';
 import type { Refund, StatusRefund } from '@/lib/api/refund';
-import { cn } from '@/lib/utils';
+
 import { formatRupiah } from '@/lib/format';
 import { formatWaktuZona } from '@/lib/waktu';
-import { Badge } from '@/components/ui/badge';
+import { StatusBadge } from '@/components/ui/status-badge';
+import type { StatusBadgeVariant } from '@/components/ui/status-badge';
 
 /**
  * The four `refund.status` values, as four distinguishable treatments.
@@ -22,34 +23,14 @@ import { Badge } from '@/components/ui/badge';
  */
 type Treatment = {
     icon: LucideIcon;
-    className: string;
-    iconClassName: string;
+    variant: StatusBadgeVariant;
 };
 
 const TREATMENT: Record<StatusRefund, Treatment> = {
-    diajukan: {
-        icon: Clock,
-        className: 'text-foreground bg-muted border-transparent',
-        iconClassName: 'text-muted-foreground',
-    },
-    diproses: {
-        icon: RefreshCw,
-        className:
-            'text-warning-subtle-foreground bg-warning-subtle border-transparent',
-        iconClassName: 'text-warning-subtle-foreground',
-    },
-    berhasil: {
-        icon: CircleCheck,
-        className:
-            'text-success-subtle-foreground bg-success-subtle border-transparent',
-        iconClassName: 'text-success-subtle-foreground',
-    },
-    ditolak: {
-        icon: Ban,
-        className:
-            'text-destructive-subtle-foreground bg-destructive-subtle border-transparent',
-        iconClassName: 'text-destructive-subtle-foreground',
-    },
+    diajukan: { icon: Clock, variant: 'muted' },
+    diproses: { icon: RefreshCw, variant: 'warningSubtle' },
+    berhasil: { icon: CircleCheck, variant: 'successSubtle' },
+    ditolak: { icon: Ban, variant: 'destructiveSubtle' },
 };
 
 export function RefundStatusBadge({ status }: { status: StatusRefund }) {
@@ -57,15 +38,9 @@ export function RefundStatusBadge({ status }: { status: StatusRefund }) {
     const Icon = treatment.icon;
 
     return (
-        <Badge
-            variant="outline"
-            className={cn('gap-1', treatment.className)}
-            data-status={status}
-        >
-            <Icon aria-hidden className={treatment.iconClassName} />
-
+        <StatusBadge variant={treatment.variant} icon={Icon} dataStatus={status}>
             {labelStatusRefund(status)}
-        </Badge>
+        </StatusBadge>
     );
 }
 

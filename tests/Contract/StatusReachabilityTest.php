@@ -123,7 +123,7 @@ it('binds every published 401 and 403 to the same error envelope', function (): 
 
 it('publishes a 404 for all 121 operations, bound to the error envelope', function (): void {
     // Structural, not reachability. The claim is that no operation advertises a
-    // 404 the error envelope cannot describe, and that the count is 121 -- so a
+    // 404 the error envelope cannot describe, and that the count is 131 -- so a
     // route appearing or disappearing moves this number rather than passing
     // quietly. F04 added the three review routes, which is the 102 -> 105 move;
     // F11 added the six preference/reminder routes, which is 105 -> 111; the
@@ -131,7 +131,7 @@ it('publishes a 404 for all 121 operations, bound to the error envelope', functi
     // flow's `POST /auth/sign-up/lengkapi` is the 112 -> 113 move; the landing-hero
     // module adds seven more (`GET /hero` plus six `/admin/hero` routes), which is
     // the 113 -> 120 move; the multi-portal `POST /admin/dokter` is bearer, which
-    // is the 120 -> 121 move.
+    // is the 121 -> 131 move.
     $count = 0;
 
     foreach (ContractSpec::specOperations() as $key => $operation) {
@@ -142,7 +142,7 @@ it('publishes a 404 for all 121 operations, bound to the error envelope', functi
         $count++;
     }
 
-    expect($count)->toBe(121);
+    expect($count)->toBe(131);
 });
 
 it('publishes 401 and 403 together, or neither, on every bearer operation', function (): void {
@@ -170,7 +170,7 @@ it('publishes 401 and 403 together, or neither, on every bearer operation', func
         $count++;
     }
 
-    expect($count)->toBe(92);
+    expect($count)->toBe(102);
 });
 
 it('publishes 429 only where a named rate limiter is registered', function (): void {

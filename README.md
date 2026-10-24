@@ -33,7 +33,7 @@ documentation.
 
 | Path | What it is |
 | --- | --- |
-| `app/` `bootstrap/` `config/` `database/` `routes/` `public/` `storage/` | **Backend.** The Laravel 13 API — 111 routes under `/api/v1`. |
+| `app/` `bootstrap/` `config/` `database/` `routes/` `public/` `storage/` | **Backend.** The Laravel 13 API — 131 routes under `/api/v1`. |
 | `resources/views/app.blade.php` | **Backend.** One Blade file, rendered *only* when the SPA has not been built, as a deliberate 503 rather than a placeholder that lies. |
 | `frontend/` | **Front end.** The React SPA: `frontend/src`, its own `index.html`, Vite 8 config and dependency list. Builds to `frontend/dist` (gitignored), which `routes/web.php` serves as the shell. Also holds `frontend/tests/` (Playwright e2e) and `frontend/ux/` (the F01–F14 design research corpus). |
 | `tests/` | The PHP suite (Pest). |
@@ -155,6 +155,40 @@ npm run dev                             # Vite dev server for frontend/
 
 `php artisan dev` runs the API and Reverb together in one process. The Vite dev
 server proxies `/api` to `http://localhost:8000`.
+
+---
+
+## Multi-portal (6 portal)
+
+Satu build SPA yang disajikan dari enam hostname; hostname-lah satu-satunya
+yang berbeda. Kode, origin API, dan token sama untuk semuanya. Portal yang
+dipakai ditentukan sekali saat pemuatan modul melalui `detectPortal()`
+(`frontend/src/lib/portal.ts`), jadi navigasi sisi klien menjaga portal yang
+sama — `?portal=` diperlukan hanya untuk permintaan dokumen pertama.
+
+| Hostname | Portal | Tipe akun yang diizinkan |
+|----------|--------|--------------------------|
+| `sehatly.com` / `sehatly.test` | Pasien | `pasien` |
+| `admin.sehatly.com` / `admin.sehatly.test` | Admin klinik | `admin`, `superadmin` |
+| `dokter.sehatly.com` / `dokter.sehatly.test` | Dokter | `dokter` |
+| `apotek.sehatly.com` / `apotek.sehatly.test` | Apoteker | `apoteker` |
+| `kurir.sehatly.com` / `kurir.sehatly.test` | Kurir | `kurir` |
+| `marketing.sehatly.com` / `marketing.sehatly.test` | Marketing | `marketing` |
+
+Semua portal mengarah ke API yang sama di `/api/v1`. Setiap rute API
+dikelilingi oleh guard `tipe:` + `permission:` (backend adalah otoritas
+keamanan; frontend hanya UX), dan setiap portal punya halaman login sendiri
+— tidak ada dialog publik untuk admin/dokter/dll.
+
+Jalur serve (lihat juga `resources/views/app.blade.php` dan `routes/web.php`):
+
+- SPA sudah build (`frontend/dist/index.html` ada): 200 dengan shell
+  asli, deep link seperti `/dashboard/anything` boot router.
+- SPA belum build: **503** dengan perintah build, bukan halaman placeholder
+  200 yang boysong. API tetap tersedia di `/api/v1`.
+
+Sebelum produksi, jalankan `npm run build` di `frontend/` (produksi
+secara langsung biasanya mengalihkan ke `frontend/dist`).
 
 ---
 

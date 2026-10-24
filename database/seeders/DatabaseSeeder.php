@@ -93,7 +93,7 @@ use Illuminate\Support\Facades\DB;
  * | 9 | {@see ArtikelKategoriSeeder} | no | `artikel.kategori_id` (FK `:1089`); `artikel` is never seeded |
  * | 10 | {@see RbacSeeder} | no | `role_permissions` (FKs `:167`-`:168`), `user_roles` (FK `:176`) |
  * | **11** | **{@see DevFixtureSeeder}** | - | **must be last**: it reads 2, 3, 7 and 8 back and writes `users`, `pasien`, `faskes`, `dokter`, `dokter_spesialisasi`, `dokter_faskes`, `lab_paket_item`, `obat_interaksi` |
- * | **12** | **{@see DemoDataSeeder}** | `OBT-0002`, `OBT-0005`, `UMUM`, kode `31` | `users`, `user_roles`, `pasien`, `dokter`, `dokter_spesialisasi`, `dokter_jadwal`, `faskes`, `apotek_stok`, `pasien_alergi` - the three accounts the four unreachable journeys need, plus the schedule, pharmacy and stock that have no public API at all |
+ * | **12** | **{@see DemoDataSeeder}** | `OBT-0002`, `OBT-0005`, `UMUM`, kode `31` | `users`, `user_roles`, `pasien`, `dokter`, `dokter_spesialisasi`, `dokter_jadwal`, `faskes`, `apotek_stok`, `pasien_alergi` - the five accounts (the three the four unreachable journeys need, plus a courier and a marketing account for the two multi-portal portals), the schedule, pharmacy and stock that have no public API at all |
  * | **13** | **{@see AdminSeeder}** | no | `users`, `user_roles` - the two portal admin accounts, each granted the role its `/admin` gate requires, so it depends on `roles` the same way 12 does |
  *
  * `RbacSeeder` sits between the two groups because it has no dependency on either:
@@ -117,9 +117,9 @@ use Illuminate\Support\Facades\DB;
  * | `telemedicine_test.sql` section `[16]` (9 seeders) | 15 | **151** |
  * | {@see RbacSeeder} (no DDL source) | 3 | **98** |
  * | {@see DevFixtureSeeder} (no DDL source) | 8 | **27** |
- * | {@see DemoDataSeeder} (no DDL source) | 9 | **22** |
+ * | {@see DemoDataSeeder} (no DDL source) | 9 | **24** |
  * | {@see AdminSeeder} (no DDL source) | 2 | **4** |
- * | **total written** | **32** | **302** |
+ * | **total written** | **32** | **304** |
  *
  * **The 26th owned table, `user_roles`, is written by nobody in this tree.** It is
  * listed in `SEEDED_TABLES` so a re-seed clears a developer's manual grants, and
@@ -131,12 +131,13 @@ use Illuminate\Support\Facades\DB;
  * **The 27th-30th owned tables (`pasien_alergi`, `apotek_stok`, `dokter_jadwal`,
  * and `user_roles` again) were added by F3-02, and the statement above is the one
  * claim in this paragraph that is now FALSE.** {@see DemoDataSeeder} DOES grant
- * roles - to exactly three named demo accounts, which is what makes the doctor,
- * the pharmacist and the patient reachable at all. The `RbacSeeder` half of the
- * claim still holds: the RBAC kernel itself grants nothing, and
+ * roles - to the five accounts {@see DemoDataSeeder::namaAkun()} names, which is
+ * what makes the doctor, the pharmacist, the patient and (after the multi-portal
+ * round) the courier and the marketing account reachable at all. The `RbacSeeder`
+ * half of the claim still holds: the RBAC kernel itself grants nothing, and
  * `RbacSeederIdempotencyTest` still proves it. What changed is that a seeder in
  * this tree may now write `user_roles`, and it may only ever do so for accounts
- * the demo seeders name - see the third correction below.
+ * the demo seeders name - see the third and fourth corrections below.
  *
  * ### Third correction: `AdminSeeder` grants roles too, and the row total moves to 302
  *
@@ -165,6 +166,37 @@ use Illuminate\Support\Facades\DB;
  * `role_permissions`; the 24 and the 69 are the counts of
  * {@see RbacCatalog::PERMISSIONS} and of the sum of
  * {@see RbacCatalog::ROLE_PERMISSIONS}.
+ *
+ * ### Fourth correction: the courier and marketing demo accounts, and the demo row total was overstated by two
+ *
+ * The multi-portal round (§1.3 of `docs/update-plan-pilihan-a.md`) added a courier
+ * portal and a marketing portal, and both are role-gated exactly as `/admin` is: a
+ * portal whose accounts hold no role is 403 on every route it exists to serve.
+ * {@see DemoDataSeeder} therefore appends two accounts - `kurir` and `marketing` -
+ * each of which is ONE `users` row and ONE `user_roles` grant and nothing else,
+ * because neither owns a profile table. Both portals are reachable immediately
+ * after `migrate:fresh --seed` as a result.
+ *
+ * Two `users` rows and two `user_roles` grants come with it, so the `DemoDataSeeder`
+ * row of the table above moves **22 -> 24** and the tree total moves **302 -> 304**;
+ * the distinct-table total stays **32**, because both tables were already owned.
+ *
+ * **The "22" was already two too high.** Counted against a real
+ * `migrate:fresh --seed`, `DemoDataSeeder` wrote **20** rows before this change and
+ * writes **24** now: 5 `users`, 5 `user_roles`, 1 `pasien`, 1 `dokter`,
+ * 1 `dokter_spesialisasi`, 7 `dokter_jadwal`, 1 `faskes`, 2 `apotek_stok` and
+ * 1 `pasien_alergi`. The same defect class as the stale "3 `lab_paket_item`"
+ * recorded below - a number in a comment that nothing executes.
+ *
+ * **The RBAC row of the table above is stale too, and this change does NOT touch
+ * it.** Measured on a real seed, `roles`, `permissions` and `role_permissions` hold
+ * **7, 33 and 90** rows - not the **5, 24 and 69** that row reports. That gap is NOT
+ * the multi-portal catalogue round alone. That round added five permission codes, two
+ * roles and thirteen grants, but the row's `24` and `69` had already slipped four
+ * codes and eight grants behind the catalogue BEFORE it: the pre-round catalogue
+ * (`7339bd91^`) holds **5, 28 and 77**. None of the difference is this change's
+ * subject; it is disclosed here so the figure is not mistaken for a measurement, and
+ * left for whoever owns that row.
  *
  * ### Corrected while adding `RbacSeeder`: the fixture total was 21, and 3 `lab_paket_item` was wrong
  *

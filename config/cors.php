@@ -14,13 +14,17 @@ return [
     | origin, and any `fetch` from a page served on the API's own origin during
     | testing must not be rejected.
     |
-    | The dev origins below were read out of `frontend/vite.config.ts`, not guessed.
-    | That file declares `server.proxy` for `/api` but sets neither `server.port`
-    | nor `server.origin`, so Vite serves the SPA on its default 5173. Because it
-    | also leaves `strictPort` off, Vite walks forward to 5174 (and beyond) when
-    | 5173 is already taken, so the adjacent port is allowed as well. Vite's
-    | `server.host` default is `localhost`, which resolves to the `127.0.0.1`
-    | origin in Chrome, so both spellings are listed.
+    | The dev origins this file used to carry as defaults are no longer here (D5,
+    | docs/update-plan-pilihan-a.md §1.1): they are supplied through
+    | `CORS_ALLOWED_ORIGINS` instead. They were read out of
+    | `frontend/vite.config.ts`, not guessed. That file declares `server.proxy` for
+    | `/api` but sets neither `server.port` nor `server.origin`, so Vite serves the
+    | SPA on its default 5173. Because it also leaves `strictPort` off, Vite walks
+    | forward to 5174 (and beyond) when 5173 is already taken, so the adjacent port
+    | is allowed as well. Vite's `server.host` default is `localhost`, which
+    | resolves to the `127.0.0.1` origin in Chrome, so both spellings are listed.
+    | `.env.example` documents the list for developers; `phpunit.xml` pins it for
+    | the suite.
     |
     */
 
@@ -31,31 +35,31 @@ return [
     | Allowed Origins
     |--------------------------------------------------------------------------
     |
+    | The default below is the six production hosts and nothing else: a checkout
+    | that ships with `CORS_ALLOWED_ORIGINS` unset answers production only, so an
+    | empty or missing env var can never fall back to a dev origin. Development
+    | origins - the four Vite spellings (`http://localhost:5173`, `http://localhost:5174`
+    | and the matching `127.0.0.1` pair) and the six `http://*.sehatly.test` Laragon
+    | hosts - are supplied through `CORS_ALLOWED_ORIGINS` instead: documented for
+    | developers in `.env.example`, and pinned for the suite in `phpunit.xml`,
+    | where the CORS assertions in `ApiKernelTest` and `ConsultationChannelTest`
+    | depend on them.
+    |
     | Overridable via CORS_ALLOWED_ORIGINS so production can be configured without
     | a code change. A comma-separated list, because `explode` is the only shape
     | an env var can carry. An explicit origin list is deliberate: a wildcard would
     | let any site read authenticated responses out of the mobile client's browser
-    | session, and cookie-based Sanctum auth is the reason this file exists.
+    | session, and cookie-based Sanctum auth (`supports_credentials`, below) is the
+    | reason this file exists.
     |
     */
 
     'allowed_origins' => explode(',', env('CORS_ALLOWED_ORIGINS', implode(',', [
-        'http://localhost:5173',
-        'http://127.0.0.1:5173',
-        'http://localhost:5174',
-        'http://127.0.0.1:5174',
-        // Multi-portal (docs/update-plan-pilihan-a.md §1.1): one SPA served on six
-        // hosts. The `.test` spellings are the Laragon dev hosts of §3.1, the
-        // `.com` spellings production. The base `sehatly.test`/`sehatly.com` are
-        // included because the patient portal IS an origin of its own once the
-        // portals split - `localhost:8000` never appears, so a page served from the
-        // API's own origin is still covered by the same-origin rule, not by CORS.
-        'http://sehatly.test',
-        'http://admin.sehatly.test',
-        'http://dokter.sehatly.test',
-        'http://apotek.sehatly.test',
-        'http://kurir.sehatly.test',
-        'http://marketing.sehatly.test',
+        // Production, and only production (D5). The base `sehatly.com` is included
+        // because the patient portal IS an origin of its own once the portals
+        // split - `localhost:8000` never appears, so a page served from the API's
+        // own origin is still covered by the same-origin rule, not by CORS. The
+        // dev origins live in `CORS_ALLOWED_ORIGINS`, not here.
         'https://sehatly.com',
         'https://admin.sehatly.com',
         'https://dokter.sehatly.com',

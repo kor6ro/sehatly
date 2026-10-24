@@ -152,11 +152,11 @@ it('splits the documented operations into 92 bearer, 29 anonymous and 28 unguard
     // (28 -> 29, 27 -> 28), while its six `/admin/hero` routes are all bearer and
     // none anonymous (85 -> 91) - which is the 113 -> 120 total; the multi-portal
     // `POST /admin/dokter` is bearer and brings no anonymous route with it, the
-    // 91 -> 92 and 120 -> 121 movement.
-    expect(count(contractBearerOperations()))->toBe(92);
+    // 91 -> 92 and 121 -> 131 movement.
+    expect(count(contractBearerOperations()))->toBe(102);
     expect(count(contractAnonymousOperations()))->toBe(29);
     expect(count(contractUnguardedAnonymousOperations()))->toBe(28);
-    expect(count(contractBearerOperations()) + count(contractAnonymousOperations()))->toBe(121);
+    expect(count(contractBearerOperations()) + count(contractAnonymousOperations()))->toBe(131);
 });
 
 it('answers 401 with the error envelope when the Authorization header is absent', function (string $method, string $path): void {

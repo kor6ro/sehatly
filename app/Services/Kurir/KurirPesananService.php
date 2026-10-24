@@ -7,9 +7,11 @@ namespace App\Services\Kurir;
 use App\Enums\PesananObatStatus;
 use App\Http\Resources\Kurir\KurirPesananResource;
 use App\Models\PesananObat;
+use App\Services\Notifikasi\NotificationService;
 use App\Services\PesananObat\PesananObatService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Support\Facades\Log;
 
 /**
  * The courier's delivery workflow: the queue, the pickup, the confirmation.
@@ -87,7 +89,10 @@ final class KurirPesananService
      */
     public const TERLIHAT = [...self::ANTREAN, PesananObatStatus::Selesai->value];
 
-    public function __construct(private readonly PesananObatService $pesanan) {}
+    public function __construct(
+        private readonly PesananObatService $pesanan,
+        private readonly NotificationService $notifikasi,
+    ) {}
 
     /**
      * The delivery queue: packed orders first, then the in-transit ones, newest
@@ -162,6 +167,13 @@ final class KurirPesananService
             $data['no_resi'] ?? null,
         );
 
+        // Best-effort: gagalnya notifikasi tidak membatalkan klaim.
+        $this->beriTahuPasien(
+            $pesanan,
+            'Pesanan telah diambil',
+            'Pesanan '.$pesanan->nomor_pesanan.' telah diambil kurir dan sedang dikirim kepada Anda.',
+        );
+
         // `load('apotek')` so the write's answer carries the same non-null pickup
         // block the queue and the detail do - `ubahStatus()` returns a refreshed
         // model with no relations, and a resource that answers `apotek: null`
@@ -188,12 +200,21 @@ final class KurirPesananService
     {
         $this->temukanUntukAksi($id, PesananObatStatus::SedangDikirim->value);
 
-        return $this->pesanan->ubahStatus(
+        $pesanan = $this->pesanan->ubahStatus(
             $id,
             PesananObatStatus::Selesai->value,
             $data['keterangan'] ?? 'Pesanan telah diterima penerima.',
             $data['lokasi'] ?? null,
-        )->load('apotek');
+        );
+
+        // Best-effort: gagalnya notifikasi tidak membatalkan konfirmasi.
+        $this->beriTahuPasien(
+            $pesanan,
+            'Pesanan telah diterima',
+            'Pesanan '.$pesanan->nomor_pesanan.' telah diterima oleh penerima.',
+        );
+
+        return $pesanan->load('apotek');
     }
 
     /**
@@ -207,6 +228,47 @@ final class KurirPesananService
 
         if (! $ada) {
             throw (new ModelNotFoundException)->setModel(PesananObat::class, [$id]);
+        }
+    }
+
+    /**
+     * Beri tahu pemilik pesanan bahwa statusnya berubah, tanpa ganggu alur kurir.
+     *
+     * Notifikasi adalah best-effort: baris `notifikasi` ditulis dan push
+     * dicoba di dalam `NotificationService::kirimKePasien()`, dan setiap
+     * kegagalan ditangkap dan dicatat log di sini. Tindakan kurir
+     * (ambil/antar) tetap sukses meski notifikasi tidak sampai.
+     *
+     * `tipe = 'sistem'` karena kolom `notifikasi.tipe` adalah ENUM milik DDL
+     * (`booking`, `pembayaran`, `resep`, `chat`, `lab`, `promo`, `sistem`) yang
+     * tidak mengenal `pesanan_diambil`/`pesanan_dikirimkan`, dan tabel ini
+     * sengaja tidak dibuka migration baru.
+     *
+     * @param  array{pesanan_id: int, nomor_pesanan: string, status: string}  $payload
+     */
+    private function beriTahuPasien(PesananObat $pesanan, string $judul, string $isi): void
+    {
+        try {
+            $pasienUserId = (int) optional($pesanan->pasien)->user_id;
+
+            $this->notifikasi->kirimKePasien(
+                $pasienUserId,
+                $judul,
+                $isi,
+                'sistem',
+                '/api/v1/pesanan-obat/'.$pesanan->id,
+                [
+                    'pesanan_id' => (int) $pesanan->id,
+                    'nomor_pesanan' => $pesanan->nomor_pesanan,
+                    'status' => $pesanan->status,
+                ],
+            );
+        } catch (\Throwable $e) {
+            Log::error('kurir.pesanan.notifikasi_pasien.gagal', [
+                'pesanan_id' => (int) $pesanan->id,
+                'pasien_user_id' => $pasienUserId,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 }

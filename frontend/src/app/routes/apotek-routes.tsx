@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Navigate } from 'react-router';
 import { RootLayout } from '@/app/root-layout';
 import { RouteErrorBoundary } from '@/app/error-boundary';
@@ -6,11 +7,19 @@ import { PortalTidakDitemukanPage } from '@/app/portal-states';
 import { AppShell } from '@/app/app-shell';
 import { PortalLoginPage } from '@/pages/portal-login-page';
 import { ProfilEditPage } from '@/pages/profil-edit-page';
-import { ApotekDashboardPage } from '@/pages/apotek-dashboard-page';
-import { ApotekQueuePage } from '@/pages/apotek-queue-page';
-import { ResepDetailPage } from '@/pages/resep-detail-page';
 import { KebijakanPrivasiPage } from '@/pages/kebijakan-privasi-page';
 import { SyaratKetentuanPage } from '@/pages/syarat-ketentuan-page';
+import { LoadingState } from '@/components/states/loading-state';
+
+const ApotekDashboardPage = lazy(() =>
+  import('@/pages/apotek-dashboard-page').then((mod) => ({ default: mod.ApotekDashboardPage }))
+);
+const ApotekQueuePage = lazy(() =>
+  import('@/pages/apotek-queue-page').then((mod) => ({ default: mod.ApotekQueuePage }))
+);
+const ResepDetailPage = lazy(() =>
+  import('@/pages/resep-detail-page').then((mod) => ({ default: mod.ResepDetailPage }))
+);
 
 /**
  * The apotek portal's route table, served from `apotek.sehatly.test` (plan section 2.3).
@@ -65,17 +74,29 @@ export const apotekRoutes = [
                         children: [
                             {
                                 path: '/apotek/dashboard',
-                                element: <ApotekDashboardPage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat dashboard apotek..." />}>
+                                        <ApotekDashboardPage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                             {
                                 path: '/apotek/resep',
-                                element: <ApotekQueuePage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat antrian resep..." />}>
+                                        <ApotekQueuePage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                             {
                                 path: '/resep/:id',
-                                element: <ResepDetailPage />,
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat detail resep..." />}>
+                                        <ResepDetailPage />
+                                    </Suspense>
+                                ),
                                 errorElement: <RouteErrorBoundary />,
                             },
                         ],
