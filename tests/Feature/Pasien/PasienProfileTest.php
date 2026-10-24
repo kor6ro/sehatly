@@ -1423,6 +1423,16 @@ test('the route table exposes the twelve auth routes and the seven patient route
         'GET api/v1/kurir/pesanan/{id}',
         'PUT api/v1/kurir/pesanan/{id}/ambil',
         'PUT api/v1/kurir/pesanan/{id}/antar',
+        'DELETE api/v1/marketing/artikel/{id}',
+        'DELETE api/v1/marketing/promo/{id}',
+        'GET api/v1/marketing/artikel',
+        'GET api/v1/marketing/artikel/{id}',
+        'GET api/v1/marketing/promo',
+        'GET api/v1/marketing/promo/{id}',
+        'POST api/v1/marketing/artikel',
+        'POST api/v1/marketing/promo',
+        'PUT api/v1/marketing/artikel/{id}',
+        'PUT api/v1/marketing/promo/{id}',
     ]);
 
     // TEN under the `pasien` filter: the six above (profil read + write, two for
@@ -1808,6 +1818,19 @@ test('the route table exposes the twelve auth routes and the seven patient route
             'GET api/v1/kurir/pesanan/{id}' => ['permission:pesanan.update', 'tipe:kurir'],
             'PUT api/v1/kurir/pesanan/{id}/ambil' => ['permission:pesanan.update', 'tipe:kurir'],
             'PUT api/v1/kurir/pesanan/{id}/antar' => ['permission:pesanan.antar', 'tipe:kurir'],
+            // Marketing module: the admin's content CRUD. `tipe:marketing` sits on
+            // the wrapping group (like F14's admin group), and each route carries
+            // `artikel.kelola` / `promo.kelola` per the catalogue.
+            'GET api/v1/marketing/artikel' => ['permission:artikel.kelola', 'tipe:marketing'],
+            'GET api/v1/marketing/artikel/{id}' => ['permission:artikel.kelola', 'tipe:marketing'],
+            'POST api/v1/marketing/artikel' => ['permission:artikel.kelola', 'tipe:marketing'],
+            'PUT api/v1/marketing/artikel/{id}' => ['permission:artikel.kelola', 'tipe:marketing'],
+            'DELETE api/v1/marketing/artikel/{id}' => ['permission:artikel.kelola', 'tipe:marketing'],
+            'GET api/v1/marketing/promo' => ['permission:promo.kelola', 'tipe:marketing'],
+            'GET api/v1/marketing/promo/{id}' => ['permission:promo.kelola', 'tipe:marketing'],
+            'POST api/v1/marketing/promo' => ['permission:promo.kelola', 'tipe:marketing'],
+            'PUT api/v1/marketing/promo/{id}' => ['permission:promo.kelola', 'tipe:marketing'],
+            'DELETE api/v1/marketing/promo/{id}' => ['permission:promo.kelola', 'tipe:marketing'],
         ];
 
         expect($guards)->toEqualCanonicalizing(
@@ -2029,6 +2052,17 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         "'permission:pesanan.update'",
         "'permission:pesanan.update'",
         "'permission:pesanan.antar'",
+        "'tipe:marketing'",
+        "'permission:artikel.kelola'",
+        "'permission:artikel.kelola'",
+        "'permission:artikel.kelola'",
+        "'permission:artikel.kelola'",
+        "'permission:artikel.kelola'",
+        "'permission:promo.kelola'",
+        "'permission:promo.kelola'",
+        "'permission:promo.kelola'",
+        "'permission:promo.kelola'",
+        "'permission:promo.kelola'",
     ]);
 });
 

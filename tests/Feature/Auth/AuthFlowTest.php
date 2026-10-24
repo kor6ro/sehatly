@@ -2055,6 +2055,21 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         "'permission:pesanan.update'",
         "'permission:pesanan.update'",
         "'permission:pesanan.antar'",
+        // Marketing module: the admin's content CRUD. `tipe:marketing` is declared
+        // once on the wrapping group (like F14's admin group), and each route
+        // carries `artikel.kelola` / `promo.kelola` per the catalogue. Five hits
+        // each for the five CRUD routes per resource.
+        "'tipe:marketing'",
+        "'permission:artikel.kelola'",
+        "'permission:artikel.kelola'",
+        "'permission:artikel.kelola'",
+        "'permission:artikel.kelola'",
+        "'permission:artikel.kelola'",
+        "'permission:promo.kelola'",
+        "'permission:promo.kelola'",
+        "'permission:promo.kelola'",
+        "'permission:promo.kelola'",
+        "'permission:promo.kelola'",
     ]);
 });
 

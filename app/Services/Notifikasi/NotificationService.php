@@ -309,7 +309,7 @@ final class NotificationService
      * `telemedicine_test.sql:1041` (`booking`, `pembayaran`, `resep`, `chat`,
      * `lab`, `promo`, `sistem`) dan MySQL menolak baris bernama di luar daftar
      * itu. Notifikasi "pesanan diambil" dan "pesanan dikirimkan" dari kurir
-     * TIDAK bernama `pesanan_diambil`/`pesanan_dikirimkan` — keduanya bukan
+     * TIDAK bernama `pesanan_diambil`/`pesanan_dikirimkan` -- keduanya bukan
      * anggota ENUM dan tabel ini sengaja TIDAK dibuka migration baru untuk
      * menambahkannya. Kedua event ditulis sebagai `sistem`, yang skema gunakan
      * untuk pemberitahuan layanan (sama seperti baris lifecycle di
@@ -331,7 +331,7 @@ final class NotificationService
      * @param  int  $pasienUserId  `users.id` milik pasien pemesan obat
      * @param  string  $judul  Judul notifikasi; dipotong ke 200 karakter
      * @param  string  $isi  Isi notifikasi; dipotong ke 500 karakter
-     * @param  string  $tipe  Anggota ENUM `notifikasi.tipe` — kurir
+     * @param  string  $tipe  Anggota ENUM `notifikasi.tipe` -- kurir
      *                        menulis `sistem`
      * @param  string|null  $tautan  Path API, mis. `/api/v1/pesanan-obat/{id}`;
      *                               dipotong ke 500 karakter
