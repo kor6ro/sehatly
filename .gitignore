@@ -55,3 +55,6 @@ frontend/ux/evidence/**/*.jpg
 frontend/ux/evidence/**/*.jpeg
 frontend/ux/evidence/**/*.webp
 
+
+# Ignore all markdown files
+*.md

@@ -12,3 +12,6 @@
 # Vite build output and its dependency-optimisation cache.
 /dist/
 /node_modules/.vite/
+
+# Ignore all markdown files
+*.md
