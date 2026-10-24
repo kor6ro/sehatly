@@ -88,26 +88,56 @@ function isPortal(value: string | null): value is Portal {
 }
 
 /**
+ * Menentukan apakah ?portal= override diizinkan.
+ *
+ * Production (import.meta.env.PROD === true) tidak pernah mengizinkan override
+ * lewat query string — ini mencegah link jahat memaksa portal lain.
+ *
+ * Override diizinkan HANYA pada:
+ * - mode development (import.meta.env.DEV === true)
+ * - mode non-production dengan env var eksplisit VITE_E2E_PORTAL_OVERRIDE=true
+ *   (untuk Playwright/CI yang menjalankan satu origin mewakili banyak portal)
+ */
+function overrideDiizinkan(): boolean {
+    if (import.meta.env?.PROD) return false;
+    if (import.meta.env?.DEV) return true;
+    return import.meta.env?.VITE_E2E_PORTAL_OVERRIDE === 'true';
+}
+
+/**
  * The pure core of `detectPortal`, split out so it can be tested in plain node.
  *
  * @param host - `window.location.hostname`
  * @param search - `window.location.search`, including the leading `?`
+ * @param allowOverride - eksplisit override untuk keperluan test (bypass env check)
  */
-export function portalDariHost(host: string, search: string): Portal {
+export function portalDariHost(
+    host: string,
+    search: string,
+    allowOverride?: boolean,
+): Portal {
     for (const [prefix, portal] of PREFIX_PORTAL) {
         if (host.startsWith(prefix)) return portal;
     }
 
-    // No staff subdomain: honour ?portal= so one origin can stand in for any portal.
-    const override = new URLSearchParams(search).get('portal');
-    if (isPortal(override)) return override;
+    // No staff subdomain: honour ?portal= only when explicitly allowed.
+    const bolehOverride = allowOverride ?? overrideDiizinkan();
+    if (bolehOverride) {
+        const override = new URLSearchParams(search).get('portal');
+        if (isPortal(override)) return override;
+    }
 
     return 'pasien';
 }
 
 /** Deteksi portal dari hostname saat ini (plan section 2.1). */
 export function detectPortal(): Portal {
-    return portalDariHost(window.location.hostname, window.location.search);
+    return portalDariHost(
+        window.location.hostname,
+        window.location.search,
+        // undefined -> pakai logika overrideDiizinkan() internal
+        undefined,
+    );
 }
 
 /**

@@ -5,10 +5,15 @@ import { RouteErrorBoundary } from '@/app/error-boundary';
 import { AppShell } from '@/app/app-shell';
 import { LandingPage } from '@/pages/landing-page';
 import { ProfilEditPage } from '@/pages/profil-edit-page';
-import { DoctorDetailPage } from '@/pages/doctor-detail-page';
 import { KebijakanPrivasiPage } from '@/pages/kebijakan-privasi-page';
 import { SyaratKetentuanPage } from '@/pages/syarat-ketentuan-page';
 import { LoadingState } from '@/components/states/loading-state';
+
+const DoctorDetailPage = lazy(() =>
+  import('@/pages/doctor-detail-page').then((mod) => ({ default: mod.DoctorDetailPage }))
+);
+
+
 
 const DashboardPage = lazy(() =>
   import('@/pages/dashboard-page').then((mod) => ({ default: mod.DashboardPage }))
@@ -221,7 +226,11 @@ export const pasienRoutes = [
             },
             {
                 path: '/dokter/:id',
-                element: <DoctorDetailPage />,
+                element: (
+                    <Suspense fallback={<LoadingState label="Memuat profil dokter..." />}>
+                        <DoctorDetailPage />
+                    </Suspense>
+                ),
                 errorElement: <RouteErrorBoundary />,
             },
 

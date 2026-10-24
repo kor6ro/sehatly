@@ -59,14 +59,37 @@ describe('portalDariHost - subdomain dulu', () => {
     });
 });
 
-describe('portalDariHost - ?portal= hanya di host polos', () => {
+describe('portalDariHost - production mengabaikan ?portal=', () => {
+    it('ignores override when allowOverride is false', () => {
+        assert.equal(portalDariHost('sehatly.test', '?portal=admin', false), 'pasien');
+        assert.equal(portalDariHost('localhost', '?portal=kurir', false), 'pasien');
+    });
+
+    it('honours override when allowOverride is true', () => {
+        assert.equal(portalDariHost('sehatly.test', '?portal=admin', true), 'admin');
+    });
+});
+
+describe('portalDariHost - ?portal= hanya di host polos (override eksplisit)', () => {
     it('honours the override on a host that declares no portal', () => {
-        assert.equal(portalDariHost('sehatly.test', '?portal=admin'), 'admin');
-        assert.equal(portalDariHost('localhost', '?portal=kurir'), 'kurir');
-        assert.equal(portalDariHost('127.0.0.1', '?x=1&portal=marketing'), 'marketing');
+        assert.equal(portalDariHost('sehatly.test', '?portal=admin', true), 'admin');
+        assert.equal(portalDariHost('localhost', '?portal=kurir', true), 'kurir');
+        assert.equal(portalDariHost('127.0.0.1', '?x=1&portal=marketing', true), 'marketing');
     });
 
     it('lets the subdomain win over a contradicting query string', () => {
+        assert.equal(portalDariHost('admin.sehatly.test', '?portal=pasien', true), 'admin');
+        assert.equal(portalDariHost('dokter.sehatly.test', '?portal=apotek', true), 'dokter');
+    });
+});
+
+describe('portalDariHost - tanpa override eksplisit fallback ke env (test env = tidak diizinkan)', () => {
+    it('ignores ?portal= when allowOverride not passed (test env has no DEV/PROD)', () => {
+        assert.equal(portalDariHost('sehatly.test', '?portal=admin'), 'pasien');
+        assert.equal(portalDariHost('localhost', '?portal=kurir'), 'pasien');
+    });
+
+    it('still lets subdomain win', () => {
         assert.equal(portalDariHost('admin.sehatly.test', '?portal=pasien'), 'admin');
         assert.equal(portalDariHost('dokter.sehatly.test', '?portal=apotek'), 'dokter');
     });
@@ -140,10 +163,10 @@ describe('portalOrigin / portalBeranda - tautan pulang lintas subdomain', () => 
         assert.equal(portalOrigin('pasien'), 'https://sehatly.test');
     });
 
-    it('detectPortal reads the window it is given', () => {
+    it('detectPortal ignores ?portal= in test env (no import.meta.env)', () => {
         (globalThis as { window?: unknown }).window = {
             location: { protocol: 'http:', hostname: 'sehatly.test', search: '?portal=apotek' },
         };
-        assert.equal(detectPortal(), 'apotek');
+        assert.equal(detectPortal(), 'pasien');
     });
 });

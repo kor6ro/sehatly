@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { meOptions } from '@/lib/api/me';
 import { ApiError } from '@/lib/http';
+import { portalBeranda, portalTipe } from '@/lib/portal';
 import { Button } from '@/components/ui/button';
 import { ErrorState, ForbiddenState } from '@/components/states/error-state';
 import { SkeletonRows } from '@/components/states/loading-state';
@@ -55,7 +56,9 @@ export function AdminGate({ children }: { children: ReactNode }) {
                 detail="Anda tidak memiliki izin untuk membuka halaman ini."
                 action={
                     <Button asChild variant="outline" className="mt-1 min-h-11">
-                        <Link to="/dashboard">Kembali ke dasbor</Link>
+                        <a href={portalBeranda(portalTipe(me.data?.data.user?.tipe))}>
+                            Kembali ke beranda
+                        </a>
                     </Button>
                 }
             />
@@ -89,7 +92,9 @@ export function AdminErrorState({
                 detail="Anda tidak memiliki izin untuk membuka halaman ini."
                 action={
                     <Button asChild variant="outline" className="mt-1 min-h-11">
-                        <Link to="/dashboard">Kembali ke dasbor</Link>
+                        <Link to="/admin/dokter">
+                            Kembali ke beranda
+                        </Link>
                     </Button>
                 }
             />
