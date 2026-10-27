@@ -4,10 +4,10 @@ import { meOptions } from '@/lib/api/me';
 import { getAccessToken } from '@/lib/token';
 import { PORTAL_TIPE, type Portal } from '@/lib/portal';
 import { PortalSalahPage } from '@/app/portal-states';
-import { EmptyState } from '@/components/states/empty-state';
-import { ErrorState } from '@/components/states/error-state';
-import { LoadingState, SkeletonRows } from '@/components/states/loading-state';
-import { PageHeader } from '@/components/layout/page-header';
+import { EmptyState } from '@/shared/components/states/empty-state';
+import { ErrorState } from '@/shared/components/states/error-state';
+import { LoadingState, SkeletonRows } from '@/shared/components/states/loading-state';
+import { PageHeader } from '@/shared/components/layout/page-header';
 import { Button } from '@/components/ui/button';
 
 /**

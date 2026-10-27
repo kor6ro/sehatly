@@ -5,23 +5,23 @@ import { RouteErrorBoundary } from '@/app/error-boundary';
 import { RequirePortalAuth } from '@/app/guards';
 import { PortalTidakDitemukanPage } from '@/app/portal-states';
 import { AppShell } from '@/app/app-shell';
-import { PortalLoginPage } from '@/pages/portal-login-page';
-import { ProfilEditPage } from '@/pages/profil-edit-page';
-import { KebijakanPrivasiPage } from '@/pages/kebijakan-privasi-page';
-import { SyaratKetentuanPage } from '@/pages/syarat-ketentuan-page';
-import { LoadingState } from '@/components/states/loading-state';
+import { PortalLoginPage } from '@/shared/pages/portal-login-page';
+import { ProfilEditPage } from '@/shared/pages/profil-edit-page';
+import { KebijakanPrivasiPage } from '@/shared/pages/kebijakan-privasi-page';
+import { SyaratKetentuanPage } from '@/shared/pages/syarat-ketentuan-page';
+import { LoadingState } from '@/shared/components/states/loading-state';
 
 const DokterDashboardPage = lazy(() =>
-  import('@/pages/dokter-dashboard-page').then((mod) => ({ default: mod.DokterDashboardPage }))
+  import('@/portals/dokter/pages/dokter-dashboard-page').then((mod) => ({ default: mod.DokterDashboardPage }))
 );
 const DoctorBookingsPage = lazy(() =>
-  import('@/pages/doctor-bookings-page').then((mod) => ({ default: mod.DoctorBookingsPage }))
+  import('@/portals/dokter/pages/doctor-bookings-page').then((mod) => ({ default: mod.DoctorBookingsPage }))
 );
 const KonsultasiPage = lazy(() =>
-  import('@/pages/konsultasi-page').then((mod) => ({ default: mod.KonsultasiPage }))
+  import('@/shared/pages/konsultasi-page').then((mod) => ({ default: mod.KonsultasiPage }))
 );
 const ResepComposePage = lazy(() =>
-  import('@/pages/resep-compose-page').then((mod) => ({ default: mod.ResepComposePage }))
+  import('@/shared/pages/resep-compose-page').then((mod) => ({ default: mod.ResepComposePage }))
 );
 
 /**

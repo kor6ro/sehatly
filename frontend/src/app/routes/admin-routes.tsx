@@ -5,36 +5,36 @@ import { RouteErrorBoundary } from '@/app/error-boundary';
 import { RequirePortalAuth } from '@/app/guards';
 import { PortalTidakDitemukanPage } from '@/app/portal-states';
 import { AppShell } from '@/app/app-shell';
-import { AdminLoginPage } from '@/pages/admin-login-page';
-import { ProfilEditPage } from '@/pages/profil-edit-page';
-import { KebijakanPrivasiPage } from '@/pages/kebijakan-privasi-page';
-import { SyaratKetentuanPage } from '@/pages/syarat-ketentuan-page';
-import { LoadingState } from '@/components/states/loading-state';
+import { AdminLoginPage } from '@/portals/admin/pages/admin-login-page';
+import { ProfilEditPage } from '@/shared/pages/profil-edit-page';
+import { KebijakanPrivasiPage } from '@/shared/pages/kebijakan-privasi-page';
+import { SyaratKetentuanPage } from '@/shared/pages/syarat-ketentuan-page';
+import { LoadingState } from '@/shared/components/states/loading-state';
 
 const AdminDokterBuatPage = lazy(() =>
-  import('@/pages/admin-dokter-buat-page').then((mod) => ({ default: mod.AdminDokterBuatPage }))
+  import('@/portals/admin/pages/admin-dokter-buat-page').then((mod) => ({ default: mod.AdminDokterBuatPage }))
 );
 const AdminDokterPage = lazy(() =>
-  import('@/pages/admin-dokter-page').then((mod) => ({ default: mod.AdminDokterPage }))
+  import('@/portals/admin/pages/admin-dokter-page').then((mod) => ({ default: mod.AdminDokterPage }))
 );
 const AdminDokterDetailPage = lazy(() =>
-  import('@/pages/admin-dokter-detail-page').then((mod) => ({
+  import('@/portals/admin/pages/admin-dokter-detail-page').then((mod) => ({
     default: mod.AdminDokterDetailPage,
   }))
 );
 const AdminLaporanPage = lazy(() =>
-  import('@/pages/admin-laporan-page').then((mod) => ({ default: mod.AdminLaporanPage }))
+  import('@/portals/admin/pages/admin-laporan-page').then((mod) => ({ default: mod.AdminLaporanPage }))
 );
 const AdminAuditLogPage = lazy(() =>
-  import('@/pages/admin-audit-log-page').then((mod) => ({ default: mod.AdminAuditLogPage }))
+  import('@/portals/admin/pages/admin-audit-log-page').then((mod) => ({ default: mod.AdminAuditLogPage }))
 );
 const AdminPersetujuanPdpPage = lazy(() =>
-  import('@/pages/admin-persetujuan-pdp-page').then((mod) => ({
+  import('@/portals/admin/pages/admin-persetujuan-pdp-page').then((mod) => ({
     default: mod.AdminPersetujuanPdpPage,
   }))
 );
 const AdminHeroPage = lazy(() =>
-  import('@/pages/admin-hero-page').then((mod) => ({ default: mod.AdminHeroPage }))
+  import('@/portals/admin/pages/admin-hero-page').then((mod) => ({ default: mod.AdminHeroPage }))
 );
 
 /**
