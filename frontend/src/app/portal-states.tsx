@@ -1,6 +1,6 @@
 import { Link } from 'react-router';
-import { EmptyState } from '@/components/states/empty-state';
-import { PageHeader } from '@/components/layout/page-header';
+import { EmptyState } from '@/shared/components/states/empty-state';
+import { PageHeader } from '@/shared/components/layout/page-header';
 import { Button } from '@/components/ui/button';
 import { PORTAL_NAMA, portalBeranda, portalTipe, type Portal } from '@/lib/portal';
 

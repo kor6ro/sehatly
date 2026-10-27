@@ -5,24 +5,24 @@ import { RouteErrorBoundary } from '@/app/error-boundary';
 import { RequirePortalAuth } from '@/app/guards';
 import { PortalTidakDitemukanPage } from '@/app/portal-states';
 import { AppShell } from '@/app/app-shell';
-import { PortalLoginPage } from '@/pages/portal-login-page';
-import { ProfilEditPage } from '@/pages/profil-edit-page';
-import { KebijakanPrivasiPage } from '@/pages/kebijakan-privasi-page';
-import { SyaratKetentuanPage } from '@/pages/syarat-ketentuan-page';
-import { LoadingState } from '@/components/states/loading-state';
+import { PortalLoginPage } from '@/shared/pages/portal-login-page';
+import { ProfilEditPage } from '@/shared/pages/profil-edit-page';
+import { KebijakanPrivasiPage } from '@/shared/pages/kebijakan-privasi-page';
+import { SyaratKetentuanPage } from '@/shared/pages/syarat-ketentuan-page';
+import { LoadingState } from '@/shared/components/states/loading-state';
 
 const MarketingDashboardPage = lazy(() =>
-  import('@/pages/marketing-dashboard-page').then((mod) => ({
+  import('@/portals/marketing/pages/marketing-dashboard-page').then((mod) => ({
     default: mod.MarketingDashboardPage,
   }))
 );
 const MarketingArtikelPage = lazy(() =>
-  import('@/pages/marketing-artikel-page').then((mod) => ({
+  import('@/portals/marketing/pages/marketing-artikel-page').then((mod) => ({
     default: mod.MarketingArtikelPage,
   }))
 );
 const MarketingPromoPage = lazy(() =>
-  import('@/pages/marketing-promo-page').then((mod) => ({
+  import('@/portals/marketing/pages/marketing-promo-page').then((mod) => ({
     default: mod.MarketingPromoPage,
   }))
 );

@@ -13,10 +13,10 @@ shared functionality or changing the application's current routing and behavior.
 
 The frontend is one React SPA and one production build. `src/lib/portal.ts`
 detects one of six portals from the hostname, and `src/app/router.tsx` selects
-that portal's route table. Route tables live in `src/app/routes/`, but page
-modules are currently collected in `src/pages/`. Feature components are
-organized by domain in `src/features/`, and reusable primitives and common UI
-live in `src/components/`.
+that portal's route table. Route tables live in `src/app/routes/`; portal-owned
+pages, components, and features live under `src/portals/{portal}/`; and
+cross-portal screens and domain UI live in `src/shared/`. Generic UI primitives
+remain in `src/components/ui/`, and generic hooks remain in `src/hooks/`.
 
 Some screens are intentionally reachable from more than one portal. For
 example, consultation views and prescription detail workflows are shared across
@@ -70,17 +70,23 @@ src/
     pages/
     components/
     features/
+  components/
+    ui/
+  hooks/
 ```
 
 Only directories needed by actual modules need to be created; this tree is a
 boundary guide, not a requirement to add empty directories. Cross-cutting
 infrastructure stays in its current locations (`app`, `lib`, `hooks`, `types`,
 and `styles`) unless implementation discovers a concrete reason to move it.
-The existing generic `components/ui` primitives remain shared. `shared/pages/`
-is for screens whose behavior and overall composition are genuinely common
-across portals (for example, legal documents and the shared profile-edit flow).
-A route being registered by multiple portals is not, by itself, a reason to put
-its page module in `shared/pages/`.
+The existing generic `components/ui` primitives remain shared at their current
+location. Generic hooks (for example, online status, document title, mobile
+breakpoints, and session access) remain in `src/hooks/`; a hook tightly coupled
+to one domain workflow may live beside that workflow under `src/shared` or its
+owning portal. `shared/pages/` is for screens whose behavior and overall
+composition are genuinely common across portals (for example, legal documents
+and the shared profile-edit flow). A route being registered by multiple
+portals is not, by itself, a reason to put its page module in `shared/pages/`.
 
 ### Ownership and reuse
 
@@ -88,6 +94,14 @@ its page module in `shared/pages/`.
   belong to that portal.
 - Functionality or a UI component genuinely consumed by multiple portals
   belongs in `shared`, grouped by domain where appropriate.
+- Generic low-level UI primitives remain in `components/ui`; portal-specific
+  wrappers and application components belong under their portal, while
+  application components consumed across portals belong in `shared/components`.
+- Domain features follow the same ownership rule: portal-only features live in
+  that portal, cross-portal workflows live in `shared/features`, and modules
+  from one domain may be split by ownership where their consumers differ.
+- General-purpose hooks remain in `src/hooks`; feature-specific hooks are
+  co-located with the feature they serve.
 - A cross-role workflow whose page composition or presentation differs by
   portal may have portal-owned page wrappers. Those wrappers reuse shared
   domain features and business logic rather than copying them.

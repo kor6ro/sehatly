@@ -27,7 +27,7 @@ import { dispatchFlash } from '@/lib/flash';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { Toaster } from '@/components/ui/sonner';
-import { NotificationBell } from '@/features/notifikasi/notification-bell';
+import { NotificationBell } from '@/shared/features/notifikasi/notification-bell';
 import {
     Sidebar,
     SidebarContent,

@@ -3,103 +3,103 @@ import { AlihHalamanDokter, NotFoundPage, RequireAuth } from '@/app/guards';
 import { RootLayout } from '@/app/root-layout';
 import { RouteErrorBoundary } from '@/app/error-boundary';
 import { AppShell } from '@/app/app-shell';
-import { LandingPage } from '@/pages/landing-page';
-import { ProfilEditPage } from '@/pages/profil-edit-page';
-import { KebijakanPrivasiPage } from '@/pages/kebijakan-privasi-page';
-import { SyaratKetentuanPage } from '@/pages/syarat-ketentuan-page';
-import { LoadingState } from '@/components/states/loading-state';
+import { ProfilEditPage } from '@/shared/pages/profil-edit-page';
+import { KebijakanPrivasiPage } from '@/shared/pages/kebijakan-privasi-page';
+import { SyaratKetentuanPage } from '@/shared/pages/syarat-ketentuan-page';
+import { LoadingState } from '@/shared/components/states/loading-state';
 
-const DoctorDetailPage = lazy(() =>
-  import('@/pages/doctor-detail-page').then((mod) => ({ default: mod.DoctorDetailPage }))
+const LandingPage = lazy(() =>
+  import('@/portals/pasien/pages/landing-page').then((mod) => ({ default: mod.LandingPage }))
 );
-
-
+const DoctorDetailPage = lazy(() =>
+  import('@/portals/pasien/pages/doctor-detail-page').then((mod) => ({ default: mod.DoctorDetailPage }))
+);
 
 const DashboardPage = lazy(() =>
-  import('@/pages/dashboard-page').then((mod) => ({ default: mod.DashboardPage }))
+  import('@/portals/pasien/pages/dashboard-page').then((mod) => ({ default: mod.DashboardPage }))
 );
 const ProfilePage = lazy(() =>
-  import('@/pages/profile-page').then((mod) => ({ default: mod.ProfilePage }))
+  import('@/portals/pasien/pages/profile-page').then((mod) => ({ default: mod.ProfilePage }))
 );
 const DevicesPage = lazy(() =>
-  import('@/pages/devices-page').then((mod) => ({ default: mod.DevicesPage }))
+  import('@/portals/pasien/pages/devices-page').then((mod) => ({ default: mod.DevicesPage }))
 );
 const AllergyPage = lazy(() =>
-  import('@/pages/allergy-page').then((mod) => ({ default: mod.AllergyPage }))
+  import('@/portals/pasien/pages/allergy-page').then((mod) => ({ default: mod.AllergyPage }))
 );
 const MyBookingsPage = lazy(() =>
-  import('@/pages/my-bookings-page').then((mod) => ({ default: mod.MyBookingsPage }))
+  import('@/portals/pasien/pages/my-bookings-page').then((mod) => ({ default: mod.MyBookingsPage }))
 );
 const BookingCreatePage = lazy(() =>
-  import('@/pages/booking-create-page').then((mod) => ({ default: mod.BookingCreatePage }))
+  import('@/portals/pasien/pages/booking-create-page').then((mod) => ({ default: mod.BookingCreatePage }))
 );
 const KonsultasiIndexPage = lazy(() =>
-  import('@/pages/rekam-dan-konsultasi-index-page').then((mod) => ({
+  import('@/portals/pasien/pages/rekam-dan-konsultasi-index-page').then((mod) => ({
     default: mod.KonsultasiIndexPage,
   }))
 );
 const KonsultasiPage = lazy(() =>
-  import('@/pages/konsultasi-page').then((mod) => ({ default: mod.KonsultasiPage }))
+  import('@/shared/pages/konsultasi-page').then((mod) => ({ default: mod.KonsultasiPage }))
 );
 const KonsultasiUlasanPage = lazy(() =>
-  import('@/pages/konsultasi-ulasan-page').then((mod) => ({
+  import('@/portals/pasien/pages/konsultasi-ulasan-page').then((mod) => ({
     default: mod.KonsultasiUlasanPage,
   }))
 );
 const RiwayatRekamMedisPage = lazy(() =>
-  import('@/pages/riwayat-rekam-medis-page').then((mod) => ({
+  import('@/portals/pasien/pages/riwayat-rekam-medis-page').then((mod) => ({
     default: mod.RiwayatRekamMedisPage,
   }))
 );
 const RekamMedisPage = lazy(() =>
-  import('@/pages/rekam-medis-page').then((mod) => ({ default: mod.RekamMedisPage }))
+  import('@/portals/pasien/pages/rekam-medis-page').then((mod) => ({ default: mod.RekamMedisPage }))
 );
 const PasienRiwayatResepPage = lazy(() =>
-  import('@/pages/pasien-resep-page').then((mod) => ({
+  import('@/portals/pasien/pages/pasien-resep-page').then((mod) => ({
     default: mod.PasienRiwayatResepPage,
   }))
 );
 const ResepComposePage = lazy(() =>
-  import('@/pages/resep-compose-page').then((mod) => ({ default: mod.ResepComposePage }))
+  import('@/shared/pages/resep-compose-page').then((mod) => ({ default: mod.ResepComposePage }))
 );
 const ResepDetailPage = lazy(() =>
-  import('@/pages/resep-detail-page').then((mod) => ({ default: mod.ResepDetailPage }))
+  import('@/shared/pages/resep-detail-page').then((mod) => ({ default: mod.ResepDetailPage }))
 );
 const CheckoutIndexPage = lazy(() =>
-  import('@/pages/checkout-index-page').then((mod) => ({ default: mod.CheckoutIndexPage }))
+  import('@/portals/pasien/pages/checkout-index-page').then((mod) => ({ default: mod.CheckoutIndexPage }))
 );
 const CheckoutPage = lazy(() =>
-  import('@/pages/checkout-page').then((mod) => ({ default: mod.CheckoutPage }))
+  import('@/portals/pasien/pages/checkout-page').then((mod) => ({ default: mod.CheckoutPage }))
 );
 const PembayaranIndexPage = lazy(() =>
-  import('@/pages/pesanan-dan-pembayaran-index-page').then((mod) => ({
+  import('@/portals/pasien/pages/pesanan-dan-pembayaran-index-page').then((mod) => ({
     default: mod.PembayaranIndexPage,
   }))
 );
 const PesananIndexPage = lazy(() =>
-  import('@/pages/pesanan-dan-pembayaran-index-page').then((mod) => ({
+  import('@/portals/pasien/pages/pesanan-dan-pembayaran-index-page').then((mod) => ({
     default: mod.PesananIndexPage,
   }))
 );
 const PesananPage = lazy(() =>
-  import('@/pages/pesanan-page').then((mod) => ({ default: mod.PesananPage }))
+  import('@/portals/pasien/pages/pesanan-page').then((mod) => ({ default: mod.PesananPage }))
 );
 const PembayaranPage = lazy(() =>
-  import('@/pages/pembayaran-page').then((mod) => ({ default: mod.PembayaranPage }))
+  import('@/portals/pasien/pages/pembayaran-page').then((mod) => ({ default: mod.PembayaranPage }))
 );
 const NotifikasiPage = lazy(() =>
-  import('@/pages/notifikasi-page').then((mod) => ({ default: mod.NotifikasiPage }))
+  import('@/portals/pasien/pages/notifikasi-page').then((mod) => ({ default: mod.NotifikasiPage }))
 );
 const ProfilNotifikasiPage = lazy(() =>
-  import('@/pages/profil-notifikasi-page').then((mod) => ({
+  import('@/portals/pasien/pages/profil-notifikasi-page').then((mod) => ({
     default: mod.ProfilNotifikasiPage,
   }))
 );
 const PengingatPage = lazy(() =>
-  import('@/pages/pengingat-page').then((mod) => ({ default: mod.PengingatPage }))
+  import('@/portals/pasien/pages/pengingat-page').then((mod) => ({ default: mod.PengingatPage }))
 );
 const PrivasiPage = lazy(() =>
-  import('@/pages/privasi-page').then((mod) => ({ default: mod.PrivasiPage }))
+  import('@/portals/pasien/pages/privasi-page').then((mod) => ({ default: mod.PrivasiPage }))
 );
 
 /**
