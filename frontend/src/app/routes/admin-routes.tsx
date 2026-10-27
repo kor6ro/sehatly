@@ -5,7 +5,7 @@ import { RouteErrorBoundary } from '@/app/error-boundary';
 import { RequirePortalAuth } from '@/app/guards';
 import { PortalTidakDitemukanPage } from '@/app/portal-states';
 import { AppShell } from '@/app/app-shell';
-import { AdminLoginPage } from '@/portals/admin/pages/admin-login-page';
+import { PortalLoginPage } from '@/shared/pages/portal-login-page';
 import { ProfilEditPage } from '@/shared/pages/profil-edit-page';
 import { KebijakanPrivasiPage } from '@/shared/pages/kebijakan-privasi-page';
 import { SyaratKetentuanPage } from '@/shared/pages/syarat-ketentuan-page';
@@ -42,7 +42,8 @@ const AdminHeroPage = lazy(() =>
  *
  * ## The shape every staff table shares
  *
- * `/login` is public - the one-door sign-in (`PortalLoginPage`), the only address a
+ * `/login` is public - `PortalLoginPage` (phone + password for every staff portal,
+ * with the OTP fallback step), the only address a
  * guest is ever sent to. Everything else sits under `RequirePortalAuth`, which answers
  * "may this account enter this portal" from `GET /me` and shows the wrong-portal page
  * otherwise; `/` redirects to `PORTAL_HOME` so the portal's bare address has one
@@ -72,7 +73,7 @@ export const adminRoutes = [
         children: [
             {
                 path: '/login',
-                element: <AdminLoginPage />,
+                element: <PortalLoginPage portal="admin" />,
                 errorElement: <RouteErrorBoundary />,
             },
 
