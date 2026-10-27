@@ -67,6 +67,7 @@ src/
       features/
       layout/
   shared/
+    pages/
     components/
     features/
 ```
@@ -75,7 +76,9 @@ Only directories needed by actual modules need to be created; this tree is a
 boundary guide, not a requirement to add empty directories. Cross-cutting
 infrastructure stays in its current locations (`app`, `lib`, `hooks`, `types`,
 and `styles`) unless implementation discovers a concrete reason to move it.
-The existing generic `components/ui` primitives remain shared.
+The existing generic `components/ui` primitives remain shared. A screen module
+registered by more than one portal belongs in `shared/pages/`; lower-level UI
+used across portals belongs in `shared/components/` or `shared/features/`.
 
 ### Ownership and reuse
 
