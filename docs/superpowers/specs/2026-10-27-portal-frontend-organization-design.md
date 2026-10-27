@@ -76,9 +76,11 @@ Only directories needed by actual modules need to be created; this tree is a
 boundary guide, not a requirement to add empty directories. Cross-cutting
 infrastructure stays in its current locations (`app`, `lib`, `hooks`, `types`,
 and `styles`) unless implementation discovers a concrete reason to move it.
-The existing generic `components/ui` primitives remain shared. A screen module
-registered by more than one portal belongs in `shared/pages/`; lower-level UI
-used across portals belongs in `shared/components/` or `shared/features/`.
+The existing generic `components/ui` primitives remain shared. `shared/pages/`
+is for screens whose behavior and overall composition are genuinely common
+across portals (for example, legal documents and the shared profile-edit flow).
+A route being registered by multiple portals is not, by itself, a reason to put
+its page module in `shared/pages/`.
 
 ### Ownership and reuse
 
@@ -86,6 +88,9 @@ used across portals belongs in `shared/components/` or `shared/features/`.
   belong to that portal.
 - Functionality or a UI component genuinely consumed by multiple portals
   belongs in `shared`, grouped by domain where appropriate.
+- A cross-role workflow whose page composition or presentation differs by
+  portal may have portal-owned page wrappers. Those wrappers reuse shared
+  domain features and business logic rather than copying them.
 - A component used by two portals must not be copied just to change its
   appearance. It may expose a small, explicit presentation variant when the
   structural difference is limited.
@@ -113,10 +118,12 @@ color themes is a separate design decision.
 ### Routing and runtime behavior
 
 Keep the six existing portal route tables and hostname-based portal selection.
-Route tables should import pages from their owning portal folder, and any
-intentionally shared screen should be imported from `shared`. Route paths,
-guards, redirect targets, error boundaries, lazy-loading behavior, and
-consultation/prescription access must remain unchanged.
+Route tables should import portal-owned pages from their portal folder and
+genuinely common screens from `shared/pages/`. Cross-role workflow pages may be
+portal-owned wrappers around shared domain features when their composition or
+presentation differs. Route paths, guards, redirect targets, error boundaries,
+lazy-loading behavior, and consultation/prescription access must remain
+unchanged.
 
 This is a source organization and presentation-boundary change only. It does
 not split the SPA into separate bundles, deployments, API origins, or
@@ -132,8 +139,9 @@ to keep the diff focused:
 2. Update the corresponding route table imports and verify route behavior.
 3. Relocate portal-owned feature UI and layout composition where there is a
    clear owner.
-4. Move genuinely cross-portal UI into `shared`, including workflows used by
-   multiple portals, without changing their APIs unnecessarily.
+4. Move genuinely common screens and reusable lower-level domain features into
+   `shared`; keep portal-specific wrappers around cross-role workflows where
+   their composition or presentation differs.
 5. Add explicit variants or portal-owned wrappers only where a real visual
    difference is needed; do not make speculative styling changes during file
    moves.
