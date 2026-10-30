@@ -35,12 +35,33 @@ import { Button } from '@/components/ui/button';
  * dashboard-only endpoint is added - a summary screen that requires its own API
  * is a second place for the same arithmetic to drift.
  *
+ * ## The page is a sequence of titled sections, not a card pile
+ *
+ * The layout follows the reference admin screen this portal was modelled on,
+ * top to bottom: a welcome banner carrying the online pill, a four-card
+ * summary strip, a "Grafik & ringkasan" pair (trend chart beside the booking
+ * breakdown), a "Log aktivitas sistem" table, and a "Statistik dokter" strip
+ * that breaks the first card's total into its verification and activity
+ * states. Each section after the cards carries its jump link in the heading -
+ * the dashboard's job is to answer "is everything fine" and to hand the
+ * "why" question to the page that owns it (`/admin/laporan`,
+ * `/admin/audit-log`, `/admin/dokter`), which is also why the audit feed is a
+ * fixed five rows: it is a glance, not the log itself.
+ *
  * The 30-day window is fixed rather than user-configurable: `/admin/laporan`
  * already carries the range picker for anyone who wants another one, and a
  * front page whose numbers move with a control nobody remembers touching is a
- * worse front page. `harian` from the booking report drives the trend strip as
- * plain CSS bars - a charting dependency for thirty rectangles is not a trade
- * this portal needs to make.
+ * worse front page.
+ *
+ * ## The trend strip draws all thirty days, including the empty ones
+ *
+ * `harian` only lists the days the report found rows for, so plotting it
+ * directly makes the axis a list of "days something happened" - which reads as
+ * a longer, denser fortnight than the window actually was. The strip rebuilds
+ * the full `dari`..`sampai` series and draws the empty days as muted stubs at
+ * the baseline: a gap is information ("nothing happened on the 26th"), and a
+ * true timeline is what makes it visible. Bars stay plain CSS - a charting
+ * dependency for thirty rectangles is not a trade this portal needs to make.
  */
 export function AdminDashboardPage() {
     useDocumentTitle('Dasbor Admin');
@@ -100,8 +121,19 @@ export function AdminDashboardPage() {
     const ringkasBooking = booking.data?.data.ringkasan;
     const ringkasPendapatan = pendapatan.data?.data.ringkasan;
     const ringkasKehadiran = kehadiran.data?.data.ringkasan;
-    const harian = booking.data?.data.harian ?? [];
-    const maksHarian = Math.max(1, ...harian.map((h) => h.total));
+    const auditRows = audit.data?.data.audit ?? [];
+
+    const totalDokter = dokter.data?.meta?.total ?? 0;
+    const jumlahTerverifikasi = terverifikasi.data?.meta?.total ?? 0;
+    const jumlahMenunggu = menunggu.data?.meta?.total ?? 0;
+    const jumlahDitolak = ditolak.data?.meta?.total ?? 0;
+    const jumlahAktif = dokterAktif.data?.meta?.total ?? 0;
+
+    const deretHarian = useMemo(
+        () => susunHarianLengkap(dari, booking.data?.data.harian ?? []),
+        [dari, booking.data],
+    );
+    const maksHarian = Math.max(1, ...deretHarian.map((h) => h.total));
 
     return (
         <AdminGate>
@@ -120,10 +152,18 @@ export function AdminDashboardPage() {
             ) : gagal ? (
                 <ErrorState error={gagal.error} onRetry={muatUlang} />
             ) : (
-                <>
-                    <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="space-y-8">
+                    {/**
+                     * The welcome banner. One card-width block rather than two
+                     * loose columns: the pill belongs to the banner the way a
+                     * status light belongs on an instrument panel - right edge,
+                     * always in the same place, never scrolling past.
+                     */}
+                    <section className="bg-card flex flex-wrap items-center justify-between gap-3 rounded-xl border p-5">
                         <div>
-                            <h2 className="text-xl font-semibold">Selamat datang, Admin 👋</h2>
+                            <h2 className="text-xl font-semibold">
+                                Selamat datang, Admin 👋
+                            </h2>
 
                             <p className="text-muted-foreground text-sm">
                                 Ringkasan aktivitas klinik 30 hari terakhir.
@@ -147,13 +187,14 @@ export function AdminDashboardPage() {
 
                             {online ? 'SISTEM ONLINE' : 'SISTEM OFFLINE'}
                         </span>
-                    </div>
+                    </section>
 
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    {/** The four-card summary strip - one glance, four numbers. */}
+                    <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
                         <Kartu
                             label="Total Dokter"
-                            nilai={String(dokter.data?.meta?.total ?? 0)}
-                            keterangan={`${terverifikasi.data?.meta?.total ?? 0} terverifikasi`}
+                            nilai={String(totalDokter)}
+                            keterangan={`${jumlahTerverifikasi} terverifikasi`}
                             keteranganHijau
                         />
                         <Kartu
@@ -172,177 +213,272 @@ export function AdminDashboardPage() {
                             nilai={String(ringkasKehadiran?.check_in ?? 0)}
                             keterangan={`check-in dari ${ringkasKehadiran?.total ?? 0} terjadwal`}
                         />
-                    </div>
+                    </section>
 
-                    <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="text-base">Tren booking harian</CardTitle>
+                    {/**
+                     * Grafik & ringkasan: the trend chart beside the booking
+                     * breakdown. Equal columns and `items-stretch` so the two
+                     * cards share a bottom edge - ragged heights are what made
+                     * the earlier 2x2 grid read as a pile rather than a row.
+                     */}
+                    <section className="space-y-3">
+                        <JudulSeksi judul="Grafik & ringkasan" />
 
-                                <p className="text-muted-foreground text-xs">
-                                    Batang per hari dengan aktivitas
-                                </p>
-                            </CardHeader>
+                        <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2">
+                            <Card className="h-full">
+                                <CardHeader>
+                                    <CardTitle className="text-base">
+                                        Tren booking harian
+                                    </CardTitle>
 
-                            <CardContent>
-                                {harian.length === 0 ? (
-                                    <p className="text-muted-foreground text-sm">
-                                        Belum ada booking pada rentang ini.
+                                    <p className="text-muted-foreground text-xs">
+                                        Batang per hari dalam rentang - hari
+                                        kosong tetap digambar
                                     </p>
-                                ) : (
-                                    <>
-                                        <div className="flex h-24 items-end gap-[2px]">
-                                            {harian.map((h) => (
-                                                <div
-                                                    key={h.tanggal}
-                                                    title={`${formatTanggal(h.tanggal)}: ${h.total} booking`}
-                                                    style={{
-                                                        height: `${Math.max(6, (h.total / maksHarian) * 100)}%`,
-                                                    }}
-                                                    className="flex-1 rounded-sm bg-primary/60 transition-colors hover:bg-primary"
-                                                />
-                                            ))}
-                                        </div>
+                                </CardHeader>
 
-                                        <div className="text-muted-foreground mt-1 flex justify-between text-xs">
-                                            <span>{formatTanggal(harian[0]?.tanggal ?? dari)}</span>
+                                <CardContent>
+                                    {(ringkasBooking?.total ?? 0) === 0 ? (
+                                        <p className="text-muted-foreground text-sm">
+                                            Belum ada booking pada rentang ini.
+                                        </p>
+                                    ) : (
+                                        <>
+                                            <div className="flex items-center justify-between text-xs">
+                                                <span className="text-muted-foreground inline-flex items-center gap-1.5">
+                                                    <span className="bg-primary/60 size-2 rounded-full" />
 
+                                                    Booking
+                                                </span>
+
+                                                <span className="text-muted-foreground">
+                                                    skala maks {maksHarian}
+                                                </span>
+                                            </div>
+
+                                            <div className="mt-2 flex h-28 items-end gap-[2px]">
+                                                {deretHarian.map((h) => (
+                                                    <div
+                                                        key={h.tanggal}
+                                                        title={`${formatTanggal(h.tanggal)}: ${h.total} booking`}
+                                                        style={{
+                                                            height: `${Math.max(6, (h.total / maksHarian) * 100)}%`,
+                                                        }}
+                                                        className={
+                                                            h.total === 0
+                                                                ? 'bg-muted flex-1 rounded-sm'
+                                                                : 'bg-primary/60 flex-1 rounded-sm transition-colors hover:bg-primary'
+                                                        }
+                                                    />
+                                                ))}
+                                            </div>
+
+                                            <div className="text-muted-foreground mt-1 flex justify-between text-xs">
+                                                <span>{formatTanggal(dari)}</span>
+
+                                                <span>{formatTanggal(sampai)}</span>
+                                            </div>
+                                        </>
+                                    )}
+                                </CardContent>
+                            </Card>
+
+                            <Card className="h-full">
+                                <CardHeader className="flex flex-row items-center justify-between">
+                                    <CardTitle className="text-base">
+                                        Status booking
+                                    </CardTitle>
+
+                                    <Link
+                                        to="/admin/laporan"
+                                        className="text-sm text-primary hover:underline"
+                                    >
+                                        Laporan →
+                                    </Link>
+                                </CardHeader>
+
+                                <CardContent className="space-y-2">
+                                    {STATUS_BOOKING_LAPORAN.filter(
+                                        (status) =>
+                                            (ringkasBooking?.per_status[status] ??
+                                                0) > 0,
+                                    ).map((status) => (
+                                        <div
+                                            key={status}
+                                            className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
+                                        >
                                             <span>
-                                                {formatTanggal(
-                                                    harian[harian.length - 1]?.tanggal ?? sampai,
-                                                )}
+                                                {labelStatusBooking(status)}
                                             </span>
+
+                                            <Badge variant="outline">
+                                                {ringkasBooking?.per_status[
+                                                    status
+                                                ] ?? 0}
+                                            </Badge>
                                         </div>
-                                    </>
-                                )}
-                            </CardContent>
-                        </Card>
+                                    ))}
+
+                                    {(ringkasBooking?.total ?? 0) === 0 ? (
+                                        <p className="text-muted-foreground text-sm">
+                                            Belum ada booking pada rentang ini.
+                                        </p>
+                                    ) : null}
+                                </CardContent>
+                            </Card>
+                        </div>
+                    </section>
+
+                    {/**
+                     * Log aktivitas sistem: the five newest audit rows as a
+                     * table, the columns mirroring the full log's own so the
+                     * eye learns one shape. The heading owns the jump link -
+                     * "Semua →" is the page that answers why.
+                     */}
+                    <section className="space-y-3">
+                        <JudulSeksi
+                            judul="Log aktivitas sistem"
+                            ke="/admin/audit-log"
+                            labelTautan="Semua →"
+                        />
 
                         <Card>
-                            <CardHeader className="flex flex-row items-center justify-between">
-                                <CardTitle className="text-base">Rekap dokter</CardTitle>
-
-                                <Link
-                                    to="/admin/dokter"
-                                    className="text-sm text-primary hover:underline"
-                                >
-                                    Detail →
-                                </Link>
-                            </CardHeader>
-
-                            <CardContent className="space-y-2">
-                                <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2">
-                                    <p className="text-2xl font-bold text-blue-700">
-                                        {terverifikasi.data?.meta?.total ?? 0}
-                                    </p>
-
-                                    <p className="text-xs font-medium text-blue-700">
-                                        Terverifikasi
-                                    </p>
-                                </div>
-
-                                <BarisRekap
-                                    label="Menunggu verifikasi"
-                                    nilai={menunggu.data?.meta?.total ?? 0}
-                                    warna="text-amber-600"
-                                />
-                                <BarisRekap
-                                    label="Ditolak"
-                                    nilai={ditolak.data?.meta?.total ?? 0}
-                                    warna="text-red-600"
-                                />
-                                <BarisRekap
-                                    label="Akun aktif"
-                                    nilai={dokterAktif.data?.meta?.total ?? 0}
-                                />
-                            </CardContent>
-                        </Card>
-
-                        <Card>
-                            <CardHeader className="flex flex-row items-center justify-between">
-                                <CardTitle className="text-base">Status booking</CardTitle>
-
-                                <Link
-                                    to="/admin/laporan"
-                                    className="text-sm text-primary hover:underline"
-                                >
-                                    Laporan →
-                                </Link>
-                            </CardHeader>
-
-                            <CardContent className="space-y-2">
-                                {STATUS_BOOKING_LAPORAN.filter(
-                                    (status) => (ringkasBooking?.per_status[status] ?? 0) > 0,
-                                ).map((status) => (
-                                    <div
-                                        key={status}
-                                        className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
-                                    >
-                                        <span>{labelStatusBooking(status)}</span>
-
-                                        <Badge variant="outline">
-                                            {ringkasBooking?.per_status[status] ?? 0}
-                                        </Badge>
-                                    </div>
-                                ))}
-
-                                {(ringkasBooking?.total ?? 0) === 0 ? (
-                                    <p className="text-muted-foreground text-sm">
-                                        Belum ada booking pada rentang ini.
-                                    </p>
-                                ) : null}
-                            </CardContent>
-                        </Card>
-
-                        <Card>
-                            <CardHeader className="flex flex-row items-center justify-between">
-                                <CardTitle className="text-base">Aktivitas terkini</CardTitle>
-
-                                <Link
-                                    to="/admin/audit-log"
-                                    className="text-sm text-primary hover:underline"
-                                >
-                                    Lihat semua →
-                                </Link>
-                            </CardHeader>
-
-                            <CardContent className="space-y-2">
-                                {(audit.data?.data.audit ?? []).map((baris) => (
-                                    <div
-                                        key={baris.id}
-                                        className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm"
-                                    >
-                                        <div className="min-w-0">
-                                            <p className="truncate font-medium">
-                                                {baris.tabel_target} · {baris.record_id ?? '-'}
-                                            </p>
-
-                                            <p className="text-muted-foreground text-xs">
-                                                {formatWaktu(baris.dibuat_at)}
-                                            </p>
-                                        </div>
-
-                                        <Badge variant="outline">{labelAksi(baris.aksi)}</Badge>
-                                    </div>
-                                ))}
-
+                            <CardContent className="pt-6">
                                 {audit.isError ? (
                                     <p className="text-muted-foreground text-sm">
                                         Aktivitas gagal dimuat.
                                     </p>
-                                ) : null}
-
-                                {!audit.isError && (audit.data?.data.audit ?? []).length === 0 ? (
+                                ) : auditRows.length === 0 ? (
                                     <p className="text-muted-foreground text-sm">
                                         Belum ada aktivitas tercatat.
                                     </p>
-                                ) : null}
+                                ) : (
+                                    <table className="w-full text-sm">
+                                        <thead>
+                                            <tr className="text-muted-foreground border-b text-left text-xs">
+                                                <th className="py-2 pr-3 font-medium">
+                                                    Waktu
+                                                </th>
+                                                <th className="py-2 pr-3 font-medium">
+                                                    Tabel
+                                                </th>
+                                                <th className="py-2 pr-3 font-medium">
+                                                    Rekaman
+                                                </th>
+                                                <th className="py-2 text-right font-medium">
+                                                    Aksi
+                                                </th>
+                                            </tr>
+                                        </thead>
+
+                                        <tbody>
+                                            {auditRows.map((baris) => (
+                                                <tr
+                                                    key={baris.id}
+                                                    className="border-b last:border-b-0"
+                                                >
+                                                    <td className="text-muted-foreground py-2 pr-3 text-xs">
+                                                        {formatWaktu(
+                                                            baris.dibuat_at,
+                                                        )}
+                                                    </td>
+
+                                                    <td className="py-2 pr-3">
+                                                        {baris.tabel_target}
+                                                    </td>
+
+                                                    <td className="py-2 pr-3">
+                                                        {baris.record_id ?? '-'}
+                                                    </td>
+
+                                                    <td className="py-2 text-right">
+                                                        <Badge variant="outline">
+                                                            {labelAksi(
+                                                                baris.aksi,
+                                                            )}
+                                                        </Badge>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                )}
                             </CardContent>
                         </Card>
-                    </div>
-                </>
+                    </section>
+
+                    {/**
+                     * Statistik dokter: the first card's total broken into its
+                     * four standing states, as an even strip. Numbers carry the
+                     * colour their state deserves - amber and red are the two
+                     * an operator must act on; the rest stay quiet.
+                     */}
+                    <section className="space-y-3">
+                        <JudulSeksi
+                            judul="Statistik dokter"
+                            ke="/admin/dokter"
+                            labelTautan="Detail →"
+                        />
+
+                        <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+                            <StatistikKecil
+                                label="Terverifikasi"
+                                nilai={jumlahTerverifikasi}
+                                ket={`dari total ${totalDokter} dokter`}
+                            />
+                            <StatistikKecil
+                                label="Menunggu verifikasi"
+                                nilai={jumlahMenunggu}
+                                ket={
+                                    jumlahMenunggu > 0
+                                        ? 'perlu ditinjau'
+                                        : 'semua sudah ditinjau'
+                                }
+                                warna={
+                                    jumlahMenunggu > 0 ? 'text-amber-600' : undefined
+                                }
+                            />
+                            <StatistikKecil
+                                label="Ditolak"
+                                nilai={jumlahDitolak}
+                                warna={jumlahDitolak > 0 ? 'text-red-600' : undefined}
+                            />
+                            <StatistikKecil
+                                label="Akun aktif"
+                                nilai={jumlahAktif}
+                                ket="siap melayani"
+                                warna="text-green-600"
+                            />
+                        </div>
+                    </section>
+                </div>
             )}
         </AdminGate>
+    );
+}
+
+function JudulSeksi({
+    judul,
+    ke,
+    labelTautan,
+}: {
+    judul: string;
+    ke?: string;
+    labelTautan?: string;
+}) {
+    return (
+        <div className="flex items-center justify-between gap-3">
+            <h2 className="text-base font-semibold">{judul}</h2>
+
+            {ke !== undefined ? (
+                <Link
+                    to={ke}
+                    className="text-sm text-primary hover:underline"
+                >
+                    {labelTautan}
+                </Link>
+            ) : null}
+        </div>
     );
 }
 
@@ -380,22 +516,55 @@ function Kartu({
     );
 }
 
-function BarisRekap({
+function StatistikKecil({
     label,
     nilai,
+    ket,
     warna,
 }: {
     label: string;
     nilai: number;
+    ket?: string;
     warna?: string;
 }) {
     return (
-        <div className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
-            <span>{label}</span>
+        <div className="bg-card rounded-xl border p-4">
+            <p className="text-muted-foreground text-sm">{label}</p>
 
-            <span className={`font-semibold ${warna ?? ''}`}>{nilai}</span>
+            <p className={`text-2xl font-bold ${warna ?? ''}`}>{nilai}</p>
+
+            {ket !== undefined ? (
+                <p className="text-muted-foreground text-xs">{ket}</p>
+            ) : null}
         </div>
     );
+}
+
+/**
+ * Rebuild `harian` as one row per day across `dari`..`sampai`, with the
+ * report's zero-days filled in, so the trend axis is a true timeline rather
+ * than a list of the days that happened to have bookings. `dari` is
+ * `YYYY-MM-DD`; `harian` is the report's own day-keyed rows, absent days
+ * included as absent.
+ */
+function susunHarianLengkap(
+    dari: string,
+    harian: { tanggal: string; total: number }[],
+): { tanggal: string; total: number }[] {
+    const peta = new Map(harian.map((h) => [h.tanggal, h.total]));
+    const mulai = new Date(`${dari}T00:00:00`);
+    const hasil: { tanggal: string; total: number }[] = [];
+
+    for (let i = 0; i < 30; i += 1) {
+        const hari = new Date(mulai);
+        hari.setDate(mulai.getDate() + i);
+
+        const ymd = keYmd(hari);
+
+        hasil.push({ tanggal: ymd, total: peta.get(ymd) ?? 0 });
+    }
+
+    return hasil;
 }
 
 function keYmd(tanggal: Date): string {
