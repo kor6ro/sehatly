@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { useDocumentTitle } from '@/hooks/use-document-title';
+import { useOnlineStatus } from '@/hooks/use-online-status';
 import { formatRupiah, formatTanggal, formatWaktu } from '@/lib/format';
 import {
     STATUS_BOOKING_LAPORAN,
@@ -26,20 +27,25 @@ import { Button } from '@/components/ui/button';
 /**
  * `/admin/dashboard` - the admin portal's front page.
  *
- * Four numbers and two panels, all read from endpoints that already existed:
- * the doctor list's `meta.total`, the three report aggregates over the last
- * 30 days (`/admin/laporan/*`, whose service refuses ranges beyond 366 days,
- * so 30 is comfortably inside the contract), and the newest five audit rows.
- * No dashboard-only endpoint is added - a summary screen that requires its own
- * API is a second place for the same arithmetic to drift.
+ * Every number here is read from an endpoint that already existed: the doctor
+ * list's `meta.total` (also its `status_verifikasi`/`status_aktif` filters, one
+ * `per_page:1` query each - the count is the meta, not the rows), the three
+ * report aggregates over the fixed 30-day window (`/admin/laporan/*`, whose
+ * service refuses ranges beyond 366 days), and the newest five audit rows. No
+ * dashboard-only endpoint is added - a summary screen that requires its own API
+ * is a second place for the same arithmetic to drift.
  *
  * The 30-day window is fixed rather than user-configurable: `/admin/laporan`
  * already carries the range picker for anyone who wants another one, and a
  * front page whose numbers move with a control nobody remembers touching is a
- * worse front page.
+ * worse front page. `harian` from the booking report drives the trend strip as
+ * plain CSS bars - a charting dependency for thirty rectangles is not a trade
+ * this portal needs to make.
  */
 export function AdminDashboardPage() {
     useDocumentTitle('Dasbor Admin');
+
+    const online = useOnlineStatus();
 
     const { dari, sampai } = useMemo(() => {
         const sekarang = new Date();
@@ -52,25 +58,50 @@ export function AdminDashboardPage() {
     const rentang = useMemo(() => ({ dari, sampai }), [dari, sampai]);
 
     const dokter = useQuery(adminDokterOptions({ per_page: 1 }));
+    const terverifikasi = useQuery(
+        adminDokterOptions({ per_page: 1, status_verifikasi: 'terverifikasi' }),
+    );
+    const menunggu = useQuery(
+        adminDokterOptions({ per_page: 1, status_verifikasi: 'pending' }),
+    );
+    const ditolak = useQuery(
+        adminDokterOptions({ per_page: 1, status_verifikasi: 'ditolak' }),
+    );
+    const dokterAktif = useQuery(
+        adminDokterOptions({ per_page: 1, status_aktif: true }),
+    );
     const booking = useQuery(adminLaporanBookingOptions(rentang));
     const pendapatan = useQuery(adminLaporanPendapatanOptions(rentang));
     const kehadiran = useQuery(adminLaporanKehadiranOptions(rentang));
     const audit = useQuery(adminAuditOptions({ page: 1, per_page: 5 }));
 
+    const semuaQuery = [
+        dokter,
+        terverifikasi,
+        menunggu,
+        ditolak,
+        dokterAktif,
+        booking,
+        pendapatan,
+        kehadiran,
+    ];
+
     const muatUlang = (): void => {
-        void dokter.refetch();
-        void booking.refetch();
-        void pendapatan.refetch();
-        void kehadiran.refetch();
+        for (const q of semuaQuery) {
+            void q.refetch();
+        }
+
         void audit.refetch();
     };
 
-    const memuat = [dokter, booking, pendapatan, kehadiran].some((q) => q.isPending);
-    const gagal = [dokter, booking, pendapatan, kehadiran].find((q) => q.isError);
+    const memuat = semuaQuery.some((q) => q.isPending);
+    const gagal = semuaQuery.find((q) => q.isError);
 
     const ringkasBooking = booking.data?.data.ringkasan;
     const ringkasPendapatan = pendapatan.data?.data.ringkasan;
     const ringkasKehadiran = kehadiran.data?.data.ringkasan;
+    const harian = booking.data?.data.harian ?? [];
+    const maksHarian = Math.max(1, ...harian.map((h) => h.total));
 
     return (
         <AdminGate>
@@ -90,18 +121,40 @@ export function AdminDashboardPage() {
                 <ErrorState error={gagal.error} onRetry={muatUlang} />
             ) : (
                 <>
-                    <div>
-                        <h2 className="text-xl font-semibold">Selamat datang, Admin 👋</h2>
-                        <p className="text-muted-foreground text-sm">
-                            Ringkasan aktivitas klinik 30 hari terakhir.
-                        </p>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                            <h2 className="text-xl font-semibold">Selamat datang, Admin 👋</h2>
+
+                            <p className="text-muted-foreground text-sm">
+                                Ringkasan aktivitas klinik 30 hari terakhir.
+                            </p>
+                        </div>
+
+                        <span
+                            className={
+                                online
+                                    ? 'inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-medium text-green-700'
+                                    : 'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium text-muted-foreground'
+                            }
+                        >
+                            <span
+                                className={
+                                    online
+                                        ? 'size-1.5 rounded-full bg-green-500'
+                                        : 'size-1.5 rounded-full bg-muted-foreground'
+                                }
+                            />
+
+                            {online ? 'SISTEM ONLINE' : 'SISTEM OFFLINE'}
+                        </span>
                     </div>
 
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
                         <Kartu
                             label="Total Dokter"
                             nilai={String(dokter.data?.meta?.total ?? 0)}
-                            keterangan="Akun dokter terdaftar"
+                            keterangan={`${terverifikasi.data?.meta?.total ?? 0} terverifikasi`}
+                            keteranganHijau
                         />
                         <Kartu
                             label="Booking"
@@ -123,10 +176,96 @@ export function AdminDashboardPage() {
 
                     <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
                         <Card>
+                            <CardHeader>
+                                <CardTitle className="text-base">Tren booking harian</CardTitle>
+
+                                <p className="text-muted-foreground text-xs">
+                                    Batang per hari dengan aktivitas
+                                </p>
+                            </CardHeader>
+
+                            <CardContent>
+                                {harian.length === 0 ? (
+                                    <p className="text-muted-foreground text-sm">
+                                        Belum ada booking pada rentang ini.
+                                    </p>
+                                ) : (
+                                    <>
+                                        <div className="flex h-24 items-end gap-[2px]">
+                                            {harian.map((h) => (
+                                                <div
+                                                    key={h.tanggal}
+                                                    title={`${formatTanggal(h.tanggal)}: ${h.total} booking`}
+                                                    style={{
+                                                        height: `${Math.max(6, (h.total / maksHarian) * 100)}%`,
+                                                    }}
+                                                    className="flex-1 rounded-sm bg-primary/60 transition-colors hover:bg-primary"
+                                                />
+                                            ))}
+                                        </div>
+
+                                        <div className="text-muted-foreground mt-1 flex justify-between text-xs">
+                                            <span>{formatTanggal(harian[0]?.tanggal ?? dari)}</span>
+
+                                            <span>
+                                                {formatTanggal(
+                                                    harian[harian.length - 1]?.tanggal ?? sampai,
+                                                )}
+                                            </span>
+                                        </div>
+                                    </>
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader className="flex flex-row items-center justify-between">
+                                <CardTitle className="text-base">Rekap dokter</CardTitle>
+
+                                <Link
+                                    to="/admin/dokter"
+                                    className="text-sm text-primary hover:underline"
+                                >
+                                    Detail →
+                                </Link>
+                            </CardHeader>
+
+                            <CardContent className="space-y-2">
+                                <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2">
+                                    <p className="text-2xl font-bold text-blue-700">
+                                        {terverifikasi.data?.meta?.total ?? 0}
+                                    </p>
+
+                                    <p className="text-xs font-medium text-blue-700">
+                                        Terverifikasi
+                                    </p>
+                                </div>
+
+                                <BarisRekap
+                                    label="Menunggu verifikasi"
+                                    nilai={menunggu.data?.meta?.total ?? 0}
+                                    warna="text-amber-600"
+                                />
+                                <BarisRekap
+                                    label="Ditolak"
+                                    nilai={ditolak.data?.meta?.total ?? 0}
+                                    warna="text-red-600"
+                                />
+                                <BarisRekap
+                                    label="Akun aktif"
+                                    nilai={dokterAktif.data?.meta?.total ?? 0}
+                                />
+                            </CardContent>
+                        </Card>
+
+                        <Card>
                             <CardHeader className="flex flex-row items-center justify-between">
                                 <CardTitle className="text-base">Status booking</CardTitle>
 
-                                <Link to="/admin/laporan" className="text-sm text-primary hover:underline">
+                                <Link
+                                    to="/admin/laporan"
+                                    className="text-sm text-primary hover:underline"
+                                >
                                     Laporan →
                                 </Link>
                             </CardHeader>
@@ -238,6 +377,24 @@ function Kartu({
                 </p>
             </CardContent>
         </Card>
+    );
+}
+
+function BarisRekap({
+    label,
+    nilai,
+    warna,
+}: {
+    label: string;
+    nilai: number;
+    warna?: string;
+}) {
+    return (
+        <div className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+            <span>{label}</span>
+
+            <span className={`font-semibold ${warna ?? ''}`}>{nilai}</span>
+        </div>
     );
 }
 

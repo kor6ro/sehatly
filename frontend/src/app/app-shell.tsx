@@ -64,11 +64,22 @@ type GrupMenuPortal = { grup: string; item: readonly ItemMenuPortal[] };
 const MENU_PORTAL: Record<Exclude<Portal, 'pasien'>, readonly GrupMenuPortal[]> = {
     admin: [
         {
-            grup: 'Admin',
+            grup: 'Utama',
+            item: [{ to: '/admin/dashboard', icon: ClipboardList, label: 'Dashboard' }],
+        },
+        {
+            grup: 'Klinik',
+            item: [{ to: '/admin/dokter', icon: Stethoscope, label: 'Dokter' }],
+        },
+        {
+            grup: 'Laporan',
             item: [
-                { to: '/admin/dashboard', icon: ClipboardList, label: 'Dashboard' },
-                { to: '/admin/dokter', icon: Stethoscope, label: 'Dokter' },
-                { to: '/admin/laporan', icon: ClipboardCheck, label: 'Laporan' },
+                { to: '/admin/laporan', icon: ClipboardCheck, label: 'Laporan & Statistik' },
+            ],
+        },
+        {
+            grup: 'Sistem',
+            item: [
                 { to: '/admin/audit-log', icon: FileHeart, label: 'Audit log' },
                 {
                     to: '/admin/persetujuan-pdp',
