@@ -416,6 +416,35 @@ test('the filters narrow the list, and a value outside the vocabulary is a 422',
     expect($valid->json('meta.total'))->toBe(1);
 });
 
+test('the English boolean spellings are accepted and fold onto the same rows as 1 and 0', function (): void {
+    $aktif = f14Dokter(f14User('Aktif Satu'));
+    $nonaktif = f14Dokter(f14User('Nonaktif Satu'), ['status_aktif' => false]);
+
+    f14As(f14Admin());
+
+    // The client's `String(true)` serialises to `"true"`, which Laravel's
+    // `boolean` rule rejects (its accepted literals are `true, false, 1, 0,
+    // "1", "0"`). The request folds both English spellings onto real
+    // booleans before the rule runs (`IndexAdminDokterRequest`).
+    $true = $this->getJson('/api/v1/admin/dokter?status_aktif=true')->assertOk();
+    expect(array_column($true->json('data.dokter'), 'id'))->toBe([(int) $aktif->getKey()]);
+
+    // `false` must arrive as a REAL false: `(bool) "false"` is TRUE, so a
+    // cast-built filter would answer an exclusion with the opposite rows.
+    $false = $this->getJson('/api/v1/admin/dokter?status_aktif=false')->assertOk();
+    expect(array_column($false->json('data.dokter'), 'id'))->toBe([(int) $nonaktif->getKey()]);
+
+    $tele = $this->getJson('/api/v1/admin/dokter?tersedia_telemedisin=true')->assertOk();
+    expect(array_column($tele->json('data.dokter'), 'id'))->toEqualCanonicalizing([
+        (int) $aktif->getKey(),
+        (int) $nonaktif->getKey(),
+    ]);
+
+    // Folding is not leniency: an unrecognised spelling is still a 422 by name.
+    $this->getJson('/api/v1/admin/dokter?status_aktif=maybe')->assertStatus(422)
+        ->assertJsonStructure(['errors' => ['status_aktif']]);
+});
+
 test('`q` treats % and _ as characters rather than LIKE metacharacters', function (): void {
     $pegawai = f14Dokter(f14User('Budi 100% Santoso'));
     $lain = f14Dokter(f14User('Sari Aulia'));

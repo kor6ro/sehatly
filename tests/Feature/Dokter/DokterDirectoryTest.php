@@ -675,6 +675,23 @@ test('?tersedia_telemedisin=1 restates the view predicate and =0 is unsatisfiabl
         ->assertJsonPath('meta.total', 0);
 });
 
+test('the English spellings true/false fold onto the same rows as 1 and 0', function (): void {
+    $layak = direktoriDokter(direktoriUser('Telemedisin Ya'));
+
+    // The client's `String(true)` serialises to `"true"`, which Laravel's
+    // `boolean` rule rejects (its accepted literals are `true, false, 1, 0,
+    // "1", "0"`). The request folds both English spellings onto real booleans
+    // before the rule runs (`IndexDokterRequest::prepareForValidation`).
+    expect(direktoriIds($this->getJson('/api/v1/dokter?tersedia_telemedisin=true')->assertOk()->json()))
+        ->toBe([(int) $layak->getKey()]);
+
+    // `false` must arrive as a REAL false: `(bool) "false"` is TRUE, so a
+    // cast-built filter would answer the exclusion with the wrong rows - here
+    // the view already excludes them, so the answer must stay empty.
+    $this->getJson('/api/v1/dokter?tersedia_telemedisin=false')->assertOk()
+        ->assertJsonPath('meta.total', 0);
+});
+
 test('every closed-vocabulary filter is a 422 with its own errors key', function (): void {
     // `dokter.tipe` has seven values and `spesialis` is not one of them: that
     // string belongs to `master_spesialisasi.tipe` (`:406`) and the two ENUMs

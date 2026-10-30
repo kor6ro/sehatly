@@ -94,6 +94,48 @@ class IndexDokterRequest extends FormRequest
     }
 
     /**
+     * Normalise the `tersedia_telemedisin` query flag before the `boolean`
+     * rule sees it.
+     *
+     * A query string carries only text, so `?tersedia_telemedisin=true`
+     * arrives as the STRING `"true"` - and Laravel's `boolean` rule accepts
+     * only `true, false, 1, 0, "1", "0"`, answering 422 on `"true"`/`"false"`.
+     * `filter_var(..., FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE)`
+     * folds every recognised spelling onto a real boolean, while an
+     * unrecognised string is left untouched so the `boolean` rule still
+     * refuses it by name (`?tersedia_telemedisin=maybe` was, and stays, a
+     * 422). Absent stays absent: no filter must narrow the directory. The
+     * same pattern, and the same reasoning, lives in {@see SearchObatRequest}.
+     *
+     * The 422 is the LUCKY half of the problem. The dangerous half is
+     * downstream: `(bool) "false"` is TRUE, because the string is not empty,
+     * so a filter built on that cast hands a caller who asked for
+     * non-telemedicine doctors exactly the telemedicine ones, with no error
+     * anywhere to notice it by. Normalising here means the value that leaves
+     * `validated()` is a real `bool`, and
+     * {@see DokterDirectoryService::applyTersediaTelemedisin()} reads it with
+     * the same `filter_var` either way.
+     */
+    protected function prepareForValidation(): void
+    {
+        if (! $this->has('tersedia_telemedisin')) {
+            return;
+        }
+
+        $mentah = $this->input('tersedia_telemedisin');
+
+        if (is_bool($mentah) || $mentah === null || $mentah === '') {
+            return;
+        }
+
+        $baca = filter_var($mentah, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+
+        if ($baca !== null) {
+            $this->merge(['tersedia_telemedisin' => $baca]);
+        }
+    }
+
+    /**
      * @return array<string, list<mixed>>
      */
     public function rules(): array

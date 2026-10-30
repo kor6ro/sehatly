@@ -54,6 +54,49 @@ class IndexAdminDokterRequest extends FormRequest
     }
 
     /**
+     * Normalise the two boolean query flags before the `boolean` rule sees
+     * them.
+     *
+     * A query string carries only text, so `?status_aktif=true` arrives as
+     * the STRING `"true"` - and Laravel's `boolean` rule accepts only
+     * `true, false, 1, 0, "1", "0"`, answering 422 on `"true"`/`"false"`.
+     * `filter_var(..., FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE)`
+     * folds every recognised spelling onto a real boolean, while an
+     * unrecognised string is left untouched so the `boolean` rule still
+     * refuses it by name (`?status_aktif=maybe` was, and stays, a 422).
+     * Absent stays absent: no filter must narrow the directory. The same
+     * pattern, and the same reasoning, lives in {@see SearchObatRequest}.
+     *
+     * The 422 is the LUCKY half of the problem. The dangerous half is
+     * downstream: `(bool) "false"` is TRUE, because the string is not empty,
+     * so a filter built on that cast hands a caller who asked for the
+     * inactive doctors exactly the active ones, with no error anywhere to
+     * notice it by. Normalising here means the value that leaves
+     * `validated()` is a real `bool`, and {@see AdminDokterService::applyBoolean()}
+     * reads it with the same `filter_var` either way.
+     */
+    protected function prepareForValidation(): void
+    {
+        foreach (['status_aktif', 'tersedia_telemedisin'] as $kunci) {
+            if (! $this->has($kunci)) {
+                continue;
+            }
+
+            $mentah = $this->input($kunci);
+
+            if (is_bool($mentah) || $mentah === null || $mentah === '') {
+                continue;
+            }
+
+            $baca = filter_var($mentah, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+
+            if ($baca !== null) {
+                $this->merge([$kunci => $baca]);
+            }
+        }
+    }
+
+    /**
      * @return array<string, list<mixed>>
      */
     public function rules(): array
