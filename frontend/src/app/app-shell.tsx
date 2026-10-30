@@ -1,5 +1,6 @@
+import { useEffect, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import {
     AlarmClock,
     Bell,
@@ -18,7 +19,7 @@ import {
     Tag,
 } from 'lucide-react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { detectPortal, type Portal } from '@/lib/portal';
+import { detectPortal, PORTAL_NAMA, type Portal } from '@/lib/portal';
 import { logout } from '@/lib/api/auth';
 import { meOptions } from '@/lib/api/me';
 import { clearTokens, getRefreshToken } from '@/lib/token';
@@ -142,6 +143,8 @@ function SignedInLayout() {
             <SidebarInset>
                 <MobileNavBar />
 
+                <TopBar />
+
                 <main className="flex flex-1 flex-col gap-6 overflow-visible p-4 md:p-6">
                     <Outlet />
                 </main>
@@ -168,6 +171,76 @@ function MobileNavBar() {
             <span className="text-sm font-semibold">Sehatly</span>
         </div>
     );
+}
+
+/**
+ * The desktop top bar: the portal's name on the left; the running clock, the
+ * notification bell and the account avatar on the right.
+ *
+ * `hidden md:flex` - `MobileNavBar` owns the small screen, and two bars
+ * stacked on a phone is chrome the content cannot afford. The clock ticks
+ * every30 seconds rather than every second: this bar is a glance, not a
+ * stopwatch, and re-rendering the shell once a minute for a minute display is
+ * a trade nothing here needs. The avatar links to the profile editor, the one
+ * address every portal registers for "who am I".
+ */
+function TopBar() {
+    const me = useQuery(meOptions());
+    const user = me.data?.data.user ?? null;
+    const portal = detectPortal();
+
+    const [sekarang, setSekarang] = useState(() => new Date());
+
+    useEffect(() => {
+        const id = window.setInterval(() => setSekarang(new Date()), 30_000);
+
+        return () => window.clearInterval(id);
+    }, []);
+
+    const tanggal = new Intl.DateTimeFormat('id-ID', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+    }).format(sekarang);
+
+    const jam = new Intl.DateTimeFormat('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+    }).format(sekarang);
+
+    return (
+        <div className="bg-background sticky top-0 z-20 hidden h-14 shrink-0 items-center justify-between gap-3 border-b border-border px-4 md:flex">
+            <p className="text-sm font-semibold">{PORTAL_NAMA[portal]}</p>
+
+            <div className="flex items-center gap-3">
+                <p className="text-muted-foreground hidden text-sm lg:inline">
+                    {tanggal} • {jam}
+                </p>
+
+                <NotificationBell />
+
+                <Link
+                    to={user === null ? '#' : `/profil/edit/${user.id}`}
+                    title="Profil"
+                    className="bg-primary text-primary-foreground grid size-8 shrink-0 place-items-center rounded-full text-xs font-semibold"
+                >
+                    {ambilInisial(user?.nama_lengkap)}
+                </Link>
+            </div>
+        </div>
+    );
+}
+
+function ambilInisial(nama: string | undefined): string {
+    if (!nama) {
+        return '?';
+    }
+
+    const bagian = nama.trim().split(/\s+/);
+    const huruf = (bagian[0]?.[0] ?? '') + (bagian[1]?.[0] ?? '');
+
+    return huruf.toUpperCase() || '?';
 }
 function tujuanAktif(pathname: string, tujuan: string): boolean {
     if (tujuan === '/dashboard') {
