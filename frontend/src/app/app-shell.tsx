@@ -630,24 +630,20 @@ function AppSidebar() {
             </SidebarContent>
 
             <SidebarFooter>
-                <div className="flex items-center gap-2">
-                    <NotificationBell />
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    disabled={signOut.isPending}
+                    onClick={() => {
+                        signOut.mutate();
+                    }}
+                >
+                    {signOut.isPending ? <Spinner /> : <LogOut />}
 
-                    <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="flex-1"
-                        disabled={signOut.isPending}
-                        onClick={() => {
-                            signOut.mutate();
-                        }}
-                    >
-                        {signOut.isPending ? <Spinner /> : <LogOut />}
-
-                        Keluar
-                    </Button>
-                </div>
+                    Keluar
+                </Button>
             </SidebarFooter>
         </Sidebar>
     );
