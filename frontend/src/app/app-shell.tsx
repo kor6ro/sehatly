@@ -66,6 +66,7 @@ const MENU_PORTAL: Record<Exclude<Portal, 'pasien'>, readonly GrupMenuPortal[]> 
         {
             grup: 'Admin',
             item: [
+                { to: '/admin/dashboard', icon: ClipboardList, label: 'Dashboard' },
                 { to: '/admin/dokter', icon: Stethoscope, label: 'Dokter' },
                 { to: '/admin/laporan', icon: ClipboardCheck, label: 'Laporan' },
                 { to: '/admin/audit-log', icon: FileHeart, label: 'Audit log' },

@@ -51,7 +51,7 @@ export const PORTAL_TIPE: Record<Portal, readonly string[]> = {
  */
 export const PORTAL_HOME: Record<Portal, string> = {
     pasien: '/',
-    admin: '/admin/dokter',
+    admin: '/admin/dashboard',
     dokter: '/dokter/dashboard',
     apotek: '/apotek/resep',
     kurir: '/kurir/pesanan',

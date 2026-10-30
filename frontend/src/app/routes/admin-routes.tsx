@@ -11,6 +11,9 @@ import { KebijakanPrivasiPage } from '@/shared/pages/kebijakan-privasi-page';
 import { SyaratKetentuanPage } from '@/shared/pages/syarat-ketentuan-page';
 import { LoadingState } from '@/shared/components/states/loading-state';
 
+const AdminDashboardPage = lazy(() =>
+  import('@/portals/admin/pages/admin-dashboard-page').then((mod) => ({ default: mod.AdminDashboardPage }))
+);
 const AdminDokterBuatPage = lazy(() =>
   import('@/portals/admin/pages/admin-dokter-buat-page').then((mod) => ({ default: mod.AdminDokterBuatPage }))
 );
@@ -99,7 +102,7 @@ export const adminRoutes = [
                 children: [
                     {
                         path: '/',
-                        element: <Navigate to="/admin/dokter" replace />,
+                        element: <Navigate to="/admin/dashboard" replace />,
                         errorElement: <RouteErrorBoundary />,
                     },
                     {
@@ -114,6 +117,15 @@ export const adminRoutes = [
                          * table: a page failure must replace one leaf, never the shell.
                          */
                         children: [
+                            {
+                                path: '/admin/dashboard',
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat dasbor..." />}>
+                                        <AdminDashboardPage />
+                                    </Suspense>
+                                ),
+                                errorElement: <RouteErrorBoundary />,
+                            },
                             {
                                 path: '/admin/dokter/buat',
                                 element: (
