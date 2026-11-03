@@ -130,6 +130,17 @@ use LogicException;
  * and its §5.2 table disagree with each other; this catalogue follows the table, which
  * is the one written against the live routes.
  *
+ * **`pengguna.lihat` and `pengguna.kelola` are the 34th and 35th, added for the
+ * owner-approved account-management round.** The admin surface that lists every
+ * non-doctor account and administers it (create, activate, deactivate, reset a
+ * forgotten password) needs a pair of its own: `pasien.kelola` names ONE patient
+ * identity mutation and `dokter.lihat` the doctor directory - neither names the
+ * account directory, and reusing either would document a grant to mean something
+ * else. `pengguna.lihat` guards the read, `pengguna.kelola` the three writes, and
+ * both are granted to `admin` and `superadmin`, the two account types that reach
+ * `/admin`. As every addition above: APPENDED, so the seeded `permissions` ids
+ * stay in catalogue order, which `RbacCatalogTest` compares.
+ *
  * The two verbs a developer is most likely to reach for instead are deliberately
  * **absent**: `booking.create` and `booking.cancel` are not codes. `EnsurePermission`
  * treats an unknown code as a programming error and fails with 500, so a route
@@ -139,7 +150,7 @@ use LogicException;
  * ## `permissions.nama` is derived, not authored
  *
  * `permissions.nama` is `VARCHAR(100) NOT NULL` (`:160`), so a label must exist, but
- * no label is authoritative anywhere. Rather than hand-writing 33 of them and
+ * no label is authoritative anywhere. Rather than hand-writing 35 of them and
  * risking a typo that ships to an admin screen, {@see displayNameFor()} derives each
  * one from its code with one rule - the action first, then the resource, both
  * title-cased and underscores turned into spaces - and `RbacCatalogTest` asserts
@@ -149,7 +160,7 @@ use LogicException;
  * The rule produces mildly awkward Indonesian in three places (`pembayaran.bayar` ->
  * "Bayar Pembayaran", `pdp.kelola` -> "Kelola PDP", `laporan.marketing` ->
  * "Marketing Laporan"). That is accepted deliberately:
- * a consistent mechanical label that is slightly stiff beats 33 hand-written labels
+ * a consistent mechanical label that is slightly stiff beats 35 hand-written labels
  * with no rule behind them, and these strings are admin-facing labels, not
  * user-facing copy.
  *
@@ -174,7 +185,7 @@ use LogicException;
  * ## `superadmin` has no code-level bypass
  *
  * `EnsurePermission` contains no "if the user is a superadmin, allow everything"
- * branch. `superadmin` is instead granted all 33 permissions explicitly in
+ * branch. `superadmin` is instead granted all 35 permissions explicitly in
  * {@see ROLE_PERMISSIONS}, and `RbacCatalogTest` asserts that it holds exactly the
  * whole catalogue. A hidden bypass would make every permission revocable in name
  * only - `audit.lihat` would look granted in `role_permissions` and be
@@ -245,11 +256,11 @@ final class RbacCatalog
         'kurir' => 'Akun kurir: mengambil dan mengantarkan pesanan obat.',
         'marketing' => 'Akun marketing: mengelola konten artikel dan promosi.',
         'admin' => 'Akun admin operasional: mengelola promo, PDP, dan audit.',
-        'superadmin' => 'Akun(super)administrator dengan seluruh 33 izin.',
+        'superadmin' => 'Akun(super)administrator dengan seluruh 35 izin.',
     ];
 
     /**
-     * The 33 permission codes and their derived display names.
+     * The 35 permission codes and their derived display names.
      *
      * Keys are `permissions.kode VARCHAR(100) NOT NULL UNIQUE` (`:159`); values are
      * `permissions.nama VARCHAR(100) NOT NULL` (`:160`). Every value must equal
@@ -301,6 +312,10 @@ final class RbacCatalog
         'artikel.kelola' => 'Kelola Artikel',
         'promo.kelola' => 'Kelola Promo',
         'laporan.marketing' => 'Marketing Laporan',
+        // Account management (the owner-approved user-directory round), appended
+        // so the seeded ids above stay put - the same rule as the block above.
+        'pengguna.lihat' => 'Lihat Pengguna',
+        'pengguna.kelola' => 'Kelola Pengguna',
     ];
 
     /**
@@ -403,6 +418,9 @@ final class RbacCatalog
             // The landing hero: front-page content an `admin` republishes without a
             // deploy, on the same two account types that reach `/admin`.
             'hero.kelola',
+            // The account-management round: the directory read, then its writes.
+            'pengguna.lihat',
+            'pengguna.kelola',
         ],
         'superadmin' => [
             'booking.buat',
@@ -443,6 +461,11 @@ final class RbacCatalog
             'artikel.kelola',
             'promo.kelola',
             'laporan.marketing',
+            // The account-management round, appended in catalogue order so this
+            // list still equals `permissionCodes()` exactly, which
+            // `RbacCatalogTest` asserts.
+            'pengguna.lihat',
+            'pengguna.kelola',
         ],
     ];
 

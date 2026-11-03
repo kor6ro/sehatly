@@ -450,7 +450,7 @@ test('me returns the caller with a masked patient NIK and no password hash anywh
 });
 
 test('me publishes null for a relation the account does not own, and never refuses for it', function (): void {
-    // A `superadmin` holds all 33 permissions and owns neither a `pasien` nor a `dokter`
+    // A `superadmin` holds all 35 permissions and owns neither a `pasien` nor a `dokter`
     // row. "What does your account look like" is not an authorisation question, so `/me`
     // answers rather than 403s - the patient routes are where a missing row IS a 403.
     $admin = User::factory()->create(['tipe' => 'superadmin', 'status' => 'aktif']);
@@ -770,7 +770,7 @@ test('a profile update is a partial update, so an absent key leaves the stored v
 // =====================================================================
 
 test('a non-patient account is refused with 403 on every mutating route, whatever it holds', function (string $method, string $uri): void {
-    // A `superadmin` holds all 33 permission codes in `RbacCatalog::ROLE_PERMISSIONS` and
+    // A `superadmin` holds all 35 permission codes in `RbacCatalog::ROLE_PERMISSIONS` and
     // it still cannot act on a patient self-service record. That is the strongest available
     // statement that the gate is a data check and not a grant: no amount of permission
     // turns a non-patient into a patient.
@@ -1433,6 +1433,14 @@ test('the route table exposes the twelve auth routes and the seven patient route
         'POST api/v1/marketing/promo',
         'PUT api/v1/marketing/artikel/{id}',
         'PUT api/v1/marketing/promo/{id}',
+        // The account-management round's FOUR routes, appended inside the F14
+        // admin group (so they carry its party gate) after F01's support path.
+        // Listed for the same closed-set reason every entry above is: the
+        // directory read, the create, the status toggle and the password reset.
+        'GET api/v1/admin/pengguna',
+        'POST api/v1/admin/pengguna',
+        'POST api/v1/admin/pengguna/{id}/reset-sandi',
+        'PUT api/v1/admin/pengguna/{id}/status',
     ]);
 
     // TEN under the `pasien` filter: the six above (profil read + write, two for
@@ -1791,6 +1799,20 @@ test('the route table exposes the twelve auth routes and the seven patient route
             'DELETE api/v1/admin/hero/{id}' => ['permission:hero.kelola', 'tipe:admin,superadmin'],
             'POST api/v1/admin/hero/{id}/gambar' => ['permission:hero.kelola', 'tipe:admin,superadmin'],
             'DELETE api/v1/admin/hero/{id}/gambar' => ['permission:hero.kelola', 'tipe:admin,superadmin'],
+            // The account-management round's FOUR, wired into the same group so
+            // the party gate applies to all four and is listed here because it
+            // applies - the rule the hero block above states. Every one ALSO
+            // carries a permission of its own, the owner-approved 34th/35th
+            // catalogue codes: `pengguna.lihat` on the directory read,
+            // `pengguna.kelola` on the three writes (create, status toggle,
+            // password reset). Unlike the F14 eight writes - which rest on the
+            // account type alone because no approved code named a mutation - the
+            // account directory's writes were approved WITH codes, so each has a
+            // name rather than a type doing the work.
+            'GET api/v1/admin/pengguna' => ['permission:pengguna.lihat', 'tipe:admin,superadmin'],
+            'POST api/v1/admin/pengguna' => ['permission:pengguna.kelola', 'tipe:admin,superadmin'],
+            'POST api/v1/admin/pengguna/{id}/reset-sandi' => ['permission:pengguna.kelola', 'tipe:admin,superadmin'],
+            'PUT api/v1/admin/pengguna/{id}/status' => ['permission:pengguna.kelola', 'tipe:admin,superadmin'],
             // F04's THREE. The public review list takes NEITHER (it is public for
             // the same reason the profile is), and the patient's review write
             // takes NEITHER: no catalogue code names writing a review, and
@@ -2063,6 +2085,15 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         "'permission:promo.kelola'",
         "'permission:promo.kelola'",
         "'permission:promo.kelola'",
+        // The account-management round contributes FOUR strings for its four
+        // routes - `pengguna.lihat` on the read, `pengguna.kelola` on the three
+        // writes - with no new `tipe:` hit because all four inherit the F14
+        // group's `tipe:admin,superadmin`. Duplicated deliberately from
+        // `AuthFlowTest` over the same regex, for the closed-set reason above.
+        "'permission:pengguna.lihat'",
+        "'permission:pengguna.kelola'",
+        "'permission:pengguna.kelola'",
+        "'permission:pengguna.kelola'",
     ]);
 });
 

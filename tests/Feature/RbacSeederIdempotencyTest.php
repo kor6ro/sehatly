@@ -233,8 +233,8 @@ test('the defect is real: a plain re-insert of a seeded role is MySQL 1062', fun
     // The control leaves every table as it found it, so the tests below are not
     // order-dependent on it.
     expect(DB::table('roles')->count())->toBe(7)
-        ->and(DB::table('permissions')->count())->toBe(33)
-        ->and(DB::table('role_permissions')->count())->toBe(90);
+        ->and(DB::table('permissions')->count())->toBe(35)
+        ->and(DB::table('role_permissions')->count())->toBe(94);
 });
 
 // ------------------------------------------------------------- the idempotency
@@ -263,8 +263,8 @@ test('seeding RbacSeeder repeatedly is stable, and never grows a table', functio
     // Absolute numbers, so a trim of the catalogue is a visible edit here rather
     // than a seeder still idempotent over quietly fewer rows.
     expect(DB::table('roles')->count())->toBe(7)
-        ->and(DB::table('permissions')->count())->toBe(33)
-        ->and(DB::table('role_permissions')->count())->toBe(90);
+        ->and(DB::table('permissions')->count())->toBe(35)
+        ->and(DB::table('role_permissions')->count())->toBe(94);
 });
 
 test('a second run leaves no duplicate role, permission or grant', function (): void {
@@ -281,7 +281,7 @@ test('a second run leaves no duplicate role, permission or grant', function (): 
     $actual = rbacGrantedPairs();
 
     expect($actual)->toBe(rbacCatalogPairs())
-        ->and($actual)->toHaveCount(90);
+        ->and($actual)->toHaveCount(94);
 });
 
 // ------------------------------------------------------ why upsert, not ignore
@@ -330,10 +330,11 @@ test('a drifted description is repaired without renumbering the row', function (
 
     $grants = DB::table('role_permissions')->where('role_id', $adminId)->count();
 
-    // 13 since F14 added `laporan.lihat`, F01 added `pasien.kelola` and the landing
-    // hero added `hero.kelola` to the admin role; the number is stated so a
-    // catalogue change is a deliberate edit here too.
-    expect($grants)->toBe(13)
+    // 15 since F14 added `laporan.lihat`, F01 added `pasien.kelola`, the landing
+    // hero added `hero.kelola` and the account round added
+    // `pengguna.lihat`/`pengguna.kelola` to the admin role; the number is stated so
+    // a catalogue change is a deliberate edit here too.
+    expect($grants)->toBe(15)
         ->and(DB::table('role_permissions')->where('role_id', $adminId)->distinct()->count('permission_id'))
         ->toBe($grants);
 });

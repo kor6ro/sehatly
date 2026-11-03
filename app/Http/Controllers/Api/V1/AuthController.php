@@ -101,7 +101,7 @@ use Symfony\Component\HttpFoundation\Response;
  * ## No `permission:` and no `tipe:` on any route in this controller
  *
  * This is a deliberate decision with a catalogue behind it, not an omission.
- * `RbacCatalog::PERMISSIONS` holds 33 codes and **none of them names an auth, session,
+ * `RbacCatalog::PERMISSIONS` holds 35 codes and **none of them names an auth, session,
  * token, device or notification-registration action**; the closest names are
  * `notifikasi.lihat` (view notifications) and `dokter.lihat`. Writing
  * `permission:notifikasi.lihat` on `POST /auth/devices` would be wrong twice over: it

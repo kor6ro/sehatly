@@ -1696,6 +1696,7 @@ use App\Http\Controllers\Api\V1\AdminHeroController;
 use App\Http\Controllers\Api\V1\AdminJadwalController;
 use App\Http\Controllers\Api\V1\AdminLaporanController;
 use App\Http\Controllers\Api\V1\AdminPasienController;
+use App\Http\Controllers\Api\V1\AdminPenggunaController;
 use App\Http\Controllers\Api\V1\AdminPersetujuanPdpController;
 
 /*
@@ -1974,6 +1975,49 @@ Route::middleware(['auth:sanctum', 'tipe:admin,superadmin'])
             ->whereNumber('id')
             ->middleware('permission:pasien.kelola')
             ->name('pasien.telepon');
+
+        /*
+        | The account directory: FOUR routes, the owner-approved account-management
+        | round. Every one carries the F14 party gate (the group) plus one of the
+        | two codes `RbacCatalog` appends for it - `pengguna.lihat` on the read,
+        | `pengguna.kelola` on the three writes - granted to `admin` and
+        | `superadmin`, the two types that reach `/admin`.
+        |
+        | | route | `permission:` | writes |
+        | | --- | --- | --- |
+        | | `GET /admin/pengguna` | `pengguna.lihat` | nothing |
+        | | `POST /admin/pengguna` | `pengguna.kelola` | one `users` row + its role, 201 |
+        | | `PUT /admin/pengguna/{id}/status` | `pengguna.kelola` | `status`, refresh tokens revoked on `nonaktif` |
+        | | `POST /admin/pengguna/{id}/reset-sandi` | `pengguna.kelola` | `kata_sandi_hash`, plaintext answered once |
+        |
+        | `pengguna` is a one-segment literal registered before the `{id}`
+        | wildcards of its own group, so it cannot swallow them and the file's
+        | "literals before wildcards" convention holds by reading order. `{id}` is
+        | a `users.id` (what `PenggunaResource` publishes), `whereNumber`-bound.
+        |
+        | Two actor-vs-target rules live in the CONTROLLER rather than here or in
+        | a FormRequest: creating an `admin`, and acting on an `admin`/`superadmin`
+        | row, each require a `superadmin` caller; a caller moving their OWN status
+        | is a 422. All three compare the caller's row against the target and so
+        | cannot be expressed as body validation.
+        */
+        Route::get('pengguna', [AdminPenggunaController::class, 'index'])
+            ->middleware('permission:pengguna.lihat')
+            ->name('pengguna.index');
+
+        Route::post('pengguna', [AdminPenggunaController::class, 'store'])
+            ->middleware('permission:pengguna.kelola')
+            ->name('pengguna.store');
+
+        Route::put('pengguna/{id}/status', [AdminPenggunaController::class, 'ubahStatus'])
+            ->whereNumber('id')
+            ->middleware('permission:pengguna.kelola')
+            ->name('pengguna.status');
+
+        Route::post('pengguna/{id}/reset-sandi', [AdminPenggunaController::class, 'resetSandi'])
+            ->whereNumber('id')
+            ->middleware('permission:pengguna.kelola')
+            ->name('pengguna.reset-sandi');
 
         /*
         | The landing carousel: SIX routes, the first admin surface in this file

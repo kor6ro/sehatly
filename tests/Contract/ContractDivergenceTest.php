@@ -242,7 +242,10 @@ it('types_every_meta_operation_as_paginated', function (): void {
     // `GET /api/v1/kurir/pesanan` is deliberately NOT a member: the queue
     // answers its rows with no `pageMeta()`, because a delivery worklist is a
     // bounded set of actionable orders rather than a browsable collection.
-    expect($paginated)->toHaveCount(43);
+    // The account-management round's `GET /api/v1/admin/pengguna` is the
+    // forty-fourth member: it answers `pageMeta()` like the doctor directory
+    // above it, and carries the same `PaginatedEnvelope` at 200.
+    expect($paginated)->toHaveCount(44);
 
     expect($paginated)->toContain('get /api/v1/dokter @200');
     expect($paginated)->toContain('get /api/v1/dokter/{dokter}/ulasan @200');

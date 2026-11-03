@@ -12,7 +12,7 @@ info:
     drift from the code: a route added, renamed or removed changes it on the next run, and
     `--check` fails until the regenerated file is committed.
 
-    This document describes 131 routes across 108 distinct paths, read from the live route table.
+    This document describes 135 routes across 111 distinct paths, read from the live route table.
 
     ## Envelopes
 
@@ -1048,6 +1048,178 @@ paths:
         description: 'Validated by `App\Http\Requests\Admin\UbahTeleponPasienRequest::rules()`, which is read at generation time -- these properties are the live rules, not a transcription.'
         content:
           application/json: { schema: { $ref: '#/components/schemas/UbahTeleponPasienRequestBody' } }
+      responses:
+        200:
+          description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
+        422:
+          description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ValidationErrorEnvelope' } } }
+        401:
+          description: 'Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        403:
+          description: 'Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        404:
+          description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        500:
+          description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+  /api/v1/admin/pengguna:
+    get:
+      operationId: getApiV1AdminPengguna
+      summary: 'Read /api/v1/admin/pengguna.'
+      tags:
+        - admin
+      security:
+        -
+          sanctum: []
+      x-route-name: admin.pengguna.index
+      x-laravel-action: App\Http\Controllers\Api\V1\AdminPenggunaController@index
+      x-middleware:
+        - 'auth:sanctum'
+        - 'tipe:admin,superadmin'
+        - 'permission:pengguna.lihat'
+      x-auth:
+        scheme: sanctum
+        transport: bearer
+      responses:
+        200:
+          description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/PaginatedEnvelope' } } }
+        422:
+          description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ValidationErrorEnvelope' } } }
+        401:
+          description: 'Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        403:
+          description: 'Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        404:
+          description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        500:
+          description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    post:
+      operationId: postApiV1AdminPengguna
+      summary: 'Create /api/v1/admin/pengguna.'
+      tags:
+        - admin
+      security:
+        -
+          sanctum: []
+      x-route-name: admin.pengguna.store
+      x-laravel-action: App\Http\Controllers\Api\V1\AdminPenggunaController@store
+      x-middleware:
+        - 'auth:sanctum'
+        - 'tipe:admin,superadmin'
+        - 'permission:pengguna.kelola'
+      x-auth:
+        scheme: sanctum
+        transport: bearer
+      requestBody:
+        required: true
+        description: 'Validated by `App\Http\Requests\Admin\BuatPenggunaRequest::rules()`, which is read at generation time -- these properties are the live rules, not a transcription.'
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/BuatPenggunaRequestBody' } }
+      responses:
+        201:
+          description: 'Created. `data` holds the created resource.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
+        422:
+          description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ValidationErrorEnvelope' } } }
+        401:
+          description: 'Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        403:
+          description: 'Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        404:
+          description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        500:
+          description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+  '/api/v1/admin/pengguna/{id}/reset-sandi':
+    parameters:
+      -
+        name: id
+        type: integer
+        required: true
+    post:
+      operationId: postApiV1AdminPenggunaIdResetSandi
+      summary: 'Create /api/v1/admin/pengguna/{id}/reset-sandi.'
+      tags:
+        - admin
+      security:
+        -
+          sanctum: []
+      x-route-name: admin.pengguna.reset-sandi
+      x-laravel-action: App\Http\Controllers\Api\V1\AdminPenggunaController@resetSandi
+      x-middleware:
+        - 'auth:sanctum'
+        - 'tipe:admin,superadmin'
+        - 'permission:pengguna.kelola'
+      x-auth:
+        scheme: sanctum
+        transport: bearer
+      requestBody:
+        required: true
+        description: 'Validated by `App\Http\Requests\Admin\ResetSandiPenggunaRequest::rules()`, which is read at generation time -- these properties are the live rules, not a transcription.'
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/ResetSandiPenggunaRequestBody' } }
+      responses:
+        201:
+          description: 'Created. `data` holds the created resource.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
+        422:
+          description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ValidationErrorEnvelope' } } }
+        401:
+          description: 'Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        403:
+          description: 'Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        404:
+          description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        500:
+          description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+  '/api/v1/admin/pengguna/{id}/status':
+    parameters:
+      -
+        name: id
+        type: integer
+        required: true
+    put:
+      operationId: putApiV1AdminPenggunaIdStatus
+      summary: 'Replace /api/v1/admin/pengguna/{id}/status.'
+      tags:
+        - admin
+      security:
+        -
+          sanctum: []
+      x-route-name: admin.pengguna.status
+      x-laravel-action: App\Http\Controllers\Api\V1\AdminPenggunaController@ubahStatus
+      x-middleware:
+        - 'auth:sanctum'
+        - 'tipe:admin,superadmin'
+        - 'permission:pengguna.kelola'
+      x-auth:
+        scheme: sanctum
+        transport: bearer
+      requestBody:
+        required: true
+        description: 'Validated by `App\Http\Requests\Admin\UbahStatusPenggunaRequest::rules()`, which is read at generation time -- these properties are the live rules, not a transcription.'
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/UbahStatusPenggunaRequestBody' } }
       responses:
         200:
           description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
@@ -5411,6 +5583,48 @@ components:
           - resep.tipe
           - surat_keterangan.tipe
           - users.tipe
+    BuatPenggunaRequestBody:
+      type: object
+      title: BuatPenggunaRequest
+      description: 'Request body for operations validated by `App\Http\Requests\Admin\BuatPenggunaRequest`. The properties below are read from that class''s `rules()` at generation time.'
+      x-form-request: App\Http\Requests\Admin\BuatPenggunaRequest
+      properties:
+        nama_lengkap:
+          type: string
+          x-laravel-rule: [string, 'min:3', 'max:150']
+        no_telepon:
+          type: string
+          x-laravel-rule: [string, 'max:20', 'regex:/^\+?[0-9]{8,20}$/', 'unique:users,no_telepon']
+        password:
+          type: string
+          x-laravel-rule: [string, 'min:8', 'max:255']
+        tipe:
+          type: string
+          enum: [apoteker, kurir, marketing, admin]
+          x-laravel-rule: [string, 'in:["apoteker","kurir","marketing","admin"]']
+      required:
+        - nama_lengkap
+        - no_telepon
+        - password
+        - tipe
+      additionalProperties: false
+      x-enum-fields:
+        tipe:
+          - dokter.tipe
+          - faskes.tipe
+          - konsultasi.tipe
+          - master_metode_pembayaran.tipe
+          - master_penjamin.tipe
+          - master_spesialisasi.tipe
+          - notifikasi.tipe
+          - pasien_riwayat_penyakit.tipe
+          - pesanan_obat.tipe
+          - preferensi_notifikasi_tipe.tipe
+          - rekam_medis_lampiran.tipe
+          - rekam_medis_persetujuan.tipe
+          - resep.tipe
+          - surat_keterangan.tipe
+          - users.tipe
     BuatSuratKeteranganRequestBody:
       type: object
       title: BuatSuratKeteranganRequest
@@ -6008,6 +6222,69 @@ components:
       required: []
       additionalProperties: false
       x-enum-fields: []
+    IndexPenggunaRequestBody:
+      type: object
+      title: IndexPenggunaRequest
+      description: 'Request body for operations validated by `App\Http\Requests\Admin\IndexPenggunaRequest`. The properties below are read from that class''s `rules()` at generation time.'
+      x-form-request: App\Http\Requests\Admin\IndexPenggunaRequest
+      properties:
+        dibuat_dari:
+          type: string
+          format: date
+          x-laravel-rule: [string, 'date_format:Y-m-d']
+        page:
+          type: integer
+          x-laravel-rule: [integer, 'min:1']
+        per_page:
+          type: integer
+          x-laravel-rule: [integer, 'min:1', 'max:100']
+        q:
+          type: string
+          x-laravel-rule: [string, 'max:150']
+        status:
+          type: string
+          enum: [pending_verifikasi, aktif, nonaktif, ditangguhkan]
+          x-laravel-rule: [string, 'in:["pending_verifikasi","aktif","nonaktif","ditangguhkan"]']
+        tipe:
+          type: string
+          enum: [staf, pasien, dokter, perawat, apoteker, kurir, admin, superadmin, marketing]
+          x-laravel-rule: [string, 'in:["staf","pasien","dokter","perawat","apoteker","kurir","admin","superadmin","marketing"]']
+      required: []
+      additionalProperties: false
+      x-enum-fields:
+        status:
+          - artikel.status
+          - booking.status
+          - home_care_pesanan.status
+          - invoice.status
+          - klaim_bpjs.status
+          - konsultasi.status
+          - lab_permintaan.status
+          - pasien_riwayat_penyakit.status
+          - pembayaran.status
+          - pengingat.status
+          - pesanan_obat.status
+          - refund.status
+          - resep.status
+          - resep_verifikasi.status
+          - rujukan.status
+          - users.status
+        tipe:
+          - dokter.tipe
+          - faskes.tipe
+          - konsultasi.tipe
+          - master_metode_pembayaran.tipe
+          - master_penjamin.tipe
+          - master_spesialisasi.tipe
+          - notifikasi.tipe
+          - pasien_riwayat_penyakit.tipe
+          - pesanan_obat.tipe
+          - preferensi_notifikasi_tipe.tipe
+          - rekam_medis_lampiran.tipe
+          - rekam_medis_persetujuan.tipe
+          - resep.tipe
+          - surat_keterangan.tipe
+          - users.tipe
     IndexPengingatRequestBody:
       type: object
       title: IndexPengingatRequest
@@ -6529,6 +6806,15 @@ components:
       x-enum-fields:
         tujuan:
           - user_otp.tujuan
+    ResetSandiPenggunaRequestBody:
+      type: object
+      title: ResetSandiPenggunaRequest
+      description: 'Request body for operations validated by `App\Http\Requests\Admin\ResetSandiPenggunaRequest`. The properties below are read from that class''s `rules()` at generation time.'
+      x-form-request: App\Http\Requests\Admin\ResetSandiPenggunaRequest
+      properties: []
+      required: []
+      additionalProperties: false
+      x-enum-fields: []
     RiwayatResepRequestBody:
       type: object
       title: RiwayatResepRequest
@@ -7662,6 +7948,37 @@ components:
           - rekam_medis.status_tindak_lanjut
         tipe_kunjungan:
           - rekam_medis.tipe_kunjungan
+    UbahStatusPenggunaRequestBody:
+      type: object
+      title: UbahStatusPenggunaRequest
+      description: 'Request body for operations validated by `App\Http\Requests\Admin\UbahStatusPenggunaRequest`. The properties below are read from that class''s `rules()` at generation time.'
+      x-form-request: App\Http\Requests\Admin\UbahStatusPenggunaRequest
+      properties:
+        status:
+          type: string
+          enum: [aktif, nonaktif]
+          x-laravel-rule: [string, 'in:["aktif","nonaktif"]']
+      required:
+        - status
+      additionalProperties: false
+      x-enum-fields:
+        status:
+          - artikel.status
+          - booking.status
+          - home_care_pesanan.status
+          - invoice.status
+          - klaim_bpjs.status
+          - konsultasi.status
+          - lab_permintaan.status
+          - pasien_riwayat_penyakit.status
+          - pembayaran.status
+          - pengingat.status
+          - pesanan_obat.status
+          - refund.status
+          - resep.status
+          - resep_verifikasi.status
+          - rujukan.status
+          - users.status
     UbahTeleponPasienRequestBody:
       type: object
       title: UbahTeleponPasienRequest

@@ -123,7 +123,7 @@ it('binds every published 401 and 403 to the same error envelope', function (): 
 
 it('publishes a 404 for all 121 operations, bound to the error envelope', function (): void {
     // Structural, not reachability. The claim is that no operation advertises a
-    // 404 the error envelope cannot describe, and that the count is 131 -- so a
+    // 404 the error envelope cannot describe, and that the count is 135 -- so a
     // route appearing or disappearing moves this number rather than passing
     // quietly. F04 added the three review routes, which is the 102 -> 105 move;
     // F11 added the six preference/reminder routes, which is 105 -> 111; the
@@ -131,7 +131,8 @@ it('publishes a 404 for all 121 operations, bound to the error envelope', functi
     // flow's `POST /auth/sign-up/lengkapi` is the 112 -> 113 move; the landing-hero
     // module adds seven more (`GET /hero` plus six `/admin/hero` routes), which is
     // the 113 -> 120 move; the multi-portal `POST /admin/dokter` is bearer, which
-    // is the 121 -> 131 move.
+    // is the 121 -> 131 move; the account-management round adds the four
+    // `/admin/pengguna` routes, the 131 -> 135 move.
     $count = 0;
 
     foreach (ContractSpec::specOperations() as $key => $operation) {
@@ -142,7 +143,7 @@ it('publishes a 404 for all 121 operations, bound to the error envelope', functi
         $count++;
     }
 
-    expect($count)->toBe(131);
+    expect($count)->toBe(135);
 });
 
 it('publishes 401 and 403 together, or neither, on every bearer operation', function (): void {
@@ -156,7 +157,8 @@ it('publishes 401 and 403 together, or neither, on every bearer operation', func
     // `POST /auth/sign-up/lengkapi` is bearer, the 84 -> 85 move; the landing-hero
     // module's six `/admin/hero` routes are all bearer and none anonymous, the
     // 85 -> 91 move (its seventh route, `GET /hero`, is anonymous). The
-    // multi-portal `POST /admin/dokter` is bearer, the 91 -> 92 move.
+    // multi-portal `POST /admin/dokter` is bearer, the 91 -> 92 move; the four
+    // `/admin/pengguna` routes are all bearer, the 102 -> 106 move.
     $count = 0;
 
     foreach (ContractSpec::specOperations() as $key => $operation) {
@@ -170,7 +172,7 @@ it('publishes 401 and 403 together, or neither, on every bearer operation', func
         $count++;
     }
 
-    expect($count)->toBe(102);
+    expect($count)->toBe(106);
 });
 
 it('publishes 429 only where a named rate limiter is registered', function (): void {
@@ -360,8 +362,13 @@ it('finds_thirty_six_gets_publishing_a_422_with_nothing_to_describe_what_fails_i
     // finding, not an achievement: every member here is a real document defect
     // (a reachable 422 the document never describes), so a DROP is one less
     // endpoint carrying it. The courier's two reads join neither list - they
-    // inject no FormRequest, so they publish no 422 at all.
-    expect($with422NoBody)->toHaveCount(36);
+    // inject no FormRequest, so they publish no 422 at all. The account
+    // directory's `GET /admin/pengguna` is the thirty-seventh member: it
+    // validates six query fields through `IndexPenggunaRequest` and publishes
+    // the 422, while no operation in the document publishes ANY query
+    // parameter, so it cannot be the first to publish the four the loop below
+    // names.
+    expect($with422NoBody)->toHaveCount(37);
 
     // And not one of them publishes the query parameter its 422 is about.
     foreach ($with422NoBody as $key) {

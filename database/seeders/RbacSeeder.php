@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 /**
- * Seeds the RBAC kernel: 7 roles, 33 permissions and their 90 role/permission
+ * Seeds the RBAC kernel: 7 roles, 35 permissions and their 94 role/permission
  * grants.
  *
  * ## None of this data is in `telemedicine_test.sql`
@@ -194,7 +194,7 @@ use RuntimeException;
  * not a clinician, and giving the role clinical write would put a write-capable
  * grant on the account type that can read the audit log.
  *
- * **`superadmin` (all 33)** - written out in full, not computed, so the seeded table
+ * **`superadmin` (all 35)** - written out in full, not computed, so the seeded table
  * *is* the policy and can be read without running code. There is no code-level
  * bypass anywhere in the middleware; see {@see RbacCatalog}.
  */
