@@ -11,10 +11,12 @@ import {
     adminLaporanBookingOptions,
     adminLaporanKehadiranOptions,
     adminLaporanPendapatanOptions,
+    adminPenggunaOptions,
 } from '@/lib/api/admin';
 import {
     labelAksi,
     labelStatusBooking,
+    labelTabelTarget,
 } from '@/portals/admin/features/admin/format-admin';
 import { AdminGate } from '@/portals/admin/features/admin/admin-gate';
 import { PageHeader } from '@/shared/components/layout/page-header';
@@ -29,29 +31,33 @@ import { Button } from '@/components/ui/button';
  *
  * Every number here is read from an endpoint that already existed: the doctor
  * list's `meta.total` (also its `status_verifikasi`/`status_aktif` filters, one
- * `per_page:1` query each - the count is the meta, not the rows), the three
- * report aggregates over the fixed 30-day window (`/admin/laporan/*`, whose
- * service refuses ranges beyond 366 days), and the newest five audit rows. No
- * dashboard-only endpoint is added - a summary screen that requires its own API
- * is a second place for the same arithmetic to drift.
+ * `per_page:1` query each - the count is the meta, not the rows), the same trick
+ * over the account directory for its four totals, the three report aggregates
+ * over the fixed 30-day window (`/admin/laporan/*`, whose service refuses ranges
+ * beyond 366 days), and the newest five audit rows. No dashboard-only endpoint
+ * is added - a summary screen that requires its own API is a second place for
+ * the same arithmetic to drift.
  *
  * ## The page is a sequence of titled sections, not a card pile
  *
  * The layout follows the reference admin screen this portal was modelled on,
  * top to bottom: a welcome banner carrying the online pill, a four-card
  * summary strip, a "Grafik & ringkasan" pair (trend chart beside the booking
- * breakdown), a "Log aktivitas sistem" table, and a "Statistik dokter" strip
- * that breaks the first card's total into its verification and activity
- * states. Each section after the cards carries its jump link in the heading -
- * the dashboard's job is to answer "is everything fine" and to hand the
- * "why" question to the page that owns it (`/admin/laporan`,
- * `/admin/audit-log`, `/admin/dokter`), which is also why the audit feed is a
- * fixed five rows: it is a glance, not the log itself.
+ * breakdown), a "Log aktivitas sistem" table, and one "Statistik" section that
+ * breaks the first card's total into its verification and activity states
+ * beside the account directory's own four counts. Each section after the cards
+ * carries its jump link in the heading - the dashboard's job is to answer "is
+ * everything fine" and to hand the "why" question to the page that owns it
+ * (`/admin/laporan`, `/admin/audit-log`, `/admin/dokter`, `/admin/pengguna`),
+ * which is also why the audit feed is a fixed five rows: it is a glance, not
+ * the log itself.
  *
  * The 30-day window is fixed rather than user-configurable: `/admin/laporan`
  * already carries the range picker for anyone who wants another one, and a
  * front page whose numbers move with a control nobody remembers touching is a
- * worse front page.
+ * worse front page. It is also the window "pasien baru" counts over, which is
+ * why that figure states its own range in the label rather than inheriting the
+ * banner's silently.
  *
  * ## The trend strip draws all thirty days, including the empty ones
  *
@@ -96,6 +102,28 @@ export function AdminDashboardPage() {
     const kehadiran = useQuery(adminLaporanKehadiranOptions(rentang));
     const audit = useQuery(adminAuditOptions({ page: 1, per_page: 5 }));
 
+    /**
+     * The account directory's four counts, each a `per_page:1` query whose
+     * answer is `meta.total` - the same trick the doctor cards above use, so
+     * a count costs a row, not a second endpoint.
+     *
+     * `tipe: 'staf'` is the server's ALIAS for the five staff types, which is
+     * why there is no per-type query here: the sidebar, this strip and the
+     * list page all spell "staff" that one way. `dibuat_dari` is the window's
+     * own first day, so "pasien baru" counts the same thirty days the banner
+     * advertises rather than a different, unstated one.
+     */
+    const pasien = useQuery(
+        adminPenggunaOptions({ per_page: 1, tipe: 'pasien' }),
+    );
+    const pasienBaru = useQuery(
+        adminPenggunaOptions({ per_page: 1, tipe: 'pasien', dibuat_dari: dari }),
+    );
+    const staf = useQuery(adminPenggunaOptions({ per_page: 1, tipe: 'staf' }));
+    const stafAktif = useQuery(
+        adminPenggunaOptions({ per_page: 1, tipe: 'staf', status: 'aktif' }),
+    );
+
     const semuaQuery = [
         dokter,
         terverifikasi,
@@ -105,6 +133,10 @@ export function AdminDashboardPage() {
         booking,
         pendapatan,
         kehadiran,
+        pasien,
+        pasienBaru,
+        staf,
+        stafAktif,
     ];
 
     const muatUlang = (): void => {
@@ -128,6 +160,12 @@ export function AdminDashboardPage() {
     const jumlahMenunggu = menunggu.data?.meta?.total ?? 0;
     const jumlahDitolak = ditolak.data?.meta?.total ?? 0;
     const jumlahAktif = dokterAktif.data?.meta?.total ?? 0;
+
+    const totalPasien = pasien.data?.meta?.total ?? 0;
+    const jumlahPasienBaru = pasienBaru.data?.meta?.total ?? 0;
+    const totalStaf = staf.data?.meta?.total ?? 0;
+    const jumlahStafAktif = stafAktif.data?.meta?.total ?? 0;
+    const stafNonaktif = Math.max(0, totalStaf - jumlahStafAktif);
 
     const deretHarian = useMemo(
         () => susunHarianLengkap(dari, booking.data?.data.harian ?? []),
@@ -384,7 +422,9 @@ export function AdminDashboardPage() {
                                                     </td>
 
                                                     <td className="py-2 pr-3">
-                                                        {baris.tabel_target}
+                                                        {labelTabelTarget(
+                                                            baris.tabel_target,
+                                                        )}
                                                     </td>
 
                                                     <td className="py-2 pr-3">
@@ -408,47 +448,115 @@ export function AdminDashboardPage() {
                     </section>
 
                     {/**
-                     * Statistik dokter: the first card's total broken into its
-                     * four standing states, as an even strip. Numbers carry the
-                     * colour their state deserves - amber and red are the two
-                     * an operator must act on; the rest stay quiet.
+                     * Statistik: two strips under one heading - the doctor
+                     * list's four standing states, then the account
+                     * directory's four counts.
+                     *
+                     * One section rather than two because the two answer the
+                     * same question about two populations ("how many, and
+                     * which of them need me"), and a page that ends in two
+                     * consecutive sections of identical shape reads as a page
+                     * that ran out of structure. Each strip keeps its own
+                     * jump link, because they lead to different pages.
+                     *
+                     * The pengguna strip is counts only - no per-type query
+                     * per staff type. `tipe: 'staf'` is the server's alias for
+                     * all five, and a dashboard that named five numbers
+                     * nobody acts on separately would be counting for its own
+                     * sake; the list page is where a type matters.
                      */}
-                    <section className="space-y-3">
-                        <JudulSeksi
-                            judul="Statistik dokter"
-                            ke="/admin/dokter"
-                            labelTautan="Detail →"
-                        />
+                    <section className="space-y-4">
+                        <JudulSeksi judul="Statistik" />
 
-                        <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-                            <StatistikKecil
-                                label="Terverifikasi"
-                                nilai={jumlahTerverifikasi}
-                                ket={`dari total ${totalDokter} dokter`}
-                            />
-                            <StatistikKecil
-                                label="Menunggu verifikasi"
-                                nilai={jumlahMenunggu}
-                                ket={
-                                    jumlahMenunggu > 0
-                                        ? 'perlu ditinjau'
-                                        : 'semua sudah ditinjau'
-                                }
-                                warna={
-                                    jumlahMenunggu > 0 ? 'text-amber-600' : undefined
-                                }
-                            />
-                            <StatistikKecil
-                                label="Ditolak"
-                                nilai={jumlahDitolak}
-                                warna={jumlahDitolak > 0 ? 'text-red-600' : undefined}
-                            />
-                            <StatistikKecil
-                                label="Akun aktif"
-                                nilai={jumlahAktif}
-                                ket="siap melayani"
-                                warna="text-green-600"
-                            />
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between gap-3">
+                                <h3 className="text-sm font-medium">Dokter</h3>
+
+                                <Link
+                                    to="/admin/dokter"
+                                    className="text-sm text-primary hover:underline"
+                                >
+                                    Detail →
+                                </Link>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+                                <StatistikKecil
+                                    label="Terverifikasi"
+                                    nilai={jumlahTerverifikasi}
+                                    ket={`dari total ${totalDokter} dokter`}
+                                />
+                                <StatistikKecil
+                                    label="Menunggu verifikasi"
+                                    nilai={jumlahMenunggu}
+                                    ket={
+                                        jumlahMenunggu > 0
+                                            ? 'perlu ditinjau'
+                                            : 'semua sudah ditinjau'
+                                    }
+                                    warna={
+                                        jumlahMenunggu > 0
+                                            ? 'text-amber-600'
+                                            : undefined
+                                    }
+                                />
+                                <StatistikKecil
+                                    label="Ditolak"
+                                    nilai={jumlahDitolak}
+                                    warna={
+                                        jumlahDitolak > 0
+                                            ? 'text-red-600'
+                                            : undefined
+                                    }
+                                />
+                                <StatistikKecil
+                                    label="Akun aktif"
+                                    nilai={jumlahAktif}
+                                    ket="siap melayani"
+                                    warna="text-green-600"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between gap-3">
+                                <h3 className="text-sm font-medium">Pengguna</h3>
+
+                                <Link
+                                    to="/admin/pengguna"
+                                    className="text-sm text-primary hover:underline"
+                                >
+                                    Detail →
+                                </Link>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+                                <StatistikKecil
+                                    label="Total pasien"
+                                    nilai={totalPasien}
+                                    ket="terdaftar di direktori"
+                                />
+                                <StatistikKecil
+                                    label="Pasien baru"
+                                    nilai={jumlahPasienBaru}
+                                    ket="30 hari terakhir"
+                                />
+                                <StatistikKecil
+                                    label="Total staf"
+                                    nilai={totalStaf}
+                                    ket="lima tipe staf"
+                                />
+                                <StatistikKecil
+                                    label="Staf aktif"
+                                    nilai={jumlahStafAktif}
+                                    ket={
+                                        stafNonaktif > 0
+                                            ? `${stafNonaktif} nonaktif`
+                                            : 'semua aktif'
+                                    }
+                                    warna="text-green-600"
+                                />
+                            </div>
                         </div>
                     </section>
                 </div>

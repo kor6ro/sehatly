@@ -28,6 +28,14 @@ const AdminDokterDetailPage = lazy(() =>
 const AdminLaporanPage = lazy(() =>
   import('@/portals/admin/pages/admin-laporan-page').then((mod) => ({ default: mod.AdminLaporanPage }))
 );
+const AdminPenggunaBuatPage = lazy(() =>
+  import('@/portals/admin/pages/admin-pengguna-buat-page').then((mod) => ({
+    default: mod.AdminPenggunaBuatPage,
+  }))
+);
+const AdminPenggunaPage = lazy(() =>
+  import('@/portals/admin/pages/admin-pengguna-page').then((mod) => ({ default: mod.AdminPenggunaPage }))
+);
 const AdminAuditLogPage = lazy(() =>
   import('@/portals/admin/pages/admin-audit-log-page').then((mod) => ({ default: mod.AdminAuditLogPage }))
 );
@@ -158,6 +166,36 @@ export const adminRoutes = [
                                 element: (
                                     <Suspense fallback={<LoadingState label="Memuat jadwal dokter..." />}>
                                         <AdminDokterDetailPage tabAwal="jadwal" />
+                                    </Suspense>
+                                ),
+                                errorElement: <RouteErrorBoundary />,
+                            },
+                            {
+                                /**
+                                 * The account directory. `/buat` is registered
+                                 * before the list for the reason `/admin/dokter/buat`
+                                 * is: a literal two-segment path must not be
+                                 * swallowed by a one-segment neighbour, and both
+                                 * are literal here anyway - the ordering states
+                                 * the intent rather than relying on it.
+                                 *
+                                 * `?tipe=staf|pasien` is part of the address the
+                                 * sidebar links to, so it is read from the URL by
+                                 * the page, not carried through route state.
+                                 */
+                                path: '/admin/pengguna/buat',
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat buat akun..." />}>
+                                        <AdminPenggunaBuatPage />
+                                    </Suspense>
+                                ),
+                                errorElement: <RouteErrorBoundary />,
+                            },
+                            {
+                                path: '/admin/pengguna',
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat daftar akun..." />}>
+                                        <AdminPenggunaPage />
                                     </Suspense>
                                 ),
                                 errorElement: <RouteErrorBoundary />,

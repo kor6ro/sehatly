@@ -1,7 +1,7 @@
 import { mutationOptions, queryOptions } from '@tanstack/react-query';
 import { request } from '@/lib/http';
 import { queryClient } from '@/lib/query-client';
-import type { Decimal, Iso, Tanggal } from '@/lib/api/types';
+import type { Decimal, Iso, Tanggal, UserStatus, UserTipe } from '@/lib/api/types';
 
 /**
  * F14's admin surface: the sixteen `/api/v1/admin/*` routes, typed from the
@@ -650,6 +650,137 @@ export function buatDokterMutation() {
         mutationFn: buatDokter,
         onSuccess: () => {
             void queryClient.invalidateQueries({ queryKey: adminDokterQueryKey });
+        },
+    });
+}
+
+// ============================================================================
+// Manajemen akun (the account directory)
+// ============================================================================
+
+/**
+ * One row of `GET /admin/pengguna`: the account, not the credential.
+ *
+ * `no_telepon` arrives ALREADY MASKED by `PenggunaResource` (`NikMasker`) -
+ * this client has no unmasked number to render, log or accidentally send back.
+ * `kata_sandi_hash` and `uuid` are not in the projection at all, so a `never`
+ * here is the server's allow-list, not a convention this file maintains.
+ */
+export type AdminPengguna = {
+    id: number;
+    nama_lengkap: string;
+    no_telepon: string;
+    email: string | null;
+    tipe: UserTipe;
+    status: UserStatus;
+    telepon_terverifikasi: boolean;
+    last_login_at: Iso | null;
+    dibuat_at: Iso;
+};
+
+/**
+ * The `tipe=` filter vocabulary: the server's `staf` ALIAS plus each
+ * `users.tipe` value. `staf` is not a column value - it expands server-side to
+ * the five staff types - and it is here so the sidebar's staff tab, the
+ * dashboard's staff count and this list all read one definition.
+ */
+export type TipeFilterPengguna = 'staf' | UserTipe;
+
+export type AdminPenggunaFilter = {
+    tipe?: TipeFilterPengguna;
+    status?: UserStatus;
+    q?: string;
+    dibuat_dari?: string;
+    page?: number;
+    per_page?: number;
+};
+
+/** What `POST /admin/pengguna` may create - the server's `TIPE_BUAT`. */
+export type TipeBuatPengguna = 'apoteker' | 'kurir' | 'marketing' | 'admin';
+
+export type BuatPenggunaInput = {
+    nama_lengkap: string;
+    no_telepon: string;
+    password: string;
+    tipe: TipeBuatPengguna;
+};
+
+export async function fetchAdminPengguna(filter: AdminPenggunaFilter = {}) {
+    return request<{ pengguna: AdminPengguna[] }>('admin/pengguna', {
+        searchParams: params({
+            tipe: filter.tipe,
+            status: filter.status,
+            q: filter.q,
+            dibuat_dari: filter.dibuat_dari,
+            page: filter.page,
+            per_page: filter.per_page,
+        }),
+    });
+}
+
+export async function buatPengguna(input: BuatPenggunaInput) {
+    return request<{ pengguna: AdminPengguna }>('admin/pengguna', {
+        method: 'POST',
+        json: input,
+        retry: 0,
+    });
+}
+
+export async function ubahStatusPengguna(
+    id: number,
+    status: 'aktif' | 'nonaktif',
+) {
+    return request<{ pengguna: AdminPengguna }>(`admin/pengguna/${id}/status`, {
+        method: 'PUT',
+        json: { status },
+    });
+}
+
+/**
+ * Replace the account's password with a generated one. The plaintext comes
+ * back in `password_baru` EXACTLY ONCE - the server stores only a digest and
+ * no endpoint can retrieve it again, which is why the UI must show it now.
+ */
+export async function resetSandiPengguna(id: number) {
+    return request<{ pengguna: AdminPengguna; password_baru: string }>(
+        `admin/pengguna/${id}/reset-sandi`,
+        { method: 'POST' },
+    );
+}
+
+export const adminPenggunaQueryKey = ['v1', 'admin', 'pengguna'] as const;
+
+export function adminPenggunaOptions(filter: AdminPenggunaFilter) {
+    return queryOptions({
+        queryKey: [...adminPenggunaQueryKey, filter],
+        queryFn: () => fetchAdminPengguna(filter),
+    });
+}
+
+export function buatPenggunaMutation() {
+    return mutationOptions({
+        mutationFn: buatPengguna,
+        onSuccess: () => {
+            void queryClient.invalidateQueries({ queryKey: adminPenggunaQueryKey });
+        },
+    });
+}
+
+export function ubahStatusPenggunaMutation() {
+    return mutationOptions({
+        mutationFn: (input: { id: number; status: 'aktif' | 'nonaktif' }) =>
+            ubahStatusPengguna(input.id, input.status),
+        onSuccess: () => {
+            void queryClient.invalidateQueries({ queryKey: adminPenggunaQueryKey });
+        },
+    });
+}
+
+export function resetSandiPenggunaMutation() {
+    return mutationOptions({
+        mutationFn: (id: number) => resetSandiPengguna(id),
+        onSuccess: () => {
+            void queryClient.invalidateQueries({ queryKey: adminPenggunaQueryKey });
         },
     });
 }

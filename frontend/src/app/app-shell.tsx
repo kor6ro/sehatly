@@ -17,6 +17,8 @@ import {
     ShieldCheck,
     Stethoscope,
     Tag,
+    UserRound,
+    Users,
 } from 'lucide-react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { detectPortal, PORTAL_NAMA, type Portal } from '@/lib/portal';
@@ -71,6 +73,23 @@ const MENU_PORTAL: Record<Exclude<Portal, 'pasien'>, readonly GrupMenuPortal[]> 
         {
             grup: 'Klinik',
             item: [{ to: '/admin/dokter', icon: Stethoscope, label: 'Dokter' }],
+        },
+        {
+            /**
+             * The account directory, split into the two audiences it holds.
+             *
+             * Both links point at ONE route with a different `?tipe=`, because
+             * the list is one screen whose tab lives in the URL - so the active
+             * state has to read the query too, which `tujuanAktif` below does.
+             * A third entry ("Semua") is deliberately absent: the sidebar
+             * states where to go, and the tab strip on the page is where the
+             * choice among all three is made.
+             */
+            grup: 'Pengguna',
+            item: [
+                { to: '/admin/pengguna?tipe=staf', icon: Users, label: 'Akun staf' },
+                { to: '/admin/pengguna?tipe=pasien', icon: UserRound, label: 'Pasien' },
+            ],
         },
         {
             grup: 'Laporan',
@@ -242,12 +261,42 @@ function ambilInisial(nama: string | undefined): string {
 
     return huruf.toUpperCase() || '?';
 }
-function tujuanAktif(pathname: string, tujuan: string): boolean {
+/**
+ * Whether a sidebar link names the page on screen.
+ *
+ * The `?query` half of `tujuan` is split off and matched against the current
+ * `search` as a SET of `key=value` pairs, not as a substring: two entries of
+ * the account directory are one path with different `?tipe=` values, and a
+ * `includes` check would light up "Akun staf" while the page showed
+ * `?tipe=pasien-hasil-pencarian` the moment a filter carried the word. Every
+ * pair the link asks for must be present; extra pairs the page itself added
+ * (a search term, a page number) never switch the highlight off.
+ *
+ * `/dashboard` keeps its exact-match rule: it is a different address from
+ * `/dashboard/...` on the patient portal, not a prefix of one.
+ */
+function tujuanAktif(pathname: string, tujuan: string, search = ''): boolean {
     if (tujuan === '/dashboard') {
         return pathname === '/dashboard';
     }
 
-    return pathname === tujuan || pathname.startsWith(`${tujuan}/`);
+    const [jalur, kueri = ''] = tujuan.split('?');
+
+    const cocokJalur = pathname === jalur || pathname.startsWith(`${jalur}/`);
+
+    if (!cocokJalur) {
+        return false;
+    }
+
+    if (kueri === '') {
+        return true;
+    }
+
+    const punya = new Set(
+        search.startsWith('?') ? search.slice(1).split('&') : search.split('&'),
+    );
+
+    return kueri.split('&').every((pasangan) => punya.has(pasangan));
 }
 
 function MenuLink({
@@ -255,17 +304,23 @@ function MenuLink({
     icon: Ikon,
     label,
     pathname,
+    search = '',
     onNavigate,
 }: {
     to: string;
     icon: LucideIcon;
     label: string;
     pathname: string;
+    /**
+     * The current `location.search`, defaulted so the patient portal's links -
+     * none of which carry a query - compile and behave exactly as before.
+     */
+    search?: string;
     onNavigate: () => void;
 }) {
     return (
         <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={tujuanAktif(pathname, to)}>
+            <SidebarMenuButton asChild isActive={tujuanAktif(pathname, to, search)}>
                 <NavLink to={to} onClick={onNavigate}>
                     <Ikon />
 
@@ -283,10 +338,12 @@ function MenuLink({
 function StaffMenu({
     portal,
     pathname,
+    search,
     onNavigate,
 }: {
     portal: Exclude<Portal, 'pasien'>;
     pathname: string;
+    search: string;
     onNavigate: () => void;
 }) {
     return (
@@ -303,6 +360,7 @@ function StaffMenu({
                                 icon={item.icon}
                                 label={item.label}
                                 pathname={pathname}
+                                search={search}
                                 onNavigate={onNavigate}
                             />
                         ))}
@@ -401,6 +459,7 @@ function AppSidebar() {
                     <StaffMenu
                         portal={portal}
                         pathname={pathname}
+                        search={location.search}
                         onNavigate={tutupDrawer}
                     />
                 ) : isPasien ? (

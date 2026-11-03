@@ -1,4 +1,5 @@
 import type { AksiAudit, JenisPersetujuanPdp, StatusBookingLaporan, StatusVerifikasiAdmin, TipeLayananJadwalAdmin } from '@/lib/api/admin';
+import type { UserStatus, UserTipe } from '@/lib/api/types';
 
 /**
  * Display labels and date formatting for the F14 admin surfaces.
@@ -166,5 +167,81 @@ export function labelStatusBooking(status: StatusBookingLaporan | string): strin
             return 'Kadaluarsa';
         default:
             return status;
+    }
+}
+
+/**
+ * `users.tipe`, the DDL's eight values (`telemedicine_test.sql:139`).
+ *
+ * The account directory's own vocabulary: every row of `GET /admin/pengguna`
+ * carries one of these, and `staf` - the filter ALIAS, not a value - never
+ * reaches this function because it is expanded before any row exists.
+ */
+export function labelTipeAkun(tipe: UserTipe | string): string {
+    switch (tipe) {
+        case 'pasien':
+            return 'Pasien';
+        case 'dokter':
+            return 'Dokter';
+        case 'perawat':
+            return 'Perawat';
+        case 'apoteker':
+            return 'Apoteker';
+        case 'kurir':
+            return 'Kurir';
+        case 'admin':
+            return 'Admin';
+        case 'superadmin':
+            return 'Superadmin';
+        case 'marketing':
+            return 'Marketing';
+        default:
+            return tipe;
+    }
+}
+
+/**
+ * `users.status`, the DDL's four values (`telemedicine_test.sql:140`).
+ *
+ * All four are shown by the directory - `pending_verifikasi` and
+ * `ditangguhkan` are states an operator must SEE even though no button on this
+ * surface writes them (see the server's `STATUS_UBAH`).
+ */
+export function labelStatusAkun(status: UserStatus | string): string {
+    switch (status) {
+        case 'pending_verifikasi':
+            return 'Menunggu verifikasi';
+        case 'aktif':
+            return 'Aktif';
+        case 'nonaktif':
+            return 'Nonaktif';
+        case 'ditangguhkan':
+            return 'Ditangguhkan';
+        default:
+            return status;
+    }
+}
+
+/**
+ * `audit_log.tabel_target`, in the words an operator reads.
+ *
+ * Unlike every other label here this is NOT a closed `Rule::in` vocabulary -
+ * the column holds a table name, and the audited set is DERIVED by
+ * `AuditScope` from the schema's foreign keys, so a new table can appear
+ * without this file changing. The two roots a person IS get their own words
+ * (`users` is "Pengguna", the directory this portal administers, not the
+ * English "users"), the rest fall through to a mechanical underscore-to-space
+ * humanisation, and the raw name is the last resort - never a blank cell.
+ */
+export function labelTabelTarget(tabel: string): string {
+    switch (tabel) {
+        case 'users':
+            return 'Pengguna';
+        case 'pasien':
+            return 'Pasien';
+        case 'dokter':
+            return 'Dokter';
+        default:
+            return tabel.replace(/_/g, ' ');
     }
 }
