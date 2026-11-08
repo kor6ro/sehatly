@@ -43,14 +43,16 @@ import { Button } from '@/components/ui/button';
  * The layout follows the reference admin screen this portal was modelled on,
  * top to bottom: a welcome banner carrying the online pill, a four-card
  * summary strip, a "Grafik & ringkasan" pair (trend chart beside the booking
- * breakdown), a "Log aktivitas sistem" table, and one "Statistik" section that
- * breaks the first card's total into its verification and activity states
- * beside the account directory's own four counts. Each section after the cards
- * carries its jump link in the heading - the dashboard's job is to answer "is
- * everything fine" and to hand the "why" question to the page that owns it
- * (`/admin/laporan`, `/admin/audit-log`, `/admin/dokter`, `/admin/pengguna`),
- * which is also why the audit feed is a fixed five rows: it is a glance, not
- * the log itself.
+ * breakdown), one "Statistik" section that breaks the first card's total into
+ * its verification and activity states beside the account directory's own four
+ * counts, and finally the "Log aktivitas sistem" table. Statistics come before
+ * the log because they answer "does anything need me" and the log answers
+ * "what happened" - a chronology is the thing to scroll when the state of the
+ * world is already known. Each section after the cards carries its jump link
+ * in the heading - the dashboard's job is to answer "is everything fine" and
+ * to hand the "why" question to the page that owns it (`/admin/laporan`,
+ * `/admin/audit-log`, `/admin/dokter`, `/admin/pengguna`), which is also why
+ * the audit feed is a fixed five rows: it is a glance, not the log itself.
  *
  * The 30-day window is fixed rather than user-configurable: `/admin/laporan`
  * already carries the range picker for anyone who wants another one, and a
@@ -165,7 +167,6 @@ export function AdminDashboardPage() {
     const jumlahPasienBaru = pasienBaru.data?.meta?.total ?? 0;
     const totalStaf = staf.data?.meta?.total ?? 0;
     const jumlahStafAktif = stafAktif.data?.meta?.total ?? 0;
-    const stafNonaktif = Math.max(0, totalStaf - jumlahStafAktif);
 
     const deretHarian = useMemo(
         () => susunHarianLengkap(dari, booking.data?.data.harian ?? []),
@@ -268,10 +269,8 @@ export function AdminDashboardPage() {
                                     <CardTitle className="text-base">
                                         Tren booking harian
                                     </CardTitle>
-
                                     <p className="text-muted-foreground text-xs">
-                                        Batang per hari dalam rentang - hari
-                                        kosong tetap digambar
+                                        {formatTanggal(dari)} – {formatTanggal(sampai)}
                                     </p>
                                 </CardHeader>
 
@@ -281,42 +280,11 @@ export function AdminDashboardPage() {
                                             Belum ada booking pada rentang ini.
                                         </p>
                                     ) : (
-                                        <>
-                                            <div className="flex items-center justify-between text-xs">
-                                                <span className="text-muted-foreground inline-flex items-center gap-1.5">
-                                                    <span className="bg-primary/60 size-2 rounded-full" />
-
-                                                    Booking
-                                                </span>
-
-                                                <span className="text-muted-foreground">
-                                                    skala maks {maksHarian}
-                                                </span>
-                                            </div>
-
-                                            <div className="mt-2 flex h-28 items-end gap-[2px]">
-                                                {deretHarian.map((h) => (
-                                                    <div
-                                                        key={h.tanggal}
-                                                        title={`${formatTanggal(h.tanggal)}: ${h.total} booking`}
-                                                        style={{
-                                                            height: `${Math.max(6, (h.total / maksHarian) * 100)}%`,
-                                                        }}
-                                                        className={
-                                                            h.total === 0
-                                                                ? 'bg-muted flex-1 rounded-sm'
-                                                                : 'bg-primary/60 flex-1 rounded-sm transition-colors hover:bg-primary'
-                                                        }
-                                                    />
-                                                ))}
-                                            </div>
-
-                                            <div className="text-muted-foreground mt-1 flex justify-between text-xs">
-                                                <span>{formatTanggal(dari)}</span>
-
-                                                <span>{formatTanggal(sampai)}</span>
-                                            </div>
-                                        </>
+                                        <LineChart
+                                            data={deretHarian}
+                                            maks={maksHarian}
+                                            formatLabel={formatTanggal}
+                                        />
                                     )}
                                 </CardContent>
                             </Card>
@@ -362,6 +330,129 @@ export function AdminDashboardPage() {
                                             Belum ada booking pada rentang ini.
                                         </p>
                                     ) : null}
+                                </CardContent>
+                            </Card>
+                        </div>
+                    </section>
+
+                    {/**
+                     * Statistik, placed ABOVE the activity log on purpose.
+                     *
+                     * The two answer different questions: the statistics are a
+                     * state of the world ("is anything waiting for me"), the
+                     * log is a chronology ("what happened"). A front page that
+                     * makes an operator scroll past five rows of history to
+                     * find the first has the order backwards.
+                     *
+                     * The doctor card is a DONUT rather than the bar list it
+                     * was: the three verification states are a PARTITION of
+                     * the total - they sum to it - which is exactly the shape
+                     * a pie exists to draw, and a donut leaves room for the
+                     * total in the middle so the denominator is on screen
+                     * rather than in a caption. "Akun aktif" is NOT part of
+                     * that partition (an active account is also verified), so
+                     * it stays out of the ring and is stated as a line under
+                     * it instead of becoming a fifth slice that would make
+                     * the percentages add up to more than 100.
+                     *
+                     * The pengguna card keeps its bars: its four numbers are
+                     * two different populations over two different
+                     * denominators, and no single ring could hold them
+                     * honestly.
+                     */}
+                    <section className="space-y-4">
+                        <JudulSeksi judul="Statistik" />
+
+                        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                            <Card>
+                                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                                    <CardTitle className="text-base">Dokter</CardTitle>
+                                    <Link
+                                        to="/admin/dokter"
+                                        className="text-sm text-primary hover:underline"
+                                    >
+                                        Detail →
+                                    </Link>
+                                </CardHeader>
+
+                                <CardContent className="space-y-4">
+                                    <DonutChart
+                                        irisan={[
+                                            {
+                                                label: 'Terverifikasi',
+                                                nilai: jumlahTerverifikasi,
+                                                kelas: 'text-green-500',
+                                            },
+                                            {
+                                                label: 'Menunggu verifikasi',
+                                                nilai: jumlahMenunggu,
+                                                kelas: 'text-amber-500',
+                                            },
+                                            {
+                                                label: 'Ditolak',
+                                                nilai: jumlahDitolak,
+                                                kelas: 'text-red-500',
+                                            },
+                                        ]}
+                                        total={totalDokter}
+                                        labelPusat="dokter"
+                                    />
+
+                                    <p className="border-t pt-3 text-xs">
+                                        <span className="text-green-600 font-semibold">
+                                            {jumlahAktif}
+                                        </span>
+                                        <span className="text-muted-foreground">
+                                            {' '}
+                                            dari {totalDokter} akun aktif siap
+                                            melayani
+                                        </span>
+                                    </p>
+                                </CardContent>
+                            </Card>
+
+                            <Card>
+                                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                                    <CardTitle className="text-base">Pengguna</CardTitle>
+                                    <Link
+                                        to="/admin/pengguna"
+                                        className="text-sm text-primary hover:underline"
+                                    >
+                                        Detail →
+                                    </Link>
+                                </CardHeader>
+
+                                <CardContent className="space-y-3">
+                                    <BarChart
+                                        baris={[
+                                            {
+                                                label: 'Total pasien',
+                                                nilai: totalPasien,
+                                                total: Math.max(totalPasien, 1),
+                                                warna: 'bg-primary/70',
+                                            },
+                                            {
+                                                label: 'Pasien baru (30 hr)',
+                                                nilai: jumlahPasienBaru,
+                                                total: Math.max(totalPasien, 1),
+                                                warna: 'bg-blue-400',
+                                            },
+                                            {
+                                                label: 'Total staf',
+                                                nilai: totalStaf,
+                                                total: Math.max(totalStaf, 1),
+                                                warna: 'bg-violet-400',
+                                            },
+                                            {
+                                                label: 'Staf aktif',
+                                                nilai: jumlahStafAktif,
+                                                total: Math.max(totalStaf, 1),
+                                                warna: 'bg-green-500',
+                                            },
+                                        ]}
+                                        total={totalPasien + totalStaf}
+                                        labelTotal="total pengguna"
+                                    />
                                 </CardContent>
                             </Card>
                         </div>
@@ -447,118 +538,6 @@ export function AdminDashboardPage() {
                         </Card>
                     </section>
 
-                    {/**
-                     * Statistik: two strips under one heading - the doctor
-                     * list's four standing states, then the account
-                     * directory's four counts.
-                     *
-                     * One section rather than two because the two answer the
-                     * same question about two populations ("how many, and
-                     * which of them need me"), and a page that ends in two
-                     * consecutive sections of identical shape reads as a page
-                     * that ran out of structure. Each strip keeps its own
-                     * jump link, because they lead to different pages.
-                     *
-                     * The pengguna strip is counts only - no per-type query
-                     * per staff type. `tipe: 'staf'` is the server's alias for
-                     * all five, and a dashboard that named five numbers
-                     * nobody acts on separately would be counting for its own
-                     * sake; the list page is where a type matters.
-                     */}
-                    <section className="space-y-4">
-                        <JudulSeksi judul="Statistik" />
-
-                        <div className="space-y-2">
-                            <div className="flex items-center justify-between gap-3">
-                                <h3 className="text-sm font-medium">Dokter</h3>
-
-                                <Link
-                                    to="/admin/dokter"
-                                    className="text-sm text-primary hover:underline"
-                                >
-                                    Detail →
-                                </Link>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-                                <StatistikKecil
-                                    label="Terverifikasi"
-                                    nilai={jumlahTerverifikasi}
-                                    ket={`dari total ${totalDokter} dokter`}
-                                />
-                                <StatistikKecil
-                                    label="Menunggu verifikasi"
-                                    nilai={jumlahMenunggu}
-                                    ket={
-                                        jumlahMenunggu > 0
-                                            ? 'perlu ditinjau'
-                                            : 'semua sudah ditinjau'
-                                    }
-                                    warna={
-                                        jumlahMenunggu > 0
-                                            ? 'text-amber-600'
-                                            : undefined
-                                    }
-                                />
-                                <StatistikKecil
-                                    label="Ditolak"
-                                    nilai={jumlahDitolak}
-                                    warna={
-                                        jumlahDitolak > 0
-                                            ? 'text-red-600'
-                                            : undefined
-                                    }
-                                />
-                                <StatistikKecil
-                                    label="Akun aktif"
-                                    nilai={jumlahAktif}
-                                    ket="siap melayani"
-                                    warna="text-green-600"
-                                />
-                            </div>
-                        </div>
-
-                        <div className="space-y-2">
-                            <div className="flex items-center justify-between gap-3">
-                                <h3 className="text-sm font-medium">Pengguna</h3>
-
-                                <Link
-                                    to="/admin/pengguna"
-                                    className="text-sm text-primary hover:underline"
-                                >
-                                    Detail →
-                                </Link>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-                                <StatistikKecil
-                                    label="Total pasien"
-                                    nilai={totalPasien}
-                                    ket="terdaftar di direktori"
-                                />
-                                <StatistikKecil
-                                    label="Pasien baru"
-                                    nilai={jumlahPasienBaru}
-                                    ket="30 hari terakhir"
-                                />
-                                <StatistikKecil
-                                    label="Total staf"
-                                    nilai={totalStaf}
-                                    ket="lima tipe staf"
-                                />
-                                <StatistikKecil
-                                    label="Staf aktif"
-                                    nilai={jumlahStafAktif}
-                                    ket={
-                                        stafNonaktif > 0
-                                            ? `${stafNonaktif} nonaktif`
-                                            : 'semua aktif'
-                                    }
-                                    warna="text-green-600"
-                                />
-                            </div>
-                        </div>
-                    </section>
                 </div>
             )}
         </AdminGate>
@@ -624,26 +603,316 @@ function Kartu({
     );
 }
 
-function StatistikKecil({
-    label,
-    nilai,
-    ket,
-    warna,
+function LineChart({
+    data,
+    maks,
+    formatLabel,
 }: {
-    label: string;
-    nilai: number;
-    ket?: string;
-    warna?: string;
+    data: { tanggal: string; total: number }[];
+    maks: number;
+    formatLabel: (t: string) => string;
+}) {
+    const W = 500;
+    const H = 160;
+    const PAD = { top: 16, right: 12, bottom: 28, left: 32 };
+    const innerW = W - PAD.left - PAD.right;
+    const innerH = H - PAD.top - PAD.bottom;
+    const n = data.length;
+
+    // Skala Y minimal 5 agar data kecil tetap terlihat bergelombang
+    const skalaY = Math.max(maks, 5);
+
+    const x = (i: number) => PAD.left + (i / Math.max(n - 1, 1)) * innerW;
+    const y = (v: number) => PAD.top + innerH - (v / skalaY) * innerH;
+
+    // Smooth cubic bezier path (cardinal spline)
+    function smoothPath(pts: { x: number; y: number }[]): string {
+        if (pts.length < 2) return '';
+        const tension = 0.4;
+        let d = `M ${pts[0].x},${pts[0].y}`;
+        for (let i = 0; i < pts.length - 1; i++) {
+            const p0 = pts[Math.max(i - 1, 0)];
+            const p1 = pts[i];
+            const p2 = pts[i + 1];
+            const p3 = pts[Math.min(i + 2, pts.length - 1)];
+            const cp1x = p1.x + (p2.x - p0.x) * tension;
+            const cp1y = p1.y + (p2.y - p0.y) * tension;
+            const cp2x = p2.x - (p3.x - p1.x) * tension;
+            const cp2y = p2.y - (p3.y - p1.y) * tension;
+            d += ` C ${cp1x},${cp1y} ${cp2x},${cp2y} ${p2.x},${p2.y}`;
+        }
+        return d;
+    }
+
+    const pts = data.map((d, i) => ({ x: x(i), y: y(d.total) }));
+    const linePath = smoothPath(pts);
+
+    // Area: tutup ke baseline
+    const baseline = PAD.top + innerH;
+    const areaPath = linePath
+        + ` L ${x(n - 1)},${baseline} L ${x(0)},${baseline} Z`;
+
+    const yTicks = [0, Math.round(skalaY / 2), skalaY];
+    const xLabels = [
+        { i: 0 },
+        { i: Math.floor((n - 1) / 2) },
+        { i: n - 1 },
+    ];
+
+    return (
+        <div className="w-full">
+            <svg
+                viewBox={`0 0 ${W} ${H}`}
+                className="w-full"
+                style={{ height: 160 }}
+                aria-label="Line chart tren booking harian"
+            >
+                <defs>
+                    <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="var(--primary)" stopOpacity="0.28" />
+                        <stop offset="100%" stopColor="var(--primary)" stopOpacity="0.02" />
+                    </linearGradient>
+                </defs>
+
+                {/* Grid + Y labels */}
+                {yTicks.map((v) => (
+                    <g key={v}>
+                        <line
+                            x1={PAD.left} x2={W - PAD.right}
+                            y1={y(v)} y2={y(v)}
+                            stroke="var(--border)"
+                            strokeWidth="0.6"
+                            strokeDasharray="4 4"
+                        />
+                        <text
+                            x={PAD.left - 5} y={y(v) + 4}
+                            textAnchor="end" fontSize="10"
+                            fill="var(--muted-foreground)"
+                        >
+                            {v}
+                        </text>
+                    </g>
+                ))}
+
+                {/* Area fill */}
+                <path d={areaPath} fill="url(#areaGrad)" />
+
+                {/* Smooth line */}
+                <path
+                    d={linePath}
+                    fill="none"
+                    stroke="var(--primary)"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                />
+
+                {/* Dots */}
+                {data.map((d, i) => (
+                    <circle
+                        key={d.tanggal}
+                        cx={x(i)} cy={y(d.total)}
+                        r={d.total > 0 ? 3 : 1.5}
+                        fill={d.total > 0 ? 'var(--primary)' : 'var(--muted)'}
+                        stroke="white"
+                        strokeWidth="1"
+                    >
+                        <title>{`${formatLabel(d.tanggal)}: ${d.total} booking`}</title>
+                    </circle>
+                ))}
+
+                {/* X labels */}
+                {xLabels.map(({ i }) => (
+                    <text
+                        key={i}
+                        x={x(i)} y={H - 6}
+                        textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}
+                        fontSize="10"
+                        fill="var(--muted-foreground)"
+                    >
+                        {formatLabel(data[i]?.tanggal ?? '')}
+                    </text>
+                ))}
+            </svg>
+
+            <div className="text-muted-foreground mt-1 flex items-center gap-1.5 text-xs">
+                <span className="bg-primary size-2 rounded-full" />
+                Booking harian · maks {maks}
+            </div>
+        </div>
+    );
+}
+
+/**
+ * A ring of the parts that sum to a whole, with the whole in the middle.
+ *
+ * Built from one `<circle>` per slice using `stroke-dasharray` rather than
+ * `<path>` arcs: a dash pattern needs only two numbers per slice (its length
+ * and the rest of the circumference) and an offset for where it starts, so the
+ * geometry is arithmetic instead of trigonometry, and a slice that rounds to a
+ * sub-pixel cannot disappear the way a hand-computed arc command can.
+ *
+ * The slices are drawn as `stroke="currentColor"` with the caller's own
+ * Tailwind colour class on the element, so the ring, its legend dot and the
+ * theme all read from one literal string in the source - a dynamically
+ * assembled class name (`bg-${warna}`) would be invisible to Tailwind's
+ * scanner and would ship as no colour at all.
+ *
+ * A whole of zero draws an empty ring rather than a 100% slice of nothing:
+ * "there are no doctors" and "the chart failed to load" must not look alike.
+ */
+function DonutChart({
+    irisan,
+    total,
+    labelPusat,
+}: {
+    irisan: { label: string; nilai: number; kelas: string }[];
+    total: number;
+    labelPusat: string;
+}) {
+    const R = 42;
+    const C = 2 * Math.PI * R;
+    /** A hairline of separation so two adjacent slices do not read as one. */
+    const CELAH = 2;
+
+    const jumlah = irisan.reduce((jumlahAkhir, satu) => jumlahAkhir + satu.nilai, 0);
+    const efektif = total > 0 ? total : jumlah;
+
+    let akumulasi = 0;
+
+    const potongan = irisan.map((satu) => {
+        const panjang = efektif > 0 ? (satu.nilai / efektif) * C : 0;
+        const mulai = akumulasi;
+        akumulasi += panjang;
+
+        return { ...satu, panjang, mulai };
+    });
+
+    return (
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
+            <svg
+                viewBox="0 0 120 120"
+                className="h-32 w-32 shrink-0"
+                role="img"
+                aria-label={`Sebaran status verifikasi ${labelPusat}: ${irisan
+                    .map((satu) => `${satu.nilai} ${satu.label.toLowerCase()}`)
+                    .join(', ')}`}
+            >
+                {efektif > 0 ? (
+                    potongan.map((satu) =>
+                        satu.panjang <= 0 ? null : (
+                            <circle
+                                key={satu.label}
+                                cx="60"
+                                cy="60"
+                                r={R}
+                                fill="none"
+                                className={satu.kelas}
+                                stroke="currentColor"
+                                strokeWidth="16"
+                                strokeDasharray={`${Math.max(satu.panjang - CELAH, 1)} ${C}`}
+                                strokeDashoffset={-satu.mulai}
+                                transform="rotate(-90 60 60)"
+                            />
+                        ),
+                    )
+                ) : (
+                    <circle
+                        cx="60"
+                        cy="60"
+                        r={R}
+                        fill="none"
+                        className="stroke-muted"
+                        strokeWidth="16"
+                    />
+                )}
+
+                <text
+                    x="60"
+                    y="57"
+                    textAnchor="middle"
+                    fontSize="26"
+                    fontWeight="700"
+                    className="fill-foreground"
+                >
+                    {total}
+                </text>
+                <text
+                    x="60"
+                    y="74"
+                    textAnchor="middle"
+                    fontSize="10"
+                    className="fill-muted-foreground"
+                >
+                    {labelPusat}
+                </text>
+            </svg>
+
+            <ul className="min-w-44 flex-1 space-y-2">
+                {potongan.map((satu) => {
+                    const pct =
+                        efektif > 0 ? Math.round((satu.nilai / efektif) * 100) : 0;
+
+                    return (
+                        <li
+                            key={satu.label}
+                            className="flex items-center justify-between gap-3 text-sm"
+                        >
+                            <span className="flex min-w-0 items-center gap-2">
+                                <span
+                                    className={`size-2.5 shrink-0 rounded-full bg-current ${satu.kelas}`}
+                                />
+                                <span className="truncate">{satu.label}</span>
+                            </span>
+
+                            <span className="flex shrink-0 items-baseline gap-2">
+                                <span className="font-semibold">{satu.nilai}</span>
+                                <span className="text-muted-foreground w-9 text-right text-xs">
+                                    {pct}%
+                                </span>
+                            </span>
+                        </li>
+                    );
+                })}
+            </ul>
+        </div>
+    );
+}
+
+function BarChart({
+    baris,
+    total,
+    labelTotal,
+}: {
+    baris: { label: string; nilai: number; total: number; warna: string }[];
+    total: number;
+    labelTotal: string;
 }) {
     return (
-        <div className="bg-card rounded-xl border p-4">
-            <p className="text-muted-foreground text-sm">{label}</p>
+        <div className="space-y-3">
+            <p className="text-muted-foreground text-xs">
+                {total} {labelTotal}
+            </p>
 
-            <p className={`text-2xl font-bold ${warna ?? ''}`}>{nilai}</p>
+            {baris.map((b) => {
+                const pct = b.total > 0 ? Math.round((b.nilai / b.total) * 100) : 0;
 
-            {ket !== undefined ? (
-                <p className="text-muted-foreground text-xs">{ket}</p>
-            ) : null}
+                return (
+                    <div key={b.label} className="space-y-1">
+                        <div className="flex items-center justify-between text-sm">
+                            <span>{b.label}</span>
+                            <span className="font-semibold">{b.nilai}</span>
+                        </div>
+                        <div className="bg-muted h-2 w-full overflow-hidden rounded-full">
+                            <div
+                                className={`h-full rounded-full transition-all ${b.warna}`}
+                                style={{ width: `${pct}%` }}
+                            />
+                        </div>
+                        <p className="text-muted-foreground text-xs">{pct}% dari total</p>
+                    </div>
+                );
+            })}
         </div>
     );
 }
