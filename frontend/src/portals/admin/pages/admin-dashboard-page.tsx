@@ -13,18 +13,45 @@ import {
     adminLaporanPendapatanOptions,
     adminPenggunaOptions,
 } from '@/lib/api/admin';
+import type { StatusBookingLaporan } from '@/lib/api/admin';
 import {
     labelAksi,
-    labelStatusBooking,
     labelTabelTarget,
 } from '@/portals/admin/features/admin/format-admin';
 import { AdminGate } from '@/portals/admin/features/admin/admin-gate';
+import { BookingStatusBadge } from '@/shared/features/booking/booking-status-badge';
 import { PageHeader } from '@/shared/components/layout/page-header';
 import { SkeletonRows } from '@/shared/components/states/loading-state';
 import { ErrorState } from '@/shared/components/states/error-state';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+
+/**
+ * The share-bar hue per `booking.status`, for the status rows on this page.
+ *
+ * A separate map rather than reusing {@link BookingStatusBadge}'s treatment
+ * because the two draw different things: the badge paints a whole chip (fill
+ * or outline, plus its icon), the bar paints a 6px sliver that has to stay
+ * legible on a muted track - so the terminal pair that the badge keeps as
+ * outlines (`dibatalkan`, `kadaluarsa`) needs actual fills here. The hues
+ * deliberately track the badge's own (warning amber, primary blue, success
+ * green, destructive red, muted grey), so a status never wears two colours
+ * across the two components.
+ *
+ * Every class is a literal string: Tailwind's scanner cannot see a class
+ * assembled at runtime (`bg-${warna}`) and would ship the bar colourless.
+ */
+const WARNA_BAR: Record<StatusBookingLaporan, string> = {
+    menunggu_pembayaran: 'bg-amber-400',
+    terjadwal: 'bg-primary',
+    check_in: 'bg-green-500',
+    berlangsung: 'bg-green-600',
+    selesai: 'bg-sky-500',
+    dibatalkan: 'bg-red-400',
+    no_show: 'bg-red-500',
+    kadaluarsa: 'bg-muted-foreground/40',
+};
 
 /**
  * `/admin/dashboard` - the admin portal's front page.
@@ -289,11 +316,47 @@ export function AdminDashboardPage() {
                                 </CardContent>
                             </Card>
 
+                            {/**
+                             * Status booking: the eight DDL states as rows of
+                             * "badge, count, share", not a monochrome list.
+                             *
+                             * Each row wears the SHARED BookingStatusBadge -
+                             * the same icon-and-hue treatment every booking
+                             * list in this app uses - so a status learned on
+                             * the booking page reads identically here; a
+                             * dashboard that invented its own colours for the
+                             * same eight values would make the operator
+                             * translate between two vocabularies.
+                             *
+                             * The count is paired with a percentage of the
+                             * range's total (printed in the header, because a
+                             * percentage without its denominator is a number
+                             * that cannot be acted on) and with a thin share
+                             * bar: 63 vs 3 is a ratio the eye should see as a
+                             * ratio, not arithmetic. The bar is decorative -
+                             * the count and percentage beside it are the real
+                             * values - so it is hidden from assistive tech.
+                             *
+                             * Zero-count states stay filtered out: a row of
+                             * "0, 0%, empty bar" is not information, and the
+                             * report page (`/admin/laporan`) is where the
+                             * fixed eight-column table with its zeros belongs.
+                             * Rows keep the ENUM's own order, which is the
+                             * lifecycle order - waiting, live, finished,
+                             * ended badly.
+                             */}
                             <Card className="h-full">
                                 <CardHeader className="flex flex-row items-center justify-between">
-                                    <CardTitle className="text-base">
-                                        Status booking
-                                    </CardTitle>
+                                    <div>
+                                        <CardTitle className="text-base">
+                                            Status booking
+                                        </CardTitle>
+
+                                        <p className="text-muted-foreground text-xs">
+                                            {ringkasBooking?.total ?? 0}{' '}
+                                            booking pada rentang ini
+                                        </p>
+                                    </div>
 
                                     <Link
                                         to="/admin/laporan"
@@ -303,33 +366,70 @@ export function AdminDashboardPage() {
                                     </Link>
                                 </CardHeader>
 
-                                <CardContent className="space-y-2">
-                                    {STATUS_BOOKING_LAPORAN.filter(
-                                        (status) =>
-                                            (ringkasBooking?.per_status[status] ??
-                                                0) > 0,
-                                    ).map((status) => (
-                                        <div
-                                            key={status}
-                                            className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
-                                        >
-                                            <span>
-                                                {labelStatusBooking(status)}
-                                            </span>
-
-                                            <Badge variant="outline">
-                                                {ringkasBooking?.per_status[
-                                                    status
-                                                ] ?? 0}
-                                            </Badge>
-                                        </div>
-                                    ))}
-
+                                <CardContent>
                                     {(ringkasBooking?.total ?? 0) === 0 ? (
                                         <p className="text-muted-foreground text-sm">
                                             Belum ada booking pada rentang ini.
                                         </p>
-                                    ) : null}
+                                    ) : (
+                                        <ul className="space-y-2">
+                                            {STATUS_BOOKING_LAPORAN.filter(
+                                                (status) =>
+                                                    (ringkasBooking?.per_status[
+                                                        status
+                                                    ] ?? 0) > 0,
+                                            ).map((status) => {
+                                                const nilai =
+                                                    ringkasBooking?.per_status[
+                                                        status
+                                                    ] ?? 0;
+                                                const total =
+                                                    ringkasBooking?.total ?? 0;
+                                                const pct =
+                                                    total > 0
+                                                        ? Math.round(
+                                                              (nilai / total) *
+                                                                  100,
+                                                          )
+                                                        : 0;
+
+                                                return (
+                                                    <li
+                                                        key={status}
+                                                        className="rounded-md border px-3 py-2"
+                                                    >
+                                                        <div className="flex items-center justify-between gap-3">
+                                                            <BookingStatusBadge
+                                                                status={status}
+                                                            />
+
+                                                            <span className="flex shrink-0 items-baseline gap-2">
+                                                                <span className="font-semibold tabular-nums">
+                                                                    {nilai}
+                                                                </span>
+
+                                                                <span className="text-muted-foreground w-9 text-right text-xs tabular-nums">
+                                                                    {pct}%
+                                                                </span>
+                                                            </span>
+                                                        </div>
+
+                                                        <div
+                                                            aria-hidden="true"
+                                                            className="bg-muted mt-2 h-1.5 overflow-hidden rounded-full"
+                                                        >
+                                                            <div
+                                                                className={`h-full rounded-full ${WARNA_BAR[status]}`}
+                                                                style={{
+                                                                    width: `${pct}%`,
+                                                                }}
+                                                            />
+                                                        </div>
+                                                    </li>
+                                                );
+                                            })}
+                                        </ul>
+                                    )}
                                 </CardContent>
                             </Card>
                         </div>
