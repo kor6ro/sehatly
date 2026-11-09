@@ -184,8 +184,8 @@ test('app/Models holds exactly one class per contract table', function () {
     $spec = modelFoundationSpec();
     $map = modelFoundationByTable();
 
-    expect($map)->toHaveCount(80);
-    expect($spec->tableNames())->toHaveCount(80);
+    expect($map)->toHaveCount(81);
+    expect($spec->tableNames())->toHaveCount(81);
 
     $missing = array_values(array_diff($spec->tableNames(), array_keys($map)));
     $extra = array_values(array_diff(array_keys($map), $spec->tableNames()));
@@ -203,7 +203,7 @@ test('every model declares its own table instead of inheriting one', function ()
     }
 });
 
-test('all 80 models instantiate and every declared relation resolves', function () {
+test('all 81 models instantiate and every declared relation resolves', function () {
     $map = modelFoundationByTable();
     $checked = 0;
 
@@ -470,7 +470,7 @@ test('the 64 TIMESTAMP columns are all covered, none of them twice', function ()
     $map = modelFoundationByTable();
     $timestamps = modelFoundationColumnsOfType($spec, 'timestamp');
 
-    expect($timestamps)->toHaveCount(64);
+    expect($timestamps)->toHaveCount(65);
 
     foreach ($timestamps as [$table, $column]) {
         $class = $map[$table];
@@ -536,7 +536,7 @@ test('every ENUM column is a plain string cast', function () {
         }
     }
 
-    expect($count)->toBe(73);
+    expect($count)->toBe(74);
 });
 
 test('no cast uses the enum: string list, which laravel/framework 13 dropped', function () {
@@ -596,14 +596,15 @@ test('the audit columns are named exactly as each table declares them', function
         };
     }
 
-    // 20 + 20 + 1 + 39 = 80. telemedicine_test.sql is the only source for these.
+    // 20 + 21 + 1 + 39 = 81. telemedicine_test.sql is the only source for these.
     // The 39 includes konsultasi_chat, whose only stamp is `terkirim_at`; F08's
     // `konsultasi_baca` joined the `both` group, and F11's append added three
     // `both` tables (`preferensi_notifikasi`, `preferensi_notifikasi_tipe`,
-    // `pengingat`) plus one `createdOnly` (`pengingat_terkirim`).
+    // `pengingat`) plus one `createdOnly` (`pengingat_terkirim`). Migration 000090
+    // added `user_persetujuan` which has `dibuat_at` only.
     expect($shapes)->toBe([
         'both' => 20,
-        'createdOnly' => 20,
+        'createdOnly' => 21,
         'updatedOnly' => 1,
         'neither' => 39,
     ]);
@@ -664,11 +665,12 @@ test('the 20 tables with dibuat_at alone declare CREATED_AT and no UPDATED_AT', 
         $checked[] = $name;
     }
 
-    expect($checked)->toHaveCount(20);
+    expect($checked)->toHaveCount(21);
     // telemedicine_test.sql:1129 gives audit_log a dibuat_at and nothing else.
     expect(in_array('audit_log', $checked, true))->toBeTrue();
     expect(in_array('notifikasi', $checked, true))->toBeTrue();
     expect(in_array('user_refresh_tokens', $checked, true))->toBeTrue();
+    expect(in_array('user_persetujuan', $checked, true))->toBeTrue();
 });
 
 test('apotek_stok keeps diubah_at without pretending to be timestamped', function () {

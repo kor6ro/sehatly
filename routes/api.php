@@ -2,12 +2,14 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\V1\AdminUndanganController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BookingController;
 use App\Http\Controllers\Api\V1\MarketingArtikelController;
 use App\Http\Controllers\Api\V1\MarketingPromoController;
 use App\Http\Controllers\Api\V1\MeController;
 use App\Http\Controllers\Api\V1\PasienController;
+use App\Http\Controllers\Api\V1\UndanganAktivasiController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -169,6 +171,28 @@ Route::prefix('auth')->name('auth.')->group(function (): void {
     Route::post('refresh', [AuthController::class, 'refresh'])
         ->middleware('throttle:auth-refresh')
         ->name('refresh');
+
+    /*
+    | Self-registration for the marketing portal. Anonymous, throttled the same
+    | as the main sign-up. The account is created with status
+    | `menunggu_persetujuan` and cannot log in until an admin approves it.
+    | `tipe` is NOT accepted from the client - hardcoded to `marketing` in the
+    | controller, so no caller can self-register as admin.
+    */
+    Route::post('daftar/marketing', [UndanganAktivasiController::class, 'daftarMarketing'])
+        ->middleware('throttle:auth-otp-send')
+        ->name('daftar.marketing');
+
+    /*
+    | Invitation activation. Anonymous: the invitee has no token yet. The
+    | plaintext `{token}` is a 64-char random string from the invitation URL;
+    | the controller resolves it to a `user_undangan` row and answers 404 when
+    | it is unknown or expired. OTP verification happens inside the controller
+    | before the password is set.
+    */
+    Route::post('undangan/{token}/aktivasi', [UndanganAktivasiController::class, 'aktivasi'])
+        ->middleware('throttle:auth-otp-verify')
+        ->name('undangan.aktivasi');
 
     /*
     | Authenticated. `auth:sanctum` is named explicitly on the group rather than
@@ -1977,6 +2001,23 @@ Route::middleware(['auth:sanctum', 'tipe:admin,superadmin'])
             ->name('pasien.telepon');
 
         /*
+        | The role catalogue: ONE read, no writes - added with the sidebar's
+        | per-role split. Each sidebar item opens
+        | `/admin/pengguna?tipe=<role>`, and that page needs "what this role
+        | IS" (description + the permission codes it holds), which no account
+        | row answers: a role is policy, not an account. The payload is
+        | `RbacCatalog` - the single source `RbacSeeder` writes from - so it
+        | cannot disagree with the `role_permissions` rows `permission:`
+        | middleware enforces, and the read needs no join, no masking and no
+        | pagination. `pengguna.lihat` rather than a new code: the directory
+        | read's own grant is exactly what the page showing this catalogue
+        | already holds.
+        */
+        Route::get('roles', [AdminPenggunaController::class, 'roles'])
+            ->middleware('permission:pengguna.lihat')
+            ->name('roles.index');
+
+        /*
         | The account directory: FOUR routes, the owner-approved account-management
         | round. Every one carries the F14 party gate (the group) plus one of the
         | two codes `RbacCatalog` appends for it - `pengguna.lihat` on the read,
@@ -2005,6 +2046,16 @@ Route::middleware(['auth:sanctum', 'tipe:admin,superadmin'])
             ->middleware('permission:pengguna.lihat')
             ->name('pengguna.index');
 
+        /*
+        | The summary badge counts: one read, no writes. Registered as a
+        | literal BEFORE the `{id}` wildcards of the pengguna group so the
+        | file's "literals before wildcards" convention holds. Returns counts
+        | per tipe and status for the frontend tab badges.
+        */
+        Route::get('pengguna/ringkasan', [AdminPenggunaController::class, 'ringkasan'])
+            ->middleware('permission:pengguna.lihat')
+            ->name('pengguna.ringkasan');
+
         Route::post('pengguna', [AdminPenggunaController::class, 'store'])
             ->middleware('permission:pengguna.kelola')
             ->name('pengguna.store');
@@ -2018,6 +2069,41 @@ Route::middleware(['auth:sanctum', 'tipe:admin,superadmin'])
             ->whereNumber('id')
             ->middleware('permission:pengguna.kelola')
             ->name('pengguna.reset-sandi');
+
+        /*
+        | Approve / reject a `menunggu_persetujuan` account (marketing
+        | self-registration, and any future self-registration flow).
+        | Both carry `pengguna.kelola` - the same write code the directory
+        | writes use - and the party gate from the group.
+        */
+        Route::post('pengguna/{id}/setujui', [AdminPenggunaController::class, 'setujui'])
+            ->whereNumber('id')
+            ->middleware('permission:pengguna.kelola')
+            ->name('pengguna.setujui');
+
+        Route::post('pengguna/{id}/tolak', [AdminPenggunaController::class, 'tolak'])
+            ->whereNumber('id')
+            ->middleware('permission:pengguna.kelola')
+            ->name('pengguna.tolak');
+
+        /*
+        | The invitation surface: create, resend and cancel tokens.
+        | `undangan` is a literal registered before the `{id}` wildcards.
+        | All three carry `pengguna.kelola`.
+        */
+        Route::post('undangan', [AdminUndanganController::class, 'store'])
+            ->middleware('permission:pengguna.kelola')
+            ->name('undangan.store');
+
+        Route::post('undangan/{id}/kirim-ulang', [AdminUndanganController::class, 'kirimUlang'])
+            ->whereNumber('id')
+            ->middleware('permission:pengguna.kelola')
+            ->name('undangan.kirim-ulang');
+
+        Route::delete('undangan/{id}', [AdminUndanganController::class, 'destroy'])
+            ->whereNumber('id')
+            ->middleware('permission:pengguna.kelola')
+            ->name('undangan.destroy');
 
         /*
         | The landing carousel: SIX routes, the first admin surface in this file

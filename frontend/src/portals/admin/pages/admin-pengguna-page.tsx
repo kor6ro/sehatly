@@ -5,12 +5,14 @@ import { KeyRound, RefreshCw, Search, ShieldCheck, UserPlus } from 'lucide-react
 import { toast } from 'sonner';
 import {
     adminPenggunaOptions,
+    adminRolesOptions,
     resetSandiPenggunaMutation,
     ubahStatusPenggunaMutation,
     type AdminPengguna,
     type AdminPenggunaFilter,
     type TipeFilterPengguna,
 } from '@/lib/api/admin';
+import { PORTAL_NAMA, portalTipe } from '@/lib/portal';
 import { useDocumentTitle } from '@/hooks/use-document-title';
 import { useOnlineStatus } from '@/hooks/use-online-status';
 import { AdminErrorState, AdminGate } from '@/portals/admin/features/admin/admin-gate';
@@ -40,12 +42,17 @@ import { SkeletonRows } from '@/shared/components/states/loading-state';
  * The account directory: every `users` row the operator may read, and the two
  * writes the backend actually offers (status toggle, password reset).
  *
- * ## The tab lives in the URL
+ * ## The selection lives in the URL
  *
- * `?tipe=staf|pasien` (absent = all three tabs' union) is a `searchParams`
- * read rather than component state, because the sidebar links straight into
- * it, a refresh keeps the tab, and the query key is the same object the
- * dashboard's statistics use - one definition of "staff" in two places.
+ * `?tipe=<role>` (absent = the union view) is a `searchParams` read rather
+ * than component state, because the SIDEBAR links straight into it - one
+ * item per role, the split this page's audience asked for - a refresh keeps
+ * the selection, and the query key is the same object the dashboard's
+ * statistics use, so "staf" still means one thing in two places. The chip
+ * strip mirrors the sidebar one-for-one plus "Semua"; a valid `?tipe=`
+ * outside that set (the `staf` alias a legacy link carries, `dokter`,
+ * `perawat`) keeps working and earns a chip of its own, so the pressed state
+ * never disagrees with the address bar.
  *
  * ## Why a list, and not the table the dokter page uses
  *
@@ -56,35 +63,122 @@ import { SkeletonRows } from '@/shared/components/states/loading-state';
  * account pinned to its own edge - a password reset never lands on the wrong
  * row.
  *
- * ## The create button belongs to the staff tabs
+ * ## The create button belongs to the types the server actually creates
  *
- * `POST /admin/pengguna` refuses `tipe: 'pasien'` - the server's
- * {@see \App\Services\Admin\AdminPenggunaService::TIPE_BUAT} is
- * apoteker/kurir/marketing/admin, because patients arrive through
- * `POST /auth/sign-up` and OTP - so the patient tab shows the door that
- * actually exists ("Pasien mendaftar sendiri lewat aplikasi") instead of a
- * button leading to a form whose every patient choice would 422. Its empty
- * state says the same, for the same reason: an empty list is exactly when
- * someone goes looking for the create button.
+ * `POST /admin/pengguna` refuses every type outside the server's
+ * {@see \App\Services\Admin\AdminPenggunaService::TIPE_BUAT}
+ * (apoteker/kurir/marketing/admin), so a "Buat akun" button on any other
+ * view would promise a form whose every choice 422s. Those views show the
+ * door that DOES exist instead - patients register themselves over
+ * `POST /auth/sign-up` and OTP, doctors are minted through the Dokter menu,
+ * superadmins only from the seeder - and the empty state says the same,
+ * because an empty list is exactly when someone goes looking for the
+ * create button.
+ *
+ * ## The role card states the policy the list below is filtered by
+ *
+ * A role view (`?tipe=<role>`, one sidebar item each) renders a summary
+ * card above the directory: the role's description, the portal its holders
+ * operate, and every permission code it holds with its display name. The
+ * payload comes from `GET /admin/roles`, which answers `RbacCatalog` - the
+ * same constants the seeder writes and `permission:` middleware enforces -
+ * so the card cannot advertise a grant the server disagrees with. The card
+ * answers "role apa ini?", which is what the per-role split raised;
+ * underneath it the directory is the same list it always was, narrowed to
+ * one `tipe=`.
  */
 const PER_HALAMAN = 20;
 
-type Tab = 'semua' | 'staf' | 'pasien';
+type Tab = 'semua' | TipeFilterPengguna;
 
+/**
+ * The chip strip: the union view plus the six roles the sidebar splits
+ * into, in sidebar order.
+ *
+ * `staf` is NOT a standing chip - it is the filter ALIAS whose members are
+ * five of these six listed individually, and showing the umbrella beside
+ * its members is the ambiguity this page's split exists to remove. It
+ * remains a valid `?tipe=` (the dashboard's count and any legacy link still
+ * land on it) and then earns a chip of its own, appended rather than
+ * standing in the default set - see `chips` below. `dokter` and `perawat`
+ * are the same story: valid filters, no standing chip.
+ */
 const TAB: ReadonlyArray<{ nilai: Tab; label: string }> = [
     { nilai: 'semua', label: 'Semua' },
-    { nilai: 'staf', label: 'Staf' },
     { nilai: 'pasien', label: 'Pasien' },
+    { nilai: 'apoteker', label: 'Apoteker' },
+    { nilai: 'kurir', label: 'Kurir' },
+    { nilai: 'marketing', label: 'Marketing' },
+    { nilai: 'admin', label: 'Admin' },
+    { nilai: 'superadmin', label: 'Superadmin' },
 ];
 
+/**
+ * Every `?tipe=` the server accepts: the chips' set plus the `staf` alias
+ * and the two row types no chip stands for. Mirrors
+ * `AdminPenggunaService::TIPE_FILTER` - the type `TipeFilterPengguna` is the
+ * compile-time half, this set the runtime half - and a value outside it
+ * falls back to the union view rather than asking the API a question it
+ * would answer 422.
+ */
+const TIPE_SAHIH: ReadonlySet<string> = new Set([
+    ...TAB.map((item) => item.nilai),
+    'staf',
+    'dokter',
+    'perawat',
+]);
+
+/**
+ * The types `POST /admin/pengguna` creates - the server's `TIPE_BUAT` plus
+ * the `staf` alias, whose five members are all creatable. Every type OUTSIDE
+ * this set shows {@see PINTU_BUAT}'s door instead of a button that would 422
+ * on submit.
+ */
+const TIPE_DIBUAT: ReadonlySet<string> = new Set([
+    'staf',
+    'apoteker',
+    'kurir',
+    'marketing',
+    'admin',
+]);
+
+/** The door that DOES exist, for each type the create form does not offer. */
+const PINTU_BUAT: Partial<Record<TipeFilterPengguna, string>> = {
+    pasien: 'Pasien mendaftar sendiri lewat aplikasi.',
+    dokter: 'Dokter dibuat lewat menu Dokter.',
+    superadmin: 'Akun superadmin hanya dibuat dari seeder.',
+    perawat: 'Tipe ini belum memiliki role, jadi tidak bisa dibuat.',
+};
+
+/** Chip/title label for a filter value - `labelTipeAkun` predates the alias. */
+function labelPilihan(tipe: TipeFilterPengguna): string {
+    return tipe === 'staf' ? 'Staf' : labelTipeAkun(tipe);
+}
+
+/** The portal a role's holders operate, in the login pages' own words. */
+function namaPortalRole(tipe: string): string {
+    const portal = portalTipe(tipe);
+    return portal === 'pasien' ? 'Aplikasi Sehatly' : PORTAL_NAMA[portal];
+}
+
 export function AdminPenggunaPage() {
-    useDocumentTitle('Manajemen Akun');
     const online = useOnlineStatus();
 
     // --- The URL is the state -------------------------------------------------
     const [searchParams, setSearchParams] = useSearchParams();
-    const tipeParam = searchParams.get('tipe');
-    const tab: Tab = tipeParam === 'staf' || tipeParam === 'pasien' ? tipeParam : 'semua';
+    const tipeMentah = searchParams.get('tipe');
+    // The URL IS the filter, validated against the server's vocabulary; an
+    // unknown value falls back to the union view rather than asking the API a
+    // question it would answer 422.
+    const tipeAktif: TipeFilterPengguna | null =
+        tipeMentah !== null && TIPE_SAHIH.has(tipeMentah)
+            ? (tipeMentah as TipeFilterPengguna)
+            : null;
+
+    useDocumentTitle(
+        tipeAktif ? `Manajemen Akun · ${labelPilihan(tipeAktif)}` : 'Manajemen Akun',
+    );
+
     const qParam = searchParams.get('q') ?? '';
     const statusParam = searchParams.get('status');
     const status =
@@ -111,7 +205,7 @@ export function AdminPenggunaPage() {
     };
 
     const filter: AdminPenggunaFilter = {
-        tipe: tab === 'semua' ? undefined : (tab as TipeFilterPengguna),
+        tipe: tipeAktif ?? undefined,
         status,
         q: qParam || undefined,
         page: halaman,
@@ -119,6 +213,27 @@ export function AdminPenggunaPage() {
     };
 
     const daftar = useQuery(adminPenggunaOptions(filter));
+
+    // The role card: only a role view has one, and only once the catalogue
+    // answers - a failed fetch hides the card, never the directory. The
+    // union view never asks: there is no card to fill there.
+    const katalog = useQuery({ ...adminRolesOptions(), enabled: tipeAktif !== null });
+    const roleAktif = tipeAktif
+        ? katalog.data?.data.roles.find((role) => role.role === tipeAktif)
+        : undefined;
+
+    // Where a create button may appear, and the door that exists where it may not.
+    const bolehBuat = tipeAktif === null || TIPE_DIBUAT.has(tipeAktif);
+    const pintuBuat = tipeAktif ? PINTU_BUAT[tipeAktif] : undefined;
+
+    // The chip strip mirrors the sidebar plus "Semua"; a valid `?tipe=` outside
+    // that set appends its own chip so URL and pressed state never disagree.
+    const chips: ReadonlyArray<{ nilai: Tab; label: string }> =
+        tipeAktif && !TAB.some((item) => item.nilai === tipeAktif)
+            ? [...TAB, { nilai: tipeAktif, label: labelPilihan(tipeAktif) }]
+            : TAB;
+    const tekan = (nilai: Tab): boolean =>
+        nilai === 'semua' ? tipeAktif === null : tipeAktif === nilai;
 
     // --- The two writes -------------------------------------------------------
     const gantiStatus = useMutation({
@@ -248,34 +363,66 @@ export function AdminPenggunaPage() {
             <div className="space-y-6">
                 <PageHeader
                     title="Manajemen Akun"
-                    description="Buat dan atur akun staf, pantau akun pasien - aktifkan, nonaktifkan, atau atur ulang sandinya."
+                    description="Direktori akun per role: telusuri, aktifkan, nonaktifkan, atau atur ulang sandinya."
                     action={
                         /**
-                         * The create button is STAFF-only, so the patient tab
-                         * must not offer it. `POST /admin/pengguna` refuses
-                         * `tipe: 'pasien'` (the server's `TIPE_BUAT` is
-                         * apoteker/kurir/marketing/admin) because patients
-                         * register themselves over `POST /auth/sign-up` and
-                         * OTP - a "Buat akun" button on a tab that can only
-                         * ever list patients would promise a form the server
-                         * will not accept, which is exactly the misreading
-                         * this page used to invite. The tab states the
-                         * correct door instead.
+                         * The button appears only where the server accepts a
+                         * create (`TIPE_DIBUAT`); every other view states the
+                         * door that DOES exist instead - a button whose every
+                         * submit would 422 is worse than its absence, which
+                         * is exactly the misreading an earlier version of
+                         * this page invited on the patient tab.
                          */
-                        tab === 'pasien' ? (
-                            <p className="text-muted-foreground text-sm">
-                                Pasien mendaftar sendiri lewat aplikasi.
-                            </p>
-                        ) : (
+                        bolehBuat ? (
                             <Button asChild data-testid="admin-tulis">
                                 <Link to="/admin/pengguna/buat">
                                     <UserPlus />
                                     Buat akun
                                 </Link>
                             </Button>
+                        ) : (
+                            <p className="text-muted-foreground text-sm">{pintuBuat}</p>
                         )
                     }
                 />
+
+                {/* --- What this role IS: only a role view carries one --- */}
+                {roleAktif ? (
+                    <section
+                        data-testid="admin-ringkasan-role"
+                        aria-label={`Ringkasan role ${labelTipeAkun(roleAktif.role)}`}
+                        className="space-y-3 rounded-lg border p-4"
+                    >
+                        <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant="outline">{labelTipeAkun(roleAktif.role)}</Badge>
+                            <span className="text-sm text-muted-foreground">
+                                {namaPortalRole(roleAktif.role)}
+                            </span>
+                            <span
+                                className="text-sm text-muted-foreground"
+                                aria-hidden="true"
+                            >
+                                ·
+                            </span>
+                            <span className="text-sm text-muted-foreground">
+                                {roleAktif.izin.length} izin
+                            </span>
+                        </div>
+
+                        <p className="text-sm">{roleAktif.deskripsi}</p>
+
+                        {/* The raw code rides in `title`: the display name is
+                            derived, so the code is the unambiguous identity of
+                            the grant when someone copies it into a route. */}
+                        <div className="flex flex-wrap gap-1.5">
+                            {roleAktif.izin.map((izin) => (
+                                <Badge key={izin.kode} variant="secondary" title={izin.kode}>
+                                    {izin.nama}
+                                </Badge>
+                            ))}
+                        </div>
+                    </section>
+                ) : null}
 
                 {/* --- Tabs, search, status --- */}
                 <div className="flex flex-wrap items-end gap-3">
@@ -284,12 +431,12 @@ export function AdminPenggunaPage() {
                         aria-label="Filter tipe akun"
                         className="flex flex-wrap gap-2"
                     >
-                        {TAB.map((item) => (
+                        {chips.map((item) => (
                             <div key={item.nilai} data-testid="admin-aksi">
                                 <Button
                                     type="button"
-                                    variant={tab === item.nilai ? 'default' : 'outline'}
-                                    aria-pressed={tab === item.nilai}
+                                    variant={tekan(item.nilai) ? 'default' : 'outline'}
+                                    aria-pressed={tekan(item.nilai)}
                                     className="h-11"
                                     onClick={() =>
                                         tulis({
@@ -366,18 +513,19 @@ export function AdminPenggunaPage() {
                         <div className="rounded-lg border border-dashed p-10 text-center space-y-2">
                             <p className="font-medium">Belum ada akun</p>
                             <p className="text-sm text-muted-foreground">
-                                {tab === 'pasien'
-                                    ? 'Tidak ada pasien yang cocok dengan filter ini. Pasien mendaftar sendiri lewat aplikasi.'
-                                    : 'Tidak ada akun yang cocok dengan filter ini.'}
+                                {bolehBuat
+                                    ? 'Tidak ada akun yang cocok dengan filter ini.'
+                                    : (pintuBuat ??
+                                      'Tidak ada akun yang cocok dengan filter ini.')}
                             </p>
-                            {tab === 'pasien' ? null : (
+                            {bolehBuat ? (
                                 <Button asChild variant="outline" data-testid="admin-tulis">
                                     <Link to="/admin/pengguna/buat">
                                         <UserPlus />
                                         Buat akun
                                     </Link>
                                 </Button>
-                            )}
+                            ) : null}
                         </div>
                     ) : (
                         <ul className="space-y-3">{rows.map(baris)}</ul>

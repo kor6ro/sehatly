@@ -38,7 +38,8 @@ use Laravel\Sanctum\HasApiTokens;
  * @property string|null $no_telepon
  * @property string|null $kata_sandi_hash
  * @property string|null $tipe
- * @property string|null $status
+ * @property UserStatus|null $status
+ * @property string|null $alasan_penolakan
  * @property string|null $foto_profil
  * @property string|null $bahasa
  * @property bool|null $telepon_terverifikasi
@@ -260,6 +261,26 @@ class User extends Authenticatable
     public function pengingat(): HasMany
     {
         return $this->hasMany(Pengingat::class, 'user_id');
+    }
+
+    /**
+     * Approval/rejection records where this account is the subject.
+     *
+     * @return HasMany<UserPersetujuan, $this>
+     */
+    public function persetujuan(): HasMany
+    {
+        return $this->hasMany(UserPersetujuan::class, 'user_id');
+    }
+
+    /**
+     * Approval/rejection records where this account is the reviewer.
+     *
+     * @return HasMany<UserPersetujuan, $this>
+     */
+    public function persetujuanDitinjau(): HasMany
+    {
+        return $this->hasMany(UserPersetujuan::class, 'ditinjau_oleh');
     }
 
     /**

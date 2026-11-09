@@ -87,7 +87,12 @@ function AdminPenggunaBuatContent() {
             toast.success(
                 `Akun ${result.data.pengguna.nama_lengkap} berhasil dibuat.`,
             );
-            void navigate('/admin/pengguna?tipe=staf');
+            // Land on the DIRECTORY OF THE TYPE JUST CREATED, not on the old
+            // `staf` umbrella: the sidebar is split per role now, and the new
+            // account belongs to exactly one of them. `?tipe=` the server's
+            // own filter vocabulary, so the list arrives already filtered to
+            // the row the operator just wrote.
+            void navigate(`/admin/pengguna?tipe=${result.data.pengguna.tipe}`);
         },
         onError: (error) => {
             if (error instanceof ApiError && error.isValidation) {

@@ -179,9 +179,10 @@ export const adminRoutes = [
                                  * are literal here anyway - the ordering states
                                  * the intent rather than relying on it.
                                  *
-                                 * `?tipe=staf|pasien` is part of the address the
-                                 * sidebar links to, so it is read from the URL by
-                                 * the page, not carried through route state.
+                                 * `?tipe=<role>` is part of the address each
+                                 * sidebar item links to (one per role), so it
+                                 * is read from the URL by the page, not
+                                 * carried through route state.
                                  */
                                 path: '/admin/pengguna/buat',
                                 element: (

@@ -18,41 +18,18 @@ function referenceSpec(): SchemaSpec
     return (new SqlSchemaParser)->parseFile(base_path('telemedicine_test.sql'));
 }
 
-test('the reference DDL parses into exactly 80 tables and 2 views', function () {
+test('the reference DDL parses into exactly 81 tables and 2 views', function () {
     $spec = referenceSpec();
 
-    // `indexes` is 152 (143 before F11's four appended tables). The two removals
-    // F02 folded in are described below;
-    // F08 appended `konsultasi_baca`, whose primary key and named
-    // `UNIQUE KEY uq_baca` add two indexes on top of F02's 140.
-    //
-    // - migration `2026_10_01_000079` renamed `pasien.nik` to `nik_cipher` and
-    //   the DDL dropped the inline `UNIQUE` the old `nik CHAR(16) NULL UNIQUE`
-    //   column carried (a `TEXT` column cannot carry an index at all - MySQL
-    //   requires a key length for `TEXT` - and this project deliberately adds
-    //   NO blind index to replace it);
-    // - F02 dropped `uq_consent` from `persetujuan_pdp`, whose line in the DDL
-    //   is now a comment (see `docs/schema-notes.md`).
-    //
-    // `columns` moved 672 -> 678 (six columns of `konsultasi_baca`) and
-    // `foreign_keys` 105 -> 107 (its two cascading keys). F08's schema note is
-    // in `docs/schema-notes.md`.
-    //
-    // F01 then added `user_refresh_tokens.device_id` and its named
-    // `idx_refresh_device`: `columns` 678 -> 679 and `indexes` 142 -> 143. The
-    // reference edit folded both declarations onto existing lines (`:206` and
-    // `:211`) so the file stayed 1,364 lines; see `docs/schema-notes.md`.
-    //
-    // F11 APPENDED section [18] at the very end (four tables: the two preference
-    // tables, `pengingat` and `pengingat_terkirim`): `tables` 76 -> 80,
-    // `columns` 679 -> 716, `indexes` 143 -> 152 and `foreign_keys` 107 -> 114,
-    // and the file moved 1,364 -> 1,429 lines. No pre-existing line moved.
+    // Migration 000090 appended `user_persetujuan` to telemedicine_test.sql
+    // (section [19], line 1438): tables 80 -> 81, columns +6, indexes +1,
+    // foreign_keys +2.
     expect($spec->summary())->toBe([
-        'tables' => 80,
+        'tables' => 81,
         'views' => 2,
-        'columns' => 716,
-        'indexes' => 152,
-        'foreign_keys' => 114,
+        'columns' => 722,
+        'indexes' => 153,
+        'foreign_keys' => 116,
         'checks' => 3,
     ]);
 
@@ -339,7 +316,7 @@ test('a deliberately corrupted copy of the reference yields a different table co
 
         $corrupted = (new SqlSchemaParser)->parseFile($corrupt);
 
-        expect($corrupted->tableNames())->toHaveCount(80);
+        expect($corrupted->tableNames())->toHaveCount(81);
         expect($corrupted->hasTable('booking'))->toBeFalse();
         expect($corrupted->hasTable('booking_renamed'))->toBeTrue();
         // Same count, different content: the count alone is not proof of parsing.
@@ -358,9 +335,9 @@ test('a deliberately corrupted copy of the reference yields a different table co
 
         $dropped = (new SqlSchemaParser)->parse($truncated);
 
-        expect($dropped->tableNames())->toHaveCount(79);
+        expect($dropped->tableNames())->toHaveCount(80);
         expect($dropped->hasTable('users'))->toBeFalse();
-        expect($dropped->columnCount())->toBe(716 - 16);
+        expect($dropped->columnCount())->toBe(722 - 16);
     } finally {
         @unlink($corrupt);
     }

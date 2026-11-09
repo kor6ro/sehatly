@@ -137,7 +137,7 @@ CREATE TABLE users (
   no_telepon VARCHAR(20) NOT NULL UNIQUE,
   kata_sandi_hash VARCHAR(255) NOT NULL COMMENT 'bcrypt/argon2',
   tipe ENUM('pasien','dokter','perawat','apoteker','kurir','admin','superadmin','marketing') NOT NULL DEFAULT 'pasien',
-  status ENUM('pending_verifikasi','aktif','nonaktif','ditangguhkan') NOT NULL DEFAULT 'pending_verifikasi',
+  status ENUM('pending_verifikasi','menunggu_persetujuan','diundang','aktif','ditolak','nonaktif','ditangguhkan') NOT NULL DEFAULT 'pending_verifikasi',
   foto_profil VARCHAR(500) NULL,
   bahasa ENUM('id','en') NOT NULL DEFAULT 'id',
   telepon_terverifikasi TINYINT(1) NOT NULL DEFAULT 0,
@@ -1426,4 +1426,22 @@ CREATE TABLE pengingat_terkirim (
   UNIQUE KEY uq_pengingat_terkirim (pengingat_id, tanggal, waktu),
   FOREIGN KEY (pengingat_id) REFERENCES pengingat(id) ON DELETE CASCADE,
   FOREIGN KEY (notifikasi_id) REFERENCES notifikasi(id) ON DELETE RESTRICT
+) ENGINE=InnoDB;
+
+-- ============================================================================
+-- [19] PERSETUJUAN AKUN (migration 000090) — owner-approved
+-- ============================================================================
+-- Keputusan admin atas pendaftaran mandiri (marketing) atau undangan yang
+-- memerlukan persetujuan. Satu baris per keputusan; append-only.
+-- `alasan` hanya diisi saat keputusan = 'ditolak'.
+
+CREATE TABLE user_persetujuan (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT UNSIGNED NOT NULL,
+  keputusan ENUM('disetujui','ditolak') NOT NULL,
+  alasan VARCHAR(500) NULL,
+  ditinjau_oleh BIGINT UNSIGNED NOT NULL,
+  dibuat_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (ditinjau_oleh) REFERENCES users(id)
 ) ENGINE=InnoDB;

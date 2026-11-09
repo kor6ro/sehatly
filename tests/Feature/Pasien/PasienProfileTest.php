@@ -1433,14 +1433,18 @@ test('the route table exposes the twelve auth routes and the seven patient route
         'POST api/v1/marketing/promo',
         'PUT api/v1/marketing/artikel/{id}',
         'PUT api/v1/marketing/promo/{id}',
-        // The account-management round's FOUR routes, appended inside the F14
+        // The account-management round's routes, appended inside the F14
         // admin group (so they carry its party gate) after F01's support path.
         // Listed for the same closed-set reason every entry above is: the
-        // directory read, the create, the status toggle and the password reset.
+        // directory read, the create, the status toggle, the password reset -
+        // plus `GET /admin/roles`, the role catalogue the sidebar's per-role
+        // pages read (added with the per-role split; it answers `RbacCatalog`,
+        // not account rows).
         'GET api/v1/admin/pengguna',
         'POST api/v1/admin/pengguna',
         'POST api/v1/admin/pengguna/{id}/reset-sandi',
         'PUT api/v1/admin/pengguna/{id}/status',
+        'GET api/v1/admin/roles',
     ]);
 
     // TEN under the `pasien` filter: the six above (profil read + write, two for
@@ -1799,11 +1803,12 @@ test('the route table exposes the twelve auth routes and the seven patient route
             'DELETE api/v1/admin/hero/{id}' => ['permission:hero.kelola', 'tipe:admin,superadmin'],
             'POST api/v1/admin/hero/{id}/gambar' => ['permission:hero.kelola', 'tipe:admin,superadmin'],
             'DELETE api/v1/admin/hero/{id}/gambar' => ['permission:hero.kelola', 'tipe:admin,superadmin'],
-            // The account-management round's FOUR, wired into the same group so
-            // the party gate applies to all four and is listed here because it
+            // The account-management round's routes, wired into the same group so
+            // the party gate applies to all of them and is listed here because it
             // applies - the rule the hero block above states. Every one ALSO
             // carries a permission of its own, the owner-approved 34th/35th
-            // catalogue codes: `pengguna.lihat` on the directory read,
+            // catalogue codes: `pengguna.lihat` on the directory read AND on the
+            // role catalogue (`GET /admin/roles`, the sidebar's per-role pages),
             // `pengguna.kelola` on the three writes (create, status toggle,
             // password reset). Unlike the F14 eight writes - which rest on the
             // account type alone because no approved code named a mutation - the
@@ -1813,6 +1818,7 @@ test('the route table exposes the twelve auth routes and the seven patient route
             'POST api/v1/admin/pengguna' => ['permission:pengguna.kelola', 'tipe:admin,superadmin'],
             'POST api/v1/admin/pengguna/{id}/reset-sandi' => ['permission:pengguna.kelola', 'tipe:admin,superadmin'],
             'PUT api/v1/admin/pengguna/{id}/status' => ['permission:pengguna.kelola', 'tipe:admin,superadmin'],
+            'GET api/v1/admin/roles' => ['permission:pengguna.lihat', 'tipe:admin,superadmin'],
             // F04's THREE. The public review list takes NEITHER (it is public for
             // the same reason the profile is), and the patient's review write
             // takes NEITHER: no catalogue code names writing a review, and
@@ -2085,11 +2091,13 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         "'permission:promo.kelola'",
         "'permission:promo.kelola'",
         "'permission:promo.kelola'",
-        // The account-management round contributes FOUR strings for its four
-        // routes - `pengguna.lihat` on the read, `pengguna.kelola` on the three
-        // writes - with no new `tipe:` hit because all four inherit the F14
+        // The account-management round contributes FIVE strings for its five
+        // routes - `pengguna.lihat` on the directory read AND on the role
+        // catalogue (`GET /admin/roles`), `pengguna.kelola` on the three
+        // writes - with no new `tipe:` hit because all five inherit the F14
         // group's `tipe:admin,superadmin`. Duplicated deliberately from
         // `AuthFlowTest` over the same regex, for the closed-set reason above.
+        "'permission:pengguna.lihat'",
         "'permission:pengguna.lihat'",
         "'permission:pengguna.kelola'",
         "'permission:pengguna.kelola'",

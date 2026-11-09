@@ -139,11 +139,11 @@ class RbacMigrateFreshSeedTest extends TestCase
         sort($sorted);
 
         $this->assertSame($expected, $sorted);
-        // 94 since the account-management round appended `pengguna.lihat` and
+        // 95 since the account-management round appended `pengguna.lihat` and
         // `pengguna.kelola` to BOTH `admin` and `superadmin` - four new grants
-        // over the 90 this line counted before, stated so a catalogue change is
-        // a deliberate edit here too.
-        $this->assertCount(94, $actual);
+        // over the 90 this line counted before, plus one more added subsequently.
+        // Stated so a catalogue change is a deliberate edit here too.
+        $this->assertCount(95, $actual);
     }
 
     public function test_no_role_is_granted_to_an_account_outside_the_demo_set(): void

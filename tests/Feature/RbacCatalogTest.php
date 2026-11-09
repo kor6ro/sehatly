@@ -291,14 +291,15 @@ test('the seeded role permission pairs are exactly the catalogue mapping', funct
     usort($expected, static fn (array $a, array $b): int => [$a['nama'], $a['kode']] <=> [$b['nama'], $b['kode']]);
 
     expect($actual)->toBe($expected)
-        // 13 + 17 + 6 + 3 + 5 + 15 + 35 = 94, stated so a trim of the mapping is a
+        // 13 + 17 + 6 + 3 + 6 + 15 + 35 = 95, stated so a trim of the mapping is a
         // visible edit. Admin's 15 includes F14's `laporan.lihat`, F01's
         // `pasien.kelola`, the landing hero's `hero.kelola` and the account round's
         // `pengguna.lihat`/`pengguna.kelola`; dokter's 17 includes
-        // F04's `ulasan.balas`; kurir's 3 and marketing's 5 are the multi-portal
-        // round's (§1.3, with `pesanan.lihat` dropped per §5.2 - see RbacSeeder);
+        // F04's `ulasan.balas`; kurir's 3 and marketing's 6 are the multi-portal
+        // round's (§1.3, with `pesanan.lihat` dropped per §5.2 - see RbacSeeder;
+        // marketing also holds `hero.kelola` for landing content);
         // superadmin holds all 35.
-        ->and($actual)->toHaveCount(94);
+        ->and($actual)->toHaveCount(95);
 });
 
 test('the seeder writes no user roles rows', function (): void {

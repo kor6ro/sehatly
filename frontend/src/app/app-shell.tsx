@@ -7,6 +7,7 @@ import {
     CalendarDays,
     ClipboardCheck,
     ClipboardList,
+    Crown,
     FileHeart,
     LogOut,
     MessagesSquare,
@@ -76,19 +77,28 @@ const MENU_PORTAL: Record<Exclude<Portal, 'pasien'>, readonly GrupMenuPortal[]> 
         },
         {
             /**
-             * The account directory, split into the two audiences it holds.
+             * The account directory, one entry PER ROLE - the split its
+             * audience asked for ("pisahkan satu satu biar ga bingung").
+             * Each link is the SAME route with a different `?tipe=`, because
+             * the list is one screen whose selection lives in the URL - so
+             * the active state has to read the query too, which
+             * `tujuanAktif` below does.
              *
-             * Both links point at ONE route with a different `?tipe=`, because
-             * the list is one screen whose tab lives in the URL - so the active
-             * state has to read the query too, which `tujuanAktif` below does.
-             * A third entry ("Semua") is deliberately absent: the sidebar
-             * states where to go, and the tab strip on the page is where the
-             * choice among all three is made.
+             * Six roles, not seven: `dokter` has its own Klinik entry above
+             * (its directory is `/admin/dokter`, credential questions rather
+             * than account ones), and `perawat` has no role at all - so
+             * neither belongs in a role strip. The `staf` ALIAS is
+             * deliberately gone too: listing the umbrella next to its five
+             * members was exactly the ambiguity this split removes.
              */
             grup: 'Pengguna',
             item: [
-                { to: '/admin/pengguna?tipe=staf', icon: Users, label: 'Akun staf' },
                 { to: '/admin/pengguna?tipe=pasien', icon: UserRound, label: 'Pasien' },
+                { to: '/admin/pengguna?tipe=apoteker', icon: Pill, label: 'Apoteker' },
+                { to: '/admin/pengguna?tipe=kurir', icon: Package, label: 'Kurir' },
+                { to: '/admin/pengguna?tipe=marketing', icon: Tag, label: 'Marketing' },
+                { to: '/admin/pengguna?tipe=admin', icon: Users, label: 'Admin' },
+                { to: '/admin/pengguna?tipe=superadmin', icon: Crown, label: 'Superadmin' },
             ],
         },
         {
@@ -265,9 +275,9 @@ function ambilInisial(nama: string | undefined): string {
  * Whether a sidebar link names the page on screen.
  *
  * The `?query` half of `tujuan` is split off and matched against the current
- * `search` as a SET of `key=value` pairs, not as a substring: two entries of
- * the account directory are one path with different `?tipe=` values, and a
- * `includes` check would light up "Akun staf" while the page showed
+ * `search` as a SET of `key=value` pairs, not as a substring: the account
+ * directory's six role entries are one path with different `?tipe=` values,
+ * and a substring check would light up "Pasien" while the page showed
  * `?tipe=pasien-hasil-pencarian` the moment a filter carried the word. Every
  * pair the link asks for must be present; extra pairs the page itself added
  * (a search term, a page number) never switch the highlight off.

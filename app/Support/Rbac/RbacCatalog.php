@@ -395,6 +395,7 @@ final class RbacCatalog
             'laporan.marketing',
             'notifikasi.lihat',
             'dokter.lihat',
+            'hero.kelola',
         ],
         'admin' => [
             'jadwal.lihat',

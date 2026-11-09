@@ -4,14 +4,19 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Actions\SetujuiPengguna;
+use App\Actions\TolakPengguna;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\BuatPenggunaRequest;
 use App\Http\Requests\Admin\IndexPenggunaRequest;
 use App\Http\Requests\Admin\ResetSandiPenggunaRequest;
+use App\Http\Requests\Admin\SetujuiPenggunaRequest;
+use App\Http\Requests\Admin\TolakPenggunaRequest;
 use App\Http\Requests\Admin\UbahStatusPenggunaRequest;
 use App\Http\Resources\PenggunaResource;
 use App\Models\User;
 use App\Services\Admin\AdminPenggunaService;
+use App\Services\Admin\UndanganService;
 use App\Support\ApiResponse;
 use App\Support\Rbac\RbacCatalog;
 use Illuminate\Database\QueryException;
@@ -21,8 +26,9 @@ use Symfony\Component\HttpFoundation\Response;
 
 /**
  * The account-management surface: `GET /admin/pengguna`,
- * `POST /admin/pengguna`, `PUT /admin/pengguna/{id}/status` and
- * `POST /admin/pengguna/{id}/reset-sandi`.
+ * `POST /admin/pengguna`, `PUT /admin/pengguna/{id}/status`,
+ * `POST /admin/pengguna/{id}/reset-sandi`, plus the role catalogue
+ * `GET /admin/roles`.
  *
  * ## This is the account directory the doctor directory is NOT
  *
@@ -43,6 +49,15 @@ use Symfony\Component\HttpFoundation\Response;
  * | `POST /admin/pengguna` | `pengguna.kelola` | creating `admin` requires a `superadmin` actor |
  * | `PUT /admin/pengguna/{id}/status` | `pengguna.kelola` | acting on `admin`/`superadmin` rows requires `superadmin`; self -> 422 |
  * | `POST /admin/pengguna/{id}/reset-sandi` | `pengguna.kelola` | acting on `admin`/`superadmin` rows requires `superadmin` |
+ * | `GET /admin/roles` | `pengguna.lihat` | answers the CATALOGUE, not account rows |
+ *
+ * `GET /admin/roles` is the fifth route and the only one that does not answer
+ * with rows of `users`: the sidebar's per-role directory pages each open
+ * `/admin/pengguna?tipe=<role>` and need "what this role IS" - its
+ * description and the permission codes it holds - which no account row
+ * states, because a role is policy rather than an account. The payload is
+ * {@see RbacCatalog} itself, so it cannot disagree with the seeded policy
+ * `permission:` middleware enforces (see {@see roles()}).
  *
  * The permission codes are the owner-approved 34th and 35th in
  * {@see RbacCatalog}, granted to `admin` and `superadmin` - the two types that
@@ -89,7 +104,12 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class AdminPenggunaController extends Controller
 {
-    public function __construct(private readonly AdminPenggunaService $pengguna) {}
+    public function __construct(
+        private readonly AdminPenggunaService $pengguna,
+        private readonly UndanganService $undanganService,
+        private readonly SetujuiPengguna $setujuiAction,
+        private readonly TolakPengguna $tolakAction,
+    ) {}
 
     /**
      * `GET /api/v1/admin/pengguna` - the filtered directory page.
@@ -107,6 +127,124 @@ class AdminPenggunaController extends Controller
             'Daftar pengguna berhasil dimuat.',
             Response::HTTP_OK,
             ApiResponse::pageMeta($paginator),
+        );
+    }
+
+    /**
+     * `GET /api/v1/admin/pengguna/ringkasan` - badge counts per role and status.
+     *
+     * Answers 200 with `data.ringkasan`: a map of `tipe -> {total, aktif,
+     * menunggu_persetujuan, diundang, nonaktif, ditolak, ...}`.
+     * Used by the frontend tab badges without a full directory load.
+     */
+    public function ringkasan(): JsonResponse
+    {
+        return ApiResponse::success(
+            ['ringkasan' => $this->undanganService->ringkasan()],
+            'Ringkasan pengguna berhasil dimuat.',
+        );
+    }
+
+    /**
+     * `GET /api/v1/admin/roles` - the role catalogue behind the sidebar's
+     * per-role directory pages.
+     *
+     * Answers 200 with `data.roles`: one entry per {@see RbacCatalog::ROLES}
+     * row in catalogue order - `role`, `deskripsi` (the seeded
+     * `roles.deskripsi`) and `izin` (each held code with its
+     * `permissions.nama`).
+     *
+     * Nothing here reads the database. The payload is the very constants
+     * {@see \Database\Seeders\RbacSeeder} writes `roles`, `permissions` and
+     * `role_permissions` FROM, so a catalogue answer cannot drift from the
+     * rows `EnsurePermission` enforces - a joined read COULD (a hand-edited
+     * `role_permissions` row would then advertise a grant the middleware
+     * disagrees with), and this page's whole job is to state the policy
+     * accurately. Gated by `pengguna.lihat`, the directory's own read code:
+     * the only consumer is that directory's page, so a sixth catalogue code
+     * would gate the same screen twice.
+     */
+    public function roles(): JsonResponse
+    {
+        $roles = array_map(
+            static fn (string $role): array => [
+                'role' => $role,
+                'deskripsi' => RbacCatalog::ROLE_DESCRIPTIONS[$role],
+                'izin' => array_map(
+                    static fn (string $kode): array => [
+                        'kode' => $kode,
+                        'nama' => RbacCatalog::PERMISSIONS[$kode],
+                    ],
+                    RbacCatalog::permissionsFor($role),
+                ),
+            ],
+            RbacCatalog::ROLES,
+        );
+
+        return ApiResponse::success(
+            ['roles' => $roles],
+            'Daftar role berhasil dimuat.',
+            Response::HTTP_OK,
+        );
+    }
+
+    /**
+     * `POST /api/v1/admin/pengguna/{id}/setujui` - approve a `menunggu_persetujuan` account.
+     *
+     * Answers 200 with `data.pengguna`, 404 for unknown id, 422 when the
+     * account is not in `menunggu_persetujuan` state.
+     */
+    public function setujui(SetujuiPenggunaRequest $request, int $id): JsonResponse
+    {
+        $user = $this->pengguna->find($id);
+
+        if ($user === null) {
+            return ApiResponse::error('Resource not found.', [], Response::HTTP_NOT_FOUND);
+        }
+
+        try {
+            $this->setujuiAction->jalankan($user);
+        } catch (\DomainException $e) {
+            return ApiResponse::error(
+                'The given data was invalid.',
+                ['status' => [$e->getMessage()]],
+                Response::HTTP_UNPROCESSABLE_ENTITY,
+            );
+        }
+
+        return ApiResponse::success(
+            ['pengguna' => new PenggunaResource($user)],
+            'Akun berhasil disetujui.',
+        );
+    }
+
+    /**
+     * `POST /api/v1/admin/pengguna/{id}/tolak` - reject a `menunggu_persetujuan` account.
+     *
+     * Body: `{alasan}`. Answers 200 with `data.pengguna`, 404 for unknown id,
+     * 422 when the account is not in `menunggu_persetujuan` state.
+     */
+    public function tolak(TolakPenggunaRequest $request, int $id): JsonResponse
+    {
+        $user = $this->pengguna->find($id);
+
+        if ($user === null) {
+            return ApiResponse::error('Resource not found.', [], Response::HTTP_NOT_FOUND);
+        }
+
+        try {
+            $this->tolakAction->jalankan($user, (string) $request->validated('alasan'));
+        } catch (\DomainException $e) {
+            return ApiResponse::error(
+                'The given data was invalid.',
+                ['status' => [$e->getMessage()]],
+                Response::HTTP_UNPROCESSABLE_ENTITY,
+            );
+        }
+
+        return ApiResponse::success(
+            ['pengguna' => new PenggunaResource($user)],
+            'Akun berhasil ditolak.',
         );
     }
 

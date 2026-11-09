@@ -2070,11 +2070,14 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         "'permission:promo.kelola'",
         "'permission:promo.kelola'",
         "'permission:promo.kelola'",
-        // The account-management round contributes FOUR strings for its four
-        // routes: `pengguna.lihat` on the directory read and `pengguna.kelola`
-        // on the three writes (create, status, reset-sandi). No new `tipe:` hit,
-        // because all four inherit `tipe:admin,superadmin` from the wrapping F14
-        // group - the regex fires once on the group declaration, already counted.
+        // The account-management round contributes FIVE strings for its five
+        // routes: `pengguna.lihat` on the directory read AND on the role
+        // catalogue (`GET /admin/roles`, the sidebar's per-role pages),
+        // `pengguna.kelola` on the three writes (create, status, reset-sandi).
+        // No new `tipe:` hit, because all five inherit `tipe:admin,superadmin`
+        // from the wrapping F14 group - the regex fires once on the group
+        // declaration, already counted.
+        "'permission:pengguna.lihat'",
         "'permission:pengguna.lihat'",
         "'permission:pengguna.kelola'",
         "'permission:pengguna.kelola'",

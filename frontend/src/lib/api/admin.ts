@@ -784,3 +784,37 @@ export function resetSandiPenggunaMutation() {
         },
     });
 }
+
+// ============================================================================
+// Role catalogue (the sidebar's per-role directory pages)
+// ============================================================================
+
+/**
+ * One role of `GET /admin/roles`: what the role IS and what it may do.
+ *
+ * The server answers from `RbacCatalog` - the same constants `RbacSeeder`
+ * writes `roles`/`role_permissions` FROM and `permission:` middleware
+ * enforces - so `izin` here cannot disagree with the policy an account
+ * actually runs under. `role` is a `users.tipe` value (a role is named after
+ * its account type, a checked invariant on the server); `izin[].kode` is a
+ * catalogue code and `izin[].nama` its derived display name, which is why
+ * the card can show BOTH without a second request.
+ */
+export type AdminRole = {
+    role: UserTipe;
+    deskripsi: string;
+    izin: { kode: string; nama: string }[];
+};
+
+export const adminRolesQueryKey = ['v1', 'admin', 'roles'] as const;
+
+export async function fetchAdminRoles() {
+    return request<{ roles: AdminRole[] }>('admin/roles');
+}
+
+export function adminRolesOptions() {
+    return queryOptions({
+        queryKey: adminRolesQueryKey,
+        queryFn: fetchAdminRoles,
+    });
+}

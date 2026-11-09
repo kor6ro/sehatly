@@ -147,18 +147,26 @@ class AdminPenggunaService
     public const TIPE_PENGAWASAN = ['admin', 'superadmin'];
 
     /**
-     * The `status=` filter vocabulary - the whole ENUM, because the directory's
-     * job is to show every state including `pending_verifikasi`.
+     * The `status=` filter vocabulary - every UserStatus value, because the
+     * directory's job is to show every state.
      *
      * @var list<string>
      */
-    public const STATUS_DIRECTORY = ['pending_verifikasi', 'aktif', 'nonaktif', 'ditangguhkan'];
+    public const STATUS_DIRECTORY = [
+        'pending_verifikasi',
+        'menunggu_persetujuan',
+        'diundang',
+        'aktif',
+        'ditolak',
+        'nonaktif',
+        'ditangguhkan',
+    ];
 
     /**
-     * What `PUT /admin/pengguna/{id}/status` may WRITE: the two poles of the
-     * account's life. `pending_verifikasi` is the registration flow's own state
-     * machine (only `otp/verify` advances it) and `ditangguhkan` has no operator
-     * decision behind it yet, so neither is a value this endpoint invents.
+     * What `PUT /admin/pengguna/{id}/status` may WRITE. `pending_verifikasi`
+     * and `ditangguhkan` are system-owned states; `menunggu_persetujuan`,
+     * `diundang` and `ditolak` are advanced by their own dedicated endpoints
+     * (setujui, tolak, aktivasi).
      *
      * @var list<string>
      */
