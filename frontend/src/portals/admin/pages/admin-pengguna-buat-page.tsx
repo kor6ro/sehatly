@@ -190,6 +190,20 @@ function AdminPenggunaBuatContent() {
                             </SelectContent>
                         </Select>
                     </Field>
+
+                    {/**
+                     * The door this form does NOT open, stated where the
+                     * missing options would otherwise be looked for. The
+                     * dropdown is staff-only by the server's own
+                     * `TIPE_BUAT`, so without this a reader would search it
+                     * for "Pasien" and "Dokter" and conclude the feature is
+                     * broken rather than split across three doors.
+                     */}
+                    <p className="text-muted-foreground text-xs">
+                        Hanya akun staf: apoteker, kurir, marketing, dan
+                        admin (khusus superadmin). Pasien mendaftar sendiri
+                        lewat aplikasi, dokter dibuat lewat menu Dokter.
+                    </p>
                 </fieldset>
 
                 <div className="flex gap-3">

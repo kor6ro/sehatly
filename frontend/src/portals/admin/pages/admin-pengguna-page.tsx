@@ -55,6 +55,17 @@ import { SkeletonRows } from '@/shared/components/states/loading-state';
  * one is a roster, so each row is a card with the actions that touch THAT
  * account pinned to its own edge - a password reset never lands on the wrong
  * row.
+ *
+ * ## The create button belongs to the staff tabs
+ *
+ * `POST /admin/pengguna` refuses `tipe: 'pasien'` - the server's
+ * {@see \App\Services\Admin\AdminPenggunaService::TIPE_BUAT} is
+ * apoteker/kurir/marketing/admin, because patients arrive through
+ * `POST /auth/sign-up` and OTP - so the patient tab shows the door that
+ * actually exists ("Pasien mendaftar sendiri lewat aplikasi") instead of a
+ * button leading to a form whose every patient choice would 422. Its empty
+ * state says the same, for the same reason: an empty list is exactly when
+ * someone goes looking for the create button.
  */
 const PER_HALAMAN = 20;
 
@@ -237,14 +248,32 @@ export function AdminPenggunaPage() {
             <div className="space-y-6">
                 <PageHeader
                     title="Manajemen Akun"
-                    description="Daftar, buat, aktifkan atau nonaktifkan akun staf dan pasien - serta atur ulang sandinya."
+                    description="Buat dan atur akun staf, pantau akun pasien - aktifkan, nonaktifkan, atau atur ulang sandinya."
                     action={
-                        <Button asChild data-testid="admin-tulis">
-                            <Link to="/admin/pengguna/buat">
-                                <UserPlus />
-                                Buat akun
-                            </Link>
-                        </Button>
+                        /**
+                         * The create button is STAFF-only, so the patient tab
+                         * must not offer it. `POST /admin/pengguna` refuses
+                         * `tipe: 'pasien'` (the server's `TIPE_BUAT` is
+                         * apoteker/kurir/marketing/admin) because patients
+                         * register themselves over `POST /auth/sign-up` and
+                         * OTP - a "Buat akun" button on a tab that can only
+                         * ever list patients would promise a form the server
+                         * will not accept, which is exactly the misreading
+                         * this page used to invite. The tab states the
+                         * correct door instead.
+                         */
+                        tab === 'pasien' ? (
+                            <p className="text-muted-foreground text-sm">
+                                Pasien mendaftar sendiri lewat aplikasi.
+                            </p>
+                        ) : (
+                            <Button asChild data-testid="admin-tulis">
+                                <Link to="/admin/pengguna/buat">
+                                    <UserPlus />
+                                    Buat akun
+                                </Link>
+                            </Button>
+                        )
                     }
                 />
 
@@ -337,14 +366,18 @@ export function AdminPenggunaPage() {
                         <div className="rounded-lg border border-dashed p-10 text-center space-y-2">
                             <p className="font-medium">Belum ada akun</p>
                             <p className="text-sm text-muted-foreground">
-                                Tidak ada akun yang cocok dengan filter ini.
+                                {tab === 'pasien'
+                                    ? 'Tidak ada pasien yang cocok dengan filter ini. Pasien mendaftar sendiri lewat aplikasi.'
+                                    : 'Tidak ada akun yang cocok dengan filter ini.'}
                             </p>
-                            <Button asChild variant="outline" data-testid="admin-tulis">
-                                <Link to="/admin/pengguna/buat">
-                                    <UserPlus />
-                                    Buat akun
-                                </Link>
-                            </Button>
+                            {tab === 'pasien' ? null : (
+                                <Button asChild variant="outline" data-testid="admin-tulis">
+                                    <Link to="/admin/pengguna/buat">
+                                        <UserPlus />
+                                        Buat akun
+                                    </Link>
+                                </Button>
+                            )}
                         </div>
                     ) : (
                         <ul className="space-y-3">{rows.map(baris)}</ul>
