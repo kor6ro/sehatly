@@ -180,7 +180,7 @@ export function AdminDashboardPage() {
         <AdminGate>
             <PageHeader
                 title="Dasbor Admin"
-                description={`${formatTanggal(dari)} – ${formatTanggal(sampai)} (30 hari terakhir)`}
+                description={`${formatTanggal(dari)} \u2013 ${formatTanggal(sampai)}`}
                 action={
                     <Button type="button" variant="outline" onClick={muatUlang}>
                         Muat ulang
@@ -444,7 +444,7 @@ export function AdminDashboardPage() {
                         <JudulSeksi judul="Statistik" />
 
                         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                            <Card>
+                            <Card className="flex h-full flex-col">
                                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                                     <CardTitle className="text-base">Dokter</CardTitle>
                                     <Link
@@ -455,7 +455,7 @@ export function AdminDashboardPage() {
                                     </Link>
                                 </CardHeader>
 
-                                <CardContent className="space-y-4">
+                                <CardContent className="flex flex-1 flex-col">
                                     <DonutChart
                                         irisan={[
                                             {
@@ -478,7 +478,7 @@ export function AdminDashboardPage() {
                                         labelPusat="dokter"
                                     />
 
-                                    <p className="border-t pt-3 text-xs">
+                                    <p className="mt-4 border-t pt-3 text-xs">
                                         <span className="text-green-600 font-semibold">
                                             {jumlahAktif}
                                         </span>
@@ -491,7 +491,7 @@ export function AdminDashboardPage() {
                                 </CardContent>
                             </Card>
 
-                            <Card>
+                            <Card className="flex h-full flex-col">
                                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                                     <CardTitle className="text-base">Pengguna</CardTitle>
                                     <Link
@@ -502,7 +502,7 @@ export function AdminDashboardPage() {
                                     </Link>
                                 </CardHeader>
 
-                                <CardContent className="space-y-3">
+                                <CardContent className="flex flex-1 flex-col">
                                     <BarChart
                                         baris={[
                                             {
@@ -874,11 +874,31 @@ function DonutChart({
         return { ...satu, panjang, mulai };
     });
 
+    /**
+     * Stacked - ring on top, legend under it as a full-width table - rather
+     * than the side-by-side it was.
+     *
+     * Beside the ring, the legend stretched to whatever width the card had
+     * left (~600px), which threw each count and percentage to the far edge,
+     * a half-card away from the label it belongs to: the row read as two
+     * unrelated fragments, which is the "scattered" look. Under the ring the
+     * rows span the card's own width and the numbers sit in FIXED columns
+     * (`1fr / 3rem / 3.5rem`), so the three counts align with each other and
+     * the three percentages align with each other - a table, not a scatter.
+     *
+     * Stacking also matches the card next to it: the pengguna card is
+     * full-width rows too, so the two cards of one section now share a
+     * rhythm instead of arguing about orientation.
+     *
+     * `flex-1 justify-center` lets the block soak up whatever height the
+     * sibling card sets, so the ring floats in the middle of its card rather
+     * than leaving a dead band under it.
+     */
     return (
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
+        <div className="flex w-full flex-1 flex-col items-center justify-center gap-5">
             <svg
                 viewBox="0 0 120 120"
-                className="h-32 w-32 shrink-0"
+                className="h-36 w-36 shrink-0"
                 role="img"
                 aria-label={`Sebaran status verifikasi ${labelPusat}: ${irisan
                     .map((satu) => `${satu.nilai} ${satu.label.toLowerCase()}`)
@@ -934,7 +954,7 @@ function DonutChart({
                 </text>
             </svg>
 
-            <ul className="min-w-44 flex-1 space-y-2">
+            <ul className="w-full space-y-2">
                 {potongan.map((satu) => {
                     const pct =
                         efektif > 0 ? Math.round((satu.nilai / efektif) * 100) : 0;
@@ -942,7 +962,7 @@ function DonutChart({
                     return (
                         <li
                             key={satu.label}
-                            className="flex items-center justify-between gap-3 text-sm"
+                            className="grid grid-cols-[minmax(0,1fr)_3rem_3.5rem] items-center gap-x-3 text-sm"
                         >
                             <span className="flex min-w-0 items-center gap-2">
                                 <span
@@ -951,11 +971,12 @@ function DonutChart({
                                 <span className="truncate">{satu.label}</span>
                             </span>
 
-                            <span className="flex shrink-0 items-baseline gap-2">
-                                <span className="font-semibold">{satu.nilai}</span>
-                                <span className="text-muted-foreground w-9 text-right text-xs">
-                                    {pct}%
-                                </span>
+                            <span className="text-right font-semibold tabular-nums">
+                                {satu.nilai}
+                            </span>
+
+                            <span className="text-muted-foreground text-right text-xs tabular-nums">
+                                {pct}%
                             </span>
                         </li>
                     );
@@ -975,7 +996,7 @@ function BarChart({
     labelTotal: string;
 }) {
     return (
-        <div className="space-y-3">
+        <div className="flex flex-1 flex-col justify-between gap-3">
             <p className="text-muted-foreground text-xs">
                 {total} {labelTotal}
             </p>
