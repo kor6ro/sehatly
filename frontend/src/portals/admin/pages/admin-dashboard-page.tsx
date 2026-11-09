@@ -13,45 +13,18 @@ import {
     adminLaporanPendapatanOptions,
     adminPenggunaOptions,
 } from '@/lib/api/admin';
-import type { StatusBookingLaporan } from '@/lib/api/admin';
 import {
     labelAksi,
+    labelStatusBooking,
     labelTabelTarget,
 } from '@/portals/admin/features/admin/format-admin';
 import { AdminGate } from '@/portals/admin/features/admin/admin-gate';
-import { BookingStatusBadge } from '@/shared/features/booking/booking-status-badge';
 import { PageHeader } from '@/shared/components/layout/page-header';
 import { SkeletonRows } from '@/shared/components/states/loading-state';
 import { ErrorState } from '@/shared/components/states/error-state';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-
-/**
- * The share-bar hue per `booking.status`, for the status rows on this page.
- *
- * A separate map rather than reusing {@link BookingStatusBadge}'s treatment
- * because the two draw different things: the badge paints a whole chip (fill
- * or outline, plus its icon), the bar paints a 6px sliver that has to stay
- * legible on a muted track - so the terminal pair that the badge keeps as
- * outlines (`dibatalkan`, `kadaluarsa`) needs actual fills here. The hues
- * deliberately track the badge's own (warning amber, primary blue, success
- * green, destructive red, muted grey), so a status never wears two colours
- * across the two components.
- *
- * Every class is a literal string: Tailwind's scanner cannot see a class
- * assembled at runtime (`bg-${warna}`) and would ship the bar colourless.
- */
-const WARNA_BAR: Record<StatusBookingLaporan, string> = {
-    menunggu_pembayaran: 'bg-amber-400',
-    terjadwal: 'bg-primary',
-    check_in: 'bg-green-500',
-    berlangsung: 'bg-green-600',
-    selesai: 'bg-sky-500',
-    dibatalkan: 'bg-red-400',
-    no_show: 'bg-red-500',
-    kadaluarsa: 'bg-muted-foreground/40',
-};
 
 /**
  * `/admin/dashboard` - the admin portal's front page.
@@ -88,15 +61,17 @@ const WARNA_BAR: Record<StatusBookingLaporan, string> = {
  * why that figure states its own range in the label rather than inheriting the
  * banner's silently.
  *
- * ## The trend strip draws all thirty days, including the empty ones
+ * ## The trend chart draws all thirty days, including the empty ones
  *
  * `harian` only lists the days the report found rows for, so plotting it
  * directly makes the axis a list of "days something happened" - which reads as
- * a longer, denser fortnight than the window actually was. The strip rebuilds
- * the full `dari`..`sampai` series and draws the empty days as muted stubs at
- * the baseline: a gap is information ("nothing happened on the 26th"), and a
- * true timeline is what makes it visible. Bars stay plain CSS - a charting
- * dependency for thirty rectangles is not a trade this portal needs to make.
+ * a longer, denser fortnight than the window actually was. The chart rebuilds
+ * the full `dari`..`sampai` series, so an empty day is a point ON the baseline
+ * ("nothing happened on the 26th") and the silhouette stays a true timeline.
+ * The line is a cardinal spline rather than a polyline: thirty straight
+ * segments read as a saw, and the shape this card is about is the trend.
+ * Everything is hand-rolled SVG - a charting dependency for one line is not a
+ * trade this portal needs to make.
  */
 export function AdminDashboardPage() {
     useDocumentTitle('Dasbor Admin');
@@ -291,7 +266,7 @@ export function AdminDashboardPage() {
                         <JudulSeksi judul="Grafik & ringkasan" />
 
                         <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2">
-                            <Card className="h-full">
+                            <Card className="flex h-full flex-col">
                                 <CardHeader>
                                     <CardTitle className="text-base">
                                         Tren booking harian
@@ -301,7 +276,7 @@ export function AdminDashboardPage() {
                                     </p>
                                 </CardHeader>
 
-                                <CardContent>
+                                <CardContent className="flex min-h-0 flex-1 flex-col">
                                     {(ringkasBooking?.total ?? 0) === 0 ? (
                                         <p className="text-muted-foreground text-sm">
                                             Belum ada booking pada rentang ini.
@@ -317,25 +292,28 @@ export function AdminDashboardPage() {
                             </Card>
 
                             {/**
-                             * Status booking: the eight DDL states as rows of
-                             * "badge, count, share", not a monochrome list.
+                             * Status booking: the eight DDL states as plain
+                             * rows - label, count, share - and deliberately
+                             * QUIET.
                              *
-                             * Each row wears the SHARED BookingStatusBadge -
-                             * the same icon-and-hue treatment every booking
-                             * list in this app uses - so a status learned on
-                             * the booking page reads identically here; a
-                             * dashboard that invented its own colours for the
-                             * same eight values would make the operator
-                             * translate between two vocabularies.
+                             * This card sits beside the trend chart, so it
+                             * must not out-shout it. Seven coloured chips,
+                             * seven bar hues and seven bordered boxes made it
+                             * the loudest thing on the page while carrying
+                             * the least structure (a list). So: no badges, no
+                             * per-row border, ONE hue for every bar - what is
+                             * left are the three facts an operator reads
+                             * (which state, how many, how much of the whole),
+                             * with hierarchy carried by weight and the
+                             * muted/foreground split rather than by colour.
                              *
-                             * The count is paired with a percentage of the
-                             * range's total (printed in the header, because a
-                             * percentage without its denominator is a number
-                             * that cannot be acted on) and with a thin share
-                             * bar: 63 vs 3 is a ratio the eye should see as a
-                             * ratio, not arithmetic. The bar is decorative -
-                             * the count and percentage beside it are the real
-                             * values - so it is hidden from assistive tech.
+                             * The bar earns its place because 63 vs 3 is a
+                             * RATIO: the count is the value, the bar is the
+                             * shape of it. It is decorative - the numbers
+                             * beside it are the real values - so assistive
+                             * tech skips it, and the denominator lives in the
+                             * card header, because a percentage without one is
+                             * a number that cannot be acted on.
                              *
                              * Zero-count states stay filtered out: a row of
                              * "0, 0%, empty bar" is not information, and the
@@ -372,7 +350,7 @@ export function AdminDashboardPage() {
                                             Belum ada booking pada rentang ini.
                                         </p>
                                     ) : (
-                                        <ul className="space-y-2">
+                                        <ul className="divide-y">
                                             {STATUS_BOOKING_LAPORAN.filter(
                                                 (status) =>
                                                     (ringkasBooking?.per_status[
@@ -396,12 +374,14 @@ export function AdminDashboardPage() {
                                                 return (
                                                     <li
                                                         key={status}
-                                                        className="rounded-md border px-3 py-2"
+                                                        className="flex flex-col gap-1.5 py-2.5 first:pt-0 last:pb-0"
                                                     >
-                                                        <div className="flex items-center justify-between gap-3">
-                                                            <BookingStatusBadge
-                                                                status={status}
-                                                            />
+                                                        <div className="flex items-baseline justify-between gap-3 text-sm">
+                                                            <span className="text-muted-foreground truncate">
+                                                                {labelStatusBooking(
+                                                                    status,
+                                                                )}
+                                                            </span>
 
                                                             <span className="flex shrink-0 items-baseline gap-2">
                                                                 <span className="font-semibold tabular-nums">
@@ -416,10 +396,10 @@ export function AdminDashboardPage() {
 
                                                         <div
                                                             aria-hidden="true"
-                                                            className="bg-muted mt-2 h-1.5 overflow-hidden rounded-full"
+                                                            className="bg-muted h-1 overflow-hidden rounded-full"
                                                         >
                                                             <div
-                                                                className={`h-full rounded-full ${WARNA_BAR[status]}`}
+                                                                className="h-full rounded-full bg-primary/70"
                                                                 style={{
                                                                     width: `${pct}%`,
                                                                 }}
@@ -712,9 +692,16 @@ function LineChart({
     maks: number;
     formatLabel: (t: string) => string;
 }) {
-    const W = 500;
-    const H = 160;
-    const PAD = { top: 16, right: 12, bottom: 28, left: 32 };
+    /**
+     * The viewBox is sized to the box the card actually gives it (~2:1), so
+     * `preserveAspectRatio`'s default `meet` scales the drawing to FILL the
+     * card instead of letterboxing it: the old 500x160 drawn into a 160px-tall
+     * strip rendered at 1:1 and sat centred with a third of the card empty on
+     * each side, which is what read as untidy.
+     */
+    const W = 720;
+    const H = 345;
+    const PAD = { top: 18, right: 14, bottom: 30, left: 34 };
     const innerW = W - PAD.left - PAD.right;
     const innerH = H - PAD.top - PAD.bottom;
     const n = data.length;
@@ -760,11 +747,10 @@ function LineChart({
     ];
 
     return (
-        <div className="w-full">
+        <div className="flex min-h-0 flex-1 flex-col">
             <svg
                 viewBox={`0 0 ${W} ${H}`}
-                className="w-full"
-                style={{ height: 160 }}
+                className="min-h-0 w-full flex-1"
                 aria-label="Line chart tren booking harian"
             >
                 <defs>
@@ -785,8 +771,8 @@ function LineChart({
                             strokeDasharray="4 4"
                         />
                         <text
-                            x={PAD.left - 5} y={y(v) + 4}
-                            textAnchor="end" fontSize="10"
+                            x={PAD.left - 6} y={y(v) + 4}
+                            textAnchor="end" fontSize="11"
                             fill="var(--muted-foreground)"
                         >
                             {v}
@@ -807,15 +793,15 @@ function LineChart({
                     strokeLinejoin="round"
                 />
 
-                {/* Dots */}
+                {/* Hover targets only: thirty visible dots over the line made
+                    it read as a bead chain rather than a silhouette, and the
+                    value is already in the tooltip and the card beside it. */}
                 {data.map((d, i) => (
                     <circle
                         key={d.tanggal}
                         cx={x(i)} cy={y(d.total)}
-                        r={d.total > 0 ? 3 : 1.5}
-                        fill={d.total > 0 ? 'var(--primary)' : 'var(--muted)'}
-                        stroke="white"
-                        strokeWidth="1"
+                        r={8}
+                        fill="transparent"
                     >
                         <title>{`${formatLabel(d.tanggal)}: ${d.total} booking`}</title>
                     </circle>
@@ -825,9 +811,9 @@ function LineChart({
                 {xLabels.map(({ i }) => (
                     <text
                         key={i}
-                        x={x(i)} y={H - 6}
+                        x={x(i)} y={H - 8}
                         textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}
-                        fontSize="10"
+                        fontSize="11"
                         fill="var(--muted-foreground)"
                     >
                         {formatLabel(data[i]?.tanggal ?? '')}
