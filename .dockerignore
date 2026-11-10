@@ -26,3 +26,7 @@ telemedicine_test.sql
 
 deploy/.env.deploy
 
+
+deploy/.env.render.ready
+deploy/.env.pages.ready
+

@@ -70,3 +70,8 @@ portal-admin-ui.zip
 # Real deployment secrets (copy of deploy/.env.deploy.example)
 deploy/.env.deploy
 
+
+# Generated deployment env (contains secrets)
+deploy/.env.render.ready
+deploy/.env.pages.ready
+

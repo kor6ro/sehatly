@@ -179,15 +179,15 @@ Render free tidak punya shell, jadi seed dijalankan dari mesin lokal yang bisa
 mencapai TiDB. **Jalankan sebelum atau sesudah deploy; `migrate --force` di
 container hanya no-op kalau tabel sudah ada.**
 
-Cara cepat:
+Cara cepat (setelah `deploy/.env.deploy` diisi):
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File deploy/seed-tidb.ps1 `
-  -DbHost gateway01.ap-southeast-1.prod.aws.tidbcloud.com `
-  -DbUser 3pTAoNNegb47Uc8.root `
-  -DbPassword 'password-tidb' `
-  -CaPath C:\path\ke\ca.pem
+powershell -ExecutionPolicy Bypass -File deploy/siapkan-demo.ps1
 ```
+
+Script itu melakukan `migrate:fresh --seed` ke TiDB, lalu membuat
+`deploy/.env.render.ready` dan `deploy/.env.pages.ready` berisi semua env yang
+tinggal kamu copy ke dashboard. Tidak ada secret yang dicetak ke layar.
 
 Atau manual:
 
@@ -457,6 +457,7 @@ Kalau nanti dipakai sungguhan:
 | `deploy/env.render.example` | checklist env backend |
 | `deploy/env.pages.example` | checklist env build frontend |
 | `deploy/seed-tidb.ps1` | seed database demo ke TiDB dari Laragon |
+| `deploy/siapkan-demo.ps1` | seed + generate env Render/Pages siap copy |
 | `frontend/public/_redirects` | SPA fallback di Pages |
 | `frontend/public/_headers` | cache asset + header keamanan |
 | `config/broadcasting.php` | koneksi `pusher` di samping `reverb` |
