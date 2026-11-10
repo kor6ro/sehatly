@@ -23,3 +23,6 @@ bootstrap/cache/*
 README.md
 testaccount.md
 telemedicine_test.sql
+
+deploy/.env.deploy
+

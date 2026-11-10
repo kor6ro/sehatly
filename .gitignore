@@ -66,3 +66,7 @@ frontend/ux/evidence/**/*.webp
 _zip_extract/
 portal-admin-ui.zip
 
+
+# Real deployment secrets (copy of deploy/.env.deploy.example)
+deploy/.env.deploy
+
