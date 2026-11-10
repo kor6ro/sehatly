@@ -30,3 +30,10 @@ deploy/.env.deploy
 deploy/.env.render.ready
 deploy/.env.pages.ready
 
+
+deploy/alwaysdata_key
+deploy/alwaysdata_key.pub
+
+
+deploy/dist/
+
