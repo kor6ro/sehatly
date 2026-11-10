@@ -19,7 +19,7 @@ Ini pengganti Render untuk API. Frontend tetap di Cloudflare Pages, database tet
 
 1. Buka <https://northflank.com> → **Sign up** (bisa pakai GitHub).
 2. Buat **Project** baru: nama `sehatly`.
-3. Pilih region terdekat yang tersedia (utamakan **Singapore/Asia**; kalau tidak ada, pilih Eropa/US — latensi sedikit lebih tinggi tapi tetap jalan).
+3. Pilih region **Asia Southeast** (`asia-southeast`) — paling dekat ke Indonesia.
 
 ## 2. Buat service dari GitHub
 
@@ -57,6 +57,9 @@ notepad C:\laragon\www\sehatly\deploy\.env.render.ready
 ```
 
 Copy **semua** baris ke Northflank → **Environment** / **Runtime variables**.
+Northflank mendukung **upload file `.env`** di editor runtime variables: upload
+`deploy/.env.render.ready` langsung, lalu pastikan `PORT=10000` ikut masuk.
+Kalau tidak ada tombol upload, gunakan mode JSON atau tempel satu per satu.
 Yang paling penting:
 
 ```text
@@ -99,17 +102,23 @@ Kalau `/up` 500:
 
 ## 6. Custom domain API
 
-1. Northflank → service → **Domains** → **Add domain**:
+1. Northflank → **Domains** (level project/team) → **Add domain**:
    `api.sehatly.k6devs.my.id`.
-2. Northflank memberi target CNAME (bentuknya `*.code.run` atau target domain).
+2. Northflank memberi target CNAME + record verifikasi (bentuknya `*.code.run`
+   atau TXT/CNAME).
 3. Di Cloudflare → zone `k6devs.my.id` → **DNS → Records → Add record**:
+   - Type: **CNAME**
+   - Name: `api.sehatly`
+   - Target: dari Northflank
+   - Proxy: **DNS only** (abu-abu) saat verifikasi
+4. Klik **Verify** di Northflank. Setelah domain terverifikasi, link domain ke
+   port `10000` pada service.
+5. Setelah sertifikat Northflank terbit, kamu boleh mengaktifkan proxy
+   Cloudflare dengan SSL/TLS mode **Full (Strict)**. Kalau ragu, biarkan
+   **DNS only**; API tetap HTTPS dari Northflank.
 
-| Type | Name | Target | Proxy |
-|---|---|---|---|
-| CNAME | `api.sehatly` | target dari Northflank | **DNS only** |
-
-Gunakan **DNS only** (abu-abu) supaya Northflank bisa menerbitkan sertifikat TLS.
-Tunggu status domain **Active** di Northflank.
+> Cloudflare proxy **harus dimatikan saat verifikasi** domain Northflank.
+> Kalau proxy sudah terlanjur aktif, matikan, verify ulang, baru nyalakan.
 
 ## 7. Setelah API hidup
 
