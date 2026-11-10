@@ -185,6 +185,12 @@ Cara cepat (setelah `deploy/.env.deploy` diisi):
 powershell -ExecutionPolicy Bypass -File deploy/siapkan-demo.ps1
 ```
 
+Kalau belum mengisi file, jalankan ini dulu (interaktif, secret tidak ditampilkan):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File deploy/isi-env.ps1
+```
+
 Script itu melakukan `migrate:fresh --seed` ke TiDB, lalu membuat
 `deploy/.env.render.ready` dan `deploy/.env.pages.ready` berisi semua env yang
 tinggal kamu copy ke dashboard. Tidak ada secret yang dicetak ke layar.
@@ -457,6 +463,7 @@ Kalau nanti dipakai sungguhan:
 | `deploy/env.render.example` | checklist env backend |
 | `deploy/env.pages.example` | checklist env build frontend |
 | `deploy/seed-tidb.ps1` | seed database demo ke TiDB dari Laragon |
+| `deploy/isi-env.ps1` | isi `deploy/.env.deploy` secara interaktif |
 | `deploy/siapkan-demo.ps1` | seed + generate env Render/Pages siap copy |
 | `frontend/public/_redirects` | SPA fallback di Pages |
 | `frontend/public/_headers` | cache asset + header keamanan |
