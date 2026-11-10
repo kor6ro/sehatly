@@ -11,7 +11,7 @@ kurir.sehatly.k6devs.my.id      -> Portal Kurir
 marketing.sehatly.k6devs.my.id  -> Portal Marketing
                                    (satu build SPA di Cloudflare Pages)
 
-api.sehatly.k6devs.my.id        -> Laravel API -> TiDB Cloud (gratis)
+api.k6devs.my.id        -> Laravel API -> TiDB Cloud (gratis)
 ws                              -> Pusher Channels (gratis)
 ```
 
@@ -162,7 +162,7 @@ Troubleshooting.
 ### 3.2 Custom domain API
 
 1. Render → service → **Settings → Custom Domains → Add Custom Domain**:
-   `api.sehatly.k6devs.my.id`.
+   `api.k6devs.my.id`.
 2. Render memberi target CNAME (contoh `sehatly-api.onrender.com`).
 3. Di panel DNS `my.id`, buat record:
 
@@ -170,12 +170,12 @@ Troubleshooting.
 | --- | --- | --- |
 | CNAME | `api.sehatly` | `sehatly-api.onrender.com` |
 
-Kalau panel meminta nama lengkap, isi `api.sehatly.k6devs.my.id`. Jangan
+Kalau panel meminta nama lengkap, isi `api.k6devs.my.id`. Jangan
 mengaktifkan proxy Cloudflare untuk record ini — zone-nya bukan milik
 Cloudflare, dan Render harus menerbitkan sertifikatnya sendiri. Tunggu status
 certificate **Verified** di Render.
 
-> API tidak butuh wildcard. Hanya `api.sehatly.k6devs.my.id`.
+> API tidak butuh wildcard. Hanya `api.k6devs.my.id`.
 
 ### 3.3 Seed data demo dari Laragon
 
@@ -271,7 +271,7 @@ menerima custom domain lewat CNAME, jadi tidak perlu mengubah nameserver.
 
 ```text
 NODE_VERSION=22
-VITE_API_ORIGIN=https://api.sehatly.k6devs.my.id
+VITE_API_ORIGIN=https://api.k6devs.my.id
 VITE_BROADCAST_DRIVER=pusher
 VITE_PUSHER_APP_KEY=<key dari Pusher>
 VITE_PUSHER_CLUSTER=ap1
@@ -323,13 +323,13 @@ berbeda.
    TLS terbit (beberapa menit). Kalau TLS gagal, cek **CAA records** di panel
    my.id: izinkan `letsencrypt.org`, `pki.goog`, dan `ssl.com` (Cloudflare
    memakai salah satunya untuk menerbitkan sertifikat).
-5. Untuk API, tambahkan `api.sehatly.k6devs.my.id` sebagai custom domain di
+5. Untuk API, tambahkan `api.k6devs.my.id` sebagai custom domain di
    Render (bagian 3.2) dan CNAME di panel my.id.
 
 Semua hostname portal menyajikan project Pages yang sama; SPA memilih portal
 dari hostname.
 
-> Jangan menambahkan `api.sehatly.k6devs.my.id` ke Pages. Itu milik Render.
+> Jangan menambahkan `api.k6devs.my.id` ke Pages. Itu milik Render.
 
 **Kalau panel my.id tidak mendukung nama bertitik:** pakai layout datar.
 Pasien di `www.k6devs.my.id`, portal staf di `admin.k6devs.my.id` dst. Layout
@@ -346,7 +346,7 @@ tetap berfungsi sebagai portal pasien.
 
 ## 5. Verifikasi
 
-- [ ] `https://api.sehatly.k6devs.my.id/up` → `200`
+- [ ] `https://api.k6devs.my.id/up` → `200`
 - [ ] `https://sehatly.k6devs.my.id` → landing pasien
 - [ ] `https://admin.sehatly.k6devs.my.id/login` → halaman login admin
 - [ ] `https://dokter.sehatly.k6devs.my.id/login` → halaman login dokter
@@ -354,7 +354,7 @@ tetap berfungsi sebagai portal pasien.
 - [ ] `https://kurir.sehatly.k6devs.my.id/login`
 - [ ] `https://marketing.sehatly.k6devs.my.id/login` dan `/daftar`
 - [ ] Login admin berhasil (nomor `081900000001`, sandi `Admin#Sehatly2026`)
-- [ ] DevTools → Network: request ke `https://api.sehatly.k6devs.my.id/api/v1/...` 200
+- [ ] DevTools → Network: request ke `https://api.k6devs.my.id/api/v1/...` 200
 - [ ] DevTools → Network → WS: koneksi ke Pusher (`wss://ws-ap1.pusher.com`)
 - [ ] Halaman admin **Akun** menampilkan daftar pengguna
 - [ ] Buat undangan di **Akun → Undang**, buka URL aktivasi, minta OTP

@@ -65,7 +65,7 @@ Yang paling penting:
 ```text
 APP_ENV=local
 APP_DEBUG=false
-APP_URL=https://api.sehatly.k6devs.my.id
+APP_URL=https://api.k6devs.my.id
 APP_KEY=...
 NIK_CIPHER_KEY=...
 DB_HOST=...
@@ -103,7 +103,7 @@ Kalau `/up` 500:
 ## 6. Custom domain API
 
 1. Northflank → **Domains** (level project/team) → **Add domain**:
-   `api.sehatly.k6devs.my.id`.
+   `api.k6devs.my.id`.
 2. Northflank memberi target CNAME + record verifikasi (bentuknya `*.code.run`
    atau TXT/CNAME).
 3. Di Cloudflare → zone `k6devs.my.id` → **DNS → Records → Add record**:
@@ -122,7 +122,7 @@ Kalau `/up` 500:
 
 ## 7. Setelah API hidup
 
-1. Cek `https://api.sehatly.k6devs.my.id/up` → 200.
+1. Cek `https://api.k6devs.my.id/up` → 200.
 2. Tambahkan CNAME portal Pages (kalau belum):
 
 | Type | Name | Target | Proxy |
@@ -163,11 +163,11 @@ Cocok kalau juri mengecek pada waktu tertentu dan laptop bisa tetap menyala.
    tunnel: <uuid>
    credentials-file: C:\Users\axioo\.cloudflared\<uuid>.json
    ingress:
-     - hostname: api.sehatly.k6devs.my.id
+     - hostname: api.k6devs.my.id
        service: http://localhost:8000
      - service: http_status:404
    ```
-5. `cloudflared tunnel route dns sehatly-api api.sehatly.k6devs.my.id`
+5. `cloudflared tunnel route dns sehatly-api api.k6devs.my.id`
 6. Jalankan API dengan env dari `deploy/.env.render.ready`:
    ```powershell
    php artisan serve --host=127.0.0.1 --port=8000

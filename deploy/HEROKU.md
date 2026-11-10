@@ -47,7 +47,7 @@ Tempel isi `deploy/.env.render.ready`, dengan perubahan:
 - **hapus** `PORT=10000` (Heroku mengatur PORT sendiri)
 - `LOG_CHANNEL=stderr` (biar log masuk ke Heroku)
 - `TRUSTED_PROXIES=*` (Heroku router)
-- `APP_URL=https://api.sehatly.k6devs.my.id`
+- `APP_URL=https://api.k6devs.my.id`
 - `APP_ENV=local`, `APP_DEBUG=false`
 - `DB_*` TiDB, `PUSHER_*`, `CORS_ALLOWED_ORIGINS` — biarkan seperti file
 - `MYSQL_ATTR_SSL_CA=/etc/ssl/certs/ca-certificates.crt`
@@ -87,7 +87,7 @@ Harus `200`.
 ## 5. Custom domain
 
 ```powershell
-heroku domains:add api.sehatly.k6devs.my.id
+heroku domains:add api.k6devs.my.id
 heroku domains
 ```
 
@@ -100,14 +100,14 @@ Heroku memberi target CNAME (`...herokudns.com`). Di Cloudflare:
 Tunggu sertifikat ACM Heroku terbit. Setelah aktif, cek:
 
 ```text
-https://api.sehatly.k6devs.my.id/up
+https://api.k6devs.my.id/up
 ```
 
 ## 6. Setelah API hidup
 
 1. Rebuild Pages dengan:
    ```text
-   VITE_API_ORIGIN=https://api.sehatly.k6devs.my.id
+   VITE_API_ORIGIN=https://api.k6devs.my.id
    ```
    Lalu `npm run build` + `wrangler pages deploy frontend/dist --project-name sehatly-web --branch main`.
 2. Tambahkan 7 CNAME portal Pages.
