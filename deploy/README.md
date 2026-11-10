@@ -24,6 +24,10 @@ build terpisah per portal.
 > juga yang membuat kode OTP muncul di respons login. Jangan pernah memasukkan
 > data pasien asli, dan jangan memakai akun demo untuk apa pun yang sensitif.
 
+> **Render menolak kartu?** Ada alternatif tanpa kartu:
+> lihat [`deploy/NORTHFLANK.md`](NORTHFLANK.md). Northflank Sandbox Free
+> mendukung Dockerfile, always-on, custom domain, dan tidak meminta kartu.
+
 ---
 
 ## 0. Yang perlu disiapkan
@@ -183,12 +187,6 @@ Cara cepat (setelah `deploy/.env.deploy` diisi):
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File deploy/siapkan-demo.ps1
-```
-
-Kalau belum mengisi file, jalankan ini dulu (interaktif, secret tidak ditampilkan):
-
-```powershell
-powershell -ExecutionPolicy Bypass -File deploy/isi-env.ps1
 ```
 
 Script itu melakukan `migrate:fresh --seed` ke TiDB, lalu membuat
@@ -463,7 +461,6 @@ Kalau nanti dipakai sungguhan:
 | `deploy/env.render.example` | checklist env backend |
 | `deploy/env.pages.example` | checklist env build frontend |
 | `deploy/seed-tidb.ps1` | seed database demo ke TiDB dari Laragon |
-| `deploy/isi-env.ps1` | isi `deploy/.env.deploy` secara interaktif |
 | `deploy/siapkan-demo.ps1` | seed + generate env Render/Pages siap copy |
 | `frontend/public/_redirects` | SPA fallback di Pages |
 | `frontend/public/_headers` | cache asset + header keamanan |
