@@ -1,4 +1,4 @@
-# Tambahkan/update CNAME portal Pages di Cloudflare.
+﻿# Tambahkan/update CNAME portal Pages di Cloudflare.
 #
 # Prasyarat: deploy/.env.deploy berisi CLOUDFLARE_API_TOKEN dengan izin
 #   Zone -> DNS -> Edit
@@ -87,7 +87,7 @@ foreach ($name in $names) {
         type = 'CNAME'
         name = $full
         content = $target
-        proxied = $true
+        proxied = $false
         ttl = 1
     } | ConvertTo-Json
 
@@ -113,3 +113,4 @@ Write-Host ''
 Write-Host 'Selesai. Tunggu 1-5 menit lalu cek:'
 Write-Host "  https://sehatly.$zoneName"
 Write-Host "  https://admin.sehatly.$zoneName/login"
+

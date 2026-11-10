@@ -168,7 +168,7 @@ Troubleshooting.
 
 | Type | Name | Value |
 | --- | --- | --- |
-| CNAME | `api.sehatly` | `sehatly-api.onrender.com` |
+| CNAME | `api` | `sehatly-api.onrender.com` |
 
 Kalau panel meminta nama lengkap, isi `api.k6devs.my.id`. Jangan
 mengaktifkan proxy Cloudflare untuk record ini — zone-nya bukan milik
@@ -312,7 +312,7 @@ Opsional: `www.sehatly.k6devs.my.id` (kalau ingin `www` juga berfungsi).
 | CNAME | `apotek.sehatly` | `sehatly-web.pages.dev` |
 | CNAME | `kurir.sehatly` | `sehatly-web.pages.dev` |
 | CNAME | `marketing.sehatly` | `sehatly-web.pages.dev` |
-| CNAME | `api.sehatly` | `sehatly-api.onrender.com` |
+| CNAME | `api` | `sehatly-api.onrender.com` |
 
 Kalau panel meminta nama lengkap, isi `sehatly.k6devs.my.id`,
 `admin.sehatly.k6devs.my.id`, dst. Untuk API, target CNAME adalah alamat

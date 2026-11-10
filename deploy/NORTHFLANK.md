@@ -108,7 +108,7 @@ Kalau `/up` 500:
    atau TXT/CNAME).
 3. Di Cloudflare → zone `k6devs.my.id` → **DNS → Records → Add record**:
    - Type: **CNAME**
-   - Name: `api.sehatly`
+   - Name: `api`
    - Target: dari Northflank
    - Proxy: **DNS only** (abu-abu) saat verifikasi
 4. Klik **Verify** di Northflank. Setelah domain terverifikasi, link domain ke
@@ -127,13 +127,13 @@ Kalau `/up` 500:
 
 | Type | Name | Target | Proxy |
 |---|---|---|---|
-| CNAME | `sehatly` | `sehatly-web.pages.dev` | Proxied |
-| CNAME | `admin.sehatly` | `sehatly-web.pages.dev` | Proxied |
-| CNAME | `dokter.sehatly` | `sehatly-web.pages.dev` | Proxied |
-| CNAME | `apotek.sehatly` | `sehatly-web.pages.dev` | Proxied |
-| CNAME | `kurir.sehatly` | `sehatly-web.pages.dev` | Proxied |
-| CNAME | `marketing.sehatly` | `sehatly-web.pages.dev` | Proxied |
-| CNAME | `www.sehatly` | `sehatly-web.pages.dev` | Proxied |
+| CNAME | `sehatly` | `sehatly-web.pages.dev` | **DNS only** |
+| CNAME | `admin.sehatly` | `sehatly-web.pages.dev` | **DNS only** |
+| CNAME | `dokter.sehatly` | `sehatly-web.pages.dev` | **DNS only** |
+| CNAME | `apotek.sehatly` | `sehatly-web.pages.dev` | **DNS only** |
+| CNAME | `kurir.sehatly` | `sehatly-web.pages.dev` | **DNS only** |
+| CNAME | `marketing.sehatly` | `sehatly-web.pages.dev` | **DNS only** |
+| CNAME | `www.sehatly` | `sehatly-web.pages.dev` | **DNS only** |
 
 3. Login admin di `https://admin.sehatly.k6devs.my.id`.
 

@@ -95,7 +95,7 @@ Heroku memberi target CNAME (`...herokudns.com`). Di Cloudflare:
 
 | Type | Name | Target | Proxy |
 | --- | --- | --- | --- |
-| CNAME | `api.sehatly` | target Heroku | **DNS only** |
+| CNAME | `api` | target Heroku | **DNS only** |
 
 Tunggu sertifikat ACM Heroku terbit. Setelah aktif, cek:
 
