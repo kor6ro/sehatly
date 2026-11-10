@@ -1,9 +1,10 @@
+import { CircleCheck } from 'lucide-react';
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { useDocumentTitle } from '@/hooks/use-document-title';
-import { useOnlineStatus } from '@/hooks/use-online-status';
 import { formatRupiah, formatTanggal, formatWaktu } from '@/lib/format';
+import { meOptions } from '@/lib/api/me';
 import {
     STATUS_BOOKING_LAPORAN,
     adminAuditOptions,
@@ -12,6 +13,7 @@ import {
     adminLaporanKehadiranOptions,
     adminLaporanPendapatanOptions,
     adminPenggunaOptions,
+    adminPerluTindakanOptions,
 } from '@/lib/api/admin';
 import {
     labelAksi,
@@ -24,7 +26,6 @@ import { SkeletonRows } from '@/shared/components/states/loading-state';
 import { ErrorState } from '@/shared/components/states/error-state';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 
 /**
  * `/admin/dashboard` - the admin portal's front page.
@@ -76,8 +77,6 @@ import { Button } from '@/components/ui/button';
 export function AdminDashboardPage() {
     useDocumentTitle('Dasbor Admin');
 
-    const online = useOnlineStatus();
-
     const { dari, sampai } = useMemo(() => {
         const sekarang = new Date();
         const mulai = new Date(sekarang);
@@ -105,6 +104,8 @@ export function AdminDashboardPage() {
     const pendapatan = useQuery(adminLaporanPendapatanOptions(rentang));
     const kehadiran = useQuery(adminLaporanKehadiranOptions(rentang));
     const audit = useQuery(adminAuditOptions({ page: 1, per_page: 5 }));
+    const perluTindakan = useQuery(adminPerluTindakanOptions());
+    const me = useQuery(meOptions());
 
     /**
      * The account directory's four counts, each a `per_page:1` query whose
@@ -149,6 +150,7 @@ export function AdminDashboardPage() {
         }
 
         void audit.refetch();
+        void perluTindakan.refetch();
     };
 
     const memuat = semuaQuery.some((q) => q.isPending);
@@ -179,13 +181,8 @@ export function AdminDashboardPage() {
     return (
         <AdminGate>
             <PageHeader
-                title="Dasbor Admin"
-                description={`${formatTanggal(dari)} \u2013 ${formatTanggal(sampai)}`}
-                action={
-                    <Button type="button" variant="outline" onClick={muatUlang}>
-                        Muat ulang
-                    </Button>
-                }
+                title={`Halo, ${me?.data?.data.user?.nama_lengkap?.split(' ')[0] ?? 'Admin'}`}
+                description="Yang perlu kamu tangani hari ini."
             />
 
             {memuat ? (
@@ -194,41 +191,8 @@ export function AdminDashboardPage() {
                 <ErrorState error={gagal.error} onRetry={muatUlang} />
             ) : (
                 <div className="space-y-8">
-                    {/**
-                     * The welcome banner. One card-width block rather than two
-                     * loose columns: the pill belongs to the banner the way a
-                     * status light belongs on an instrument panel - right edge,
-                     * always in the same place, never scrolling past.
-                     */}
-                    <section className="bg-card flex flex-wrap items-center justify-between gap-3 rounded-xl border p-5">
-                        <div>
-                            <h2 className="text-xl font-semibold">
-                                Selamat datang, Admin 👋
-                            </h2>
-
-                            <p className="text-muted-foreground text-sm">
-                                Ringkasan aktivitas klinik 30 hari terakhir.
-                            </p>
-                        </div>
-
-                        <span
-                            className={
-                                online
-                                    ? 'inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-medium text-green-700'
-                                    : 'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium text-muted-foreground'
-                            }
-                        >
-                            <span
-                                className={
-                                    online
-                                        ? 'size-1.5 rounded-full bg-green-500'
-                                        : 'size-1.5 rounded-full bg-muted-foreground'
-                                }
-                            />
-
-                            {online ? 'SISTEM ONLINE' : 'SISTEM OFFLINE'}
-                        </span>
-                    </section>
+                    {/* Perlu tindakan: shown only when there is something to act on */}
+                    <PerluTindakanCard data={perluTindakan.data ?? null} />
 
                     {/** The four-card summary strip - one glance, four numbers. */}
                     <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -1021,6 +985,73 @@ function BarChart({
                 );
             })}
         </div>
+    );
+}
+
+/**
+ * "Perlu tindakan" card: shows items that need admin attention.
+ * Hidden entirely when all counts are zero or null (nothing to act on).
+ */
+function PerluTindakanCard({ data }: { data: import('@/lib/api/admin').PerluTindakan | null }) {
+    if (!data) return null;
+
+    const items = [
+        {
+            key: 'marketing',
+            count: data.marketing,
+            label: 'Pendaftar Marketing menunggu persetujuan',
+            to: '/admin/pengguna?tipe=marketing&status=menunggu_persetujuan',
+        },
+        {
+            key: 'dokter',
+            count: data.dokter,
+            label: 'Dokter menunggu verifikasi',
+            to: '/admin/dokter',
+        },
+        {
+            key: 'undangan',
+            count: data.undangan,
+            label: 'Undangan belum diaktifkan',
+            to: '/admin/pengguna?status=diundang',
+        },
+    ].filter((item) => (item.count ?? 0) > 0);
+
+    return (
+        <section
+            aria-labelledby="perlu-tindakan-judul"
+            className="rounded-xl border p-5"
+        >
+            <h2
+                id="perlu-tindakan-judul"
+                className="mb-3 text-sm font-semibold"
+            >
+                Perlu tindakan
+            </h2>
+
+            {items.length === 0 ? (
+                <p className="flex items-center gap-2 text-sm font-medium text-green-600">
+                    <CircleCheck className="size-4 shrink-0" aria-hidden="true" />
+                    Semua beres. Tidak ada yang menunggu tindakan.
+                </p>
+            ) : (
+                <ul className="space-y-2">
+                    {items.map((item) => (
+                        <li key={item.key}>
+                            <Link
+                                to={item.to}
+                                className="flex items-center gap-3 rounded-lg bg-muted/50 px-4 py-3 text-sm hover:bg-muted"
+                            >
+                                <span className="grid min-w-[2rem] place-items-center rounded-md bg-amber-100 px-2 py-1 text-base font-bold text-amber-800">
+                                    {item.count}
+                                </span>
+                                <span className="flex-1 font-medium">{item.label}</span>
+                                <span className="text-xs font-semibold text-primary">Tinjau →</span>
+                            </Link>
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </section>
     );
 }
 

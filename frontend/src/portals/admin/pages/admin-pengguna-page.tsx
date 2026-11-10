@@ -1,108 +1,51 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { KeyRound, RefreshCw, Search, ShieldCheck, UserPlus } from 'lucide-react';
+import { CheckCircle, KeyRound, Power, RefreshCw, Search, ShieldAlert, ShieldCheck, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import {
     adminPenggunaOptions,
-    adminRolesOptions,
+    adminRingkasanOptions,
+    batalkanUndanganMutation,
+    kirimUlangUndanganMutation,
     resetSandiPenggunaMutation,
+    setujuiPenggunaMutation,
+    tolakPenggunaMutation,
     ubahStatusPenggunaMutation,
     type AdminPengguna,
     type AdminPenggunaFilter,
     type TipeFilterPengguna,
 } from '@/lib/api/admin';
-import { PORTAL_NAMA, portalTipe } from '@/lib/portal';
+import { meOptions } from '@/lib/api/me';
 import { useDocumentTitle } from '@/hooks/use-document-title';
 import { useOnlineStatus } from '@/hooks/use-online-status';
 import { AdminErrorState, AdminGate } from '@/portals/admin/features/admin/admin-gate';
-import {
-    labelStatusAkun,
-    labelTipeAkun,
-} from '@/portals/admin/features/admin/format-admin';
+import { labelStatusAkun, labelTipeAkun } from '@/portals/admin/features/admin/format-admin';
 import { formatWaktu } from '@/lib/format';
 import { pesanRingkas } from '@/portals/admin/features/admin/pesan';
 import { PageHeader } from '@/shared/components/layout/page-header';
 import { Pagination } from '@/shared/components/layout/pagination';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Field, FieldInput, FieldSelect } from '@/shared/components/form/field';
-import { SelectItem } from '@/components/ui/select';
+import { Field, FieldTextarea } from '@/shared/components/form/field';
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
+    Dialog, DialogContent, DialogDescription,
+    DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { SkeletonRows } from '@/shared/components/states/loading-state';
 
-/**
- * The account directory: every `users` row the operator may read, and the two
- * writes the backend actually offers (status toggle, password reset).
- *
- * ## The selection lives in the URL
- *
- * `?tipe=<role>` (absent = the union view) is a `searchParams` read rather
- * than component state, because the SIDEBAR links straight into it - one
- * item per role, the split this page's audience asked for - a refresh keeps
- * the selection, and the query key is the same object the dashboard's
- * statistics use, so "staf" still means one thing in two places. The chip
- * strip mirrors the sidebar one-for-one plus "Semua"; a valid `?tipe=`
- * outside that set (the `staf` alias a legacy link carries, `dokter`,
- * `perawat`) keeps working and earns a chip of its own, so the pressed state
- * never disagrees with the address bar.
- *
- * ## Why a list, and not the table the dokter page uses
- *
- * An account row carries a name, a masked phone, an email, an account type, a
- * status and two timestamps: six fields that read as a sentence, not as six
- * columns. The dokter table works because its columns are mostly status; this
- * one is a roster, so each row is a card with the actions that touch THAT
- * account pinned to its own edge - a password reset never lands on the wrong
- * row.
- *
- * ## The create button belongs to the types the server actually creates
- *
- * `POST /admin/pengguna` refuses every type outside the server's
- * {@see \App\Services\Admin\AdminPenggunaService::TIPE_BUAT}
- * (apoteker/kurir/marketing/admin), so a "Buat akun" button on any other
- * view would promise a form whose every choice 422s. Those views show the
- * door that DOES exist instead - patients register themselves over
- * `POST /auth/sign-up` and OTP, doctors are minted through the Dokter menu,
- * superadmins only from the seeder - and the empty state says the same,
- * because an empty list is exactly when someone goes looking for the
- * create button.
- *
- * ## The role card states the policy the list below is filtered by
- *
- * A role view (`?tipe=<role>`, one sidebar item each) renders a summary
- * card above the directory: the role's description, the portal its holders
- * operate, and every permission code it holds with its display name. The
- * payload comes from `GET /admin/roles`, which answers `RbacCatalog` - the
- * same constants the seeder writes and `permission:` middleware enforces -
- * so the card cannot advertise a grant the server disagrees with. The card
- * answers "role apa ini?", which is what the per-role split raised;
- * underneath it the directory is the same list it always was, narrowed to
- * one `tipe=`.
- */
 const PER_HALAMAN = 20;
-
 type Tab = 'semua' | TipeFilterPengguna;
 
-/**
- * The chip strip: the union view plus the six roles the sidebar splits
- * into, in sidebar order.
- *
- * `staf` is NOT a standing chip - it is the filter ALIAS whose members are
- * five of these six listed individually, and showing the umbrella beside
- * its members is the ambiguity this page's split exists to remove. It
- * remains a valid `?tipe=` (the dashboard's count and any legacy link still
- * land on it) and then earns a chip of its own, appended rather than
- * standing in the default set - see `chips` below. `dokter` and `perawat`
- * are the same story: valid filters, no standing chip.
- */
+const STATUS_TAB: ReadonlyArray<{ nilai: string; label: string }> = [
+    { nilai: 'semua', label: 'Semua' },
+    { nilai: 'menunggu_persetujuan', label: 'Menunggu persetujuan' },
+    { nilai: 'diundang', label: 'Diundang' },
+    { nilai: 'aktif', label: 'Aktif' },
+    { nilai: 'nonaktif', label: 'Nonaktif' },
+    { nilai: 'ditolak', label: 'Ditolak' },
+];
+
 const TAB: ReadonlyArray<{ nilai: Tab; label: string }> = [
     { nilai: 'semua', label: 'Semua' },
     { nilai: 'pasien', label: 'Pasien' },
@@ -113,445 +56,328 @@ const TAB: ReadonlyArray<{ nilai: Tab; label: string }> = [
     { nilai: 'superadmin', label: 'Superadmin' },
 ];
 
-/**
- * Every `?tipe=` the server accepts: the chips' set plus the `staf` alias
- * and the two row types no chip stands for. Mirrors
- * `AdminPenggunaService::TIPE_FILTER` - the type `TipeFilterPengguna` is the
- * compile-time half, this set the runtime half - and a value outside it
- * falls back to the union view rather than asking the API a question it
- * would answer 422.
- */
 const TIPE_SAHIH: ReadonlySet<string> = new Set([
-    ...TAB.map((item) => item.nilai),
-    'staf',
-    'dokter',
-    'perawat',
+    ...TAB.map((t) => t.nilai),
+    'staf', 'dokter', 'perawat',
 ]);
 
-/**
- * The types `POST /admin/pengguna` creates - the server's `TIPE_BUAT` plus
- * the `staf` alias, whose five members are all creatable. Every type OUTSIDE
- * this set shows {@see PINTU_BUAT}'s door instead of a button that would 422
- * on submit.
- */
-const TIPE_DIBUAT: ReadonlySet<string> = new Set([
-    'staf',
-    'apoteker',
-    'kurir',
-    'marketing',
-    'admin',
-]);
+const TIPE_UNDANG: ReadonlySet<string> = new Set(['dokter', 'apoteker', 'kurir', 'admin']);
 
-/** The door that DOES exist, for each type the create form does not offer. */
-const PINTU_BUAT: Partial<Record<TipeFilterPengguna, string>> = {
-    pasien: 'Pasien mendaftar sendiri lewat aplikasi.',
-    dokter: 'Dokter dibuat lewat menu Dokter.',
-    superadmin: 'Akun superadmin hanya dibuat dari seeder.',
-    perawat: 'Tipe ini belum memiliki role, jadi tidak bisa dibuat.',
-};
-
-/** Chip/title label for a filter value - `labelTipeAkun` predates the alias. */
 function labelPilihan(tipe: TipeFilterPengguna): string {
     return tipe === 'staf' ? 'Staf' : labelTipeAkun(tipe);
 }
 
-/** The portal a role's holders operate, in the login pages' own words. */
-function namaPortalRole(tipe: string): string {
-    const portal = portalTipe(tipe);
-    return portal === 'pasien' ? 'Aplikasi Sehatly' : PORTAL_NAMA[portal];
-}
+const STAT_CARDS = [
+    { key: 'total',    label: 'Total Akun',         cls: 'bg-primary/10 text-primary' },
+    { key: 'aktif',    label: 'Akun Aktif',          cls: 'bg-green-100 text-green-700' },
+    { key: 'diundang', label: 'Menunggu Aktivasi',   cls: 'bg-amber-100 text-amber-700' },
+    { key: 'nonaktif', label: 'Nonaktif',            cls: 'bg-red-100 text-red-700' },
+] as const;
 
 export function AdminPenggunaPage() {
     const online = useOnlineStatus();
-
-    // --- The URL is the state -------------------------------------------------
     const [searchParams, setSearchParams] = useSearchParams();
+
     const tipeMentah = searchParams.get('tipe');
-    // The URL IS the filter, validated against the server's vocabulary; an
-    // unknown value falls back to the union view rather than asking the API a
-    // question it would answer 422.
     const tipeAktif: TipeFilterPengguna | null =
         tipeMentah !== null && TIPE_SAHIH.has(tipeMentah)
             ? (tipeMentah as TipeFilterPengguna)
             : null;
 
-    useDocumentTitle(
-        tipeAktif ? `Manajemen Akun · ${labelPilihan(tipeAktif)}` : 'Manajemen Akun',
-    );
+    useDocumentTitle(tipeAktif ? `Manajemen Akun · ${labelPilihan(tipeAktif)}` : 'Manajemen Akun');
 
-    const qParam = searchParams.get('q') ?? '';
+    const qParam      = searchParams.get('q') ?? '';
     const statusParam = searchParams.get('status');
-    const status =
-        statusParam === 'aktif' || statusParam === 'nonaktif' ? statusParam : undefined;
+    const statusAktif = statusParam && STATUS_TAB.some(t => t.nilai === statusParam && t.nilai !== 'semua')
+        ? statusParam : undefined;
     const halaman = Math.max(1, Number(searchParams.get('page') ?? '1') || 1);
 
-    // The draft search box: committed on submit (Enter or the button) so a
-    // half-typed name does not refetch per keystroke or churn the URL.
     const [qDraft, setQDraft] = useState(qParam);
-    useEffect(() => {
-        setQDraft(qParam);
-    }, [qParam]);
+    useEffect(() => { setQDraft(qParam); }, [qParam]);
 
     const tulis = (next: Record<string, string | null>) => {
         const params = new URLSearchParams(searchParams);
-        for (const [key, value] of Object.entries(next)) {
-            if (value === null || value === '') {
-                params.delete(key);
-            } else {
-                params.set(key, value);
-            }
+        for (const [k, v] of Object.entries(next)) {
+            if (v === null || v === '') params.delete(k); else params.set(k, v);
         }
         setSearchParams(params, { replace: true });
     };
 
     const filter: AdminPenggunaFilter = {
         tipe: tipeAktif ?? undefined,
-        status,
+        status: statusAktif as AdminPenggunaFilter['status'],
         q: qParam || undefined,
         page: halaman,
         per_page: PER_HALAMAN,
     };
 
-    const daftar = useQuery(adminPenggunaOptions(filter));
+    const daftar   = useQuery(adminPenggunaOptions(filter));
+    const ringkasan = useQuery(adminRingkasanOptions());
+    const counts   = ringkasan.data?.data.ringkasan;
 
-    // The role card: only a role view has one, and only once the catalogue
-    // answers - a failed fetch hides the card, never the directory. The
-    // union view never asks: there is no card to fill there.
-    const katalog = useQuery({ ...adminRolesOptions(), enabled: tipeAktif !== null });
-    const roleAktif = tipeAktif
-        ? katalog.data?.data.roles.find((role) => role.role === tipeAktif)
-        : undefined;
+    const me           = useQuery(meOptions());
+    const isSuperadmin = me.data?.data.user?.tipe === 'superadmin';
+    const canInvite    =
+        tipeAktif !== null &&
+        TIPE_UNDANG.has(tipeAktif) &&
+        (tipeAktif !== 'admin' || isSuperadmin);
 
-    // Where a create button may appear, and the door that exists where it may not.
-    const bolehBuat = tipeAktif === null || TIPE_DIBUAT.has(tipeAktif);
-    const pintuBuat = tipeAktif ? PINTU_BUAT[tipeAktif] : undefined;
+    const tekan = (nilai: Tab) => nilai === 'semua' ? tipeAktif === null : tipeAktif === nilai;
 
-    // The chip strip mirrors the sidebar plus "Semua"; a valid `?tipe=` outside
-    // that set appends its own chip so URL and pressed state never disagree.
-    const chips: ReadonlyArray<{ nilai: Tab; label: string }> =
-        tipeAktif && !TAB.some((item) => item.nilai === tipeAktif)
-            ? [...TAB, { nilai: tipeAktif, label: labelPilihan(tipeAktif) }]
-            : TAB;
-    const tekan = (nilai: Tab): boolean =>
-        nilai === 'semua' ? tipeAktif === null : tipeAktif === nilai;
+    const sum = (key: string) =>
+        counts ? Object.values(counts).reduce((s: number, v: Record<string, number>) => s + (v[key] ?? 0), 0) : null;
 
-    // --- The two writes -------------------------------------------------------
+    const statValues: Record<string, number | null> = {
+        total:    sum('total'),
+        aktif:    sum('aktif'),
+        diundang: sum('diundang'),
+        nonaktif: sum('nonaktif'),
+    };
+
+    // --- mutations ---
     const gantiStatus = useMutation({
         ...ubahStatusPenggunaMutation(),
-        onSuccess: (_result, input) => {
-            toast.success(
-                input.status === 'aktif'
-                    ? 'Akun diaktifkan kembali.'
-                    : 'Akun dinonaktifkan.',
-            );
-        },
-        onError: (error) => toast.error(pesanRingkas(error)),
+        onSuccess: (_r, input) => toast.success(input.status === 'aktif' ? 'Akun diaktifkan.' : 'Akun dinonaktifkan.'),
+        onError: (e) => toast.error(pesanRingkas(e)),
     });
-
     const resetSandi = useMutation({
         ...resetSandiPenggunaMutation(),
-        onSuccess: (result) => {
-            // The plaintext exists exactly once - it must be on screen NOW,
-            // before any cache sweep or navigation can drop it.
-            setPasswordBaru(result.data.password_baru);
-            setNamaReset(result.data.pengguna.nama_lengkap);
-        },
-        onError: (error) => toast.error(pesanRingkas(error)),
+        onSuccess: (r) => { setPasswordBaru(r.data.password_baru); setNamaReset(r.data.pengguna.nama_lengkap); },
+        onError: (e) => toast.error(pesanRingkas(e)),
+    });
+    const setujui = useMutation({
+        ...setujuiPenggunaMutation(),
+        onSuccess: () => toast.success('Akun disetujui.'),
+        onError: (e) => toast.error(pesanRingkas(e)),
+    });
+    const tolak = useMutation({
+        ...tolakPenggunaMutation(),
+        onSuccess: () => toast.success('Akun ditolak.'),
+        onError: (e) => toast.error(pesanRingkas(e)),
+    });
+    const kirimUlang = useMutation({
+        ...kirimUlangUndanganMutation(),
+        onSuccess: (r) => { setTokenUndangan(r.data.token); setNamaUndangan(r.data.pengguna.nama_lengkap); },
+        onError: (e) => toast.error(pesanRingkas(e)),
+    });
+    const batalkan = useMutation({
+        ...batalkanUndanganMutation(),
+        onSuccess: () => toast.success('Undangan dibatalkan.'),
+        onError: (e) => toast.error(pesanRingkas(e)),
     });
 
-    // Confirm dialogs, one pair of pieces of state so a row's action never
-    // leaks into another row: the row is identified by id + name at click time.
-    const [konfirmasi, setKonfirmasi] = useState<
-        { id: number; nama: string; tujuan: 'aktif' | 'nonaktif' } | null
-    >(null);
-    const [resetMinta, setResetMinta] = useState<{ id: number; nama: string } | null>(null);
-    const [passwordBaru, setPasswordBaru] = useState<string | null>(null);
-    const [namaReset, setNamaReset] = useState('');
+    // --- dialog state ---
+    const [kirimUlangTarget, setKirimUlangTarget] = useState<{ undanganId: number; nama: string } | null>(null);
+    const [batalkanTarget,   setBatalkanTarget]   = useState<{ undanganId: number; nama: string } | null>(null);
+    const [konfirmasi,       setKonfirmasi]       = useState<{ id: number; nama: string; tujuan: 'aktif' | 'nonaktif' } | null>(null);
+    const [resetMinta,       setResetMinta]       = useState<{ id: number; nama: string } | null>(null);
+    const [passwordBaru,     setPasswordBaru]     = useState<string | null>(null);
+    const [namaReset,        setNamaReset]        = useState('');
+    const [tolakTarget,      setTolakTarget]      = useState<{ id: number; nama: string } | null>(null);
+    const [alasanTolak,      setAlasanTolak]      = useState('');
+    const [tokenUndangan,    setTokenUndangan]    = useState<string | null>(null);
+    const [namaUndangan,     setNamaUndangan]     = useState('');
 
     const rows = daftar.data?.data.pengguna ?? [];
     const meta = daftar.data?.meta;
+    const muatUlang = () => { void daftar.refetch(); };
 
-    const muatUlang = () => {
-        void daftar.refetch();
-    };
-
-    // --- The row --------------------------------------------------------------
+    // --- row ---
     const baris = (akun: AdminPengguna) => {
-        const tipeAkun = akun.tipe;
         const bolehNonaktif = akun.status === 'aktif';
-
+        const menunggu      = akun.status === 'menunggu_persetujuan';
+        const diundang      = akun.status === 'diundang';
+        const inisial       = akun.nama_lengkap.trim().charAt(0).toUpperCase() || '?';
         return (
-            <li
-                key={akun.id}
-                data-testid="admin-baris"
-                className="rounded-lg border p-4 space-y-3"
-            >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="space-y-1 min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                            <p className="font-medium truncate">{akun.nama_lengkap}</p>
-                            <Badge variant="outline">{labelTipeAkun(tipeAkun)}</Badge>
-                            <Badge
-                                variant={akun.status === 'aktif' ? 'default' : 'secondary'}
-                            >
-                                {labelStatusAkun(akun.status)}
-                            </Badge>
-                            {akun.telepon_terverifikasi ? (
-                                <span
-                                    className="inline-flex items-center gap-1 text-xs text-muted-foreground"
-                                    title="Nomor telepon sudah diverifikasi"
-                                >
-                                    <ShieldCheck className="h-3.5 w-3.5" />
-                                    Terverifikasi
-                                </span>
-                            ) : null}
+            <tr key={akun.id} data-testid="admin-baris" className="border-b last:border-0 hover:bg-muted/40">
+                <td className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                        <div aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+                            {inisial}
                         </div>
-
-                        <p className="text-sm text-muted-foreground">
-                            {akun.no_telepon}
-                            {akun.email ? ` · ${akun.email}` : ''}
-                        </p>
-
-                        <p className="text-xs text-muted-foreground">
-                            Terakhir masuk{' '}
-                            {akun.last_login_at
-                                ? formatWaktu(akun.last_login_at)
-                                : 'belum pernah'}{' '}
-                            · Dibuat {formatWaktu(akun.dibuat_at)}
-                        </p>
+                        <div>
+                            <p className="font-medium text-sm">{akun.nama_lengkap}</p>
+                            <p className="text-xs text-muted-foreground">
+                                {[akun.no_telepon, akun.email].filter(Boolean).join(' · ')}
+                            </p>
+                        </div>
                     </div>
-
-                    <div
-                        data-testid="admin-aksi"
-                        className="flex flex-wrap items-center gap-2 shrink-0"
-                    >
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disabled={!online || gantiStatus.isPending}
-                            onClick={() =>
-                                setKonfirmasi({
-                                    id: akun.id,
-                                    nama: akun.nama_lengkap,
-                                    tujuan: bolehNonaktif ? 'nonaktif' : 'aktif',
-                                })
-                            }
-                        >
-                            {bolehNonaktif ? 'Nonaktifkan' : 'Aktifkan'}
-                        </Button>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disabled={!online || resetSandi.isPending}
-                            onClick={() =>
-                                setResetMinta({ id: akun.id, nama: akun.nama_lengkap })
-                            }
-                        >
-                            <KeyRound />
-                            Reset sandi
-                        </Button>
+                </td>
+                <td className="px-4 py-3">
+                    <Badge variant="outline">{labelTipeAkun(akun.tipe)}</Badge>
+                </td>
+                <td className="px-4 py-3">
+                    <span className={`inline-flex items-center gap-1 text-xs ${akun.telepon_terverifikasi ? 'text-green-600' : 'text-muted-foreground'}`}>
+                        {akun.telepon_terverifikasi ? <ShieldCheck className="size-3.5" /> : <ShieldAlert className="size-3.5" />}
+                        {akun.telepon_terverifikasi ? 'Terverifikasi' : 'Belum'}
+                    </span>
+                </td>
+                <td className="px-4 py-3 text-xs text-muted-foreground">
+                    {akun.last_login_at ? formatWaktu(akun.last_login_at) : 'Belum pernah'}
+                </td>
+                <td className="px-4 py-3">
+                    <Badge variant={akun.status === 'aktif' ? 'default' : akun.status === 'menunggu_persetujuan' ? 'secondary' : 'outline'}>
+                        {labelStatusAkun(akun.status)}
+                    </Badge>
+                </td>
+                <td className="px-4 py-3">
+                    <div data-testid="admin-aksi" className="flex items-center justify-end gap-1">
+                        {menunggu ? (
+                            <>
+                                <Button type="button" size="sm" disabled={setujui.isPending} onClick={() => setujui.mutate(akun.id)}>
+                                    <CheckCircle className="size-4" /> Setujui
+                                </Button>
+                                <Button type="button" variant="destructive" size="sm" disabled={tolak.isPending}
+                                    onClick={() => setTolakTarget({ id: akun.id, nama: akun.nama_lengkap })}>
+                                    <XCircle className="size-4" /> Tolak
+                                </Button>
+                            </>
+                        ) : diundang ? (
+                            <>
+                                <Button type="button" variant="outline" size="icon" title="Kirim ulang undangan"
+                                    disabled={kirimUlang.isPending || akun.undangan_id === null}
+                                    onClick={() => akun.undangan_id !== null && setKirimUlangTarget({ undanganId: akun.undangan_id, nama: akun.nama_lengkap })}>
+                                    <RefreshCw className="size-4" />
+                                </Button>
+                                <Button type="button" variant="outline" size="icon" title="Batalkan undangan"
+                                    className="text-destructive hover:text-destructive"
+                                    disabled={batalkan.isPending || akun.undangan_id === null}
+                                    onClick={() => akun.undangan_id !== null && setBatalkanTarget({ undanganId: akun.undangan_id, nama: akun.nama_lengkap })}>
+                                    <XCircle className="size-4" />
+                                </Button>
+                            </>
+                        ) : (
+                            <>
+                                <Button type="button" variant="outline" size="icon" title="Reset sandi"
+                                    aria-label={`Reset sandi ${akun.nama_lengkap}`}
+                                    disabled={!online || resetSandi.isPending}
+                                    onClick={() => setResetMinta({ id: akun.id, nama: akun.nama_lengkap })}>
+                                    <KeyRound className="size-4" />
+                                </Button>
+                                <Button type="button" variant="outline" size="icon"
+                                    title={bolehNonaktif ? 'Nonaktifkan' : 'Aktifkan'}
+                                    aria-label={`${bolehNonaktif ? 'Nonaktifkan' : 'Aktifkan'} ${akun.nama_lengkap}`}
+                                    className={bolehNonaktif ? 'text-destructive hover:text-destructive' : 'text-green-600 hover:text-green-600'}
+                                    disabled={!online || gantiStatus.isPending}
+                                    onClick={() => setKonfirmasi({ id: akun.id, nama: akun.nama_lengkap, tujuan: bolehNonaktif ? 'nonaktif' : 'aktif' })}>
+                                    <Power className="size-4" />
+                                </Button>
+                            </>
+                        )}
                     </div>
-                </div>
-            </li>
+                </td>
+            </tr>
         );
     };
 
     return (
         <AdminGate>
             <div className="space-y-6">
-                <PageHeader
-                    title="Manajemen Akun"
-                    description="Direktori akun per role: telusuri, aktifkan, nonaktifkan, atau atur ulang sandinya."
-                    action={
-                        /**
-                         * The button appears only where the server accepts a
-                         * create (`TIPE_DIBUAT`); every other view states the
-                         * door that DOES exist instead - a button whose every
-                         * submit would 422 is worse than its absence, which
-                         * is exactly the misreading an earlier version of
-                         * this page invited on the patient tab.
-                         */
-                        bolehBuat ? (
-                            <Button asChild data-testid="admin-tulis">
-                                <Link to="/admin/pengguna/buat">
-                                    <UserPlus />
-                                    Buat akun
-                                </Link>
-                            </Button>
-                        ) : (
-                            <p className="text-muted-foreground text-sm">{pintuBuat}</p>
-                        )
-                    }
-                />
-
-                {/* --- What this role IS: only a role view carries one --- */}
-                {roleAktif ? (
-                    <section
-                        data-testid="admin-ringkasan-role"
-                        aria-label={`Ringkasan role ${labelTipeAkun(roleAktif.role)}`}
-                        className="space-y-3 rounded-lg border p-4"
-                    >
-                        <div className="flex flex-wrap items-center gap-2">
-                            <Badge variant="outline">{labelTipeAkun(roleAktif.role)}</Badge>
-                            <span className="text-sm text-muted-foreground">
-                                {namaPortalRole(roleAktif.role)}
-                            </span>
-                            <span
-                                className="text-sm text-muted-foreground"
-                                aria-hidden="true"
-                            >
-                                ·
-                            </span>
-                            <span className="text-sm text-muted-foreground">
-                                {roleAktif.izin.length} izin
-                            </span>
-                        </div>
-
-                        <p className="text-sm">{roleAktif.deskripsi}</p>
-
-                        {/* The raw code rides in `title`: the display name is
-                            derived, so the code is the unambiguous identity of
-                            the grant when someone copies it into a route. */}
-                        <div className="flex flex-wrap gap-1.5">
-                            {roleAktif.izin.map((izin) => (
-                                <Badge key={izin.kode} variant="secondary" title={izin.kode}>
-                                    {izin.nama}
-                                </Badge>
-                            ))}
-                        </div>
-                    </section>
-                ) : null}
-
-                {/* --- Tabs, search, status --- */}
-                <div className="flex flex-wrap items-end gap-3">
-                    <div
-                        role="group"
-                        aria-label="Filter tipe akun"
-                        className="flex flex-wrap gap-2"
-                    >
-                        {chips.map((item) => (
-                            <div key={item.nilai} data-testid="admin-aksi">
-                                <Button
-                                    type="button"
-                                    variant={tekan(item.nilai) ? 'default' : 'outline'}
-                                    aria-pressed={tekan(item.nilai)}
-                                    className="h-11"
-                                    onClick={() =>
-                                        tulis({
-                                            tipe: item.nilai === 'semua' ? null : item.nilai,
-                                            page: null,
-                                        })
-                                    }
-                                >
-                                    {item.label}
-                                </Button>
-                            </div>
-                        ))}
-                    </div>
-
-                    <form
-                        className="flex flex-wrap items-end gap-2"
-                        onSubmit={(event) => {
-                            event.preventDefault();
-                            tulis({ q: qDraft.trim() || null, page: null });
-                        }}
-                    >
-                        <Field label="Cari" className="w-56">
-                            <FieldInput
-                                data-testid="admin-cari"
-                                placeholder="Nama atau nomor"
-                                value={qDraft}
-                                onChange={(event) => setQDraft(event.target.value)}
-                            />
-                        </Field>
-
-                        <Button type="submit" variant="secondary" className="h-10">
-                            <Search />
-                            Cari
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                    <PageHeader title="Akun" description="Telusuri, aktifkan, nonaktifkan, atau atur ulang sandi akun." />
+                    {canInvite && (
+                        <Button asChild size="sm">
+                            <Link to={`/admin/pengguna/undang?tipe=${tipeAktif ?? ''}`}>
+                                Undang {tipeAktif ? labelTipeAkun(tipeAktif as TipeFilterPengguna) : 'Pengguna'}
+                            </Link>
                         </Button>
-                    </form>
-
-                    <Field label="Status" className="w-48">
-                        <FieldSelect
-                            value={status ?? 'semua'}
-                            onValueChange={(value) =>
-                                tulis({
-                                    status: value === 'semua' ? null : value,
-                                    page: null,
-                                })
-                            }
-                        >
-                            <SelectItem value="semua">Semua status</SelectItem>
-                            <SelectItem value="aktif">Aktif</SelectItem>
-                            <SelectItem value="nonaktif">Nonaktif</SelectItem>
-                        </FieldSelect>
-                    </Field>
-
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        className="h-10"
-                        onClick={muatUlang}
-                        disabled={daftar.isFetching}
-                    >
-                        <RefreshCw />
-                        Muat ulang
-                    </Button>
+                    )}
                 </div>
 
-                {/* --- The list --- */}
+                {/* 4 stat cards */}
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    {STAT_CARDS.map(({ key, label, cls }) => (
+                        <div key={key} className="rounded-xl border bg-background p-4 flex items-center gap-3">
+                            <div className={`grid size-10 shrink-0 place-items-center rounded-lg text-sm font-bold ${cls}`}>
+                                {statValues[key] ?? '—'}
+                            </div>
+                            <p className="text-xs text-muted-foreground">{label}</p>
+                        </div>
+                    ))}
+                </div>
+
+                {/* tab strip */}
+                <div role="tablist" aria-label="Role akun" className="flex gap-1 overflow-x-auto border-b">
+                    {TAB.map((item) => {
+                        const aktif = tekan(item.nilai);
+                        const total = item.nilai === 'semua'
+                            ? statValues['total']
+                            : (counts?.[item.nilai]?.total ?? null);
+                        return (
+                            <button key={item.nilai} type="button" role="tab" aria-selected={aktif}
+                                className={['inline-flex shrink-0 items-center gap-2 border-b-2 px-3.5 py-2.5 text-sm font-medium whitespace-nowrap transition-colors',
+                                    aktif ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'].join(' ')}
+                                onClick={() => tulis({ tipe: item.nilai === 'semua' ? null : item.nilai, status: null, page: null })}>
+                                {item.label}
+                                {total != null && (
+                                    <span className={['rounded-full px-2 py-0.5 text-xs font-semibold',
+                                        aktif ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'].join(' ')}>
+                                        {total}
+                                    </span>
+                                )}
+                            </button>
+                        );
+                    })}
+                </div>
+
+                {/* toolbar */}
+                <div className="flex flex-wrap items-center gap-2">
+                    <form className="flex flex-1 min-w-[200px] items-center gap-1 rounded-md border px-3 focus-within:ring-2 focus-within:ring-primary/30"
+                        onSubmit={(e) => { e.preventDefault(); tulis({ q: qDraft.trim() || null, page: null }); }}>
+                        <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <input data-testid="admin-cari"
+                            className="h-10 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                            placeholder="Cari nama atau nomor" value={qDraft}
+                            onChange={(e) => setQDraft(e.target.value)} />
+                    </form>
+                    <select className="h-10 rounded-md border px-3 text-sm" aria-label="Filter status"
+                        value={statusAktif ?? ''}
+                        onChange={(e) => tulis({ status: e.target.value || null, page: null })}>
+                        <option value="">Semua status</option>
+                        {STATUS_TAB.filter(t => t.nilai !== 'semua').map(t => (
+                            <option key={t.nilai} value={t.nilai}>{t.label}</option>
+                        ))}
+                    </select>
+
+                </div>
+
+                {/* table */}
                 <div className="space-y-4">
                     {daftar.isPending ? (
-                        <div data-testid="admin-muat" className="space-y-2">
-                            <SkeletonRows rows={6} />
-                        </div>
+                        <div data-testid="admin-muat" className="space-y-2"><SkeletonRows rows={6} /></div>
                     ) : daftar.isError ? (
                         <AdminErrorState error={daftar.error} onRetry={muatUlang} />
                     ) : rows.length === 0 ? (
                         <div className="rounded-lg border border-dashed p-10 text-center space-y-2">
                             <p className="font-medium">Belum ada akun</p>
-                            <p className="text-sm text-muted-foreground">
-                                {bolehBuat
-                                    ? 'Tidak ada akun yang cocok dengan filter ini.'
-                                    : (pintuBuat ??
-                                      'Tidak ada akun yang cocok dengan filter ini.')}
-                            </p>
-                            {bolehBuat ? (
-                                <Button asChild variant="outline" data-testid="admin-tulis">
-                                    <Link to="/admin/pengguna/buat">
-                                        <UserPlus />
-                                        Buat akun
-                                    </Link>
-                                </Button>
-                            ) : null}
+                            <p className="text-sm text-muted-foreground">Tidak ada akun yang cocok dengan filter ini.</p>
                         </div>
                     ) : (
-                        <ul className="space-y-3">{rows.map(baris)}</ul>
+                        <div className="overflow-x-auto rounded-xl border bg-background">
+                            <table className="w-full min-w-[700px] text-sm">
+                                <thead>
+                                    <tr className="border-b bg-muted/40 text-xs text-muted-foreground">
+                                        <th className="px-4 py-3 text-left font-semibold">Akun</th>
+                                        <th className="px-4 py-3 text-left font-semibold">Role</th>
+                                        <th className="px-4 py-3 text-left font-semibold">Verifikasi</th>
+                                        <th className="px-4 py-3 text-left font-semibold">Terakhir masuk</th>
+                                        <th className="px-4 py-3 text-left font-semibold">Status</th>
+                                        <th className="px-4 py-3 text-right font-semibold">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody>{rows.map(baris)}</tbody>
+                            </table>
+                        </div>
                     )}
-
-                    <Pagination
-                        meta={meta}
-                        onPageChange={(next) => tulis({ page: String(next) })}
-                    />
+                    <Pagination meta={meta} onPageChange={(next) => tulis({ page: String(next) })} />
                 </div>
             </div>
 
-            {/* --- Confirm: status toggle --- */}
-            <Dialog
-                open={konfirmasi !== null}
-                onOpenChange={(open) => {
-                    if (!open) setKonfirmasi(null);
-                }}
-            >
+            {/* confirm: status toggle */}
+            <Dialog open={konfirmasi !== null} onOpenChange={(o) => { if (!o) setKonfirmasi(null); }}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>
-                            {konfirmasi?.tujuan === 'nonaktif'
-                                ? 'Nonaktifkan akun?'
-                                : 'Aktifkan akun?'}
-                        </DialogTitle>
+                        <DialogTitle>{konfirmasi?.tujuan === 'nonaktif' ? 'Nonaktifkan akun?' : 'Aktifkan akun?'}</DialogTitle>
                         <DialogDescription>
                             {konfirmasi?.tujuan === 'nonaktif'
                                 ? `${konfirmasi?.nama} tidak akan bisa masuk sampai akunnya diaktifkan kembali, dan seluruh sesinya dicabut sekarang juga.`
@@ -559,122 +385,121 @@ export function AdminPenggunaPage() {
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => setKonfirmasi(null)}
-                        >
-                            Batal
-                        </Button>
-                        <Button
-                            type="button"
-                            data-testid="admin-aksi"
-                            disabled={gantiStatus.isPending}
-                            onClick={() => {
-                                if (!konfirmasi) return;
-                                gantiStatus.mutate(
-                                    { id: konfirmasi.id, status: konfirmasi.tujuan },
-                                    { onSettled: () => setKonfirmasi(null) },
-                                );
-                            }}
-                        >
-                            {konfirmasi?.tujuan === 'nonaktif'
-                                ? 'Nonaktifkan'
-                                : 'Aktifkan'}
+                        <Button type="button" variant="outline" onClick={() => setKonfirmasi(null)}>Batal</Button>
+                        <Button type="button" data-testid="admin-aksi" disabled={gantiStatus.isPending}
+                            onClick={() => { if (!konfirmasi) return; gantiStatus.mutate({ id: konfirmasi.id, status: konfirmasi.tujuan }, { onSettled: () => setKonfirmasi(null) }); }}>
+                            {konfirmasi?.tujuan === 'nonaktif' ? 'Nonaktifkan' : 'Aktifkan'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
 
-            {/* --- Confirm: password reset --- */}
-            <Dialog
-                open={resetMinta !== null && passwordBaru === null}
-                onOpenChange={(open) => {
-                    if (!open) setResetMinta(null);
-                }}
-            >
+            {/* confirm: password reset */}
+            <Dialog open={resetMinta !== null && passwordBaru === null} onOpenChange={(o) => { if (!o) setResetMinta(null); }}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Atur ulang sandi?</DialogTitle>
                         <DialogDescription>
-                            Sandi {resetMinta?.nama} akan diganti dengan yang baru. Sandi
-                            lama berhenti berlaku seketika, dan yang baru hanya ditampilkan
-                            satu kali.
+                            Sandi {resetMinta?.nama} akan diganti. Sandi lama berhenti berlaku seketika, yang baru hanya ditampilkan satu kali.
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => setResetMinta(null)}
-                        >
-                            Batal
-                        </Button>
-                        <Button
-                            type="button"
-                            data-testid="admin-aksi"
-                            disabled={resetSandi.isPending}
-                            onClick={() => {
-                                if (!resetMinta) return;
-                                resetSandi.mutate(resetMinta.id, {
-                                    onSettled: () => setResetMinta(null),
-                                });
-                            }}
-                        >
+                        <Button type="button" variant="outline" onClick={() => setResetMinta(null)}>Batal</Button>
+                        <Button type="button" data-testid="admin-aksi" disabled={resetSandi.isPending}
+                            onClick={() => { if (!resetMinta) return; resetSandi.mutate(resetMinta.id, { onSettled: () => setResetMinta(null) }); }}>
                             Atur ulang
                         </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
 
-            {/* --- The new password, shown exactly once --- */}
-            <Dialog
-                open={passwordBaru !== null}
-                onOpenChange={(open) => {
-                    if (!open) {
-                        setPasswordBaru(null);
-                        setNamaReset('');
-                    }
-                }}
-            >
+            {/* new password shown once */}
+            <Dialog open={passwordBaru !== null} onOpenChange={(o) => { if (!o) { setPasswordBaru(null); setNamaReset(''); } }}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Sandi baru untuk {namaReset}</DialogTitle>
-                        <DialogDescription>
-                            Catat sekarang - setelah jendela ini ditutup, tidak ada
-                            endpoint yang bisa menampilkannya lagi.
-                        </DialogDescription>
+                        <DialogDescription>Catat sekarang — tidak ada endpoint yang bisa menampilkannya lagi.</DialogDescription>
                     </DialogHeader>
-
                     <div className="rounded-lg border bg-muted p-3">
-                        <code
-                            data-testid="admin-sandi-baru"
-                            className="block break-all font-mono text-sm"
-                        >
-                            {passwordBaru}
-                        </code>
+                        <code data-testid="admin-sandi-baru" className="block break-all font-mono text-sm">{passwordBaru}</code>
                     </div>
-
                     <DialogFooter>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => {
-                                setPasswordBaru(null);
-                                setNamaReset('');
-                            }}
-                        >
-                            Tutup
+                        <Button type="button" variant="outline" onClick={() => { setPasswordBaru(null); setNamaReset(''); }}>Tutup</Button>
+                        <Button type="button" onClick={() => { if (!passwordBaru) return; void navigator.clipboard.writeText(passwordBaru); toast.success('Sandi disalin.'); }}>Salin</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* tolak: alasan wajib */}
+            <Dialog open={tolakTarget !== null} onOpenChange={(o) => { if (!o) { setTolakTarget(null); setAlasanTolak(''); } }}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Tolak pendaftaran?</DialogTitle>
+                        <DialogDescription>Akun {tolakTarget?.nama} akan ditolak. Alasan wajib diisi (min. 10 karakter).</DialogDescription>
+                    </DialogHeader>
+                    <Field label="Alasan penolakan" required>
+                        <FieldTextarea rows={3} placeholder="Contoh: Dokumen tidak lengkap..."
+                            value={alasanTolak} onChange={(e) => setAlasanTolak(e.target.value)} />
+                    </Field>
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => { setTolakTarget(null); setAlasanTolak(''); }}>Batal</Button>
+                        <Button type="button" variant="destructive" disabled={tolak.isPending || alasanTolak.trim().length < 10}
+                            onClick={() => { if (!tolakTarget) return; tolak.mutate({ id: tolakTarget.id, alasan: alasanTolak.trim() }, { onSettled: () => { setTolakTarget(null); setAlasanTolak(''); } }); }}>
+                            Tolak
                         </Button>
-                        <Button
-                            type="button"
-                            onClick={() => {
-                                if (!passwordBaru) return;
-                                void navigator.clipboard.writeText(passwordBaru);
-                                toast.success('Sandi disalin.');
-                            }}
-                        >
-                            Salin
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* token undangan */}
+            <Dialog open={tokenUndangan !== null} onOpenChange={(o) => { if (!o) { setTokenUndangan(null); setNamaUndangan(''); } }}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Token undangan untuk {namaUndangan}</DialogTitle>
+                        <DialogDescription>Salin dan kirimkan ke penerima. Token hanya ditampilkan sekali.</DialogDescription>
+                    </DialogHeader>
+                    <div className="rounded-lg border bg-muted p-3">
+                        <code className="block break-all font-mono text-xs">{tokenUndangan}</code>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                        URL aktivasi: <span className="font-mono">{window.location.origin}/aktivasi-undangan/{tokenUndangan}</span>
+                    </p>
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => { setTokenUndangan(null); setNamaUndangan(''); }}>Tutup</Button>
+                        <Button type="button" onClick={() => { if (!tokenUndangan) return; void navigator.clipboard.writeText(`${window.location.origin}/aktivasi-undangan/${tokenUndangan}`); toast.success('URL aktivasi disalin.'); }}>Salin URL</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* kirim ulang undangan */}
+            <Dialog open={kirimUlangTarget !== null} onOpenChange={(o) => { if (!o) setKirimUlangTarget(null); }}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Kirim ulang undangan?</DialogTitle>
+                        <DialogDescription>Token lama untuk {kirimUlangTarget?.nama} akan dibatalkan dan token baru diterbitkan.</DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setKirimUlangTarget(null)}>Batal</Button>
+                        <Button type="button" disabled={kirimUlang.isPending}
+                            onClick={() => { if (!kirimUlangTarget) return; kirimUlang.mutate(kirimUlangTarget.undanganId, { onSettled: () => setKirimUlangTarget(null) }); }}>
+                            Kirim ulang
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* batalkan undangan */}
+            <Dialog open={batalkanTarget !== null} onOpenChange={(o) => { if (!o) setBatalkanTarget(null); }}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Batalkan undangan?</DialogTitle>
+                        <DialogDescription>Akun {batalkanTarget?.nama} yang belum diaktifkan akan dihapus.</DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setBatalkanTarget(null)}>Batal</Button>
+                        <Button type="button" variant="destructive" disabled={batalkan.isPending}
+                            onClick={() => { if (!batalkanTarget) return; batalkan.mutate(batalkanTarget.undanganId, { onSettled: () => setBatalkanTarget(null) }); }}>
+                            Batalkan undangan
                         </Button>
                     </DialogFooter>
                 </DialogContent>

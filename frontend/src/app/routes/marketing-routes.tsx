@@ -9,6 +9,8 @@ import { PortalLoginPage } from '@/shared/pages/portal-login-page';
 import { ProfilEditPage } from '@/shared/pages/profil-edit-page';
 import { KebijakanPrivasiPage } from '@/shared/pages/kebijakan-privasi-page';
 import { SyaratKetentuanPage } from '@/shared/pages/syarat-ketentuan-page';
+import { DaftarMarketingPage } from '@/shared/pages/daftar-marketing-page';
+import { UndanganAktivasiPage } from '@/shared/pages/undangan-aktivasi-page';
 import { LoadingState } from '@/shared/components/states/loading-state';
 
 const MarketingDashboardPage = lazy(() =>
@@ -55,6 +57,16 @@ export const marketingRoutes = [
             {
                 path: '/syarat-ketentuan',
                 element: <SyaratKetentuanPage />,
+                errorElement: <RouteErrorBoundary />,
+            },
+            {
+                path: '/daftar',
+                element: <DaftarMarketingPage />,
+                errorElement: <RouteErrorBoundary />,
+            },
+            {
+                path: '/aktivasi-undangan/:token',
+                element: <UndanganAktivasiPage />,
                 errorElement: <RouteErrorBoundary />,
             },
 

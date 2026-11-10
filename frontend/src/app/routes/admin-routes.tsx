@@ -9,6 +9,7 @@ import { PortalLoginPage } from '@/shared/pages/portal-login-page';
 import { ProfilEditPage } from '@/shared/pages/profil-edit-page';
 import { KebijakanPrivasiPage } from '@/shared/pages/kebijakan-privasi-page';
 import { SyaratKetentuanPage } from '@/shared/pages/syarat-ketentuan-page';
+import { UndanganAktivasiPage } from '@/shared/pages/undangan-aktivasi-page';
 import { LoadingState } from '@/shared/components/states/loading-state';
 
 const AdminDashboardPage = lazy(() =>
@@ -31,6 +32,11 @@ const AdminLaporanPage = lazy(() =>
 const AdminPenggunaBuatPage = lazy(() =>
   import('@/portals/admin/pages/admin-pengguna-buat-page').then((mod) => ({
     default: mod.AdminPenggunaBuatPage,
+  }))
+);
+const AdminPenggunaUndangPage = lazy(() =>
+  import('@/portals/admin/pages/admin-pengguna-undang-page').then((mod) => ({
+    default: mod.AdminPenggunaUndangPage,
   }))
 );
 const AdminPenggunaPage = lazy(() =>
@@ -103,6 +109,11 @@ export const adminRoutes = [
                 element: <SyaratKetentuanPage />,
                 errorElement: <RouteErrorBoundary />,
             },
+            {
+                path: '/aktivasi-undangan/:token',
+                element: <UndanganAktivasiPage />,
+                errorElement: <RouteErrorBoundary />,
+            },
 
             {
                 element: <RequirePortalAuth portal="admin" />,
@@ -171,19 +182,15 @@ export const adminRoutes = [
                                 errorElement: <RouteErrorBoundary />,
                             },
                             {
-                                /**
-                                 * The account directory. `/buat` is registered
-                                 * before the list for the reason `/admin/dokter/buat`
-                                 * is: a literal two-segment path must not be
-                                 * swallowed by a one-segment neighbour, and both
-                                 * are literal here anyway - the ordering states
-                                 * the intent rather than relying on it.
-                                 *
-                                 * `?tipe=<role>` is part of the address each
-                                 * sidebar item links to (one per role), so it
-                                 * is read from the URL by the page, not
-                                 * carried through route state.
-                                 */
+                                path: '/admin/pengguna/undang',
+                                element: (
+                                    <Suspense fallback={<LoadingState label="Memuat undang pengguna..." />}>
+                                        <AdminPenggunaUndangPage />
+                                    </Suspense>
+                                ),
+                                errorElement: <RouteErrorBoundary />,
+                            },
+                            {
                                 path: '/admin/pengguna/buat',
                                 element: (
                                     <Suspense fallback={<LoadingState label="Memuat buat akun..." />}>

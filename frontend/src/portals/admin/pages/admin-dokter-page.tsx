@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, RefreshCw } from 'lucide-react';
+import { AlertCircle, BadgeCheck, CalendarClock, Stethoscope, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import {
     adminDokterOptions,
@@ -239,25 +239,31 @@ function AdminDokterContent() {
                 title="Dokter"
                 description="Seluruh dokter, termasuk yang belum terverifikasi dan nonaktif."
                 action={
-                    <div data-testid="admin-aksi" className="flex gap-2">
-                        <Button asChild variant="default" className="h-11">
-                            <Link to="/admin/dokter/buat">Buat dokter</Link>
-                        </Button>
-
-                        <Button
-                            type="button"
-                            variant="outline"
-                            className="h-11"
-                            onClick={() => {
-                                void daftar.refetch();
-                            }}
-                        >
-                            <RefreshCw aria-hidden />
-                            Muat ulang
-                        </Button>
-                    </div>
+                    <Button asChild variant="default" className="h-11" data-testid="admin-aksi">
+                        <Link to="/admin/dokter/buat">Buat dokter</Link>
+                    </Button>
                 }
             />
+
+            {/* 4 stat cards */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {[
+                    { label: 'Total Dokter',      val: rows.length,                                                          Icon: Stethoscope,   cls: 'bg-primary/10 text-primary' },
+                    { label: 'Terverifikasi',     val: rows.filter(r => r.status_verifikasi === 'terverifikasi').length,    Icon: BadgeCheck,    cls: 'bg-green-100 text-green-700' },
+                    { label: 'Perlu Verifikasi',  val: rows.filter(r => r.status_verifikasi === 'pending').length,          Icon: ShieldAlert,   cls: 'bg-amber-100 text-amber-700' },
+                    { label: 'STR ≤ 90 Hari',    val: rows.filter(r => r.str_segera_kedaluwarsa || r.str_kedaluwarsa).length, Icon: CalendarClock, cls: 'bg-red-100 text-red-700' },
+                ].map(({ label, val, Icon, cls }) => (
+                    <div key={label} className="rounded-xl border bg-background p-4 flex items-center gap-3">
+                        <div className={`grid size-10 shrink-0 place-items-center rounded-lg ${cls}`}>
+                            <Icon className="size-5" aria-hidden />
+                        </div>
+                        <div>
+                            <p className="text-lg font-bold tabular-nums">{val}</p>
+                            <p className="text-xs text-muted-foreground">{label}</p>
+                        </div>
+                    </div>
+                ))}
+            </div>
 
             <OfflineBanner message="Anda sedang offline. Perubahan tidak dikirim." />
 
@@ -460,153 +466,107 @@ function AdminDokterContent() {
                 />
             ) : (
                 <>
-                    <div className="flex items-center gap-2">
-                        <label className="flex min-h-11 min-w-11 items-center justify-center">
-                            <Checkbox
-                                aria-label="Pilih semua dokter di halaman ini"
-                                checked={
-                                    semuaTerpilih
-                                        ? true
-                                        : sebagianTerpilih
-                                          ? 'indeterminate'
-                                          : false
-                                }
-                                onCheckedChange={(nilai) => {
-                                    setDipilih(
-                                        nilai === true
-                                            ? new Set(rows.map((row) => row.id))
-                                            : new Set(),
-                                    );
-                                }}
-                            />
-                        </label>
-
-                        <span className="text-muted-foreground text-sm">
-                            Pilih semua di halaman ini
-                        </span>
-                    </div>
-
-                    <ul role="list" className="flex flex-col gap-3">
-                        {rows.map((row) => {
-                            const nama = row.nama_lengkap ?? `Dokter #${row.id}`;
-
-                            return (
-                                <li
-                                    key={row.id}
-                                    data-slot="admin-dokter-row"
-                                    data-dokter-id={row.id}
-                                    className="border-border flex flex-col gap-3 rounded-lg border p-4 md:flex-row md:items-start md:justify-between"
-                                >
-                                    <div className="flex min-w-0 flex-1 items-start gap-3">
-                                        <label className="flex min-h-11 min-w-11 shrink-0 items-center justify-center">
-                                            <Checkbox
-                                                aria-label={`Pilih ${nama}`}
-                                                checked={dipilih.has(row.id)}
-                                                onCheckedChange={(nilai) => {
-                                                    setDipilih((lama) => {
+                    <div className="overflow-x-auto rounded-xl border bg-background">
+                        <table className="w-full min-w-[860px] text-sm">
+                            <thead>
+                                <tr className="border-b bg-muted/40 text-xs text-muted-foreground">
+                                    <th className="px-4 py-3" style={{ width: 40 }}>
+                                        <Checkbox
+                                            aria-label="Pilih semua dokter di halaman ini"
+                                            checked={semuaTerpilih ? true : sebagianTerpilih ? 'indeterminate' : false}
+                                            onCheckedChange={(v) => setDipilih(v === true ? new Set(rows.map(r => r.id)) : new Set())}
+                                        />
+                                    </th>
+                                    <th className="px-4 py-3 text-left font-semibold">Dokter</th>
+                                    <th className="px-4 py-3 text-left font-semibold">STR</th>
+                                    <th className="px-4 py-3 text-left font-semibold">SIP</th>
+                                    <th className="px-4 py-3 text-left font-semibold">Verifikasi</th>
+                                    <th className="px-4 py-3 text-left font-semibold">Status</th>
+                                    <th className="px-4 py-3 text-left font-semibold">Telemedisin</th>
+                                    <th className="px-4 py-3 text-left font-semibold">Booking</th>
+                                    <th className="px-4 py-3 text-right font-semibold">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {rows.map((row) => {
+                                    const nama = row.nama_lengkap ?? `Dokter #${row.id}`;
+                                    const inisial = nama.trim().charAt(0).toUpperCase();
+                                    return (
+                                        <tr key={row.id} data-slot="admin-dokter-row" data-dokter-id={row.id}
+                                            className="border-b last:border-0 hover:bg-muted/40">
+                                            <td className="px-4 py-3">
+                                                <Checkbox
+                                                    aria-label={`Pilih ${nama}`}
+                                                    checked={dipilih.has(row.id)}
+                                                    onCheckedChange={(v) => setDipilih((lama) => {
                                                         const baru = new Set(lama);
-
-                                                        if (nilai === true) {
-                                                            baru.add(row.id);
-                                                        } else {
-                                                            baru.delete(row.id);
-                                                        }
-
+                                                        v === true ? baru.add(row.id) : baru.delete(row.id);
                                                         return baru;
-                                                    });
-                                                }}
-                                            />
-                                        </label>
-
-                                        <div className="flex min-w-0 flex-col gap-2">
-                                            <p className="text-base font-semibold">
-                                                {nama}
-
-                                                {row.akun_dihapus ? (
-                                                    <span className="text-destructive">
-                                                        {' '}
-                                                        (akun dihapus)
-                                                    </span>
-                                                ) : null}
-                                            </p>
-
-                                            <div className="flex flex-wrap gap-2">
-                                                <AdminVerifikasiBadge
-                                                    status={row.status_verifikasi}
+                                                    })}
                                                 />
-                                                <AdminAktifBadge aktif={row.status_aktif} />
-                                                <AdminTelemedisinBadge
-                                                    tersedia={row.tersedia_telemedisin}
-                                                />
-                                            </div>
-
-                                            <p className="flex flex-wrap items-center gap-2 text-base">
-                                                <span className="tabular-nums">
-                                                    STR {row.nomor_str ?? 'Belum diisi'}
-                                                </span>
-
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <div className="flex items-center gap-3">
+                                                    <div aria-hidden className="grid size-8 shrink-0 place-items-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+                                                        {inisial}
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-medium">
+                                                            {nama}
+                                                            {row.akun_dihapus && <span className="text-destructive"> (akun dihapus)</span>}
+                                                        </p>
+                                                        <p className="text-xs text-muted-foreground">
+                                                            {row.spesialisasi_utama?.nama ?? 'Spesialisasi belum diisi'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <p className="tabular-nums text-xs">{row.nomor_str ?? '-'}</p>
                                                 <StrMasaBerlaku dokter={row} />
-                                            </p>
-
-                                            <p className="text-base tabular-nums">
-                                                SIP {row.nomor_sip ?? 'Belum diisi'}
-                                                {row.sip_berlaku_sampai === null
-                                                    ? ''
-                                                    : ` · s.d. ${tanggalSingkat(row.sip_berlaku_sampai)}`}
-                                            </p>
-
-                                            <p className="text-muted-foreground text-sm">
-                                                {row.spesialisasi_utama?.nama ??
-                                                    'Spesialisasi belum diisi'}
-                                                {' · '}
-                                                <span className="tabular-nums">
-                                                    {row.jumlah_booking ?? 0} booking
-                                                </span>
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    <div
-                                        data-testid="admin-aksi"
-                                        className="flex flex-wrap gap-2 md:justify-end"
-                                    >
-                                        {row.status_verifikasi === 'pending' ? (
-                                            <Button
-                                                type="button"
-                                                className="h-11"
-                                                data-testid="admin-tulis"
-                                                disabled={!online}
-                                                onClick={(event) => {
-                                                    pemicuVerifikasi.current =
-                                                        event.currentTarget;
-                                                    setKonflik(null);
-                                                    setVerifikasi(row);
-                                                }}
-                                            >
-                                                Verifikasi
-                                            </Button>
-                                        ) : null}
-
-                                        <Button
-                                            asChild
-                                            variant="outline"
-                                            className="h-11"
-                                        >
-                                            <Link to={`/admin/dokter/${row.id}`}>
-                                                Buka
-                                            </Link>
-                                        </Button>
-                                    </div>
-                                </li>
-                            );
-                        })}
-                    </ul>
+                                            </td>
+                                            <td className="px-4 py-3 text-xs tabular-nums">
+                                                <p>{row.nomor_sip ?? '-'}</p>
+                                                {row.sip_berlaku_sampai && (
+                                                    <p className="text-muted-foreground">s.d. {tanggalSingkat(row.sip_berlaku_sampai)}</p>
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <AdminVerifikasiBadge status={row.status_verifikasi} />
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <AdminAktifBadge aktif={row.status_aktif} />
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <AdminTelemedisinBadge tersedia={row.tersedia_telemedisin} />
+                                            </td>
+                                            <td className="px-4 py-3 tabular-nums">
+                                                {row.jumlah_booking ?? 0}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <div data-testid="admin-aksi" className="flex items-center justify-end gap-1">
+                                                    {row.status_verifikasi === 'pending' && (
+                                                        <Button type="button" size="sm" data-testid="admin-tulis"
+                                                            disabled={!online}
+                                                            onClick={(e) => { pemicuVerifikasi.current = e.currentTarget; setKonflik(null); setVerifikasi(row); }}>
+                                                            Verifikasi
+                                                        </Button>
+                                                    )}
+                                                    <Button asChild variant="outline" size="sm">
+                                                        <Link to={`/admin/dokter/${row.id}`}>Buka</Link>
+                                                    </Button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
 
                     <Pagination
                         meta={daftar.data?.meta}
-                        onPageChange={(halamanBerikut) => {
-                            setHalaman(halamanBerikut);
-                        }}
+                        onPageChange={(halamanBerikut) => { setHalaman(halamanBerikut); }}
                     />
                 </>
             )}
