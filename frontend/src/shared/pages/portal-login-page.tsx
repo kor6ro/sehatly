@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Navigate, useNavigate } from 'react-router';
+import { Link, Navigate, useNavigate } from 'react-router';
 import { useMutation } from '@tanstack/react-query';
 import { login, verifyOtp } from '@/lib/api/auth';
 import { establishSession } from '@/lib/http';
@@ -222,6 +222,15 @@ export function PortalLoginPage({ portal }: { portal: Portal }) {
                         </Button>
                     )}
                 </form>
+
+                {portal === 'marketing' && (
+                    <p className="text-center text-sm text-muted-foreground">
+                        Belum punya akun?{' '}
+                        <Link to="/daftar" className="font-medium text-primary underline-offset-4 hover:underline">
+                            Daftar sebagai mitra marketing
+                        </Link>
+                    </p>
+                )}
             </div>
         </main>
     );

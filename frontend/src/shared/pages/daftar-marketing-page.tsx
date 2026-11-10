@@ -1,20 +1,14 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { CheckCircle, Hourglass, Loader2 } from 'lucide-react';
+import { Hourglass, Loader2 } from 'lucide-react';
 import { request, ApiError } from '@/lib/http';
 import { Button } from '@/components/ui/button';
-import { Field, FieldInput } from '@/shared/components/form/field';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const MIN_SANDI = 8;
 
-/**
- * `POST /api/v1/auth/daftar/marketing`
- *
- * Rute publik: /daftar/marketing
- * Akun dibuat dengan status `menunggu_persetujuan` — tidak bisa masuk
- * sampai admin menyetujuinya.
- */
 export function DaftarMarketingPage() {
     const [form, setForm] = useState({
         nama_lengkap: '',
@@ -23,9 +17,9 @@ export function DaftarMarketingPage() {
         kata_sandi: '',
         konfirmasi: '',
     });
-    const [loading, setLoading]       = useState(false);
-    const [sukses, setSukses]         = useState(false);
-    const [error, setError]           = useState<string | null>(null);
+    const [loading, setLoading]         = useState(false);
+    const [sukses, setSukses]           = useState(false);
+    const [error, setError]             = useState<string | null>(null);
     const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
     const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -79,32 +73,36 @@ export function DaftarMarketingPage() {
 
     if (sukses) {
         return (
-            <div className="flex min-h-screen flex-col items-center justify-center p-4">
-                <div className="w-full max-w-sm space-y-4 text-center">
+            <main className="flex min-h-screen flex-col items-center justify-center bg-muted/40 p-4">
+                <div className="w-full max-w-sm space-y-6 rounded-xl border bg-background p-8 shadow-sm text-center">
                     <div className="mx-auto grid size-16 place-items-center rounded-full bg-amber-100">
                         <Hourglass className="size-8 text-amber-700" aria-hidden />
                     </div>
-                    <h1 className="text-xl font-semibold">Pendaftaran terkirim</h1>
-                    <p className="text-muted-foreground text-sm">
-                        Admin akan meninjau pendaftaranmu. Kamu belum bisa masuk sampai
-                        disetujui, dan kamu akan menerima pemberitahuan setelahnya.
-                    </p>
-                    <Button asChild variant="outline" className="w-full">
+                    <div className="space-y-1">
+                        <h1 className="text-xl font-semibold">Pendaftaran terkirim</h1>
+                        <p className="text-muted-foreground text-sm">
+                            Admin akan meninjau pendaftaranmu. Kamu belum bisa masuk
+                            sampai disetujui — kamu akan dihubungi setelahnya.
+                        </p>
+                    </div>
+                    <Button asChild className="w-full">
                         <Link to="/login">Ke halaman masuk</Link>
                     </Button>
                 </div>
-            </div>
+            </main>
         );
     }
 
     return (
-        <div className="flex min-h-screen flex-col items-center justify-center p-4">
+        <main className="flex min-h-screen flex-col items-center justify-center bg-muted/40 p-4">
             <div className="w-full max-w-sm space-y-6 rounded-xl border bg-background p-8 shadow-sm">
+                {/* Header */}
                 <div className="flex flex-col items-center gap-2 text-center">
                     <img src="/logo.svg" alt="Sehatly" className="size-10" />
-                    <h1 className="text-2xl font-semibold">Daftar mitra marketing</h1>
+                    <h1 className="text-xl font-semibold">Portal Marketing</h1>
                     <p className="text-muted-foreground text-sm">
-                        Pendaftaran perlu disetujui admin sebelum akun bisa dipakai.
+                        Daftar sebagai mitra marketing Sehatly. Akun perlu disetujui
+                        admin sebelum bisa dipakai.
                     </p>
                 </div>
 
@@ -115,74 +113,87 @@ export function DaftarMarketingPage() {
                 )}
 
                 <form onSubmit={(e) => void kirim(e)} className="space-y-4" noValidate>
-                    <Field
-                        label="Nama lengkap"
-                        required
-                        errors={fieldErrors.nama_lengkap ? [fieldErrors.nama_lengkap] : []}
-                    >
-                        <FieldInput
-                            placeholder="Nama lengkap"
+                    <div className="space-y-1.5">
+                        <Label htmlFor="nama_lengkap">Nama lengkap</Label>
+                        <Input
+                            id="nama_lengkap"
+                            placeholder="Nama lengkap Anda"
                             autoComplete="name"
                             value={form.nama_lengkap}
                             onChange={set('nama_lengkap')}
+                            required
                         />
-                    </Field>
+                        {fieldErrors.nama_lengkap && (
+                            <p className="text-destructive text-xs">{fieldErrors.nama_lengkap}</p>
+                        )}
+                    </div>
 
-                    <Field
-                        label="Nomor HP"
-                        required
-                        errors={fieldErrors.no_telepon ? [fieldErrors.no_telepon] : []}
-                    >
-                        <FieldInput
+                    <div className="space-y-1.5">
+                        <Label htmlFor="no_telepon">Nomor telepon</Label>
+                        <Input
+                            id="no_telepon"
                             inputMode="tel"
-                            placeholder="08xxxxxxxxxx"
+                            placeholder="081234567890"
                             autoComplete="tel"
                             value={form.no_telepon}
                             onChange={set('no_telepon')}
+                            required
                         />
-                    </Field>
+                        {fieldErrors.no_telepon && (
+                            <p className="text-destructive text-xs">{fieldErrors.no_telepon}</p>
+                        )}
+                    </div>
 
-                    <Field
-                        label="Email (opsional)"
-                        errors={fieldErrors.email ? [fieldErrors.email] : []}
-                    >
-                        <FieldInput
+                    <div className="space-y-1.5">
+                        <Label htmlFor="email">
+                            Email <span className="text-muted-foreground font-normal">(opsional)</span>
+                        </Label>
+                        <Input
+                            id="email"
                             type="email"
-                            placeholder="Opsional"
+                            placeholder="email@contoh.com"
                             autoComplete="email"
                             value={form.email}
                             onChange={set('email')}
                         />
-                    </Field>
+                        {fieldErrors.email && (
+                            <p className="text-destructive text-xs">{fieldErrors.email}</p>
+                        )}
+                    </div>
 
-                    <Field
-                        label="Sandi"
-                        required
-                        errors={fieldErrors.kata_sandi ? [fieldErrors.kata_sandi] : []}
-                        hint={`Minimal ${MIN_SANDI} karakter.`}
-                    >
-                        <FieldInput
+                    <div className="space-y-1.5">
+                        <Label htmlFor="kata_sandi">Kata sandi</Label>
+                        <Input
+                            id="kata_sandi"
                             type="password"
                             placeholder="••••••••"
                             autoComplete="new-password"
                             value={form.kata_sandi}
                             onChange={set('kata_sandi')}
+                            required
                         />
-                    </Field>
+                        {fieldErrors.kata_sandi ? (
+                            <p className="text-destructive text-xs">{fieldErrors.kata_sandi}</p>
+                        ) : (
+                            <p className="text-muted-foreground text-xs">Minimal {MIN_SANDI} karakter.</p>
+                        )}
+                    </div>
 
-                    <Field
-                        label="Ulangi sandi"
-                        required
-                        errors={fieldErrors.konfirmasi ? [fieldErrors.konfirmasi] : []}
-                    >
-                        <FieldInput
+                    <div className="space-y-1.5">
+                        <Label htmlFor="konfirmasi">Ulangi kata sandi</Label>
+                        <Input
+                            id="konfirmasi"
                             type="password"
                             placeholder="••••••••"
                             autoComplete="new-password"
                             value={form.konfirmasi}
                             onChange={set('konfirmasi')}
+                            required
                         />
-                    </Field>
+                        {fieldErrors.konfirmasi && (
+                            <p className="text-destructive text-xs">{fieldErrors.konfirmasi}</p>
+                        )}
+                    </div>
 
                     <Button type="submit" className="w-full" disabled={loading}>
                         {loading && <Loader2 className="animate-spin" />}
@@ -192,12 +203,11 @@ export function DaftarMarketingPage() {
 
                 <p className="text-center text-sm text-muted-foreground">
                     Sudah punya akun?{' '}
-                    <Link to="/login" className="underline">
+                    <Link to="/login" className="font-medium text-primary underline-offset-4 hover:underline">
                         Masuk
                     </Link>
                 </p>
             </div>
-        </div>
+        </main>
     );
 }
-
