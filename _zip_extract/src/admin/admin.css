@@ -1,0 +1,617 @@
+/* Portal Admin: gaya bersama. Impor sekali, mis. di AdminLayout atau main.jsx */
+
+.adm-shell {
+  --c-bg: #fafbfc;
+  --c-surface: #ffffff;
+  --c-border: #e5e8ec;
+  --c-text: #111827;
+  --c-muted: #5b6472;
+  --c-primary: #0b5fa5;
+  --c-primary-hover: #094f89;
+  --c-primary-soft: #e8f0f8;
+  --c-danger: #b42318;
+  --c-danger-soft: #fdecea;
+  --c-ok: #1e6b3a;
+  --c-ok-soft: #e6f4ec;
+  --c-warn: #8a4b00;
+  --c-warn-soft: #fff1db;
+  --c-info: #0b5fa5;
+  --c-info-soft: #e8f0f8;
+  --c-neutral: #4b5563;
+  --c-neutral-soft: #eef1f5;
+  --radius: 10px;
+
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr);
+  min-height: 100vh;
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-size: 14px;
+}
+
+/* ---------- Sidebar ---------- */
+.adm-sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 12px;
+  background: var(--c-surface);
+  border-right: 1px solid var(--c-border);
+  overflow-y: auto;
+}
+.adm-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 8px 16px;
+}
+.adm-brand__mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--c-primary);
+}
+.adm-brand strong {
+  display: block;
+  font-size: 15px;
+  line-height: 1.2;
+}
+.adm-brand small {
+  color: var(--c-muted);
+  font-size: 12px;
+}
+.adm-navgroup {
+  margin-bottom: 12px;
+}
+.adm-navgroup__title {
+  padding: 0 10px 6px;
+  font-size: 12px;
+  color: var(--c-muted);
+}
+.adm-navitem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 0 10px;
+  border-radius: var(--radius);
+  color: #374151;
+  text-decoration: none;
+  font-weight: 500;
+}
+.adm-navitem:hover {
+  background: #f3f5f8;
+}
+.adm-navitem.active {
+  background: var(--c-primary-soft);
+  color: var(--c-primary);
+  font-weight: 600;
+}
+.adm-navitem__badge {
+  margin-left: auto;
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--c-danger);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+.adm-logout {
+  margin-top: auto;
+  width: 100%;
+  justify-content: center;
+}
+
+/* ---------- Topbar & konten ---------- */
+.adm-main {
+  min-width: 0;
+}
+.adm-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  height: 56px;
+  padding: 0 24px;
+  background: var(--c-surface);
+  border-bottom: 1px solid var(--c-border);
+}
+.adm-clock {
+  color: var(--c-muted);
+  font-size: 13px;
+}
+.adm-iconbtn {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: #374151;
+  cursor: pointer;
+}
+.adm-iconbtn:hover {
+  background: #f3f5f8;
+}
+.adm-avatar {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--c-primary);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+.adm-content {
+  max-width: 1200px;
+  padding: 24px;
+}
+
+/* ---------- Header halaman ---------- */
+.adm-pagehead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.adm-pagehead h1 {
+  margin: 0;
+  font-size: 24px;
+  letter-spacing: -0.01em;
+}
+.adm-pagehead p {
+  margin: 4px 0 0;
+  color: var(--c-muted);
+}
+.adm-pagehead__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ---------- Tombol (satu ukuran: 40px, kecil: 34px) ---------- */
+.adm-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid #d5dae1;
+  border-radius: var(--radius);
+  background: var(--c-surface);
+  color: var(--c-text);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+.adm-btn:hover:not(:disabled) {
+  background: #f3f5f8;
+}
+.adm-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.adm-btn--sm {
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+.adm-btn--primary {
+  border-color: var(--c-primary);
+  background: var(--c-primary);
+  color: #fff;
+}
+.adm-btn--primary:hover:not(:disabled) {
+  background: var(--c-primary-hover);
+}
+.adm-btn--danger {
+  color: var(--c-danger);
+}
+.adm-btn--dangerfill {
+  border-color: var(--c-danger);
+  background: var(--c-danger);
+  color: #fff;
+}
+.adm-btn--dangerfill:hover:not(:disabled) {
+  background: #8f1c12;
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--c-primary);
+  outline-offset: 2px;
+}
+
+/* ---------- Tab role ---------- */
+.adm-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--c-border);
+}
+.adm-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  min-height: 42px;
+  margin-bottom: -1px;
+  padding: 0 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--c-neutral);
+  font: inherit;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.adm-tab:hover {
+  color: var(--c-text);
+}
+.adm-tab[aria-selected='true'] {
+  border-bottom-color: var(--c-primary);
+  color: var(--c-primary);
+  font-weight: 600;
+}
+.adm-tab__count {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--c-neutral-soft);
+  color: var(--c-neutral);
+  font-size: 12px;
+  font-weight: 600;
+}
+.adm-tab[aria-selected='true'] .adm-tab__count {
+  background: var(--c-primary-soft);
+  color: var(--c-primary);
+}
+
+/* ---------- Filter ---------- */
+.adm-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0;
+}
+.adm-search {
+  display: flex;
+  flex: 1 1 260px;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid #d5dae1;
+  border-radius: var(--radius);
+  background: var(--c-surface);
+  color: var(--c-muted);
+}
+.adm-search:focus-within {
+  border-color: var(--c-primary);
+  box-shadow: 0 0 0 3px #d3e4f4;
+}
+.adm-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  color: var(--c-text);
+}
+.adm-select,
+.adm-field select {
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid #d5dae1;
+  border-radius: var(--radius);
+  background: var(--c-surface);
+  font: inherit;
+  color: var(--c-text);
+}
+
+/* ---------- Daftar akun ---------- */
+.adm-list {
+  overflow: hidden;
+  border: 1px solid var(--c-border);
+  border-radius: 12px;
+  background: var(--c-surface);
+}
+.adm-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  padding: 14px 18px;
+}
+.adm-row + .adm-row {
+  border-top: 1px solid #eef0f3;
+}
+.adm-row:hover {
+  background: #fafbfd;
+}
+.adm-row__avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--c-primary-soft);
+  color: var(--c-primary);
+  font-weight: 600;
+}
+.adm-row__main {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+.adm-row__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+.adm-row__title strong {
+  font-size: 15px;
+}
+.adm-row__meta {
+  margin-top: 2px;
+  color: var(--c-muted);
+  font-size: 13px;
+}
+.adm-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.adm-verified {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--c-muted);
+  font-size: 12px;
+}
+.adm-tag {
+  padding: 1px 8px;
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  color: var(--c-muted);
+  font-size: 12px;
+}
+
+/* ---------- Badge ---------- */
+.adm-badge {
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.adm-badge--ok {
+  background: var(--c-ok-soft);
+  color: var(--c-ok);
+}
+.adm-badge--warn {
+  background: var(--c-warn-soft);
+  color: var(--c-warn);
+}
+.adm-badge--info {
+  background: var(--c-info-soft);
+  color: var(--c-info);
+}
+.adm-badge--danger {
+  background: var(--c-danger-soft);
+  color: var(--c-danger);
+}
+.adm-badge--muted {
+  background: var(--c-neutral-soft);
+  color: var(--c-neutral);
+}
+
+/* ---------- Empty / error / skeleton ---------- */
+.adm-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 40px 16px;
+  text-align: center;
+}
+.adm-empty p {
+  margin: 0;
+  color: var(--c-muted);
+}
+.adm-empty--error strong {
+  color: var(--c-danger);
+}
+.adm-row--skeleton {
+  pointer-events: none;
+}
+.adm-skel {
+  border-radius: 8px;
+  background: linear-gradient(90deg, #eef0f3, #f6f7f9, #eef0f3);
+  background-size: 200% 100%;
+  animation: adm-shimmer 1.2s infinite linear;
+}
+.adm-skel--avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+}
+.adm-skel--lines {
+  flex: 1;
+  height: 34px;
+}
+@keyframes adm-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .adm-skel {
+    animation: none;
+  }
+}
+
+/* ---------- Kartu & "Perlu tindakan" ---------- */
+.adm-card {
+  margin-bottom: 20px;
+  padding: 18px 20px;
+  border: 1px solid var(--c-border);
+  border-radius: 12px;
+  background: var(--c-surface);
+}
+.adm-card__title {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+.adm-muted {
+  color: var(--c-muted);
+}
+.adm-allclear {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--c-ok);
+  font-weight: 500;
+}
+.adm-todo {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 0;
+  border-top: 1px solid #eef0f3;
+  color: inherit;
+  text-decoration: none;
+}
+.adm-todo:first-of-type {
+  border-top: 0;
+}
+.adm-todo:hover .adm-todo__cta {
+  text-decoration: underline;
+}
+.adm-todo__count {
+  display: grid;
+  flex: none;
+  place-items: center;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 8px;
+  border-radius: 10px;
+  background: var(--c-warn-soft);
+  color: var(--c-warn);
+  font-size: 16px;
+  font-weight: 700;
+}
+.adm-todo__label {
+  flex: 1;
+  font-weight: 500;
+}
+.adm-todo__cta {
+  display: inline-flex;
+  align-items: center;
+  color: var(--c-primary);
+  font-weight: 600;
+}
+
+/* ---------- Modal ---------- */
+.adm-modal {
+  width: min(480px, calc(100vw - 32px));
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  box-shadow: 0 20px 50px rgba(17, 24, 39, 0.25);
+}
+.adm-modal::backdrop {
+  background: rgba(17, 24, 39, 0.45);
+}
+.adm-modal__body {
+  padding: 22px;
+}
+.adm-modal__title {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+.adm-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+}
+.adm-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 14px;
+}
+.adm-field > span {
+  font-weight: 500;
+}
+.adm-field input,
+.adm-field textarea {
+  padding: 9px 12px;
+  border: 1px solid #d5dae1;
+  border-radius: var(--radius);
+  font: inherit;
+}
+.adm-field input[aria-invalid='true'] {
+  border-color: var(--c-danger);
+}
+.adm-error {
+  margin: 8px 0 0;
+  color: var(--c-danger);
+  font-size: 13px;
+}
+
+/* ---------- Toast & pager ---------- */
+.adm-toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 50;
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  background: #111827;
+  color: #fff;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+}
+.adm-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 16px;
+  color: var(--c-muted);
+}
+
+/* ---------- Layar kecil ---------- */
+@media (max-width: 900px) {
+  .adm-shell {
+    grid-template-columns: 1fr;
+  }
+  .adm-sidebar {
+    position: static;
+    height: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--c-border);
+  }
+  .adm-content {
+    padding: 16px;
+  }
+  .adm-clock {
+    display: none;
+  }
+}

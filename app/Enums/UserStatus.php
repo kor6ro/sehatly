@@ -7,9 +7,11 @@ namespace App\Enums;
 /**
  * The full vocabulary of `users.status`.
  *
- * Migration 000090 widens the column from ENUM to VARCHAR(30) so new values
- * can be added without a MySQL table rewrite. This enum is the single source
- * of truth for every allowed value.
+ * Migration 000090 widens the column's ENUM from the four values the DDL
+ * shipped to these seven, keeping it an ENUM so `telemedicine_test.sql:140`
+ * and `docs/enums.json` remain the single declaration of its members - both
+ * `sehatly:verify-schema` and `sehatly:enums` compare the live column against
+ * that file. This enum is the single source of truth for every allowed value.
  *
  * | Value                  | Who sets it          | Meaning |
  * | ---------------------- | -------------------- | ------- |

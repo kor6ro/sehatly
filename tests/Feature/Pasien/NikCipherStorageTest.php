@@ -207,8 +207,8 @@ test('the contract DDL declares the same column and the change is one line of a 
     // [17] (`konsultasi_baca`) at the END and F11 appended section [18] (four
     // tables) the same way, so it is 1429 now and line 222 did not move.
     expect($pasien->columns['nik_cipher']->line)->toBe(222)
-        ->and(count($garis))->toBe(1429)
-        ->and($spec->tableNames())->toHaveCount(80)
+        ->and(count($garis))->toBe(1447)
+        ->and($spec->tableNames())->toHaveCount(81)
         ->and(count($pasien->columns))->toBe(31)
         ->and(substr_count((string) file_get_contents(base_path('telemedicine_test.sql')), 'nik_cipher'))->toBe(1);
 

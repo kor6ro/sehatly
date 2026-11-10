@@ -189,7 +189,7 @@ test('every DDL citation in the authored files points at a line that EXISTS', fu
     }
 
     expect($diLuar)->toBe([])
-        ->and($total)->toBe(1429)
+        ->and($total)->toBe(1447)
         ->and($citasi)->toBeGreaterThan(15);
 });
 
@@ -208,7 +208,7 @@ test('the schema holds exactly two NIK columns, and only the patient one is encr
     // cannot be forgotten, rather than left in prose.
     $spec = (new SqlSchemaParser)->parseFile(base_path('telemedicine_test.sql'));
 
-    expect($spec->tableNames())->toHaveCount(80);
+    expect($spec->tableNames())->toHaveCount(81);
 
     $ditemukan = [];
     $enkripsi = [];
@@ -395,6 +395,7 @@ test('the DDL changed by exactly the ONE authorised line, and the migration made
     //   F01     1b9264fcdeb76767fcb855b29a3b2c430d54cbea01961b7084d050dad67d47cb
     //   F11     4e883afceeed582c3e76d39acece80dd55519dd0fb97011d6e18319ed5ac3e7c
     //   multi   c766b9b6ab088bc1e27d4302448616841a5bb84f9c6e9d7acda5a9ab310659d8
+    //   acct    c0c0b56a35ec181af29181ce9182f390686158d23d81d1a63195d8264b17e1c9
     //
     // The NIK change touched line 222 only. F02 then replaced line 1144's
     // `UNIQUE KEY uq_consent ...` with a comment recording the drop. F08 then
@@ -408,8 +409,11 @@ test('the DDL changed by exactly the ONE authorised line, and the migration made
     // The multi-portal round edited `:139` IN PLACE - a `,` and a final
     // `,'marketing'` on the `users.tipe` ENUM, the one line the plan
     // authorises there - so the count is still 1429 and only the digest moved.
+    // The account-management round APPENDED `user_persetujuan` (lines 1438-1447)
+    // after the final SELECT, so every prior line number still resolves and the
+    // count is still 1447.
     expect(hash_file('sha256', base_path('telemedicine_test.sql')))
-        ->toBe('c766b9b6ab088bc1e27d4302448616841a5bb84f9c6e9d7acda5a9ab310659d8');
+        ->toBe('c0c0b56a35ec181af29181ce9182f390686158d23d81d1a63195d8264b17e1c9');
 
     // No table named after the proposed columns exists. Still true, and still
     // worth saying: the payload is a COLUMN, not a table.
@@ -453,7 +457,7 @@ test('the DDL changed by exactly the ONE authorised line, and the migration made
     $garis = file(base_path('telemedicine_test.sql'), FILE_IGNORE_NEW_LINES);
     $pasien = (new SqlSchemaParser)->parseFile(base_path('telemedicine_test.sql'))->table('pasien');
 
-    expect(count($garis))->toBe(1429)
+    expect(count($garis))->toBe(1447)
         ->and($pasien->columns[NikCipher::COL_PAYLOAD]->line)->toBe(222)
         ->and(count($pasien->columns))->toBe(31)
         ->and(substr_count((string) file_get_contents(base_path('telemedicine_test.sql')), 'nik_cipher'))->toBe(1);

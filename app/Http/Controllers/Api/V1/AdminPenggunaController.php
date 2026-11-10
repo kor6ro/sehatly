@@ -203,7 +203,7 @@ class AdminPenggunaController extends Controller
         }
 
         try {
-            $this->setujuiAction->jalankan($user);
+            $this->setujuiAction->jalankan($user, $request->user());
         } catch (\DomainException $e) {
             return ApiResponse::error(
                 'The given data was invalid.',

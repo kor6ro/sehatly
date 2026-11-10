@@ -201,18 +201,27 @@ export function labelTipeAkun(tipe: UserTipe | string): string {
 }
 
 /**
- * `users.status`, the DDL's four values (`telemedicine_test.sql:140`).
+ * `users.status`, in the words an operator reads - every value the server's
+ * `UserStatus` enum allows (migration `000090` widened the column to seven).
  *
- * All four are shown by the directory - `pending_verifikasi` and
+ * All seven are shown by the directory - `pending_verifikasi` and
  * `ditangguhkan` are states an operator must SEE even though no button on this
- * surface writes them (see the server's `STATUS_UBAH`).
+ * surface writes them (see the server's `STATUS_UBAH`), and the three flow
+ * states (`menunggu_persetujuan`, `diundang`, `ditolak`) are exactly the ones
+ * the directory's decision buttons act on.
  */
 export function labelStatusAkun(status: UserStatus | string): string {
     switch (status) {
         case 'pending_verifikasi':
             return 'Menunggu verifikasi';
+        case 'menunggu_persetujuan':
+            return 'Menunggu persetujuan';
+        case 'diundang':
+            return 'Diundang';
         case 'aktif':
             return 'Aktif';
+        case 'ditolak':
+            return 'Ditolak';
         case 'nonaktif':
             return 'Nonaktif';
         case 'ditangguhkan':

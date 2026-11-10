@@ -141,7 +141,7 @@ test('the schema this audit reads is the one the parity verifier reads', functio
         ->and($spec->hasTable('notifikasi'))->toBeTrue()
         ->and($spec->hasTable('user_devices'))->toBeTrue()
         ->and($spec->hasTable('audit_log'))->toBeTrue()
-        ->and($spec->tableNames())->toHaveCount(80);
+        ->and($spec->tableNames())->toHaveCount(81);
 });
 
 test('every column this todo names resolves against the table that OWNS it', function (): void {
@@ -356,7 +356,7 @@ test('every DDL citation in the files this todo authored points at a line that E
     }
 
     expect($diLuar)->toBe([])
-        ->and($total)->toBe(1429)
+        ->and($total)->toBe(1447)
         ->and($citasi)->toBeGreaterThan(150);
 });
 

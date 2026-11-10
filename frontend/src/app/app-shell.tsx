@@ -7,7 +7,6 @@ import {
     CalendarDays,
     ClipboardCheck,
     ClipboardList,
-    Crown,
     FileHeart,
     LogOut,
     MessagesSquare,
@@ -18,7 +17,6 @@ import {
     ShieldCheck,
     Stethoscope,
     Tag,
-    UserRound,
     Users,
 } from 'lucide-react';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -72,51 +70,19 @@ const MENU_PORTAL: Record<Exclude<Portal, 'pasien'>, readonly GrupMenuPortal[]> 
             item: [{ to: '/admin/dashboard', icon: ClipboardList, label: 'Dashboard' }],
         },
         {
-            grup: 'Klinik',
-            item: [{ to: '/admin/dokter', icon: Stethoscope, label: 'Dokter' }],
-        },
-        {
-            /**
-             * The account directory, one entry PER ROLE - the split its
-             * audience asked for ("pisahkan satu satu biar ga bingung").
-             * Each link is the SAME route with a different `?tipe=`, because
-             * the list is one screen whose selection lives in the URL - so
-             * the active state has to read the query too, which
-             * `tujuanAktif` below does.
-             *
-             * Six roles, not seven: `dokter` has its own Klinik entry above
-             * (its directory is `/admin/dokter`, credential questions rather
-             * than account ones), and `perawat` has no role at all - so
-             * neither belongs in a role strip. The `staf` ALIAS is
-             * deliberately gone too: listing the umbrella next to its five
-             * members was exactly the ambiguity this split removes.
-             */
-            grup: 'Pengguna',
+            grup: 'Kelola',
             item: [
-                { to: '/admin/pengguna?tipe=pasien', icon: UserRound, label: 'Pasien' },
-                { to: '/admin/pengguna?tipe=apoteker', icon: Pill, label: 'Apoteker' },
-                { to: '/admin/pengguna?tipe=kurir', icon: Package, label: 'Kurir' },
-                { to: '/admin/pengguna?tipe=marketing', icon: Tag, label: 'Marketing' },
-                { to: '/admin/pengguna?tipe=admin', icon: Users, label: 'Admin' },
-                { to: '/admin/pengguna?tipe=superadmin', icon: Crown, label: 'Superadmin' },
-            ],
-        },
-        {
-            grup: 'Laporan',
-            item: [
-                { to: '/admin/laporan', icon: ClipboardCheck, label: 'Laporan & Statistik' },
-            ],
-        },
-        {
-            grup: 'Sistem',
-            item: [
-                { to: '/admin/audit-log', icon: FileHeart, label: 'Audit log' },
-                {
-                    to: '/admin/persetujuan-pdp',
-                    icon: ShieldCheck,
-                    label: 'Persetujuan PDP',
-                },
+                { to: '/admin/pengguna', icon: Users, label: 'Akun' },
+                { to: '/admin/dokter', icon: Stethoscope, label: 'Dokter' },
                 { to: '/admin/hero', icon: MonitorSmartphone, label: 'Hero landing' },
+            ],
+        },
+        {
+            grup: 'Laporan & kepatuhan',
+            item: [
+                { to: '/admin/laporan', icon: ClipboardCheck, label: 'Laporan' },
+                { to: '/admin/audit-log', icon: FileHeart, label: 'Audit log' },
+                { to: '/admin/persetujuan-pdp', icon: ShieldCheck, label: 'Persetujuan PDP' },
             ],
         },
     ],
@@ -184,6 +150,8 @@ function SignedInLayout() {
     );
 }
 function MobileNavBar() {
+    const portal = detectPortal();
+
     return (
         <div
             data-slot="mobile-nav"
@@ -197,7 +165,7 @@ function MobileNavBar() {
                 className="size-7 shrink-0"
             />
 
-            <span className="text-sm font-semibold">Sehatly</span>
+            <span className="text-sm font-semibold">{PORTAL_NAMA[portal]}</span>
         </div>
     );
 }
@@ -240,13 +208,12 @@ function TopBar() {
 
     return (
         <div className="bg-background sticky top-0 z-20 hidden h-14 shrink-0 items-center justify-between gap-3 border-b border-border px-4 md:flex">
-            <p className="text-sm font-semibold">{PORTAL_NAMA[portal]}</p>
+            <span className="text-sm font-semibold">{PORTAL_NAMA[portal]}</span>
 
             <div className="flex items-center gap-3">
                 <p className="text-muted-foreground hidden text-sm lg:inline">
                     {tanggal} • {jam}
                 </p>
-
                 <NotificationBell />
 
                 <Link
@@ -427,23 +394,18 @@ function AppSidebar() {
 
     return (
         <Sidebar collapsible="icon">
-            <SidebarHeader>
-                <p className="flex items-center gap-2 px-2 text-sm font-semibold">
+            <SidebarHeader className="h-14 justify-center border-b">
+                <div className="flex items-center gap-2 px-2">
                     <img
                         src="/logo.svg"
                         alt="Sehatly"
                         className="size-7 shrink-0"
                     />
-
-                    Sehatly
-                </p>
-
-                <p className="text-muted-foreground truncate px-2 text-xs">
-                    {user?.nama_lengkap ?? 'Memuat akun...'}
-                </p>
+                    <span className="text-muted-foreground truncate text-xs">
+                        {user?.nama_lengkap ?? ''}
+                    </span>
+                </div>
             </SidebarHeader>
-
-            <SidebarSeparator />
 
             <SidebarContent>
                 {/**

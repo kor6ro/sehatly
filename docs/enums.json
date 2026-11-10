@@ -457,13 +457,20 @@
         "reset_kata_sandi",
         "login"
     ],
+    "user_persetujuan.keputusan": [
+        "disetujui",
+        "ditolak"
+    ],
     "users.bahasa": [
         "id",
         "en"
     ],
     "users.status": [
         "pending_verifikasi",
+        "menunggu_persetujuan",
+        "diundang",
         "aktif",
+        "ditolak",
         "nonaktif",
         "ditangguhkan"
     ],

@@ -81,10 +81,20 @@ export type UserTipe =
     | 'superadmin'
     | 'marketing';
 
-/** `users.status`, the four-value ENUM at `telemedicine_test.sql:140`. */
+/**
+ * `users.status` - all seven values `App\Enums\UserStatus` allows.
+ *
+ * Migration `000090` widened the column from the four-value ENUM to
+ * `VARCHAR(30)` so the account-flow round could add `menunggu_persetujuan`
+ * (marketing self-registration), `diundang` (invitation sent, password not
+ * set yet) and `ditolak` (registration refused) without a table rewrite.
+ */
 export type UserStatus =
     | 'pending_verifikasi'
+    | 'menunggu_persetujuan'
+    | 'diundang'
     | 'aktif'
+    | 'ditolak'
     | 'nonaktif'
     | 'ditangguhkan';
 

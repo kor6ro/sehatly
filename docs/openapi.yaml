@@ -9602,6 +9602,13 @@ components:
         - verifikasi_email
         - reset_kata_sandi
         - login
+    EnumUserPersetujuanKeputusan:
+      type: string
+      title: user_persetujuan.keputusan
+      description: 'The MySQL ENUM `user_persetujuan.keputusan` as declared in the reference DDL and mirrored in `docs/enums.json`. Values are in MySQL declaration order, which is the order the numeric index depends on.'
+      enum:
+        - disetujui
+        - ditolak
     EnumUsersBahasa:
       type: string
       title: users.bahasa
@@ -9615,7 +9622,10 @@ components:
       description: 'The MySQL ENUM `users.status` as declared in the reference DDL and mirrored in `docs/enums.json`. Values are in MySQL declaration order, which is the order the numeric index depends on.'
       enum:
         - pending_verifikasi
+        - menunggu_persetujuan
+        - diundang
         - aktif
+        - ditolak
         - nonaktif
         - ditangguhkan
     EnumUsersTipe:

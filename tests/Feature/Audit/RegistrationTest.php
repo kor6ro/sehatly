@@ -151,7 +151,7 @@ test('the table-to-class map is total over every model on disk', function () {
     // rather than silently escaping the scope at runtime.
     $files = glob(base_path('app/Models/*.php'));
 
-    expect($files)->toHaveCount(80);
+    expect($files)->toHaveCount(81);
 
     foreach ($files as $file) {
         $class = 'App\\Models\\'.basename($file, '.php');

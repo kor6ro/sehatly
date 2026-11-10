@@ -833,7 +833,7 @@ test('every DDL line number cited by this todo is the line it claims to be', fun
         137 => 'no_telepon VARCHAR(20) NOT NULL UNIQUE',
         138 => 'kata_sandi_hash VARCHAR(255) NOT NULL',
         139 => "tipe ENUM('pasien','dokter','perawat','apoteker','kurir','admin','superadmin','marketing') NOT NULL DEFAULT 'pasien'",
-        140 => "status ENUM('pending_verifikasi','aktif','nonaktif','ditangguhkan')",
+        140 => "status ENUM('pending_verifikasi','menunggu_persetujuan','diundang','aktif','ditolak','nonaktif','ditangguhkan')",
         220 => 'user_id BIGINT UNSIGNED NOT NULL UNIQUE',
         225 => "jenis_kelamin ENUM('L','P') NOT NULL",
         226 => 'tanggal_lahir DATE NOT NULL',

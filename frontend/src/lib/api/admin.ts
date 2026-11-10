@@ -676,6 +676,8 @@ export type AdminPengguna = {
     telepon_terverifikasi: boolean;
     last_login_at: Iso | null;
     dibuat_at: Iso;
+    /** `user_undangan.id` of the active invitation row, or `null` when none. */
+    undangan_id: number | null;
 };
 
 /**
@@ -786,6 +788,154 @@ export function resetSandiPenggunaMutation() {
 }
 
 // ============================================================================
+// Undangan, keputusan antrean, dan badge tab (invite / approve / badges)
+// ============================================================================
+
+/**
+ * What `POST /admin/undangan` accepts - the server's `BuatUndanganRequest`.
+ *
+ * `tipe` is the server's `UndangPengguna::ROLE_DIIZINKAN` (dokter, apoteker,
+ * kurir, admin); creating an `admin` additionally requires a `superadmin`
+ * caller and 403s otherwise, which is why the page hides that choice from
+ * everyone else rather than letting the submit fail.
+ */
+export type UndangPenggunaInput = {
+    nama_lengkap: string;
+    no_telepon: string;
+    email?: string;
+    tipe: 'dokter' | 'apoteker' | 'kurir' | 'admin';
+    kanal: 'whatsapp' | 'sms' | 'email';
+};
+
+/**
+ * `GET /admin/pengguna/ringkasan`: counts keyed by `tipe`, each with `total`
+ * plus one field per `UserStatus`. The tab badges read this so a queue number
+ * does not cost a full directory load.
+ */
+export type RingkasanPengguna = Record<
+    string,
+    {
+        total: number;
+        aktif: number;
+        menunggu_persetujuan: number;
+        diundang: number;
+        nonaktif: number;
+        ditolak: number;
+        pending_verifikasi: number;
+        ditangguhkan: number;
+    }
+>;
+
+export async function fetchAdminRingkasan() {
+    return request<{ ringkasan: RingkasanPengguna }>('admin/pengguna/ringkasan');
+}
+
+/**
+ * Create an invited account. The plaintext token comes back ONCE in `token`
+ * (only its SHA-256 hash is stored) so the operator can hand the activation
+ * link over - the UI must show it immediately, before any navigation can
+ * drop it.
+ */
+export async function buatUndangan(input: UndangPenggunaInput) {
+    return request<{ pengguna: AdminPengguna; token: string }>('admin/undangan', {
+        method: 'POST',
+        json: input,
+        retry: 0,
+    });
+}
+
+/**
+ * Resend an invitation: cancels the old token and issues a fresh one.
+ * `id` is `user_undangan.id` (from `AdminPengguna.undangan_id`), not `users.id`.
+ */
+export async function kirimUlangUndangan(undanganId: number) {
+    return request<{ pengguna: AdminPengguna; token: string }>(
+        `admin/undangan/${undanganId}/kirim-ulang`,
+        { method: 'POST' },
+    );
+}
+
+/**
+ * Cancel an active invitation.
+ * `id` is `user_undangan.id` (from `AdminPengguna.undangan_id`), not `users.id`.
+ */
+export async function batalkanUndangan(undanganId: number) {
+    return request<Record<string, never>>(`admin/undangan/${undanganId}`, {
+        method: 'DELETE',
+    });
+}
+
+/** Approve a `menunggu_persetujuan` account - 422 from any other state. */
+export async function setujuiPengguna(id: number) {
+    return request<{ pengguna: AdminPengguna }>(`admin/pengguna/${id}/setujui`, {
+        method: 'POST',
+    });
+}
+
+/**
+ * Reject a `menunggu_persetujuan` account. `alasan` is mandatory server-side
+ * (min 10 chars): the applicant must be told why they were refused, and the
+ * reason rides into the audit log with the decision.
+ */
+export async function tolakPengguna(id: number, alasan: string) {
+    return request<{ pengguna: AdminPengguna }>(`admin/pengguna/${id}/tolak`, {
+        method: 'POST',
+        json: { alasan },
+    });
+}
+
+export const adminRingkasanQueryKey = ['v1', 'admin', 'pengguna', 'ringkasan'] as const;
+
+export function adminRingkasanOptions() {
+    return queryOptions({
+        queryKey: adminRingkasanQueryKey,
+        queryFn: fetchAdminRingkasan,
+    });
+}
+
+/** Invalidates the directory AND its badges: one decision changes both. */
+function invalidatePengguna() {
+    void queryClient.invalidateQueries({ queryKey: adminPenggunaQueryKey });
+    void queryClient.invalidateQueries({ queryKey: adminRingkasanQueryKey });
+}
+
+export function buatUndanganMutation() {
+    return mutationOptions({
+        mutationFn: buatUndangan,
+        onSuccess: invalidatePengguna,
+    });
+}
+
+export function setujuiPenggunaMutation() {
+    return mutationOptions({
+        mutationFn: (id: number) => setujuiPengguna(id),
+        onSuccess: invalidatePengguna,
+    });
+}
+
+export function tolakPenggunaMutation() {
+    return mutationOptions({
+        mutationFn: (input: { id: number; alasan: string }) =>
+            tolakPengguna(input.id, input.alasan),
+        onSuccess: invalidatePengguna,
+    });
+}
+
+export function kirimUlangUndanganMutation() {
+    return mutationOptions({
+        mutationFn: (undanganId: number) => kirimUlangUndangan(undanganId),
+        onSuccess: invalidatePengguna,
+    });
+}
+
+export function batalkanUndanganMutation() {
+    return mutationOptions({
+        mutationFn: (undanganId: number) => batalkanUndangan(undanganId),
+        onSuccess: invalidatePengguna,
+    });
+}
+
+// ============================================================================
 // Role catalogue (the sidebar's per-role directory pages)
 // ============================================================================
 
@@ -816,5 +966,46 @@ export function adminRolesOptions() {
     return queryOptions({
         queryKey: adminRolesQueryKey,
         queryFn: fetchAdminRoles,
+    });
+}
+
+// ============================================================================
+// Dashboard: "Perlu tindakan" counts
+// ============================================================================
+
+export type PerluTindakan = {
+    /** `menunggu_persetujuan` marketing accounts. `null` = fetch failed. */
+    marketing: number | null;
+    /** `diundang` accounts not yet activated. `null` = fetch failed. */
+    undangan: number | null;
+    /** Doctors pending verification. `null` = fetch failed. */
+    dokter: number | null;
+};
+
+export async function fetchPerluTindakan(): Promise<PerluTindakan> {
+    const [ringkasan, dokter] = await Promise.allSettled([
+        fetchAdminRingkasan(),
+        fetchAdminDokter({ per_page: 1, status_verifikasi: 'pending' }),
+    ]);
+
+    const r = ringkasan.status === 'fulfilled' ? ringkasan.value.data.ringkasan : null;
+    const diundang = r
+        ? Object.values(r).reduce((sum, v) => sum + (v.diundang ?? 0), 0)
+        : null;
+
+    return {
+        marketing: r ? (r['marketing']?.menunggu_persetujuan ?? 0) : null,
+        undangan: diundang,
+        dokter: dokter.status === 'fulfilled' ? (dokter.value.meta?.total ?? 0) : null,
+    };
+}
+
+export const adminPerluTindakanQueryKey = ['v1', 'admin', 'perlu-tindakan'] as const;
+
+export function adminPerluTindakanOptions() {
+    return queryOptions({
+        queryKey: adminPerluTindakanQueryKey,
+        queryFn: fetchPerluTindakan,
+        staleTime: 60_000,
     });
 }

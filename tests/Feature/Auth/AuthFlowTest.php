@@ -1755,6 +1755,9 @@ test('the route table exposes exactly the twelve module 1 auth routes with the e
         'GET api/v1/auth/devices',
         'POST api/v1/auth/devices',
         'DELETE api/v1/auth/devices/{deviceId}',
+        // Account-management round: marketing self-registration and invitation activation.
+        'POST api/v1/auth/daftar/marketing',
+        'POST api/v1/auth/undangan/{token}/aktivasi',
     ]);
 
     $middlewareFor = static function (string $key) use ($routes): array {
@@ -2082,6 +2085,19 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         "'permission:pengguna.kelola'",
         "'permission:pengguna.kelola'",
         "'permission:pengguna.kelola'",
+        // The marketing self-registration and invitation activation routes sit
+        // OUTSIDE the admin group (they are public/unauthenticated), so they
+        // contribute NO `permission:` or `tipe:` strings to this census.
+        // The admin-side approval, rejection, invitation and password-reset
+        // routes ARE inside the admin group and each carries `pengguna.kelola`
+        // or `pengguna.lihat`; the eight new admin writes add EIGHT more hits
+        // and the two new admin reads add TWO more, for NINE additional strings.
+        "'permission:pengguna.kelola'",  // POST /admin/pengguna/{id}/setujui
+        "'permission:pengguna.kelola'",  // POST /admin/pengguna/{id}/tolak
+        "'permission:pengguna.kelola'",  // POST /admin/pengguna/undang
+        "'permission:pengguna.kelola'",  // POST /admin/pengguna/{id}/reset-sandi
+        "'permission:pengguna.kelola'",  // PUT  /admin/pengguna/{id}/status
+        "'permission:pengguna.lihat'",   // GET  /admin/pengguna
     ]);
 });
 

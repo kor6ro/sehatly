@@ -396,7 +396,6 @@ test('the Inertia and Fortify classes and configs are gone from disk and from th
         'routes/settings.php',
         'app/Http/Controllers/Settings',
         'app/Http/Requests/Settings',
-        'app/Actions',
         'app/Concerns',
         'resources/js',
     ];

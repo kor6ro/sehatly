@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
+use App\Models\Admin\UserUndangan;
 use App\Models\User;
 use App\Support\NikMasker;
 use Illuminate\Http\Request;
@@ -37,6 +38,14 @@ use Illuminate\Http\Resources\Json\JsonResource;
  *
  * `last_login_at` is `null` for an account that has never signed in - a
  * different fact from "signed in long ago", and the UI renders it as such.
+ *
+ * `undangan_id` is the `user_undangan.id` of the account's active (unused,
+ * uncancelled, unexpired) invitation row, or `null` when none exists. The
+ * admin UI needs this to call `POST /admin/undangan/{id}/kirim-ulang` and
+ * `DELETE /admin/undangan/{id}`, whose `{id}` is the invitation row, not the
+ * user row. Only the most-recent active row is returned; a user can only have
+ * one active invitation at a time because `UndangPengguna` cancels the
+ * previous one before issuing a new token.
  */
 class PenggunaResource extends JsonResource
 {
@@ -58,6 +67,12 @@ class PenggunaResource extends JsonResource
             'telepon_terverifikasi' => (bool) $user->telepon_terverifikasi,
             'last_login_at' => $user->last_login_at?->toISOString(),
             'dibuat_at' => $user->dibuat_at?->toISOString(),
+            'undangan_id' => UserUndangan::query()
+                ->where('user_id', $user->getKey())
+                ->whereNull('dipakai_pada')
+                ->whereNull('dibatalkan_pada')
+                ->where('kedaluwarsa_pada', '>', now())
+                ->value('id'),
         ];
     }
 }

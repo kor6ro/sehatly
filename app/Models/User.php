@@ -39,7 +39,6 @@ use Laravel\Sanctum\HasApiTokens;
  * @property string|null $kata_sandi_hash
  * @property string|null $tipe
  * @property UserStatus|null $status
- * @property string|null $alasan_penolakan
  * @property string|null $foto_profil
  * @property string|null $bahasa
  * @property bool|null $telepon_terverifikasi

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Enums\PersetujuanPdpJenis;
+use App\Enums\UserStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LengkapiSignUpRequest;
 use App\Http\Requests\Auth\LoginRequest;
@@ -122,13 +123,10 @@ use Symfony\Component\HttpFoundation\Response;
 class AuthController extends Controller
 {
     /**
-     * The two `users.status` ENUM values that may not authenticate.
-     *
-     * `telemedicine_test.sql:140` is
-     * `status ENUM('pending_verifikasi','aktif','nonaktif','ditangguhkan')`. A
-     * `pending_verifikasi` account is allowed through, because registering and then
-     * logging in before verifying the phone is a real user journey and the login OTP
-     * proves the phone; the verify step is what promotes it.
+     * The `users.status` values `POST /auth/otp/resend` silently skips minting
+     * for — the two system-owned hard blocks. `login()` uses
+     * {@see UserStatus::bolehLogin()} instead, which covers all five non-login
+     * statuses with per-status 403 messages.
      *
      * @var list<string>
      */
@@ -344,9 +342,11 @@ class AuthController extends Controller
             );
         }
 
-        if (in_array((string) $user->status, self::STATUS_DITOLAK, true)) {
+        $status = UserStatus::tryFrom((string) $user->status);
+
+        if ($status === null || ! $status->bolehLogin()) {
             return ApiResponse::error(
-                'Akun ini sedang dinonaktifkan. Hubungi administrator.',
+                self::pesanStatusDitolak($status),
                 [],
                 Response::HTTP_FORBIDDEN,
             );
@@ -514,12 +514,12 @@ class AuthController extends Controller
             $user->last_login_at = now();
             $user->telepon_terverifikasi = true;
 
-            // Never moved out of `nonaktif` or `ditangguhkan`. Those cannot reach this
-            // line through `login`, which refuses them, and through registration a new
-            // row is always `pending_verifikasi` -- so in practice this is only ever the
-            // first promotion. It is written as a guard rather than an unconditional
-            // `status = 'aktif'` so that a code replayed against a suspended account
-            // cannot undo the suspension.
+            // Never moved out of a status that may not log in. Those cannot reach
+            // this line through `login()`, which gates on `bolehLogin()`, and through
+            // registration a new row is always `pending_verifikasi` -- so in practice
+            // this is only ever the first promotion. Written as a guard rather than an
+            // unconditional `status = 'aktif'` so a code replayed against a blocked
+            // account cannot undo the block.
             if ($user->status === 'pending_verifikasi') {
                 $user->status = 'aktif';
             }
@@ -1108,6 +1108,22 @@ class AuthController extends Controller
     private function nomorRekamMedis(User $user): string
     {
         return sprintf('RM-%s-%06d', WaktuIndonesia::tanggal('Ym'), (int) $user->getKey());
+    }
+
+    /**
+     * The 403 message for each status that may not log in.
+     *
+     * `nonaktif` and `ditangguhkan` keep the original message so existing tests
+     * that pin the byte-exact body do not break.
+     */
+    private static function pesanStatusDitolak(?UserStatus $status): string
+    {
+        return match ($status) {
+            UserStatus::MenungguPersetujuan => 'Akun menunggu persetujuan administrator.',
+            UserStatus::Diundang            => 'Akun belum diaktivasi. Buka tautan undangan untuk membuat sandi.',
+            UserStatus::Ditolak             => 'Akun ditolak. Hubungi administrator.',
+            default                         => 'Akun ini sedang dinonaktifkan. Hubungi administrator.',
+        };
     }
 
     /**

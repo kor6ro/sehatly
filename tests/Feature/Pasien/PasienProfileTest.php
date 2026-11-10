@@ -1441,10 +1441,18 @@ test('the route table exposes the twelve auth routes and the seven patient route
         // pages read (added with the per-role split; it answers `RbacCatalog`,
         // not account rows).
         'GET api/v1/admin/pengguna',
+        'GET api/v1/admin/pengguna/ringkasan',
         'POST api/v1/admin/pengguna',
         'POST api/v1/admin/pengguna/{id}/reset-sandi',
+        'POST api/v1/admin/pengguna/{id}/setujui',
+        'POST api/v1/admin/pengguna/{id}/tolak',
         'PUT api/v1/admin/pengguna/{id}/status',
         'GET api/v1/admin/roles',
+        'POST api/v1/admin/undangan',
+        'POST api/v1/admin/undangan/{id}/kirim-ulang',
+        'DELETE api/v1/admin/undangan/{id}',
+        'POST api/v1/auth/daftar/marketing',
+        'POST api/v1/auth/undangan/{token}/aktivasi',
     ]);
 
     // TEN under the `pasien` filter: the six above (profil read + write, two for
@@ -1489,6 +1497,8 @@ test('the route table exposes the twelve auth routes and the seven patient route
         'POST api/v1/auth/sign-up',
         'POST api/v1/auth/masuk',
         'POST api/v1/auth/otp/verify',
+        'POST api/v1/auth/daftar/marketing',
+        'POST api/v1/auth/undangan/{token}/aktivasi',
         // F01's resend: anonymous by design. It mints a code with no prior
         // credential, answers generically so it cannot enumerate accounts, and
         // is bounded by its own `throttle:auth-otp-resend` limiter.
@@ -1815,10 +1825,18 @@ test('the route table exposes the twelve auth routes and the seven patient route
             // account directory's writes were approved WITH codes, so each has a
             // name rather than a type doing the work.
             'GET api/v1/admin/pengguna' => ['permission:pengguna.lihat', 'tipe:admin,superadmin'],
+            'GET api/v1/admin/pengguna/ringkasan' => ['permission:pengguna.lihat', 'tipe:admin,superadmin'],
             'POST api/v1/admin/pengguna' => ['permission:pengguna.kelola', 'tipe:admin,superadmin'],
             'POST api/v1/admin/pengguna/{id}/reset-sandi' => ['permission:pengguna.kelola', 'tipe:admin,superadmin'],
+            'POST api/v1/admin/pengguna/{id}/setujui' => ['permission:pengguna.kelola', 'tipe:admin,superadmin'],
+            'POST api/v1/admin/pengguna/{id}/tolak' => ['permission:pengguna.kelola', 'tipe:admin,superadmin'],
             'PUT api/v1/admin/pengguna/{id}/status' => ['permission:pengguna.kelola', 'tipe:admin,superadmin'],
             'GET api/v1/admin/roles' => ['permission:pengguna.lihat', 'tipe:admin,superadmin'],
+            'POST api/v1/admin/undangan' => ['permission:pengguna.kelola', 'tipe:admin,superadmin'],
+            'POST api/v1/admin/undangan/{id}/kirim-ulang' => ['permission:pengguna.kelola', 'tipe:admin,superadmin'],
+            'DELETE api/v1/admin/undangan/{id}' => ['permission:pengguna.kelola', 'tipe:admin,superadmin'],
+            'POST api/v1/auth/daftar/marketing' => [],
+            'POST api/v1/auth/undangan/{token}/aktivasi' => [],
             // F04's THREE. The public review list takes NEITHER (it is public for
             // the same reason the profile is), and the patient's review write
             // takes NEITHER: no catalogue code names writing a review, and
@@ -2099,6 +2117,10 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         // `AuthFlowTest` over the same regex, for the closed-set reason above.
         "'permission:pengguna.lihat'",
         "'permission:pengguna.lihat'",
+        "'permission:pengguna.lihat'",
+        "'permission:pengguna.kelola'",
+        "'permission:pengguna.kelola'",
+        "'permission:pengguna.kelola'",
         "'permission:pengguna.kelola'",
         "'permission:pengguna.kelola'",
         "'permission:pengguna.kelola'",
