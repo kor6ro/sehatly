@@ -36,15 +36,21 @@ return [
     |   standing up a server.
     | - `null` discards them. It is the `phpunit.xml` value.
     |
-    | ## There is deliberately no `pusher` connection
+    | ## `pusher` is the hosted alternative, and it is here for the free demo
     |
     | Reverb speaks the Pusher protocol, so `BroadcastManager::createReverbDriver()`
     | is a one-line delegation to `createPusherDriver()`
     | (`vendor/laravel/framework/src/Illuminate/Broadcasting/BroadcastManager.php`),
     | which is why the `reverb` block below is spelled in Pusher terms. That is
-    | an implementation detail of the driver factory, not a second supported
-    | destination: declaring a `pusher` connection would advertise a hosted
-    | service this application has no credentials for and no plan to use.
+    | an implementation detail of the driver factory, not a second destination by
+    | itself.
+    |
+    | The `pusher` connection exists because the free deployment documented in
+    | `deploy/README.md` cannot run a long-lived Reverb process: the API is a
+    | Render web service that sleeps when idle, and the SPA is static hosting.
+    | Pusher's free tier speaks the same protocol and the same `laravel-echo`
+    | client, so the only difference is where the socket and the publish HTTP
+    | calls go. A self-hosted deployment keeps `BROADCAST_CONNECTION=reverb`.
     |
     | ## There is deliberately no `cluster` key
     |
@@ -68,6 +74,28 @@ return [
                 'scheme' => env('REVERB_SCHEME', 'https'),
                 'useTLS' => env('REVERB_SCHEME', 'https') === 'https',
                 'path' => env('REVERB_SERVER_PATH', ''),
+            ],
+            'client_options' => [
+                // Guzzle request options, forwarded to the Pusher HTTP client:
+                // https://docs.guzzlephp.org/en/stable/request-options.html
+            ],
+        ],
+
+        'pusher' => [
+            'driver' => 'pusher',
+            'key' => env('PUSHER_APP_KEY'),
+            'secret' => env('PUSHER_APP_SECRET'),
+            'app_id' => env('PUSHER_APP_ID'),
+            'options' => [
+                // `ap1` is Pusher's Singapore cluster, the closest one to
+                // Indonesian users. A self-hosted Pusher-compatible broker
+                // overrides `host`/`port`/`scheme` instead.
+                'cluster' => env('PUSHER_APP_CLUSTER', 'ap1'),
+                'host' => env('PUSHER_HOST') ?: 'api-'.env('PUSHER_APP_CLUSTER', 'ap1').'.pusher.com',
+                'port' => (int) env('PUSHER_PORT', 443),
+                'scheme' => env('PUSHER_SCHEME', 'https'),
+                'encrypted' => true,
+                'useTLS' => env('PUSHER_SCHEME', 'https') === 'https',
             ],
             'client_options' => [
                 // Guzzle request options, forwarded to the Pusher HTTP client:

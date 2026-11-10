@@ -1,0 +1,7 @@
+# Cloudflare Pages SPA fallback.
+#
+# Every portal is the same built index.html; the client router chooses the
+# portal table by hostname (lib/portal.ts). A deep link such as
+# /admin/dashboard must therefore return the shell with a 200, not a 404.
+# Real files (assets, logo.svg) still win over this rule.
+/*    /index.html   200

@@ -121,7 +121,7 @@ it('binds every published 401 and 403 to the same error envelope', function (): 
     }
 });
 
-it('publishes a 404 for all 121 operations, bound to the error envelope', function (): void {
+it('publishes a 404 for all 144 operations, bound to the error envelope', function (): void {
     // Structural, not reachability. The claim is that no operation advertises a
     // 404 the error envelope cannot describe, and that the count is 135 -- so a
     // route appearing or disappearing moves this number rather than passing
@@ -143,7 +143,7 @@ it('publishes a 404 for all 121 operations, bound to the error envelope', functi
         $count++;
     }
 
-    expect($count)->toBe(135);
+    expect($count)->toBe(144);
 });
 
 it('publishes 401 and 403 together, or neither, on every bearer operation', function (): void {
@@ -172,7 +172,7 @@ it('publishes 401 and 403 together, or neither, on every bearer operation', func
         $count++;
     }
 
-    expect($count)->toBe(106);
+    expect($count)->toBe(113);
 });
 
 it('publishes 429 only where a named rate limiter is registered', function (): void {

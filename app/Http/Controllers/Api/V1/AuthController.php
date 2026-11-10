@@ -419,6 +419,10 @@ class AuthController extends Controller
                     'kedaluwarsa_at' => $issued->kedaluwarsaAt->toISOString(),
                     'ttl_detik' => OtpService::TTL_MENIT * 60,
                     'kanal' => PemilihPengirimOtp::kanalAktif(),
+                    // Dev-only, exactly like `login`/`register`: null outside
+                    // `local`, so the invitation activation screen can complete
+                    // the flow in the demo without a delivery channel.
+                    'kode' => $issued->plainTextForClient(),
                 ],
             ], $pesan);
         }
@@ -431,6 +435,9 @@ class AuthController extends Controller
                 'kedaluwarsa_at' => now()->addMinutes(OtpService::TTL_MENIT)->toISOString(),
                 'ttl_detik' => OtpService::TTL_MENIT * 60,
                 'kanal' => PemilihPengirimOtp::kanalAktif(),
+                // Present and null for the same reason the registered branch has
+                // it: the two bodies must stay byte-identical outside `local`.
+                'kode' => null,
             ],
         ], $pesan);
     }

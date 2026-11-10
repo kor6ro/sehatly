@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace App\Services\Admin;
 
 use App\Models\User;
+use App\Services\Audit\AuditColumnPolicy;
 use App\Services\Auth\TokenService;
+use App\Support\NikMasker;
+use App\Support\Rbac\RbacCatalog;
 use App\Support\Rbac\RoleAssigner;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -49,7 +52,7 @@ use Illuminate\Validation\ValidationException;
  * `q` matches `nama_lengkap` OR `no_telepon` with the same `addcslashes` LIKE
  * neutralisation {@see AdminDokterService} uses, so `%` means a percent sign.
  * The operator types the real number they know; the response still carries
- * {@see \App\Support\NikMasker} output for every row, so no list body, log line
+ * {@see NikMasker} output for every row, so no list body, log line
  * or screenshot of one ever holds a full number - the F01 masking rule, applied
  * at the only boundary that leaves the server.
  *
@@ -130,7 +133,7 @@ class AdminPenggunaService
      * What `POST /admin/pengguna` may create. `superadmin` is seed-only (the
      * seeder creates it; no request path may mint one), `dokter` needs the
      * credential rows `POST /admin/dokter` owns, `pasien` registers itself, and
-     * `perawat` has no {@see \App\Support\Rbac\RbacCatalog::ROLES} row to grant -
+     * `perawat` has no {@see RbacCatalog::ROLES} row to grant -
      * an account that authenticates and holds nothing would be a landmine.
      *
      * @var list<string>
@@ -218,7 +221,7 @@ class AdminPenggunaService
      *
      * @param  array<string, mixed>  $data  `BuatPenggunaRequest::validated()`.
      *
-     * @throws \Illuminate\Validation\ValidationException when `tipe` is outside `TIPE_BUAT`
+     * @throws ValidationException when `tipe` is outside `TIPE_BUAT`
      */
     public function buat(array $data): User
     {
@@ -269,9 +272,9 @@ class AdminPenggunaService
      * PLAINTEXT once - the operator hands it over out of band, exactly like the
      * OTP code the login flow prints in local.
      *
-     * The stored value is a `Hash::make` digest of {@see \Illuminate\Support\Str::password}
+     * The stored value is a `Hash::make` digest of {@see Str::password}
      * (16 characters, letters, digits and symbols - `min:8` satisfied by
-     * construction), and `users.kata_sandi_hash` is in {@see \App\Services\Audit\AuditColumnPolicy}'s
+     * construction), and `users.kata_sandi_hash` is in {@see AuditColumnPolicy}'s
      * credential vocabulary, so the change is audited as an event without the
      * digest (old or new) ever being copied into `audit_log`.
      */

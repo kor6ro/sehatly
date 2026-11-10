@@ -1,0 +1,11 @@
+# Hashed Vite output is immutable; the filename changes when the bytes change.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# The API is a different origin (api.<domain>), so these are defence in depth
+# for the static shell only. They do not replace the API's own headers.
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=()

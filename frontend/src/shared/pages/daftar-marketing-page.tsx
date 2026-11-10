@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { CheckCircle, Hourglass, Loader2 } from 'lucide-react';
+import { Hourglass, Loader2 } from 'lucide-react';
 import { request, ApiError } from '@/lib/http';
 import { Button } from '@/components/ui/button';
 import { Field, FieldInput } from '@/shared/components/form/field';

@@ -128,6 +128,27 @@ return Application::configure(basePath: dirname(__DIR__))
 
         /*
         |--------------------------------------------------------------------
+        | Reverse-proxy headers, only when the deployment declares a proxy
+        |--------------------------------------------------------------------
+        |
+        | A container behind Render's load balancer sees `X-Forwarded-For` and
+        | `X-Forwarded-Proto`, not the visitor's address and not TLS. Without
+        | trusting the proxy, `request()->ip()` is the balancer (every rate
+        | limiter collapses to one bucket) and generated URLs fall back to
+        | `http`. Trusting a proxy that is NOT there is worse: any caller could
+        | forge the header. So this is opt-in through the environment, empty by
+        | default, and the free deployment sets `TRUSTED_PROXIES=*`.
+        |
+        */
+
+        $trustedProxies = env('TRUSTED_PROXIES');
+
+        if (is_string($trustedProxies) && $trustedProxies !== '') {
+            $middleware->trustProxies(at: $trustedProxies);
+        }
+
+        /*
+        |--------------------------------------------------------------------
         | The web group appends nothing
         |--------------------------------------------------------------------
         |

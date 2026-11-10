@@ -1,0 +1,115 @@
+# Render Blueprint for the Sehatly API.
+#
+# The SPA lives on Cloudflare Pages; this service answers only <api-domain>.
+# Values marked `sync: false` are prompted for in the Render dashboard and are
+# never stored in git. See deploy/README.md for how to obtain each one.
+#
+# Free plan caveats: the service sleeps after 15 minutes without traffic, has
+# an ephemeral filesystem, and gets 750 instance hours per month.
+services:
+  - type: web
+    name: sehatly-api
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /up
+    autoDeploy: true
+    envVars:
+      # --- Demo mode -------------------------------------------------------
+      # `local` is deliberate: PenjagaPengirimanProduksi refuses to boot with
+      # OTP_DRIVER=log anywhere else, and local is also what makes the OTP code
+      # visible in the login response for the demo. Never use this mode with
+      # real patient data; see deploy/README.md.
+      - key: APP_ENV
+        value: local
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_NAME
+        value: Sehatly
+      - key: APP_URL
+        value: https://api.sehatly.k6devs.my.id
+      - key: APP_KEY
+        sync: false
+      - key: NIK_CIPHER_KEY
+        sync: false
+      - key: LOG_CHANNEL
+        value: stderr
+      - key: LOG_LEVEL
+        value: warning
+      - key: TRUSTED_PROXIES
+        value: "*"
+
+      # --- Database (TiDB Cloud Starter) -----------------------------------
+      - key: DB_CONNECTION
+        value: mysql
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        value: "4000"
+      - key: DB_DATABASE
+        value: sehatly
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_CHARSET
+        value: utf8mb4
+      - key: DB_COLLATION
+        value: utf8mb4_unicode_ci
+      - key: DB_TIMEZONE
+        value: "+00:00"
+      # TiDB Cloud requires TLS. Debian's public CA bundle is enough for the
+      # encrypted handshake; replace it with TiDB's downloaded ca.pem if the
+      # connection is refused.
+      - key: MYSQL_ATTR_SSL_CA
+        value: /etc/ssl/certs/ca-certificates.crt
+
+      # --- Session / cache / queue -----------------------------------------
+      - key: SESSION_DRIVER
+        value: database
+      - key: CACHE_STORE
+        value: database
+      - key: QUEUE_CONNECTION
+        value: sync
+      - key: FILESYSTEM_DISK
+        value: local
+
+      # --- Demo delivery ----------------------------------------------------
+      # OTP and push are written to the Render log. The login response also
+      # carries the code in `local`, which is how the demo patient signs in.
+      - key: OTP_DRIVER
+        value: log
+      - key: PUSH_DRIVER
+        value: log
+
+      # --- Real-time (Pusher free tier) ------------------------------------
+      - key: BROADCAST_CONNECTION
+        value: pusher
+      - key: PUSHER_APP_ID
+        sync: false
+      - key: PUSHER_APP_KEY
+        sync: false
+      - key: PUSHER_APP_SECRET
+        sync: false
+      - key: PUSHER_APP_CLUSTER
+        value: ap1
+
+      # --- Browser origins --------------------------------------------------
+      # Already filled for the sub-subdomain layout. Change these six if you
+      # use the flat k6devs.my.id layout instead.
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://sehatly.k6devs.my.id,https://www.sehatly.k6devs.my.id,https://admin.sehatly.k6devs.my.id,https://dokter.sehatly.k6devs.my.id,https://apotek.sehatly.k6devs.my.id,https://kurir.sehatly.k6devs.my.id,https://marketing.sehatly.k6devs.my.id
+
+      # --- Payment webhooks -------------------------------------------------
+      # APP_ENV=local exempts the shipped defaults, but the endpoint is public.
+      # Random values keep a forged webhook from marking an invoice paid.
+      - key: PAYMENT_WEBHOOK_SECRET_MIDTRANS
+        generateValue: true
+      - key: PAYMENT_WEBHOOK_SECRET_XENDIT
+        generateValue: true
+      - key: PAYMENT_WEBHOOK_SECRET_DUITKU
+        generateValue: true
+      - key: PAYMENT_WEBHOOK_SECRET_OY
+        generateValue: true
