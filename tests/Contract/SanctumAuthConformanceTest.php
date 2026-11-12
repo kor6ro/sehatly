@@ -127,7 +127,7 @@ function contractSplit(string $key): array
     return [$method, $path];
 }
 
-it('splits the documented operations into 92 bearer, 29 anonymous and 28 unguarded', function (): void {
+it('splits the documented operations into 113 bearer, 32 anonymous and 31 unguarded', function (): void {
     // The counts are pinned so the datasets below cannot silently shrink. If a
     // route is added or removed, this fails first and names the real delta,
     // instead of a per-route test quietly disappearing from the run. F12 added
@@ -154,11 +154,16 @@ it('splits the documented operations into 92 bearer, 29 anonymous and 28 unguard
     // `POST /admin/dokter` is bearer and brings no anonymous route with it, the
     // 91 -> 92 and 121 -> 131 movement; the account-management round's four
     // `/admin/pengguna` routes are all bearer and none anonymous, the
-    // 102 -> 106 and 131 -> 135 movement.
-    expect(count(contractBearerOperations()))->toBe(106);
-    expect(count(contractAnonymousOperations()))->toBe(29);
-    expect(count(contractUnguardedAnonymousOperations()))->toBe(28);
-    expect(count(contractBearerOperations()) + count(contractAnonymousOperations()))->toBe(135);
+    // 102 -> 106 and 131 -> 135 movement. RE-MEASURED on 2026-11-12: the document
+    // already carried 113/31/30 while the pins read 106/29/28 - the routes added
+    // after the account-management round never moved them - and the landing
+    // page's new `GET /faskes` is ANONYMOUS and no webhook, so it moves only the
+    // two anonymous counts (31 -> 32 and 30 -> 31), leaves bearer where it was,
+    // and lands the total on 145.
+    expect(count(contractBearerOperations()))->toBe(113);
+    expect(count(contractAnonymousOperations()))->toBe(32);
+    expect(count(contractUnguardedAnonymousOperations()))->toBe(31);
+    expect(count(contractBearerOperations()) + count(contractAnonymousOperations()))->toBe(145);
 });
 
 it('answers 401 with the error envelope when the Authorization header is absent', function (string $method, string $path): void {

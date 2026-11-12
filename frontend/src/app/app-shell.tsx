@@ -42,7 +42,6 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
     SidebarProvider,
-    SidebarSeparator,
     SidebarTrigger,
     useSidebar,
 } from '@/components/ui/sidebar';
@@ -489,7 +488,7 @@ function AppSidebar() {
                                 <MenuLink
                                     to="/?semua=1"
                                     icon={Stethoscope}
-                                    label="Dokter Terdekat"
+                                    label="Direktori dokter"
                                     pathname={pathname}
                                     onNavigate={tutupDrawer}
                                 />
@@ -651,7 +650,7 @@ function AppSidebar() {
                             <MenuLink
                                 to="/?semua=1"
                                 icon={Stethoscope}
-                                label="Dokter Terdekat"
+                                label="Direktori dokter"
                                 pathname={pathname}
                                 onNavigate={tutupDrawer}
                             />

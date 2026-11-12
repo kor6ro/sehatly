@@ -12,7 +12,7 @@ info:
     drift from the code: a route added, renamed or removed changes it on the next run, and
     `--check` fails until the regenerated file is committed.
 
-    This document describes 144 routes across 120 distinct paths, read from the live route table.
+    This document describes 145 routes across 121 distinct paths, read from the live route table.
 
     ## Envelopes
 
@@ -88,6 +88,9 @@ tags:
   -
     name: dokter
     description: '`/api/v1/dokter` operations. See the module summaries in `docs/modules/` for the curl recipes and the business rules behind these endpoints.'
+  -
+    name: faskes
+    description: '`/api/v1/faskes` operations. See the module summaries in `docs/modules/` for the curl recipes and the business rules behind these endpoints.'
   -
     name: hero
     description: '`/api/v1/hero` operations. See the module summaries in `docs/modules/` for the curl recipes and the business rules behind these endpoints.'
@@ -2458,6 +2461,29 @@ paths:
       security: []
       x-route-name: dokter.ulasan
       x-laravel-action: App\Http\Controllers\Api\V1\DokterController@ulasanIndex
+      x-middleware: []
+      responses:
+        200:
+          description: 'Success. `data` holds the requested resource, and `meta` is present when the response is a list.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/PaginatedEnvelope' } } }
+        422:
+          description: 'Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element).'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ValidationErrorEnvelope' } } }
+        404:
+          description: 'Resource not found. Also answers a `{placeholder}` outside the route''s own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        500:
+          description: 'Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+  /api/v1/faskes:
+    get:
+      operationId: getApiV1Faskes
+      summary: 'Read /api/v1/faskes.'
+      tags:
+        - faskes
+      security: []
+      x-route-name: faskes.index
+      x-laravel-action: App\Http\Controllers\Api\V1\FaskesController@index
       x-middleware: []
       responses:
         200:
@@ -6600,6 +6626,49 @@ components:
           type: string
           enum: [dokter_umum, dokter_spesialis, dokter_gigi, psikolog, bidan, perawat, apoteker]
           x-laravel-rule: [string, 'in:["dokter_umum","dokter_spesialis","dokter_gigi","psikolog","bidan","perawat","apoteker"]']
+      required:
+        - lat
+        - lng
+      additionalProperties: false
+      x-enum-fields:
+        tipe:
+          - dokter.tipe
+          - faskes.tipe
+          - konsultasi.tipe
+          - master_metode_pembayaran.tipe
+          - master_penjamin.tipe
+          - master_spesialisasi.tipe
+          - notifikasi.tipe
+          - pasien_riwayat_penyakit.tipe
+          - pesanan_obat.tipe
+          - preferensi_notifikasi_tipe.tipe
+          - rekam_medis_lampiran.tipe
+          - rekam_medis_persetujuan.tipe
+          - resep.tipe
+          - surat_keterangan.tipe
+          - users.tipe
+    IndexFaskesRequestBody:
+      type: object
+      title: IndexFaskesRequest
+      description: 'Request body for operations validated by `App\Http\Requests\Faskes\IndexFaskesRequest`. The properties below are read from that class''s `rules()` at generation time.'
+      x-form-request: App\Http\Requests\Faskes\IndexFaskesRequest
+      properties:
+        lat:
+          type: number
+          x-laravel-rule: ['required_with:lng', numeric, 'min:-90', 'max:90']
+        lng:
+          type: number
+          x-laravel-rule: ['required_with:lat', numeric, 'min:-180', 'max:180']
+        page:
+          type: integer
+          x-laravel-rule: [integer, 'min:1']
+        per_page:
+          type: integer
+          x-laravel-rule: [integer, 'min:1', 'max:100']
+        tipe:
+          type: string
+          enum: [rumah_sakit, klinik, puskesmas, apotek, laboratorium]
+          x-laravel-rule: [string, 'in:["rumah_sakit","klinik","puskesmas","apotek","laboratorium"]']
       required:
         - lat
         - lng

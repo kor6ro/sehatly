@@ -5,6 +5,7 @@ import { MasukDialog } from '@/shared/components/auth/masuk-dialog';
 import { Toaster } from '@/components/ui/sonner';
 import { useDocumentTitle } from '@/hooks/use-document-title';
 import { HeroCarousel } from '@/portals/pasien/features/landing/hero-carousel';
+import { HeroUtama } from '@/portals/pasien/features/landing/hero-utama';
 import { JejakDokter } from '@/portals/pasien/features/landing/jejak-dokter';
 import { DirektoriDokter, adaPertanyaanDirektori } from '@/portals/pasien/features/dokter/direktori';
 import { LandingFooter } from '@/portals/pasien/features/landing/landing-footer';
@@ -83,6 +84,7 @@ export function LandingPage() {
 
     const [loginOpen, setLoginOpen] = useState(false);
     const [params, setParams] = useSearchParams();
+    const [namaDokterDipilih, setNamaDokterDipilih] = useState<string | undefined>(undefined);
 
     /**
      * `/?masuk=1` - the address that replaced the `/masuk` page.
@@ -144,11 +146,15 @@ export function LandingPage() {
 
             <main className="flex-1">
                 {/**
-                 * The banner leads the front page and the answer alike - a category
-                 * page whose banner sits above its breadcrumb is the shape this reference
-                 * uses. The profile is the one thing it used to step aside for, and that
-                 * is gone with `?dokter=`: there is no third body left to make room for.
+                 * The hero opens both bodies - the marketing sections and the answer
+                 * alike - and the carousel sits directly beneath it, smaller than it
+                 * used to be now that it is no longer the first thing on the page.
+                 * The banner keeps its place above the answer's breadcrumb because a
+                 * category page whose banner sits above its breadcrumb is the shape
+                 * this reference uses; the profile is the one thing it used to step
+                 * aside for, and that is gone with `?dokter=`.
                  */}
+                <HeroUtama />
                 <HeroCarousel />
 
                 {/*
@@ -157,9 +163,9 @@ export function LandingPage() {
                 */}
                 {bertanya ? (
                     <>
-                        <JejakDokter />
+                        <JejakDokter namaDokter={namaDokterDipilih} />
 
-                        <DirektoriDokter />
+                        <DirektoriDokter onDokterDipilih={(nama) => { setNamaDokterDipilih(nama); }} />
                     </>
                 ) : (
                     <>

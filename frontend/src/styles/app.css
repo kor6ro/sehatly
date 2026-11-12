@@ -238,3 +238,119 @@
 .gulir-sendiri::-webkit-scrollbar {
     display: none;
 }
+
+/* ===== Hero Floating & Pulse Animations ===== */
+@keyframes heroFloat1 {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-7px); }
+}
+
+@keyframes heroFloat2 {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(8px); }
+}
+
+@keyframes heroFloat3 {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-9px); }
+}
+
+@keyframes heroFloat4 {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(7px); }
+}
+
+@keyframes heroPulseSlow {
+    0%, 100% { opacity: 0.35; transform: scale(1); }
+    50% { opacity: 0.65; transform: scale(1.08); }
+}
+
+.animate-hero-float-1 {
+    animation: heroFloat1 6s ease-in-out infinite;
+}
+
+.animate-hero-float-2 {
+    animation: heroFloat2 7s ease-in-out infinite 1s;
+}
+
+.animate-hero-float-3 {
+    animation: heroFloat3 6.5s ease-in-out infinite 2s;
+}
+
+.animate-hero-float-4 {
+    animation: heroFloat4 7.5s ease-in-out infinite 3s;
+}
+
+.animate-pulse-slow {
+    animation: heroPulseSlow 8s ease-in-out infinite;
+}
+
+/* ===== Hero Entrance Animations ===== */
+@keyframes heroFadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(22px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes heroFadeInRight {
+    from {
+        opacity: 0;
+        transform: translateX(32px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.animate-hero-fade-in-up {
+    animation: heroFadeInUp 0.75s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-hero-fade-in-right {
+    animation: heroFadeInRight 0.85s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ===== Kolase Strip Reveal (slide-up per kolom) ===== */
+@keyframes stripRevealUp {
+    0%   { transform: translateY(0%); }
+    100% { transform: translateY(-101%); }
+}
+
+.animate-strip-reveal {
+    animation: stripRevealUp 0.5s cubic-bezier(0.65, 0, 0.35, 1) both;
+}
+
+/* ===== Kolase Float setelah tersusun ===== */
+@keyframes kolaseFloat {
+    0%, 100% { transform: translateY(0px) rotate(0deg); }
+    40%       { transform: translateY(-10px) rotate(0.4deg); }
+    70%       { transform: translateY(-5px) rotate(-0.3deg); }
+}
+
+.animate-kolase-float {
+    /* mulai setelah strip terakhir selesai (~1050ms) */
+    animation: kolaseFloat 4.5s ease-in-out infinite;
+    animation-delay: 1.1s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .animate-hero-float-1,
+    .animate-hero-float-2,
+    .animate-hero-float-3,
+    .animate-hero-float-4,
+    .animate-pulse-slow,
+    .animate-hero-fade-in-up,
+    .animate-hero-fade-in-right,
+    .animate-strip-reveal,
+    .animate-kolase-float {
+        animation: none !important;
+        opacity: 1 !important;
+        transform: none !important;
+    }
+}

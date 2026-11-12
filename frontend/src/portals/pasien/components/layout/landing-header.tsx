@@ -17,8 +17,10 @@ import {
     FileText,
     LayoutDashboard,
     LogOut,
+    MapPin,
     Menu,
     MessagesSquare,
+    Phone,
     Pill,
     Search,
     Settings,
@@ -30,6 +32,8 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { logout } from '@/lib/api/auth';
 import { spesialisasiOptions } from '@/lib/api/dokter';
+import { faskesOptions, type Faskes } from '@/lib/api/faskes';
+import { usePosisiPasien } from '@/portals/pasien/features/dokter/use-posisi-pasien';
 import { serahkanKueri } from '@/portals/pasien/features/dokter/direktori';
 import { catatRiwayatPencarian, PanelSaranPencarian } from '@/portals/pasien/features/dokter/panel-pencarian';
 import { heroOptions } from '@/lib/api/hero';
@@ -94,7 +98,7 @@ import { cn } from '@/lib/utils';
  *   dialog already open - the correct outcome, reached through the router rather than
  *   through a link that goes nowhere.
  * - The nav shows its content before it asks for a click. Both entries with something
- *   behind them - "Dokter Terdekat" and "Layanan Kesehatan" - expand under a pointer
+ *   behind them - "Direktori dokter" and "Layanan Kesehatan" - expand under a pointer
  *   instead of waiting to be clicked, so the visitor can see what is on offer without
  *   already knowing where it leads. Nothing is reachable only that way: the same panels
  *   open on click and on Enter, and the mobile sheet keeps the links it had.
@@ -123,7 +127,7 @@ type NavItem = {
  * `description` is what the sheet reads and the bar does not: with no columns to fill on
  * a phone, the row explains itself instead.
  *
- * "Dokter Terdekat" is deliberately NOT here. The bar gives it its own entry two items
+ * "Direktori dokter" is deliberately NOT here. The bar gives it its own entry two items
  * to the left, so listing it would print one destination twice inside a single nav - a
  * menu pointing at itself. The landing page can afford to show it as a sixth "Solusi"
  * tile; a bar with three doors cannot.
@@ -256,10 +260,10 @@ function navLinkClass({ isActive }: { isActive: boolean }): string {
  * ## Why `isActive` is the panel's `open`, not the route
  *
  * The reference underlines the category whose panel is showing, and on this bar that is
- * exactly "which tab is open". React Router cannot answer it: two of the three entries
- * are not routes at all (one opens a panel, one is an in-page anchor), so route matching
- * would leave the two that need the mark unmarked and keep the third lit for a hash no
- * path ever changes.
+ * exactly "which tab is open". React Router cannot answer it: three of the four entries
+ * are not routes at all (each opens a panel), the fourth is an in-page anchor, so route
+ * matching would leave the three that need the mark unmarked and keep the fourth lit
+ * for a hash no path ever changes.
  *
  * ## Why the open tab grows a PLATE
  *
@@ -450,10 +454,10 @@ function NavPanelEntry({
      * Reports open/closed up to the bar, which paints ONE veil for whichever panel is
      * open - see {@link LandingHeader}.
      *
-     * It reports per id rather than as a plain boolean on purpose: the two entries are
-     * separate `useNavHover` instances, so crossing from one tab to the next leaves the
+     * It reports per id rather than as a plain boolean on purpose: each entry is its
+     * own `useNavHover` instance, so crossing from one tab to the next leaves the
      * first open for its 160 ms grace period. A boolean would be last-writer-wins, and
-     * the veil would switch OFF while the second panel was still up - a 160 ms flash of
+     * the veil would switch OFF while the next panel was still up - a 160 ms flash of
      * undimmed page exactly at the moment the visitor is reading the menu.
      */
     onStatusChange?: (idPanel: string, open: boolean) => void;
@@ -631,7 +635,8 @@ function useKartuPanel(): KartuPanel[] {
  * starts on the very pixel of the corner (1054,225 is beige, not white) - so these
  * carry no `rounded` either, only `overflow-hidden` for the hover zoom. 30rem gave
  * 152px tiles instead, a block that weighed a quarter more than the one it is drawn
- * from. 24rem with those gaps gives 121px squares (9.5% of this 1280px panel) against
+ * from. 24rem with those gaps gives 121px squares (9.5% of the 1280px menu it is
+ * drawn from) against
  * the reference's 119px (9.2% of its 1296px).
  *
  * The block is CENTERED in the right-hand zone rather than left-aligned to it, because
@@ -641,14 +646,15 @@ function useKartuPanel(): KartuPanel[] {
  * 58px of bar, icon and padding, so 224 wrapped seven of the sixteen rows and broke the
  * rhythm - the rail is 320px and the shortcuts column 256px instead. Centered in the
  * remaining 608 the block starts at x=764 against the reference's 761 (measured from
- * each panel's own left edge) and ends with 132px of slack against its 157: the offset
+ * each menu's own left edge) and ends with 132px of slack against its 157: the offset
  * and the slack both land within a thumbnail of the menu this one is drawn from,
  * without a fourth column of invented content to buy them.
  *
  * The `aspect-[4/3]` they replaced filled the whole right-hand zone and turned a picture
  * grid into a wall, and the fixed `w-96` is what keeps the block the reference's
- * PROPORTION rather than one that grows with the window - the panel is `max-w-[1280px]`,
- * so a fixed 24rem is a fixed share of it at every width the bar can be. It is a WIDTH
+ * PROPORTION rather than one that grows with the window: the menu's content is capped
+ * at 1240px, so the zone has one width at every window and a fixed 24rem is a fixed
+ * share of it - a wider screen adds sheet around the menu, never air inside it. It is a WIDTH
  * and not a `max-w` because centered intrinsic sizing would otherwise measure the tiles'
  * own contents - all of which are absolutely positioned - and collapse the block to
  * nothing. Below `lg` the grid falls back to two columns at full width, because the
@@ -750,7 +756,7 @@ function GridPromoPanel({
  * something. The rail now prints `items` - the SAME five the sheet lists - one row per
  * service, so the two surfaces offer one menu rather than two that drift.
  *
- * ## Why "Dokter Terdekat" is not on that rail
+ * ## Why "Direktori dokter" is not on that rail
  *
  * The landing's "Solusi Kesehatan di Tanganmu" section has six tiles; this rail has five
  * rows, and the one left out is the directory. The bar already gives it its own entry two
@@ -789,7 +795,7 @@ function PanelLayanan({ items, hover }: { items: NavItem[]; hover: NavHover }) {
         <div
             id="nav-layanan-panel"
             data-slot="nav-layanan-panel"
-            className="bg-popover text-popover-foreground absolute top-full right-0 left-0 z-50 rounded-t-2xl rounded-b-2xl px-5 pt-6 pb-4 shadow-xl"
+            className="bg-popover text-popover-foreground absolute top-full left-6 md:left-10 z-50 w-[calc(100%-3rem)] md:w-[calc(100%-5rem)] max-w-[1280px] rounded-2xl px-5 pt-6 pb-4 shadow-xl"
         >
             {/*
                 The reference's title row: large word, blue "see all", nothing else.
@@ -1100,9 +1106,11 @@ function PilihDokterLaci({ tutup }: { tutup: () => void }) {
  *
  * It is a child of the entry's wrapper - so `pointerleave` does not fire while the
  * pointer moves into it - but the wrapper carries NO `position: relative`, which makes
- * row two of the header bar its containing block. That row's width is guaranteed (it is
- * `max-w-[1280px]` and centered, the same box row one is); a width measured from the
- * trigger has to guess how much room is left and guesses wrong on a narrow window.
+ * row two of the header bar its containing block. That row's width is guaranteed (it
+ * is full-bleed, the same box row one is, so the sheet runs to the viewport's own
+ * edges - while the content inside it keeps its `max-w-[1240px]` cap, so what a wide
+ * window grows is the white, not the gaps between the zones); a width measured from
+ * the trigger has to guess how much room is left and guesses wrong on a narrow window.
  *
  * ## What each zone is made of, and why it is not a costume
  *
@@ -1153,19 +1161,13 @@ function PanelDirektori({ hover }: { hover: NavHover }) {
         <div
             id="nav-direktori-panel"
             data-slot="nav-direktori-panel"
-            className="bg-popover text-popover-foreground absolute top-full right-0 left-0 z-50 rounded-t-2xl rounded-b-2xl px-5 pt-6 pb-4 shadow-xl"
+            className="bg-popover text-popover-foreground absolute top-full left-6 md:left-10 z-50 w-[calc(100%-3rem)] md:w-[calc(100%-5rem)] max-w-[1280px] rounded-2xl px-5 pt-6 pb-4 shadow-xl"
         >
             {/*
-                The title row, and only the title. "Lihat semua dokter" used to sit on
-                its baseline, blue, beside the one large word; it is gone with the rest of
-                the exits, because the visitor's way in is a specialisation, not a request
-                to be shown the whole table first. The deck this used to carry went with
-                it earlier - a menu that explains itself under its own title is copy
-                written for a screenshot rather than for a visitor who is already looking
-                at sixteen choices.
+                The title row, and only the title.
             */}
             <p className="text-foreground text-[1.5rem] leading-10 font-normal">
-                Dokter Terdekat
+                Direktori dokter
             </p>
 
             <div
@@ -1326,16 +1328,267 @@ function NavDirektori({
                     serahkanKueri('');
                 }}
             >
-                Dokter Terdekat
+                Direktori dokter
             </NavLink>
         );
     }
 
     return (
         <NavPanelEntry
-            label="Dokter Terdekat"
+            label="Direktori dokter"
             idPanel="nav-direktori-panel"
             panel={(hover) => <PanelDirektori hover={hover} />}
+            onStatusChange={onStatusChange}
+        />
+    );
+}
+
+/**
+ * The pharmacy rows and their three states, shared by the bar's panel and the
+ * drawer's list so the two surfaces can never list different apoteks.
+ *
+ * ## Why the position is asked HERE, when the menu opens
+ *
+ * {@link usePosisiPasien} prompts on mount, and this body mounts when the visitor
+ * opens "Apotek Terdekat" - which is the one moment on this page where the question
+ * has a visible reason attached to it. The same hook's own docblock refuses to ask
+ * over a page of promos; the panel a finger or a pointer just opened is the request
+ * for the distance it promises in its own title. A remembered answer (accepted or
+ * refused) from the directory below skips the prompt entirely, so a visitor who has
+ * already decided is never asked twice in one session.
+ *
+ * While the browser is still deciding, the list shows skeletons and **issues no
+ * request**: the fetch's cache key carries `lat`/`lng`, so a request sent without a
+ * position would have to be repeated the moment one arrived - two round trips and a
+ * visible reshuffle for a menu that is open for two seconds.
+ *
+ * ## What each row offers, and what it does not
+ *
+ * Name, address, distance, and a `tel:` link when the row has a phone number. There
+ * is no "detail" destination: this application has no pharmacy detail route, and a
+ * card linking to `/apotek/…` would resolve to nothing. The distance is rendered as
+ * `Jarak belum tersedia` in BOTH cases that produce `null` - no position was given,
+ * or the venue was entered without a map pin - because dropping the row instead
+ * would make the panel's emptiness depend on two decimal fields somebody forgot.
+ */
+function IsiApotek({
+    tutup,
+    lebar = 'panel',
+}: {
+    /** Closes whichever surface opened it: the panel on the bar, the menu in the sheet. */
+    tutup: () => void;
+    /** The bar's panel is a wide sheet of cards; the drawer's list is one scrolling column. */
+    lebar?: 'panel' | 'laci';
+}) {
+    const posisi = usePosisiPasien();
+    const menungguPosisi = posisi.status === 'meminta';
+
+    const daftar = useQuery({
+        ...faskesOptions({
+            lat: posisi.lat,
+            lng: posisi.lng,
+            per_page: 8,
+        }),
+        enabled: !menungguPosisi,
+    });
+
+    const apotek: Faskes[] = daftar.data?.data.faskes ?? [];
+
+    const kolom =
+        lebar === 'laci'
+            ? 'mt-1.5 grid max-h-[18rem] gap-2 overflow-y-auto pr-1'
+            : 'mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4';
+
+    if (menungguPosisi || daftar.isPending) {
+        return (
+            <div data-slot="nav-apotek-skeleton" className={kolom}>
+                {Array.from({ length: 4 }, (_, i) => (
+                    <Skeleton key={i} className="h-28 rounded-xl" />
+                ))}
+            </div>
+        );
+    }
+
+    if (daftar.isError) {
+        return (
+            <p data-slot="nav-apotek-galat" className="text-muted-foreground mt-3 text-sm">
+                Daftar apotek tidak dapat dimuat. Buka kembali menu ini beberapa saat
+                lagi.
+            </p>
+        );
+    }
+
+    if (apotek.length === 0) {
+        return (
+            <p data-slot="nav-apotek-kosong" className="text-muted-foreground mt-3 text-sm">
+                Belum ada apotek yang aktif terdaftar di Sehatly.
+            </p>
+        );
+    }
+
+    return (
+        <ul data-slot="nav-apotek-daftar" className={kolom}>
+            {apotek.map((toko) => (
+                <li key={toko.id} data-slot="nav-apotek-baris">
+                    <div className="bg-background flex h-full flex-col rounded-xl border p-4">
+                        <p className="text-foreground flex items-center gap-2 text-sm font-semibold">
+                            <Pill aria-hidden="true" className="text-primary size-4 shrink-0" />
+
+                            <span className="min-w-0 truncate">{toko.nama}</span>
+                        </p>
+
+                        <p className="text-muted-foreground mt-1.5 line-clamp-2 text-xs leading-relaxed">
+                            {toko.alamat ?? 'Alamat belum dicatat.'}
+                        </p>
+
+                        <div className="mt-auto flex items-center justify-between gap-2 pt-3">
+                            <span className="text-muted-foreground inline-flex items-center gap-1 text-xs">
+                                <MapPin aria-hidden="true" className="size-3.5 shrink-0" />
+                                {jarakApotek(toko.jarak_km)}
+                            </span>
+
+                            {toko.telepon !== null && toko.telepon !== '' ? (
+                                <a
+                                    href={`tel:${toko.telepon.replace(/[^0-9+]/g, '')}`}
+                                    onClick={tutup}
+                                    className="text-primary inline-flex items-center gap-1 text-xs font-medium hover:underline"
+                                >
+                                    <Phone aria-hidden="true" className="size-3.5" />
+                                    Telepon
+                                </a>
+                            ) : null}
+                        </div>
+                    </div>
+                </li>
+            ))}
+        </ul>
+    );
+}
+
+/**
+ * `jarak_km` as a label in Indonesian, or the honest sentence for both nulls.
+ *
+ * Three decimals of Haversine is whole metres; showing them would print `1.234 km`
+ * where a person reads "a kilometre and a bit". `maximumFractionDigits: 1` rounds to
+ * a tenth and `id-ID` writes it with the comma the rest of the page uses.
+ */
+function jarakApotek(jarak: number | null): string {
+    if (jarak === null) {
+        return 'Jarak belum tersedia';
+    }
+
+    return `${jarak.toLocaleString('id-ID', { maximumFractionDigits: 1 })} km`;
+}
+
+/**
+ * The bar's pharmacy panel: the same sheet the other two tabs open, under the tab
+ * that carries its name.
+ *
+ * It is a LIST panel rather than a menu of destinations, which is why it has no
+ * "Lihat semua" link: `PanelDirektori` can offer the whole directory and
+ * `PanelLayanan` can offer `#solusi` because both destinations exist. A pharmacy
+ * index route does not, so the panel's whole content is the pharmacies themselves.
+ * The width, the inset and the radius follow the two panels beside it exactly - three
+ * tabs hanging three identically-placed sheets would otherwise read as a bug.
+ */
+function PanelApotek({ hover }: { hover: NavHover }) {
+    return (
+        <div
+            id="nav-apotek-panel"
+            data-slot="nav-apotek-panel"
+            className="bg-popover text-popover-foreground absolute top-full left-6 md:left-10 z-50 w-[calc(100%-3rem)] md:w-[calc(100%-5rem)] max-w-[1280px] rounded-2xl px-5 pt-6 pb-4 shadow-xl"
+        >
+            <p className="text-foreground text-[1.5rem] leading-10 font-normal">
+                Apotek Terdekat
+            </p>
+
+            <IsiApotek tutup={hover.tutup} />
+        </div>
+    );
+}
+
+/**
+ * The sheet's copy of the pharmacy list - a click-to-open disclosure IN the drawer,
+ * with no portal and no hover.
+ *
+ * ## Why this one is not `NavDropdownLaci`
+ *
+ * The services entry can be a `DropdownMenu` because every row in it is a
+ * `DropdownMenuItem`: Radix's content carries `role="menu"`, and a screen reader in
+ * menu mode reports the menu's ITEMS and skips anything else inside it. This list is
+ * a `<ul>` of cards - name, address, distance, a `tel:` link - so portalling it into
+ * a `role="menu"` would make the whole panel invisible to the very reader it exists
+ * for, and no amount of styling fixes that. A disclosure reports `aria-expanded` on
+ * the button and `aria-controls` on the region, which is the truth: the list is
+ * either shown or it is not, and nothing about it is a menu of commands.
+ *
+ * It also stays inside the drawer's own column instead of floating over it, so a
+ * phone never has to dismiss an overlay it opened by accident - the trade
+ * {@link NavPanelEntry} makes for a pointer this surface does not have.
+ */
+function ApotekLaci({ onNavigate }: { onNavigate?: () => void }) {
+    const [buka, setBuka] = useState(false);
+
+    return (
+        <div className="flex flex-col gap-1">
+            <Button
+                type="button"
+                variant="ghost"
+                aria-expanded={buka}
+                aria-controls="nav-apotek-laci"
+                onClick={() => setBuka((sekarang) => !sekarang)}
+                className="group justify-between gap-1 px-3 text-[15px] font-medium text-foreground/75 hover:bg-secondary hover:text-primary"
+            >
+                Apotek Terdekat
+
+                <ChevronDown
+                    className={cn(
+                        'size-4 opacity-60 transition-transform',
+                        buka && 'rotate-180',
+                    )}
+                />
+            </Button>
+
+            {buka ? (
+                <div id="nav-apotek-laci" data-slot="nav-apotek-laci" className="px-1 pb-2">
+                    <IsiApotek
+                        lebar="laci"
+                        tutup={() => {
+                            onNavigate?.();
+                        }}
+                    />
+                </div>
+            ) : null}
+        </div>
+    );
+}
+
+/**
+ * The pharmacy entry: a {@link NavPanelEntry} on the bar, a click-to-open list in
+ * the sheet.
+ *
+ * It sits BETWEEN the directory and the services because that is where it was asked
+ * for, and the three read as one row: where to find care, where to collect the
+ * medicine, what else the service offers.
+ */
+function NavApotek({
+    interaksi,
+    onNavigate,
+    onStatusChange,
+}: {
+    interaksi: 'hover' | 'sentuh';
+    onNavigate?: () => void;
+    onStatusChange?: (idPanel: string, open: boolean) => void;
+}) {
+    if (interaksi === 'sentuh') {
+        return <ApotekLaci onNavigate={onNavigate} />;
+    }
+
+    return (
+        <NavPanelEntry
+            label="Apotek Terdekat"
+            idPanel="nav-apotek-panel"
+            panel={(hover) => <PanelApotek hover={hover} />}
             onStatusChange={onStatusChange}
         />
     );
@@ -1354,8 +1607,10 @@ function NavDirektori({
  * the `tipe:`/`permission:` guards the server puts on them, so `/admin/hero` opens by URL
  * today and a labelled entrance can be re-added later without touching a route.
  *
- * The three entries it does carry: the directory (the funnel), the services dropdown,
- * and one anchor into this page's own "Cek Kesehatan Mandiri" section.
+ * The four entries it does carry: the directory (the funnel), the pharmacy menu
+ * beside it (`GET /faskes`, the panel that answers "where do I collect this"), the
+ * services dropdown, and one anchor into this page's own "Cek Kesehatan Mandiri"
+ * section.
  *
  * ## `interaksi`: hover on the bar, tap in the sheet
  *
@@ -1382,6 +1637,12 @@ function NavList({
             className={cn('flex items-center gap-1', className)}
         >
             <NavDirektori
+                interaksi={interaksi}
+                onNavigate={onNavigate}
+                onStatusChange={onStatusChange}
+            />
+
+            <NavApotek
                 interaksi={interaksi}
                 onNavigate={onNavigate}
                 onStatusChange={onStatusChange}
@@ -1692,7 +1953,7 @@ function PencarianBar({
                         setTerbuka(true);
                     }
                 }}
-                className="border-input bg-background focus-within:border-foreground/40 relative z-10 flex h-10 min-w-0 max-w-[42rem] flex-1 items-center gap-1 rounded-full border pl-4 pr-1 transition-colors"
+                className="border-input bg-background focus-within:border-foreground/40 relative z-10 flex h-10 min-w-0 w-full max-w-[50rem] flex-1 items-center gap-1 rounded-full border pl-4 pr-1 transition-colors"
             >
                 <input
                     type="search"
@@ -2014,10 +2275,10 @@ export function LandingHeader({ onMasuk }: { onMasuk: () => void }) {
     /**
      * Which panels are open, as ids rather than one boolean.
      *
-     * The two entries are separate {@link useNavHover} instances with their own 160 ms
-     * grace period, so crossing from one tab to the next leaves BOTH open for that beat.
-     * One boolean would be last-writer-wins and the veil would switch off mid-read; a
-     * set only goes dark when the last panel has really closed.
+     * Each panel entry is its own {@link useNavHover} instance with its own 160 ms
+     * grace period, so crossing from one tab to the next leaves the previous one open
+     * for that beat. One boolean would be last-writer-wins and the veil would switch
+     * off mid-read; a set only goes dark when the last panel has really closed.
      *
      * Reporting `false` for a panel that is already absent returns the SAME set, which
      * is what keeps the report effect from re-rendering the bar forever.
@@ -2062,23 +2323,47 @@ export function LandingHeader({ onMasuk }: { onMasuk: () => void }) {
             data-slot="landing-header"
             className="bg-card/95 border-b supports-[backdrop-filter]:bg-card/80 sticky top-0 z-40 w-full backdrop-blur"
         >
-            <div className="mx-auto grid h-16 max-w-[1280px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 md:h-[71px] md:gap-5 md:px-6">
-                <Link
-                    to="/"
-                    className="flex shrink-0 items-center gap-2"
-                    aria-label="Sehatly - beranda"
-                >
-                    <img
-                        src="/logo.svg"
-                        alt=""
-                        aria-hidden="true"
-                        className="size-9 shrink-0"
-                    />
+            {/* FULL-BLEED, no `max-w` cap: the bar runs edge to edge on any window
+                wider than the 1280px the rest of the page is drawn at - the wordmark
+                sits on the viewport's left padding and the action cluster on the right.
+                Row one's own `px-5 md:px-8` is the only inset, and it is deliberately
+                WIDER than the body's `px-4 md:px-6`: matching the two would line the
+                logo up with the content box below, and the bar would read as the
+                first row of the page instead of as chrome laid over it. The row keeps
+                its content off the edge while its background and rule span the whole
+                width. Below `md` nothing changes: the cap never applied under 1280px
+                anyway, so the mobile row keeps its logo, its menu button and its sheet
+                exactly as they were. The UTY mark joins the wordmark as the same
+                `sm` breakpoint the row's own search appears at - below it the row's
+                three cells are already full, and a 45px mark would push the action
+                cluster off a 390px screen. */}
+            <div className="mx-auto grid h-16 w-full max-w-[1536px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4 px-6 md:h-[71px] md:gap-6 md:px-10">
+                <div className="col-start-1 flex shrink-0 items-center gap-3">
+                    <Link
+                        to="/"
+                        className="flex shrink-0 items-center gap-2"
+                        aria-label="Sehatly - beranda"
+                    >
+                        <img
+                            src="/logo.svg"
+                            alt=""
+                            aria-hidden="true"
+                            className="size-9 shrink-0"
+                        />
 
-                    <span className="text-foreground text-xl font-bold tracking-tight md:text-[1.35rem]">
-                        Sehatly
-                    </span>
-                </Link>
+                        <span className="text-foreground text-xl font-bold tracking-tight md:text-[1.35rem]">
+                            Sehatly
+                        </span>
+                    </Link>
+
+                    <span aria-hidden="true" className="bg-border hidden h-7 w-px sm:block" />
+
+                    <img
+                        src="/logo-uty.png"
+                        alt="Universitas Teknologi Yogyakarta"
+                        className="hidden h-7 w-auto shrink-0 sm:block"
+                    />
+                </div>
 
                 {/*
                     The search owns row one's MIDDLE column and is centered inside it,
@@ -2092,7 +2377,7 @@ export function LandingHeader({ onMasuk }: { onMasuk: () => void }) {
                     search field, so nothing here is the only way to search.
                 */}
                 <PencarianBar
-                    className="col-start-2 hidden w-full max-w-[42rem] justify-self-center md:flex"
+                    className="col-start-2 hidden w-full max-w-[50rem] justify-self-center md:flex"
                     onPanel={laporkanCari}
                 />
 
@@ -2211,28 +2496,27 @@ export function LandingHeader({ onMasuk }: { onMasuk: () => void }) {
                 Row two: the tabs, and the containing block both panels hang from.
 
                 They are `left-0 right-0`, so they take the width of whatever is
-                `relative` around them - and that must be THIS row (`max-w-[1280px]`,
-                centered) rather than the sticky header above it, which is `w-full`: the
-                panels would otherwise span the whole viewport and run off both edges of
-                the window. The row keeps row one's exact horizontal geometry too, which
-                is what makes "the panel is as wide as the bar" a testable claim rather
-                than a coincidence.
+                `relative` around them - and that must be THIS row rather than the
+                sticky header above it, whose veil boxes are placed by that header
+                instead of by the row. The row carries no `max-w` cap either (same
+                full-bleed call as row one), so its width IS row one's width. The
+                PANEL, though, stops at a centred 1280px box - the width it had before
+                the bar was made full-bleed, and the width this page's body is drawn
+                at. A sheet reaching the viewport's edges covered every section behind
+                it, which is what the owner rejected: the bar runs edge to edge, its
+                menu descends only as wide as the content below, and the menu's own
+                CONTENT stays capped inside that (`mx-auto max-w-[1240px]`).
 
-                Its own padding is NONE horizontally, and that is the reference's geometry
-                rather than a taste: there the tab plate (293..380), the rule under the
-                tab row (293..1590) and the panel (293..1590) all begin on one pixel, so
-                the open tab and the menu it owns are a single white shape descending
-                from the same edge. Even twelve pixels of padding here would put the
-                plate inboard of the panel and let the panel stick out past the
-                navigation's own effect on the left - a step in the silhouette the
-                reference does not have. Each tab keeps its own `px-4`, the reference's
-                16px inset, so its words sit 16px inside the plate while the wordmark
-                stays at row one's `px-6`: the tabs hang a little further left than the
-                logo, as they do there (309 against 324).
+                Its own padding follows ROW ONE (`px-6 md:px-12`): the tabs and the
+                wordmark now start on one line, which is what puts them side by side
+                in the bar. The panel below them is a centred 1280px sheet, so on a
+                wide window the plate starts at the row's padding while the panel
+                starts further inboard - the two are the same white, and each tab
+                keeps its own `px-4`, so its words sit 16px inside the plate.
             */}
             <div
                 data-slot="landing-nav-baris"
-                className="relative mx-auto hidden max-w-[1280px] lg:block"
+                className="relative mx-auto hidden w-full max-w-[1536px] px-6 md:px-10 lg:block"
             >
                 <NavList interaksi="hover" onStatusChange={laporkanPanel} />
             </div>

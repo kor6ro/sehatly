@@ -245,7 +245,14 @@ it('types_every_meta_operation_as_paginated', function (): void {
     // The account-management round's `GET /api/v1/admin/pengguna` is the
     // forty-fourth member: it answers `pageMeta()` like the doctor directory
     // above it, and carries the same `PaginatedEnvelope` at 200.
-    expect($paginated)->toHaveCount(44);
+    //
+    // Re-measured to forty-five on 2026-11-12: the landing page's new
+    // `GET /api/v1/faskes` (the "Apotek Terdekat" menu) answers
+    // `ApiResponse::pageMeta()` like the doctor directory does, so its reflected
+    // action earns `PaginatedEnvelope` under the rule above. Forty-four was
+    // correct the day before, which is what makes this a real movement rather
+    // than a stale pin.
+    expect($paginated)->toHaveCount(45);
 
     expect($paginated)->toContain('get /api/v1/dokter @200');
     expect($paginated)->toContain('get /api/v1/dokter/{dokter}/ulasan @200');
@@ -258,6 +265,9 @@ it('types_every_meta_operation_as_paginated', function (): void {
     expect($paginated)->toContain('get /api/v1/pasien/refund @200');
     expect($paginated)->toContain('get /api/v1/marketing/artikel @200');
     expect($paginated)->toContain('get /api/v1/marketing/promo @200');
+    // The pharmacy menu's own read, named for the same reason: it is the
+    // forty-fifth member and the count above must not absorb its removal.
+    expect($paginated)->toContain('get /api/v1/faskes @200');
     expect($paginated)->toContain('get /api/v1/resep @200');
     expect($paginated)->toContain('get /api/v1/konsultasi @200');
     expect($paginated)->toContain('get /api/v1/rekam-medis @200');

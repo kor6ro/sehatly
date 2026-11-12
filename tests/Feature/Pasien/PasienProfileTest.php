@@ -2109,15 +2109,19 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         "'permission:promo.kelola'",
         "'permission:promo.kelola'",
         "'permission:promo.kelola'",
-        // The account-management round contributes FIVE strings for its five
-        // routes - `pengguna.lihat` on the directory read AND on the role
-        // catalogue (`GET /admin/roles`), `pengguna.kelola` on the three
-        // writes - with no new `tipe:` hit because all five inherit the F14
-        // group's `tipe:admin,superadmin`. Duplicated deliberately from
-        // `AuthFlowTest` over the same regex, for the closed-set reason above.
+        // The account-management round contributes ELEVEN strings for its eleven
+        // routes: `pengguna.lihat` on the directory read, the summary badge read
+        // and the role catalogue (`GET /admin/roles`), `pengguna.kelola` on the
+        // eight writes (create, status, reset-sandi, setujui, tolak, create
+        // invitation, resend invitation, cancel invitation) - with no new `tipe:`
+        // hit because all eleven inherit the F14 group's `tipe:admin,superadmin`.
+        // Duplicated deliberately from `AuthFlowTest` over the same regex, for
+        // the closed-set reason above.
         "'permission:pengguna.lihat'",
         "'permission:pengguna.lihat'",
         "'permission:pengguna.lihat'",
+        "'permission:pengguna.kelola'",
+        "'permission:pengguna.kelola'",
         "'permission:pengguna.kelola'",
         "'permission:pengguna.kelola'",
         "'permission:pengguna.kelola'",

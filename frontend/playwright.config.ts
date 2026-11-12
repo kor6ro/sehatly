@@ -25,6 +25,20 @@ export default defineConfig({
         screenshot: 'only-on-failure',
     },
 
+    /**
+     * Playwright's default 5s is not enough for THIS harness.
+     *
+     * Measured on this machine: `goto('/')` resolves on `load` at ~2.6s, and the SPA's
+     * nav row only mounts at ~11.4s after that - because `php artisan serve` is
+     * single-threaded and answers the ~40 chunks of the landing graph one at a time
+     * (250-300ms each). Any assertion whose content is correct then fails for being
+     * read too early, which is a false red that teaches the wrong lesson.
+     *
+     * The assertions themselves are unchanged; only the grace period is longer. If the
+     * suite ever runs against a threaded static host, this can go back down.
+     */
+    expect: { timeout: 15_000 },
+
     projects: [
         {
             name: 'chromium',

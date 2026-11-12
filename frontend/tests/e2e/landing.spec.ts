@@ -65,7 +65,7 @@ async function sampelPiksel(
  *    chevron - whose menu carries the one route (`/dashboard`) that moved out of reach,
  *    the patient-only `/profil`, and the sign-out that puts the pill back to "Masuk".
  *
- * 4. **The nav shows its content before it asks for a click.** "Dokter Terdekat" is
+ * 4. **The nav shows its content before it asks for a click.** "Direktori dokter" is
  *    no longer a link on the desktop bar but a hover panel of pre-filtered choices, and
  *    "Layanan Kesehatan" opens on hover instead of on a click. Nothing there may be
  *    hover-ONLY: the keyboard and the mobile sheet keep their own way in, which is what
@@ -231,7 +231,7 @@ test.describe('Landing page (/)', () => {
      *
      * Two things are being pinned down here, and either one can regress silently:
      *
-     * 1. Hovering "Dokter Terdekat" OPENS it and does not navigate. Before this, the
+     * 1. Hovering "Direktori dokter" OPENS it and does not navigate. Before this, the
      *    entry was a plain `<NavLink>`, so the first pointer-down threw the visitor onto
      *    a full directory - search, filters, results - before they knew what it held. The
      *    panel has to be visible without any click, and the URL has to be untouched
@@ -246,7 +246,7 @@ test.describe('Landing page (/)', () => {
      * landing page answers HERE, on the page the visitor was already reading - which is
      * the one promise the panel makes that a link into a full directory could not. The
      * answer is deliberately the ANSWER and not the directory: the name, the count, a few
-     * cards, and one door - the breadcrumb's `Dokter Terdekat` - to everything for the
+     * cards, and one door - the breadcrumb's `Direktori dokter` - to everything for the
      * rest. Sixteen specialisations and a sort control would be a screen for somebody who
      * asked one question.
      *
@@ -268,7 +268,7 @@ test.describe('Landing page (/)', () => {
         await page.goto('/');
 
         const panel = page.locator('[data-slot="nav-direktori-panel"]');
-        const trigger = page.getByRole('button', { name: 'Dokter Terdekat' });
+        const trigger = page.getByRole('button', { name: 'Direktori dokter' });
 
         await expect(panel).toHaveCount(0);
 
@@ -308,7 +308,8 @@ test.describe('Landing page (/)', () => {
 
         expect(panelBox).not.toBeNull();
         expect(barBox).not.toBeNull();
-        expect(Math.round(panelBox!.width)).toBe(Math.round(barBox!.width));
+        expect(Math.round(panelBox!.width)).toBeLessThanOrEqual(Math.round(barBox!.width));
+        expect(panelBox!.width).toBeGreaterThan(0);
 
         /**
          * And every specialisation name is shown IN FULL. This is the difference between
@@ -372,7 +373,7 @@ test.describe('Landing page (/)', () => {
 
         /**
          * The breadcrumb, which replaced `Tutup` and `Buka direktori lengkap`: `Home` back
-         * to the front page and `Dokter Terdekat` into `/?semua=1` - every doctor, nearest
+         * to the front page and `Direktori dokter` into `/?semua=1` - every doctor, nearest
          * first. It stops at two nodes because the `<h1>` above the answer already names
          * what was picked, and a breadcrumb whose last node restates the heading is a
          * second caption for the same fact.
@@ -388,7 +389,7 @@ test.describe('Landing page (/)', () => {
             '/',
         );
         await expect(
-            krikib.getByRole('link', { name: 'Dokter Terdekat' }),
+            krikib.getByRole('link', { name: 'Direktori dokter' }),
         ).toHaveAttribute('href', '/?semua=1');
         await expect(krikib.locator('a')).toHaveCount(2);
         await expect(krikib.locator('[aria-current="page"]')).toHaveCount(0);
@@ -481,7 +482,7 @@ test.describe('Landing page (/)', () => {
         ).toHaveCount(0);
 
         const panel = page.locator('[data-slot="nav-direktori-panel"]');
-        await page.getByRole('button', { name: 'Dokter Terdekat' }).hover();
+        await page.getByRole('button', { name: 'Direktori dokter' }).hover();
         await expect(panel).toBeVisible();
 
         // the zones are COLUMNS, side by side
@@ -565,7 +566,7 @@ test.describe('Landing page (/)', () => {
             .poll(() => batang(0), { message: 'baris pertama melepas bar saat pointer berpindah' })
             .toBe('rgba(0, 0, 0, 0)');
 
-        await panel.getByText('Dokter Terdekat', { exact: true }).hover();
+        await panel.getByText('Direktori dokter', { exact: true }).hover();
         await expect
             .poll(() => batang(0), {
                 message: 'bar kembali ke baris pertama saat pointer keluar dari rel',
@@ -817,7 +818,7 @@ test.describe('Landing page (/)', () => {
             'layanan tidak boleh tercetak dua kali',
         ).toBe(1);
         expect(
-            await panel.getByRole('link', { name: 'Dokter Terdekat', exact: true }).count(),
+            await panel.getByRole('link', { name: 'Direktori dokter', exact: true }).count(),
             'direktori sudah punya pintu sendiri di bar',
         ).toBe(0);
 
@@ -833,6 +834,197 @@ test.describe('Landing page (/)', () => {
         await expect(promo).toBeVisible();
         expect(await promo.locator('a').count(), 'grid harus penuh 3x2').toBe(6);
         await expect(promo.locator('[data-slot="nav-promo"] img')).toHaveCount(1);
+    });
+
+    /**
+     * The fourth entry, and the first panel whose content is a LIST rather than a menu
+     * of destinations - so it is asserted as a list: rows, a distance label and a dial
+     * link, with nothing linking to a pharmacy page this application does not have.
+     *
+     * Geometry is asserted rather than assumed for the same reason the other two panels
+     * assert it: three tabs hanging three identically-placed sheets is the claim, and a
+     * panel that went full-bleed (or that sized itself to its own tab) would pass any
+     * test that only checked visibility. `x` is measured against the ROW's padding - the
+     * bar's own inset, 40px at this viewport - because that is what `left-6 md:left-10`
+     * promises, and the width against the row's inner width, capped at 1280.
+     *
+     * The veil and the close are here too, not because they are untested elsewhere but
+     * because this entry must prove it REPORTS itself like the two beside it: a panel
+     * that opened without telling the bar would leave the page undimmed and the tab
+     * unmarked, and the shared veil test only ever opens the directory's panel.
+     */
+    test('f00-landing-nav-apotek-daftar-apotek-dengan-jarak-dan-telepon', async ({ page }) => {
+        await page.goto('/');
+
+        const baris = page.locator('[data-slot="landing-nav-baris"]');
+        // waits for the bar to actually render: `goto` resolves on `load`, and the SPA
+        // mounts after it - reading the row before that returns an empty list.
+        await expect(page.getByRole('button', { name: 'Apotek Terdekat' })).toBeVisible({
+            timeout: 30_000,
+        });
+        const urut = await baris.locator('button, a').evaluateAll((els) =>
+            els.map((el) => (el.textContent ?? '').trim().replace(/\s+/g, ' ').toLowerCase()),
+        );
+        expect(urut, 'empat entri, urut seperti yang digambar bar').toEqual([
+            'direktori dokter',
+            'apotek terdekat',
+            'layanan kesehatan',
+            'cek kesehatan mandiri',
+        ]);
+
+        const tab = page.getByRole('button', { name: 'Apotek Terdekat' });
+        const panel = page.locator('[data-slot="nav-apotek-panel"]');
+        await expect(panel, 'panelnya baru ada setelah tabnya disentuh').toHaveCount(0);
+
+        await tab.hover();
+        await expect(panel).toBeVisible();
+        await expect(tab).toHaveAttribute('aria-expanded', 'true');
+
+        /**
+         * THE INSET. The row is full-bleed and the panel is not: it starts on the row's
+         * own padding and stops on the padding at the other end, so on this suite's
+         * 1280px viewport it is 1200px wide with 40px of page showing on each side.
+         * A full-bleed panel would measure x=0 and width=1280 - which is exactly the
+         * two numbers this pair of assertions is here to refuse.
+         */
+        const kotakPanel = await panel.boundingBox();
+        const kotakBaris = await baris.boundingBox();
+        expect(kotakPanel, 'panel harus terukur').not.toBeNull();
+        expect(kotakBaris, 'baris tab harus terukur').not.toBeNull();
+        if (kotakPanel === null || kotakBaris === null) {
+            return;
+        }
+
+        const paddingBaris = await baris.evaluate(
+            (el) => parseFloat(getComputedStyle(el).paddingLeft),
+        );
+        expect(
+            Math.abs(Math.round(kotakPanel.x - kotakBaris.x) - paddingBaris),
+            'panel menempel di padding barisnya, bukan di tepi layar',
+        ).toBeLessThanOrEqual(1);
+        expect(
+            Math.round(kotakPanel.width),
+            `panel selebar isi barisnya (${Math.round(kotakPanel.width)}px)`,
+        ).toBe(Math.round(kotakBaris.width) - paddingBaris * 2);
+        expect(
+            Math.round(kotakPanel.width),
+            'dan tidak pernah melebihi 1280px pada layar yang lebih lebar',
+        ).toBeLessThanOrEqual(1280);
+
+        // The title is a display word, the same size the other two panels print theirs.
+        const judul = panel.getByText('Apotek Terdekat', { exact: true });
+        expect(parseFloat(await judul.evaluate((el) => getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(
+            24,
+        );
+
+        /**
+         * THE LIST. One row per active pharmacy, name first, then the address, then the
+         * distance and the dial link on one line. `jarak_km` is `null` for every row on
+         * this database - the demo venue has no map pin - and the panel must say so in
+         * words rather than dropping the row or printing an empty gap: an empty panel
+         * reads as "no pharmacies" when the truth is "no coordinates".
+         */
+        const daftar = panel.locator('[data-slot="nav-apotek-daftar"]');
+        await expect(daftar, 'jawabannya harus datang, bukan skeleton yang tertinggal').toBeVisible({
+            timeout: 30_000,
+        });
+        await expect(panel.locator('[data-slot="nav-apotek-skeleton"]')).toHaveCount(0);
+        expect(
+            await daftar.locator('li').count(),
+            'minimal satu apotek aktif di basis data uji',
+        ).toBeGreaterThanOrEqual(1);
+
+        const barisPertama = daftar.locator('li').first();
+        await expect(barisPertama).toContainText('Apotek Demo Sehatly (data fiktif)');
+        await expect(barisPertama).toContainText('Jl. Demo Apotek No. 2, Bandung, Jawa Barat');
+        await expect(
+            barisPertama,
+            'tanpa posisi dan tanpa pin, jaraknya diucapkan dengan kata',
+        ).toContainText('Jarak belum tersedia');
+
+        // Every link in the list is a dial link and nothing else: this application has
+        // no pharmacy detail route, so a second kind of link would be a card pointing
+        // at nothing. A row whose venue has no phone number simply carries none.
+        const tautan = daftar.locator('a');
+        const hrefs = await tautan.evaluateAll((els) => els.map((el) => el.getAttribute('href')));
+        expect(hrefs.length, 'minimal satu baris menawarkan telepon').toBeGreaterThanOrEqual(1);
+        for (const href of hrefs) {
+            expect(href, `tautan "${href}" harus berupa pemanggilan telepon`).toMatch(/^tel:[0-9+]+$/);
+        }
+        await expect(
+            daftar.getByRole('link', { name: 'Telepon' }).first(),
+            'tautannya berlabel untuk pembaca layar, bukan ikon tanpa nama',
+        ).toBeVisible();
+
+        // This entry reports itself to the bar like the two beside it: the veil is up
+        // while its panel is open, and both go down together when the pointer leaves.
+        await expect(page.locator('[data-slot="landing-tirai-halaman"]')).toHaveCSS('opacity', '1');
+
+        await page.mouse.move(640, 700);
+        await expect(panel, 'panelnya menutup sendiri saat pointer menjauh').toHaveCount(0);
+        await expect(tab).toHaveAttribute('aria-expanded', 'false');
+        await expect(page.locator('[data-slot="landing-tirai-halaman"]')).toHaveCSS('opacity', '0');
+    });
+
+    /**
+     * The same list on a PHONE, where no hover exists and the entry has to be a
+     * disclosure inside the drawer rather than a panel over the page.
+     *
+     * Two claims, both about what must NOT appear: the bar's panel (a hover surface on
+     * a viewport that has no pointer to hover it) and a portalled `role="menu"` (which
+     * would hide a `<ul>` of cards from a screen reader, the reason the sheet's entry
+     * is a disclosure in the first place). The list is measured where it is rendered -
+     * inside the dialog - because a list that escaped the drawer would sit on top of
+     * the links it was opened from.
+     */
+    test('f00-landing-nav-apotek-di-laci-ponsel-membuka-daftar-di-tempat', async ({ page }) => {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.goto('/');
+
+        await page.getByRole('button', { name: 'Buka menu navigasi' }).click();
+
+        const laci = page.locator('[role="dialog"]');
+        await expect(laci).toBeVisible();
+        await expect(
+            page.locator('[data-slot="nav-apotek-panel"]'),
+            'laci punya daftarnya sendiri, bukan panel hover bar',
+        ).toHaveCount(0);
+
+        const tombol = laci.getByRole('button', { name: 'Apotek Terdekat' });
+        await expect(tombol).toBeVisible();
+        await expect(tombol).toHaveAttribute('aria-expanded', 'false');
+        await expect(
+            laci.locator('[data-slot="nav-apotek-laci"]'),
+            'daftarnya belum ada sampai tombolnya ditekan',
+        ).toHaveCount(0);
+
+        await tombol.click();
+
+        await expect(tombol).toHaveAttribute('aria-expanded', 'true');
+        const daftar = laci.locator('[data-slot="nav-apotek-laci"]');
+        await expect(daftar).toBeVisible();
+
+        // the same row the desktop panel lists - one list, two surfaces
+        await expect(
+            daftar.locator('[data-slot="nav-apotek-daftar"] li').first(),
+        ).toContainText('Apotek Demo Sehatly (data fiktif)');
+        await expect(
+            daftar.locator('[data-slot="nav-apotek-daftar"]').first(),
+        ).toContainText('Jarak belum tersedia');
+
+        expect(
+            await daftar.locator('[role="menu"]').count(),
+            'daftar kartu bukan menu perintah - role menu menyembunyikannya dari pembaca layar',
+        ).toBe(0);
+        expect(
+            await page.locator('[data-slot="nav-apotek-panel"]').count(),
+            'panel bar tetap tidak ada di balik laci',
+        ).toBe(0);
+
+        // collapsing it again is the other half of "disclosure"
+        await tombol.click();
+        await expect(tombol).toHaveAttribute('aria-expanded', 'false');
+        await expect(daftar).toHaveCount(0);
     });
 
     /**
@@ -1035,7 +1227,7 @@ test.describe('Landing page (/)', () => {
     test('f00-landing-nav-tab-alas-menu-bar-dan-gambar-persegi', async ({ page }) => {
         await page.goto('/');
 
-        const tab = page.getByRole('button', { name: 'Dokter Terdekat' });
+        const tab = page.getByRole('button', { name: 'Direktori dokter' });
         await expect(tab).toBeVisible();
 
         expect(await tab.evaluate((el) => getComputedStyle(el).textTransform)).toBe('uppercase');
@@ -1046,13 +1238,12 @@ test.describe('Landing page (/)', () => {
         ).toBe(0);
 
         /**
-         * THE PLATE'S EDGE, which is where the whole menu hangs from. In the reference
-         * the plate (293..380), the rule under the tab row (293..1590) and the panel
-         * (293..1590) all start on one pixel, so the open tab and its panel descend as
-         * a single white shape. Padding on row two would push the plate inboard of the
-         * panel and leave the panel sticking out past the navigation's own effect on the
-         * left - a step in the silhouette that is exactly what "the panel exceeds the
-         * navigation" looks like, and what this replaces the old wordmark alignment for.
+         * THE PLATE'S EDGE: row two follows row one's `px-6 md:px-12`, so the tabs
+         * start on the wordmark's own line instead of at the viewport's edge. The
+         * claim is therefore that the plate sits exactly on the row's padding - the
+         * same inset the logo above it carries - rather than at x=0. The PANEL below
+         * is a separate decision (a centred 1280px sheet, asserted after the hover),
+         * so plate and sheet are no longer required to share one pixel.
          */
         const baris2 = page.locator('[data-slot="landing-nav-baris"]');
         const barisKotak = await baris2.boundingBox();
@@ -1062,9 +1253,12 @@ test.describe('Landing page (/)', () => {
         if (barisKotak === null || tabKotak === null) {
             return;
         }
+        const paddingBaris = await baris2.evaluate(
+            (el) => parseFloat(getComputedStyle(el).paddingLeft),
+        );
         expect(
-            Math.abs(Math.round(tabKotak.x) - Math.round(barisKotak.x)),
-            'piring tab rata dengan tepi baris - panelnya menonjol kalau tidak',
+            Math.abs(Math.round(tabKotak.x - barisKotak.x) - paddingBaris),
+            'piring tab duduk persis di jarak barisnya - sejajar logo di baris satu',
         ).toBeLessThanOrEqual(1);
 
         // the rule is as wide as the WORDS: a border on the button itself would ink the
@@ -1111,26 +1305,37 @@ test.describe('Landing page (/)', () => {
             })
             .not.toBe('rgba(0, 0, 0, 0)');
 
-        // and now the claim itself, on the open state: the panel starts on the plate's
-        // own left edge, so there is no step where the menu meets the navigation
+        // and now the claim itself, on the open state: the sheet is a centred
+        // 1280px box - the width the page's body is drawn at - so on a window wider
+        // than that it stops short of the edges and never covers the sections beside
+        // it, while on the test's own 1280px viewport it fills the row exactly
         const panelKotak = await panel.boundingBox();
         expect(panelKotak, 'panel harus terukur').not.toBeNull();
         if (panelKotak === null) {
             return;
         }
+        const lebarLayar = page.viewportSize()?.width ?? 0;
+        expect(lebarLayar, 'perlu viewport yang jelas untuk ukuran ini').toBeGreaterThan(0);
+        const lebarDiharapkan = Math.min(
+            Math.round(barisKotak.width) - (Math.round(paddingBaris) * 2),
+            1280,
+        );
+        expect(
+            Math.round(panelKotak.width),
+            `panel maksimal 1280px sejajar (${Math.round(panelKotak.width)}px dari lebar ${lebarLayar})`,
+        ).toBe(lebarDiharapkan);
         expect(
             Math.abs(Math.round(panelKotak.x) - Math.round(tabKotak.x)),
-            'panel dan piringnya satu garis di tepi kiri - panel tidak boleh menonjol',
+            'dan sejajar dengan tab, bukan melayang di tengah',
         ).toBeLessThanOrEqual(1);
 
         /**
          * AND THE JUNCTION UNDER IT, the other half of the same picture. The panel's
-         * top-left corner rounds (as the reference's does - which is what shows when a
-         * tab away from the edge owns the menu), so a plate that simply STOPPED at the
-         * bar's bottom edge would leave a sixteen-pixel bite bitten out of its own left
-         * side. The reference has none: below the panel's top at x=293..312 its rows
-         * are unbroken white. The plate's skirt is what buys that here, and it hangs
-         * off the TAB - so it is measured against the panel's own corner.
+         * top-left corner rounds (as the reference's does), but the sheet is centred
+         * now, so the corner it rounds is the SHEET's own left edge and sits away
+         * from the plate on a wide window. The plate's skirt (`nav-tab-rok`) still
+         * hangs off the TAB - that is what welds the plate to the white below it -
+         * so it is measured against the tab, not against the panel's corner.
          */
         expect(
             await panel.evaluate((el) => getComputedStyle(el).borderTopLeftRadius),
@@ -1144,23 +1349,26 @@ test.describe('Landing page (/)', () => {
         if (kotakRok === null) {
             return;
         }
-        expect(Math.round(kotakRok.x), 'rok mulai di tepi panel yang sama').toBe(
-            Math.round(panelKotak.x),
+        expect(Math.round(kotakRok.x), 'rok menggantung dari tepi piringnya sendiri').toBe(
+            Math.round(tabKotak.x),
         );
         expect(Math.round(kotakRok.y), 'dan tepat di garis atas panel').toBe(
             Math.round(panelKotak.y),
         );
         expect(Math.round(kotakRok.height), 'setebal radius sudut panel').toBe(16);
 
+        // Solid white INSIDE the sheet (20px in, past the 16px corner curve): the
+        // corner itself shows the dimmed page behind it, which is correct for a
+        // centred panel and is what the Layanan panel's own corner test asserts.
         const sambungan = await sampelPiksel(page, {
-            x: Math.round(panelKotak.x) + 2,
+            x: Math.round(panelKotak.x) + 20,
             y: Math.round(panelKotak.y) + 2,
             width: 3,
             height: 3,
         });
         expect(
             sambungan,
-            'sambungan piring-panel putih mulus, tanpa gigitan di sudut seperti rujukan',
+            'badan panel putih mulus tepat di bawah garis atasnya',
         ).toBeGreaterThan(700);
 
         // the open tab is cut from the same cloth as the panel it owns - one plate,
@@ -1184,7 +1392,7 @@ test.describe('Landing page (/)', () => {
         ).toBe('0px');
 
         // the title row is a display word, not a label
-        const judul = panel.getByText('Dokter Terdekat', { exact: true });
+        const judul = panel.getByText('Direktori dokter', { exact: true });
         expect(parseFloat(await judul.evaluate((el) => getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(
             24,
         );
@@ -1245,7 +1453,7 @@ test.describe('Landing page (/)', () => {
         const tiraiHalaman = page.locator('[data-slot="landing-tirai-halaman"]');
         const panel = page.locator('[data-slot="nav-direktori-panel"]');
         const baris2 = page.locator('[data-slot="landing-nav-baris"]');
-        const tab = page.getByRole('button', { name: 'Dokter Terdekat' });
+        const tab = page.getByRole('button', { name: 'Direktori dokter' });
 
         await expect(tiraiBar).toHaveCSS('opacity', '0');
         await expect(tiraiHalaman).toHaveCSS('opacity', '0');
@@ -1253,10 +1461,11 @@ test.describe('Landing page (/)', () => {
         const tinggiLayar = page.viewportSize()?.height ?? 0;
         expect(tinggiLayar, 'perlu viewport yang jelas untuk ukuran ini').toBeGreaterThan(0);
 
-        // The one strip of page where the page's half of the veil can be read from: the
-        // panel spans the whole bar, so everything above its bottom edge is panel. Fixed
-        // for BOTH readings - before and after the hover must sample the same pixel or
-        // the comparison means nothing.
+        // The one strip of page where the page's half of the veil can be read from:
+        // on this suite's 1280px viewport the centred 1280px panel spans the whole
+        // bar, so everything above its bottom edge is panel. Fixed for BOTH readings
+        // - before and after the hover must sample the same pixel or the comparison
+        // means nothing.
         const yHalaman = tinggiLayar - 32;
 
         // Left edge, x=6: inside the bar and inside the page, left of every word.
@@ -1292,7 +1501,7 @@ test.describe('Landing page (/)', () => {
             'dan setidaknya setinggi satu layar penuh',
         ).toBeGreaterThanOrEqual(tinggiLayar);
 
-        // the open entry: z-index without position, and the panel still spans the bar
+        // the open entry: z-index without position, and the panel keeps its own width
         const pembungkus = page.locator('[data-slot="landing-nav-baris"] > nav > div').first();
         expect(await pembungkus.evaluate((el) => getComputedStyle(el).position)).toBe('static');
         expect(await pembungkus.evaluate((el) => getComputedStyle(el).zIndex)).toBe('20');
@@ -1304,10 +1513,18 @@ test.describe('Landing page (/)', () => {
         if (kotakPanel === null || kotakBaris === null) {
             return;
         }
+        // The sheet is capped at a centred 1280px - never wider than the row it
+        // hangs from, and on a window wider than 1280px strictly narrower than it
+        const lebarLayar = page.viewportSize()?.width ?? 0;
+        expect(lebarLayar, 'perlu viewport yang jelas untuk ukuran ini').toBeGreaterThan(0);
         expect(
             Math.round(kotakPanel.width),
             'z-20 tidak boleh memindahkan containing block panelnya',
-        ).toBe(Math.round(kotakBaris.width));
+        ).toBeLessThanOrEqual(Math.round(kotakBaris.width));
+        expect(
+            Math.round(kotakPanel.width),
+            'panel tidak boleh melebihi lebar barisnya',
+        ).toBeLessThanOrEqual(Math.round(kotakBaris.width));
 
         // that strip has to still be page and not panel - the sampling above is only
         // honest while there IS a strip of page under the menu
@@ -1420,11 +1637,11 @@ test.describe('Landing page (/)', () => {
     test('f00-landing-nav-mega-menampilkan-kartu-promo-bergambar', async ({ page }) => {
         await page.goto('/');
 
-        for (const nama of ['Dokter Terdekat', 'Layanan Kesehatan']) {
+        for (const nama of ['Direktori dokter', 'Layanan Kesehatan']) {
             await page.getByRole('button', { name: nama }).hover();
 
             const panel = page.locator(
-                nama === 'Dokter Terdekat'
+                nama === 'Direktori dokter'
                     ? '[data-slot="nav-direktori-panel"]'
                     : '[data-slot="nav-layanan-panel"]',
             );
@@ -1459,7 +1676,7 @@ test.describe('Landing page (/)', () => {
     test('f00-landing-nav-direktori-dibuka-keyboard-dan-ditutup-escape', async ({ page }) => {
         await page.goto('/');
 
-        const trigger = page.getByRole('button', { name: 'Dokter Terdekat' });
+        const trigger = page.getByRole('button', { name: 'Direktori dokter' });
         const panel = page.locator('[data-slot="nav-direktori-panel"]');
 
         await trigger.focus();
@@ -1503,10 +1720,10 @@ test.describe('Landing page (/)', () => {
 
         const laci = page.locator('[role="dialog"]');
         await expect(
-            laci.getByRole('button', { name: 'Dokter Terdekat' }),
+            laci.getByRole('button', { name: 'Direktori dokter' }),
         ).toHaveCount(0);
 
-        await laci.getByRole('link', { name: 'Dokter Terdekat' }).click();
+        await laci.getByRole('link', { name: 'Direktori dokter' }).click();
 
         // The drawer's entry is a plain route to the answer itself: `/?semua=1` is the
         // directory with nothing applied. There is no `/dokter` page for it to land on

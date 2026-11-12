@@ -155,7 +155,7 @@ export function HeroCarousel() {
             onMouseEnter={() => setJeda(true)}
             onMouseLeave={() => setJeda(false)}
         >
-            <div className="mx-auto w-full max-w-[1280px] px-4 pt-6 pb-2 md:px-6">
+            <div className="mx-auto w-full max-w-[1280px] px-4 pt-2 pb-2 md:px-6">
                 <div className="relative">
                     <div className="grid overflow-hidden rounded-3xl">
                         {slides.map((slide, indeks) => {
@@ -239,15 +239,15 @@ export function HeroCarousel() {
                                         </>
                                     ) : null}
 
-                                    <div className="relative grid gap-8 px-6 py-10 md:grid-cols-2 md:items-center md:px-12 md:py-14">
-                                        <div className="flex flex-col items-start gap-4">
+                                    <div className="relative grid gap-6 px-5 py-7 md:grid-cols-2 md:items-center md:py-9 md:pr-14 md:pl-16">
+                                        <div className="flex flex-col items-start gap-3">
                                             {slide.eyebrow === '' ? null : (
                                                 <span className="rounded-full bg-white/20 px-3 py-1 text-xs font-semibold tracking-wide text-white uppercase">
                                                     {slide.eyebrow}
                                                 </span>
                                             )}
 
-                                            <h1 className="text-3xl leading-tight font-bold text-white md:text-5xl">
+                                            <h1 className="text-2xl leading-tight font-bold text-white md:text-4xl">
                                                 {slide.judul}
                                             </h1>
 
@@ -276,7 +276,7 @@ export function HeroCarousel() {
                                                 aria-hidden="true"
                                                 className="hidden md:block md:justify-self-end"
                                             >
-                                                <div className="w-72 space-y-3 rounded-3xl bg-white/15 p-6 backdrop-blur">
+                                                <div className="w-56 space-y-2.5 rounded-2xl bg-white/15 p-5 backdrop-blur">
                                                     <div className="flex items-center gap-3">
                                                         <span className="size-10 rounded-full bg-white/70" />
 

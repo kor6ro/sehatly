@@ -283,6 +283,109 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/pengguna": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read /api/v1/admin/pengguna. */
+        get: operations["getApiV1AdminPengguna"];
+        put?: never;
+        /** Create /api/v1/admin/pengguna. */
+        post: operations["postApiV1AdminPengguna"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/pengguna/ringkasan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read /api/v1/admin/pengguna/ringkasan. */
+        get: operations["getApiV1AdminPenggunaRingkasan"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/pengguna/{id}/reset-sandi": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create /api/v1/admin/pengguna/{id}/reset-sandi. */
+        post: operations["postApiV1AdminPenggunaIdResetSandi"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/pengguna/{id}/setujui": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create /api/v1/admin/pengguna/{id}/setujui. */
+        post: operations["postApiV1AdminPenggunaIdSetujui"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/pengguna/{id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Replace /api/v1/admin/pengguna/{id}/status. */
+        put: operations["putApiV1AdminPenggunaIdStatus"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/pengguna/{id}/tolak": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create /api/v1/admin/pengguna/{id}/tolak. */
+        post: operations["postApiV1AdminPenggunaIdTolak"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/persetujuan-pdp": {
         parameters: {
             query?: never;
@@ -294,6 +397,91 @@ export interface paths {
         get: operations["getApiV1AdminPersetujuanPdp"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read /api/v1/admin/roles. */
+        get: operations["getApiV1AdminRoles"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/undangan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create /api/v1/admin/undangan. */
+        post: operations["postApiV1AdminUndangan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/undangan/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete /api/v1/admin/undangan/{id}. */
+        delete: operations["deleteApiV1AdminUndanganId"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/undangan/{id}/kirim-ulang": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create /api/v1/admin/undangan/{id}/kirim-ulang. */
+        post: operations["postApiV1AdminUndanganIdKirimUlang"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/daftar/marketing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create /api/v1/auth/daftar/marketing. */
+        post: operations["postApiV1AuthDaftarMarketing"];
         delete?: never;
         options?: never;
         head?: never;
@@ -488,6 +676,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/undangan/{token}/aktivasi": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create /api/v1/auth/undangan/{token}/aktivasi. */
+        post: operations["postApiV1AuthUndanganTokenAktivasi"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/booking": {
         parameters: {
             query?: never;
@@ -667,6 +872,23 @@ export interface paths {
         };
         /** Read /api/v1/dokter/{dokter}/ulasan. */
         get: operations["getApiV1DokterDokterUlasan"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/faskes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read /api/v1/faskes. */
+        get: operations["getApiV1Faskes"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1944,6 +2166,14 @@ export interface components {
             };
         };
         /**
+         * AktivasiUndanganRequest
+         * @description Request body for operations validated by `App\Http\Requests\Auth\AktivasiUndanganRequest`. The properties below are read from that class's `rules()` at generation time.
+         */
+        AktivasiUndanganRequestBody: {
+            otp: string;
+            password: string;
+        };
+        /**
          * AmandemenRekamMedisRequest
          * @description Request body for operations validated by `App\Http\Requests\RekamMedis\AmandemenRekamMedisRequest`. The properties below are read from that class's `rules()` at generation time.
          */
@@ -2073,6 +2303,17 @@ export interface components {
             tipe: "dokter_umum" | "dokter_spesialis" | "dokter_gigi" | "psikolog" | "bidan" | "perawat" | "apoteker";
         };
         /**
+         * BuatPenggunaRequest
+         * @description Request body for operations validated by `App\Http\Requests\Admin\BuatPenggunaRequest`. The properties below are read from that class's `rules()` at generation time.
+         */
+        BuatPenggunaRequestBody: {
+            nama_lengkap: string;
+            no_telepon: string;
+            password: string;
+            /** @enum {string} */
+            tipe: "apoteker" | "kurir" | "marketing" | "admin";
+        };
+        /**
          * BuatSuratKeteranganRequest
          * @description Request body for operations validated by `App\Http\Requests\SuratKeterangan\BuatSuratKeteranganRequest`. The properties below are read from that class's `rules()` at generation time.
          */
@@ -2131,6 +2372,19 @@ export interface components {
             versi?: unknown;
         };
         /**
+         * BuatUndanganRequest
+         * @description Request body for operations validated by `App\Http\Requests\Admin\BuatUndanganRequest`. The properties below are read from that class's `rules()` at generation time.
+         */
+        BuatUndanganRequestBody: {
+            email?: string;
+            /** @enum {string} */
+            kanal: "whatsapp" | "sms" | "email";
+            nama_lengkap: string;
+            no_telepon: string;
+            /** @enum {string} */
+            tipe: "dokter" | "apoteker" | "kurir" | "admin";
+        };
+        /**
          * CancelBookingRequest
          * @description Request body for operations validated by `App\Http\Requests\Booking\CancelBookingRequest`. The properties below are read from that class's `rules()` at generation time.
          */
@@ -2172,6 +2426,16 @@ export interface components {
             tipe?: "resep_dokter" | "obat_bebas" | "produk_kesehatan";
             /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             total?: unknown;
+        };
+        /**
+         * DaftarMarketingRequest
+         * @description Request body for operations validated by `App\Http\Requests\Auth\DaftarMarketingRequest`. The properties below are read from that class's `rules()` at generation time.
+         */
+        DaftarMarketingRequestBody: {
+            email?: string;
+            nama_lengkap: string;
+            no_telepon: string;
+            password: string;
         };
         /**
          * FinalisasiRekamMedisRequest
@@ -2298,6 +2562,18 @@ export interface components {
             tipe?: "dokter_umum" | "dokter_spesialis" | "dokter_gigi" | "psikolog" | "bidan" | "perawat" | "apoteker";
         };
         /**
+         * IndexFaskesRequest
+         * @description Request body for operations validated by `App\Http\Requests\Faskes\IndexFaskesRequest`. The properties below are read from that class's `rules()` at generation time.
+         */
+        IndexFaskesRequestBody: {
+            lat: number;
+            lng: number;
+            page?: number;
+            per_page?: number;
+            /** @enum {string} */
+            tipe?: "rumah_sakit" | "klinik" | "puskesmas" | "apotek" | "laboratorium";
+        };
+        /**
          * IndexKonsultasiRequest
          * @description Request body for operations validated by `App\Http\Requests\Konsultasi\IndexKonsultasiRequest`. The properties below are read from that class's `rules()` at generation time.
          */
@@ -2316,6 +2592,21 @@ export interface components {
             per_page?: number;
             /** @enum {string} */
             unread?: "true" | "1" | "false" | "0";
+        };
+        /**
+         * IndexPenggunaRequest
+         * @description Request body for operations validated by `App\Http\Requests\Admin\IndexPenggunaRequest`. The properties below are read from that class's `rules()` at generation time.
+         */
+        IndexPenggunaRequestBody: {
+            /** Format: date */
+            dibuat_dari?: string;
+            page?: number;
+            per_page?: number;
+            q?: string;
+            /** @enum {string} */
+            status?: "pending_verifikasi" | "menunggu_persetujuan" | "diundang" | "aktif" | "ditolak" | "nonaktif" | "ditangguhkan";
+            /** @enum {string} */
+            tipe?: "staf" | "pasien" | "dokter" | "perawat" | "apoteker" | "kurir" | "admin" | "superadmin" | "marketing";
         };
         /**
          * IndexPengingatRequest
@@ -2403,6 +2694,11 @@ export interface components {
             /** @enum {string} */
             tipe_pesan: "teks" | "gambar" | "dokumen" | "audio" | "video_note" | "resep" | "surat_keterangan" | "sistem";
         };
+        /**
+         * KirimUlangUndanganRequest
+         * @description Request body for operations validated by `App\Http\Requests\Admin\KirimUlangUndanganRequest`. The properties below are read from that class's `rules()` at generation time.
+         */
+        KirimUlangUndanganRequestBody: Record<string, never>;
         /**
          * LaporanBookingRequest
          * @description Request body for operations validated by `App\Http\Requests\Admin\LaporanBookingRequest`. The properties below are read from that class's `rules()` at generation time.
@@ -2544,6 +2840,11 @@ export interface components {
             tujuan: "verifikasi_telepon" | "login";
         };
         /**
+         * ResetSandiPenggunaRequest
+         * @description Request body for operations validated by `App\Http\Requests\Admin\ResetSandiPenggunaRequest`. The properties below are read from that class's `rules()` at generation time.
+         */
+        ResetSandiPenggunaRequestBody: Record<string, never>;
+        /**
          * RiwayatResepRequest
          * @description Request body for operations validated by `App\Http\Requests\Resep\RiwayatResepRequest`. The properties below are read from that class's `rules()` at generation time.
          */
@@ -2590,6 +2891,11 @@ export interface components {
             /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             total_durasi_detik?: unknown;
         };
+        /**
+         * SetujuiPenggunaRequest
+         * @description Request body for operations validated by `App\Http\Requests\Admin\SetujuiPenggunaRequest`. The properties below are read from that class's `rules()` at generation time.
+         */
+        SetujuiPenggunaRequestBody: Record<string, never>;
         /**
          * SimpanHeroRequest
          * @description Request body for operations validated by `App\Http\Requests\Admin\SimpanHeroRequest`. The properties below are read from that class's `rules()` at generation time.
@@ -2931,6 +3237,13 @@ export interface components {
             total_durasi_detik?: unknown;
         };
         /**
+         * TolakPenggunaRequest
+         * @description Request body for operations validated by `App\Http\Requests\Admin\TolakPenggunaRequest`. The properties below are read from that class's `rules()` at generation time.
+         */
+        TolakPenggunaRequestBody: {
+            alasan: string;
+        };
+        /**
          * UbahHeroRequest
          * @description Request body for operations validated by `App\Http\Requests\Admin\UbahHeroRequest`. The properties below are read from that class's `rules()` at generation time.
          */
@@ -2997,6 +3310,14 @@ export interface components {
             uuid?: unknown;
             /** @description PROHIBITED: sending this key at all is a validation error. The endpoint neither accepts nor writes the key, and the request class's docblock states the reason where there is one. */
             versi?: unknown;
+        };
+        /**
+         * UbahStatusPenggunaRequest
+         * @description Request body for operations validated by `App\Http\Requests\Admin\UbahStatusPenggunaRequest`. The properties below are read from that class's `rules()` at generation time.
+         */
+        UbahStatusPenggunaRequestBody: {
+            /** @enum {string} */
+            status: "aktif" | "nonaktif";
         };
         /**
          * UbahTeleponPasienRequest
@@ -3599,6 +3920,12 @@ export interface components {
          */
         EnumUserOtpTujuan: "verifikasi_telepon" | "verifikasi_email" | "reset_kata_sandi" | "login";
         /**
+         * user_persetujuan.keputusan
+         * @description The MySQL ENUM `user_persetujuan.keputusan` as declared in the reference DDL and mirrored in `docs/enums.json`. Values are in MySQL declaration order, which is the order the numeric index depends on.
+         * @enum {string}
+         */
+        EnumUserPersetujuanKeputusan: "disetujui" | "ditolak";
+        /**
          * users.bahasa
          * @description The MySQL ENUM `users.bahasa` as declared in the reference DDL and mirrored in `docs/enums.json`. Values are in MySQL declaration order, which is the order the numeric index depends on.
          * @enum {string}
@@ -3609,7 +3936,7 @@ export interface components {
          * @description The MySQL ENUM `users.status` as declared in the reference DDL and mirrored in `docs/enums.json`. Values are in MySQL declaration order, which is the order the numeric index depends on.
          * @enum {string}
          */
-        EnumUsersStatus: "pending_verifikasi" | "aktif" | "nonaktif" | "ditangguhkan";
+        EnumUsersStatus: "pending_verifikasi" | "menunggu_persetujuan" | "diundang" | "aktif" | "ditolak" | "nonaktif" | "ditangguhkan";
         /**
          * users.tipe
          * @description The MySQL ENUM `users.tipe` as declared in the reference DDL and mirrored in `docs/enums.json`. Values are in MySQL declaration order, which is the order the numeric index depends on.
@@ -5107,6 +5434,477 @@ export interface operations {
             };
         };
     };
+    getApiV1AdminPengguna: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success. `data` holds the requested resource, and `meta` is present when the response is a list. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedEnvelope"];
+                };
+            };
+            /** @description Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource not found. Also answers a `{placeholder}` outside the route's own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationErrorEnvelope"];
+                };
+            };
+            /** @description Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    postApiV1AdminPengguna: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Validated by `App\Http\Requests\Admin\BuatPenggunaRequest::rules()`, which is read at generation time -- these properties are the live rules, not a transcription. */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BuatPenggunaRequestBody"];
+            };
+        };
+        responses: {
+            /** @description Created. `data` holds the created resource. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"];
+                };
+            };
+            /** @description Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource not found. Also answers a `{placeholder}` outside the route's own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationErrorEnvelope"];
+                };
+            };
+            /** @description Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getApiV1AdminPenggunaRingkasan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success. `data` holds the requested resource, and `meta` is present when the response is a list. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"];
+                };
+            };
+            /** @description Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource not found. Also answers a `{placeholder}` outside the route's own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    postApiV1AdminPenggunaIdResetSandi: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Validated by `App\Http\Requests\Admin\ResetSandiPenggunaRequest::rules()`, which is read at generation time -- these properties are the live rules, not a transcription. */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetSandiPenggunaRequestBody"];
+            };
+        };
+        responses: {
+            /** @description Created. `data` holds the created resource. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"];
+                };
+            };
+            /** @description Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource not found. Also answers a `{placeholder}` outside the route's own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationErrorEnvelope"];
+                };
+            };
+            /** @description Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    postApiV1AdminPenggunaIdSetujui: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Validated by `App\Http\Requests\Admin\SetujuiPenggunaRequest::rules()`, which is read at generation time -- these properties are the live rules, not a transcription. */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetujuiPenggunaRequestBody"];
+            };
+        };
+        responses: {
+            /** @description Created. `data` holds the created resource. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"];
+                };
+            };
+            /** @description Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource not found. Also answers a `{placeholder}` outside the route's own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationErrorEnvelope"];
+                };
+            };
+            /** @description Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    putApiV1AdminPenggunaIdStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Validated by `App\Http\Requests\Admin\UbahStatusPenggunaRequest::rules()`, which is read at generation time -- these properties are the live rules, not a transcription. */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UbahStatusPenggunaRequestBody"];
+            };
+        };
+        responses: {
+            /** @description Success. `data` holds the requested resource, and `meta` is present when the response is a list. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"];
+                };
+            };
+            /** @description Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource not found. Also answers a `{placeholder}` outside the route's own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationErrorEnvelope"];
+                };
+            };
+            /** @description Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    postApiV1AdminPenggunaIdTolak: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Validated by `App\Http\Requests\Admin\TolakPenggunaRequest::rules()`, which is read at generation time -- these properties are the live rules, not a transcription. */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TolakPenggunaRequestBody"];
+            };
+        };
+        responses: {
+            /** @description Created. `data` holds the created resource. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"];
+                };
+            };
+            /** @description Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource not found. Also answers a `{placeholder}` outside the route's own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationErrorEnvelope"];
+                };
+            };
+            /** @description Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     getApiV1AdminPersetujuanPdp: {
         parameters: {
             query?: never;
@@ -5159,6 +5957,319 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ValidationErrorEnvelope"];
+                };
+            };
+            /** @description Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getApiV1AdminRoles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success. `data` holds the requested resource, and `meta` is present when the response is a list. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"];
+                };
+            };
+            /** @description Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource not found. Also answers a `{placeholder}` outside the route's own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    postApiV1AdminUndangan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Validated by `App\Http\Requests\Admin\BuatUndanganRequest::rules()`, which is read at generation time -- these properties are the live rules, not a transcription. */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BuatUndanganRequestBody"];
+            };
+        };
+        responses: {
+            /** @description Created. `data` holds the created resource. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"];
+                };
+            };
+            /** @description Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource not found. Also answers a `{placeholder}` outside the route's own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationErrorEnvelope"];
+                };
+            };
+            /** @description Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    deleteApiV1AdminUndanganId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success. `data` holds the requested resource, and `meta` is present when the response is a list. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"];
+                };
+            };
+            /** @description Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource not found. Also answers a `{placeholder}` outside the route's own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    postApiV1AdminUndanganIdKirimUlang: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Validated by `App\Http\Requests\Admin\KirimUlangUndanganRequest::rules()`, which is read at generation time -- these properties are the live rules, not a transcription. */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KirimUlangUndanganRequestBody"];
+            };
+        };
+        responses: {
+            /** @description Created. `data` holds the created resource. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"];
+                };
+            };
+            /** @description Unauthenticated. No token, an expired token, or a token that was revoked. `message` is the fixed string "Unauthenticated." and `errors` is `{}`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden. The caller is authenticated but holds no grant for this operation (`permission:` middleware), or is not an account type this route allows (`tipe:` middleware). `message` is the fixed string "This action is unauthorized." and `errors` is `{}`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource not found. Also answers a `{placeholder}` outside the route's own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationErrorEnvelope"];
+                };
+            };
+            /** @description Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    postApiV1AuthDaftarMarketing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Validated by `App\Http\Requests\Auth\DaftarMarketingRequest::rules()`, which is read at generation time -- these properties are the live rules, not a transcription. */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DaftarMarketingRequestBody"];
+            };
+        };
+        responses: {
+            /** @description Created. `data` holds the created resource. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"];
+                };
+            };
+            /** @description Resource not found. Also answers a `{placeholder}` outside the route's own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationErrorEnvelope"];
+                };
+            };
+            /** @description Rate limited. This operation is limited to 10 request(s) per 60 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}` and `meta.retry_after` is the seconds until the bucket frees, mirroring the `Retry-After` header; the OTP-verify limiter additionally publishes `meta.sisa_percobaan` (0 by definition on this response). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client. */
@@ -5916,6 +7027,67 @@ export interface operations {
             };
         };
     };
+    postApiV1AuthUndanganTokenAktivasi: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Validated by `App\Http\Requests\Auth\AktivasiUndanganRequest::rules()`, which is read at generation time -- these properties are the live rules, not a transcription. */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AktivasiUndanganRequestBody"];
+            };
+        };
+        responses: {
+            /** @description Created. `data` holds the created resource. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"];
+                };
+            };
+            /** @description Resource not found. Also answers a `{placeholder}` outside the route's own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationErrorEnvelope"];
+                };
+            };
+            /** @description Rate limited. This operation is limited to 5 request(s) per 300 second(s) by the `RateLimiter` named in `x-ratelimit.limiter`; the limit is read from the running application at generation time, not asserted here. `errors` is `{}` and `meta.retry_after` is the seconds until the bucket frees, mirroring the `Retry-After` header; the OTP-verify limiter additionally publishes `meta.sisa_percobaan` (0 by definition on this response). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     postApiV1Booking: {
         parameters: {
             query?: never;
@@ -6497,6 +7669,53 @@ export interface operations {
         };
     };
     getApiV1DokterDokterUlasan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success. `data` holds the requested resource, and `meta` is present when the response is a list. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedEnvelope"];
+                };
+            };
+            /** @description Resource not found. Also answers a `{placeholder}` outside the route's own constraint, such as an unknown `gateway` on the webhook. `message` is the fixed string "Resource not found." -- never a model or table name -- and `errors` is `{}`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation failed. `message` is the fixed string "The given data was invalid." and `errors` maps each field to an ARRAY of messages -- a field can fail more than one rule, and every message is carried. Keys are the dotted attribute path as submitted (`items.0.obat_id` for an array element). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationErrorEnvelope"];
+                };
+            };
+            /** @description Internal server error. The body is a fixed sanitized string; the diagnostic detail is kept server-side and never sent to a client. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getApiV1Faskes: {
         parameters: {
             query?: never;
             header?: never;

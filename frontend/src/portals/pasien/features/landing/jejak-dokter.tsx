@@ -64,16 +64,16 @@ export function Jejak({ butir }: { butir: ReadonlyArray<Butir> }) {
 }
 
 /**
- * The trail over the answer: `Home / Dokter Terdekat`.
+ * The trail over the answer: `Home / Direktori dokter`.
  *
  * ## What replaced the two buttons
  *
  * The answer used to end in `Tutup` (with its X) and `Buka direktori lengkap`. Both are
  * this, phrased as places rather than as commands: `Home` is the way back to the whole
- * landing page, and `Dokter Terdekat` is this answer with nothing applied - the door out
+ * landing page, and `Direktori dokter` is this answer with nothing applied - the door out
  * of a specialisation, which is what `Buka direktori lengkap` was.
  *
- * `Home` and `Dokter Terdekat` are two different addresses on purpose. `/` is the front
+ * `Home` and `Direktori dokter` are two different addresses on purpose. `/` is the front
  * page; `/?semua=1` is every doctor, nearest first, which is what a visitor arrives at
  * from the header and what a search or a specialisation can be cleared back to.
  * Collapsing them would mean that leaving a specialisation quietly threw the visitor back
@@ -98,11 +98,16 @@ export function Jejak({ butir }: { butir: ReadonlyArray<Butir> }) {
  * carries the whole app. The trail is here to SAY where the visitor is, not to be the last
  * exit in the building.
  */
-export function JejakDokter() {
+export function JejakDokter({ namaDokter }: { namaDokter?: string }) {
     const butir: Array<Butir> = [
         { label: 'Home', to: '/' },
-        { label: 'Dokter Terdekat', to: '/?semua=1' },
+        { label: 'Direktori dokter', to: '/?semua=1' },
     ];
+
+    // Jika ada nama dokter yang dipilih, tambahkan ke breadcrumb sebagai trail ketiga
+    if (namaDokter) {
+        butir.push({ label: namaDokter });
+    }
 
     return <Jejak butir={butir} />;
 }

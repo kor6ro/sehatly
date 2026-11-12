@@ -151,7 +151,7 @@ export const LAYANAN: Layanan[] = [
         to: '/rekam-medis',
     },
     {
-        judul: 'Dokter Terdekat',
+        judul: 'Direktori dokter',
         deskripsi: 'Cari dokter spesialis terdekat dari lokasimu',
         ikon: Stethoscope,
         to: '/?semua=1',
@@ -395,7 +395,7 @@ export const FOOTER_KOLOM: FooterKolom[] = [
         tautan: [
             { label: 'Syarat & Ketentuan', to: '/syarat-ketentuan' },
             { label: 'Kebijakan Privasi', to: '/kebijakan-privasi' },
-            { label: 'Dokter Terdekat', to: '/?semua=1' },
+            { label: 'Direktori dokter', to: '/?semua=1' },
         ],
     },
     {

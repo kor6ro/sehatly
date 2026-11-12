@@ -495,6 +495,36 @@ use App\Http\Controllers\Api\V1\HeroController;
 Route::get('hero', [HeroController::class, 'index'])
     ->name('hero.index');
 
+use App\Http\Controllers\Api\V1\FaskesController;
+
+/*
+|--------------------------------------------------------------------------
+| The public venue list, for the landing page's pharmacy menu
+|--------------------------------------------------------------------------
+|
+| ONE read, no `permission:` and no `tipe:`, for the same reason the four
+| public routes above carry neither: `GET /faskes` is what the "Apotek Terdekat"
+| tab on `/` opens, and the visitor reading that menu is by definition signed out.
+| `EnsurePermission` would answer 401 to precisely the caller this exists for.
+|
+| `?tipe=` selects the venue type and defaults to `apotek` - the menu this was
+| built for - while `?lat=&lng=` is the optional pair that switches the order to
+| nearest-first and adds `jarak_km` to each row. Neither is required: a visitor
+| who has not granted location permission still gets the list, ordered by name,
+| with `jarak_km: null` on every row. A half pair is a 422 rather than a silently
+| dropped measurement (`IndexFaskesRequest`), because "nearest" answered with
+| "alphabetical" is a lie the caller cannot detect.
+|
+| The route answers `status_aktif = 1` rows only, and never a venue's stock -
+| `apotek_stok` stays behind `GET /obat/{id}/stok`, which is gated as a shelf
+| read rather than as a shopfront sign.
+|
+| @see \App\Http\Controllers\Api\V1\FaskesController
+| @see \App\Services\Faskes\FaskesDirectoryService
+*/
+Route::get('faskes', [FaskesController::class, 'index'])
+    ->name('faskes.index');
+
 /*
 |--------------------------------------------------------------------------
 | Module 3 -- the consultation lifecycle and its chat transcript

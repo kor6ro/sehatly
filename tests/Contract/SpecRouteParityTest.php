@@ -65,8 +65,11 @@ it('publishes the same count the portable route:list invocation reports', functi
     // The assertion below reads the SAME route collection through the framework
     // rather than shelling out, so it cannot be satisfied by a broken pipe or a
     // non-zero exit. The count it produces is asserted to equal the number of
-    // live operations, which is what makes the document's "135 routes" claim
-    // checkable by a reader who runs the documented command.
+    // live operations, which is what makes the document's route-count claim
+    // checkable by a reader who runs the documented command. Re-measured to 145
+    // on 2026-11-12: `GET /api/v1/faskes` is the new 145th, and the pin had been
+    // left at 135 by the admin-round additions that came before it (144 live on
+    // the day before), so both movements are folded into this one re-measurement.
     $routes = collect(Route::getRoutes())
         ->filter(static fn ($route): bool => str_starts_with($route->uri(), 'api/v1'));
 
@@ -80,7 +83,7 @@ it('publishes the same count the portable route:list invocation reports', functi
 
     expect($operations)->toBe(count(ContractSpec::liveOperations()));
     expect($operations)->toBe(count(ContractSpec::specOperations()));
-    expect($operations)->toBe(135);
+    expect($operations)->toBe(145);
 });
 
 it('agrees with the document on every route name and controller action', function (): void {

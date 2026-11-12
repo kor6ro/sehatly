@@ -167,7 +167,7 @@ export function DoctorDetailPage() {
  */
 function Halaman({ children }: { children: ReactNode }) {
     return (
-        <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 p-4 md:p-6">
+        <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-4 p-4 md:p-6">
             {children}
         </main>
     );

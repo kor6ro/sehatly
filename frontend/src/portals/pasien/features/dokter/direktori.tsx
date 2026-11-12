@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router';
 import { LocateFixed } from 'lucide-react';
-import { dokterOptions, spesialisasiOptions } from '@/lib/api/dokter';
+import { dokterOptions, spesialisasiOptions, dokterDetailOptions } from '@/lib/api/dokter';
 import type { DokterFilters } from '@/lib/api/dokter';
 import { DoctorCard } from '@/portals/pasien/components/dokter/doctor-card';
 import { isEmptyPage } from '@/lib/api/pagination';
@@ -16,6 +16,7 @@ import { EmptyState } from '@/shared/components/states/empty-state';
 import { ErrorState } from '@/shared/components/states/error-state';
 import { Button } from '@/components/ui/button';
 import { usePosisiPasien } from '@/portals/pasien/features/dokter/use-posisi-pasien';
+import { ProfilDokterIsi } from '@/portals/pasien/features/dokter-profil/profil-dokter-isi';
 
 /**
  * The answering body of the landing page: pick a specialisation in the header, and this
@@ -111,7 +112,7 @@ const EVENT_ANTAR = 'sehatly:dokter:kueri';
  *
  * AC-1 asks for exactly that: F03 §9 keeps the free-text query out of the URL, so a reload
  * would otherwise arrive with no memory of the question. But this address is opened with
- * several intents - the header's `Dokter Terdekat`, a specialisation, an empty search -
+ * several intents - the header's `Direktori dokter`, a specialisation, an empty search -
  * and restoring the query in every case would answer "show me everyone" with a filter the
  * visitor cannot see.
  */
@@ -221,9 +222,28 @@ export function adaPertanyaanDirektori(params: URLSearchParams): boolean {
     );
 }
 
-export function DirektoriDokter() {
+export function DirektoriDokter({ onDokterDipilih }: { onDokterDipilih?: (nama: string | undefined) => void }) {
     const online = useOnlineStatus();
     const nonaktif = !online;
+
+    const [dokterDipilih, setDokterDipilih] = useState<number | null>(null);
+
+    const pilihDokter = (id: number): void => {
+        setDokterDipilih(id);
+    };
+
+    const detailQuery = useQuery({
+        ...dokterDetailOptions(dokterDipilih !== null ? String(dokterDipilih) : ''),
+        enabled: dokterDipilih !== null,
+    });
+
+    // Beritahu parent nama dokter yang dipilih untuk breadcrumb
+    const namaDokterDipilih = detailQuery.data?.data.dokter.nama_lengkap;
+    useEffect(() => {
+        if (dokterDipilih !== null && namaDokterDipilih !== undefined) {
+            onDokterDipilih?.(namaDokterDipilih);
+        }
+    }, [dokterDipilih, namaDokterDipilih, onDokterDipilih]);
 
     /**
      * The query, seeded ONCE from whichever voice is speaking: the header's bar first,
@@ -447,6 +467,33 @@ export function DirektoriDokter() {
     }
 
     return (
+        <>
+        {/* Tampilan profil inline kalau dokter dipilih */}
+        {dokterDipilih !== null ? (
+            <section
+                data-slot="profil-inline"
+                className="mx-auto flex w-full max-w-[1280px] flex-col gap-5 px-4 pt-4 pb-16 md:px-6"
+            >
+                <h2 className="text-foreground text-xl font-semibold">
+                    Profil Dokter
+                </h2>
+
+                {detailQuery.isPending ? (
+                    <SkeletonRows rows={6} />
+                ) : detailQuery.isError ? (
+                    <ErrorState
+                        title="Profil tidak dapat dimuat."
+                        error={detailQuery.error}
+                        onRetry={() => { void detailQuery.refetch(); }}
+                    />
+                ) : detailQuery.data !== undefined ? (
+                    <ProfilDokterIsi
+                        dokter={detailQuery.data.data.dokter}
+                        online={online}
+                    />
+                ) : null}
+            </section>
+        ) : (
         <section
             data-slot="landing-direktori"
             aria-labelledby={judulDipilih ? 'landing-direktori-judul' : undefined}
@@ -633,6 +680,7 @@ export function DirektoriDokter() {
                                             ulasan={row.jumlah_ulasan}
                                             faskes={row.faskes_utama}
                                             jarak={row.jarak_km}
+                                            onLihatProfil={() => { pilihDokter(row.id); }}
                                         />
                                     </li>
                                 ))}
@@ -679,6 +727,7 @@ export function DirektoriDokter() {
                                                 pengalaman={row.pengalaman_tahun}
                                                 ulasan={row.jumlah_ulasan}
                                                 faskes={null}
+                                                onLihatProfil={() => { pilihDokter(row.id); }}
                                             />
                                         </li>
                                     ))}
@@ -689,6 +738,8 @@ export function DirektoriDokter() {
                 )}
             </div>
         </section>
+        )}
+        </>
     );
 }
 
