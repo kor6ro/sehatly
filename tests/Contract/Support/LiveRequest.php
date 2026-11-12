@@ -50,6 +50,10 @@ final class LiveRequest
         // that enum, so any other value is a router 404 and the service would
         // never run. `midtrans` is a real member, not an invented one.
         'gateway' => 'midtrans',
+        // `{token}` is a 64-character invitation secret. The controller hashes
+        // the presented value and answers 404 when no live `user_undangan` row
+        // matches, which is what this absent value produces.
+        'token' => 'contract-suite-absent-invitation-token',
     ];
 
     /**

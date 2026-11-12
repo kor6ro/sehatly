@@ -8,6 +8,8 @@ declare global {
     }
 }
 
+const API_ORIGIN = (import.meta.env.VITE_API_ORIGIN ?? '').replace(/\/+$/, '');
+
 /**
  * Where a private channel is authorised.
  *
@@ -42,8 +44,38 @@ declare global {
  * A CSRF token would be a no-op that is actively harmful to send: Echo reads one
  * from `<meta name="csrf-token">` when it is present, and this SPA has no Blade
  * layout to put one in.
+ *
+ * ## Cross-origin free deployment
+ *
+ * Absolute when the SPA is served from a different origin than the API.
+ * The free deployment serves the six portals from Cloudflare Pages and the API
+ * from `api.<domain>`, so a relative `/api/broadcasting/auth` would be posted
+ * to the Pages host, which has no Laravel behind it. The endpoint therefore
+ * follows the same `VITE_API_ORIGIN` the REST transport uses (`lib/http.ts`).
+ * On a same-origin deployment the value stays `/api/broadcasting/auth`.
  */
-export const BROADCAST_AUTH_ENDPOINT = '/api/broadcasting/auth';
+export const BROADCAST_AUTH_ENDPOINT = `${API_ORIGIN}/api/broadcasting/auth`;
+
+/** The two Pusher-protocol brokers this build can talk to. */
+export type BroadcastDriver = 'reverb' | 'pusher';
+
+/**
+ * Every instance is one of these two. `reverb` is the self-hosted production
+ * driver; `pusher` is the hosted free tier used by the Cloudflare Pages +
+ * Render demo, where a long-running Reverb process cannot be hosted.
+ */
+export type EchoConnection = Echo<'reverb'> | Echo<'pusher'>;
+
+/**
+ * Which broker this build was compiled against.
+ *
+ * Defaulting to `reverb` keeps every existing self-hosted deployment working
+ * without a new environment variable. The Pages build sets
+ * `VITE_BROADCAST_DRIVER=pusher`.
+ */
+function broadcastDriver(): BroadcastDriver {
+    return import.meta.env.VITE_BROADCAST_DRIVER === 'pusher' ? 'pusher' : 'reverb';
+}
 
 /**
  * `KonsultasiMessageSent::broadcastAs()`.
@@ -60,14 +92,14 @@ function requireEnv(name: keyof ImportMetaEnv): string {
 
     if (typeof value !== 'string' || value === '') {
         throw new Error(
-            `Reverb is not configured: ${name} is missing from the web build.`,
+            `${broadcastDriver() === 'pusher' ? 'Pusher' : 'Reverb'} is not configured: ${name} is missing from the web build.`,
         );
     }
 
     return value;
 }
 
-let connection: Echo<'reverb'> | null = null;
+let connection: EchoConnection | null = null;
 
 /**
  * The one Echo instance, or the existing one with a refreshed token.
@@ -89,20 +121,30 @@ let connection: Echo<'reverb'> | null = null;
  * loop). Mutating that object is therefore per-authorisation, which is the property
  * this needs.
  */
-export function connectEcho(): Echo<'reverb'> {
+export function connectEcho(): EchoConnection {
     if (connection === null) {
         globalThis.window.Pusher = Pusher;
 
-        connection = new Echo({
-            broadcaster: 'reverb',
-            key: requireEnv('VITE_REVERB_APP_KEY'),
-            wsHost: requireEnv('VITE_REVERB_HOST'),
-            wsPort: Number(import.meta.env.VITE_REVERB_PORT ?? '80'),
-            wssPort: Number(import.meta.env.VITE_REVERB_PORT ?? '443'),
-            forceTLS: import.meta.env.VITE_REVERB_SCHEME === 'https',
-            enabledTransports: ['ws', 'wss'],
-            authEndpoint: BROADCAST_AUTH_ENDPOINT,
-        });
+        connection =
+            broadcastDriver() === 'pusher'
+                ? new Echo<'pusher'>({
+                      broadcaster: 'pusher',
+                      key: requireEnv('VITE_PUSHER_APP_KEY'),
+                      cluster: requireEnv('VITE_PUSHER_CLUSTER'),
+                      forceTLS:
+                          import.meta.env.VITE_PUSHER_FORCE_TLS !== 'false',
+                      authEndpoint: BROADCAST_AUTH_ENDPOINT,
+                  })
+                : new Echo<'reverb'>({
+                      broadcaster: 'reverb',
+                      key: requireEnv('VITE_REVERB_APP_KEY'),
+                      wsHost: requireEnv('VITE_REVERB_HOST'),
+                      wsPort: Number(import.meta.env.VITE_REVERB_PORT ?? '80'),
+                      wssPort: Number(import.meta.env.VITE_REVERB_PORT ?? '443'),
+                      forceTLS: import.meta.env.VITE_REVERB_SCHEME === 'https',
+                      enabledTransports: ['ws', 'wss'],
+                      authEndpoint: BROADCAST_AUTH_ENDPOINT,
+                  });
     }
 
     applyAccessToken();

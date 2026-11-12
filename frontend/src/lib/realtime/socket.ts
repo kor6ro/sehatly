@@ -1,5 +1,4 @@
-import type Echo from 'laravel-echo';
-import { applyAccessToken } from '@/lib/echo';
+import { applyAccessToken, type EchoConnection } from '@/lib/echo';
 import { PRIVATE_CHANNEL_PREFIX } from '@/lib/realtime/channel';
 
 export {
@@ -144,7 +143,7 @@ export interface RealtimeSocket {
  *   `applyAccessToken`.
  */
 export class EchoRealtimeSocket implements RealtimeSocket {
-    private readonly echo: Echo<'reverb'>;
+    private readonly echo: EchoConnection;
 
     private readonly listener: RealtimeSocketListener;
 
@@ -166,10 +165,10 @@ export class EchoRealtimeSocket implements RealtimeSocket {
      */
     private readonly channels = new Map<
         string,
-        ReturnType<Echo<'reverb'>['private']>
+        ReturnType<EchoConnection['private']>
     >();
 
-    constructor(echo: Echo<'reverb'>, listener: RealtimeSocketListener) {
+    constructor(echo: EchoConnection, listener: RealtimeSocketListener) {
         this.echo = echo;
         this.listener = listener;
     }

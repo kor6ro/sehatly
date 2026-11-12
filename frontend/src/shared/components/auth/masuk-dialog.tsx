@@ -157,6 +157,7 @@ export function MasukDialog({
 
     const [pending, setPending] = useState<PendingOtp | null>(null);
     const [kode, setKode] = useState('');
+    const [kodeDemo, setKodeDemo] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
     const [resending, setResending] = useState(false);
     const [resendError, setResendError] = useState<unknown>(null);
@@ -360,7 +361,12 @@ export function MasukDialog({
             };
 
             setPending(challenge);
-            setKode('');
+            // `kode` is present only in `local` (OtpService's dev-only rule).
+            // Prefilling it keeps the demo login to one click without weakening
+            // the production branch, where the key is null and the box stays empty.
+            const kodeDev = (result.data.otp as { kode?: string | null }).kode ?? null;
+            setKode(kodeDev ?? '');
+            setKodeDemo(kodeDev);
             setLangkah('kode');
         } catch (error) {
             setServerError(error);
@@ -471,7 +477,9 @@ export function MasukDialog({
             };
 
             setPending(diperbarui);
-            setKode('');
+            const kodeDev = (result.data.otp as { kode?: string | null }).kode ?? null;
+            setKode(kodeDev ?? '');
+            setKodeDemo(kodeDev);
             setUpayaFokus((nilai) => nilai + 1);
             setResendNotice(
                 `Kode baru telah dikirim ke ${sebutanIdentifier(pending.identifier)}.`,
@@ -495,6 +503,7 @@ export function MasukDialog({
         setLangkah('nomor');
         setPending(null);
         setKode('');
+        setKodeDemo(null);
         setServerError(null);
         setResendNotice(null);
         setResendCooldown(0);
@@ -612,6 +621,17 @@ export function MasukDialog({
                                 >
                                     {resendNotice}
                                 </p>
+                            )}
+
+                            {kodeDemo === null ? null : (
+                                <Alert>
+                                    <ShieldCheck />
+                                    <AlertDescription>
+                                        Mode demo: kode OTP{' '}
+                                        <strong className="font-mono">{kodeDemo}</strong>{' '}
+                                        sudah diisi otomatis.
+                                    </AlertDescription>
+                                </Alert>
                             )}
 
                             {/**

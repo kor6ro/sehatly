@@ -1734,7 +1734,7 @@ test('every device endpoint refuses an unauthenticated caller with the 401 envel
 // Contracts the endpoints depend on
 // =====================================================================
 
-test('the route table exposes exactly the twelve module 1 auth routes with the expected middleware', function (): void {
+test('the route table exposes exactly the fourteen module 1 auth routes with the expected middleware', function (): void {
     $routes = collect(Route::getRoutes()->getRoutes())
         ->filter(fn ($route): bool => str_starts_with($route->uri(), 'api/v1/auth'))
         ->keyBy(fn ($route): string => $route->methods()[0].' '.$route->uri())
@@ -1749,15 +1749,19 @@ test('the route table exposes exactly the twelve module 1 auth routes with the e
         'POST api/v1/auth/otp/verify',
         'POST api/v1/auth/otp/resend',
         'GET api/v1/auth/otp/kanal',
+        // The marketing portal's self-registration and the invitation
+        // activation are anonymous for the same reason sign-up is: the caller
+        // has no account/token yet. `daftar/marketing` creates a
+        // `menunggu_persetujuan` account; `undangan/{token}/aktivasi` resolves
+        // the token and consumes an OTP before setting the password.
+        'POST api/v1/auth/daftar/marketing',
+        'POST api/v1/auth/undangan/{token}/aktivasi',
         'POST api/v1/auth/refresh',
         'POST api/v1/auth/logout',
         'POST api/v1/auth/logout-all',
         'GET api/v1/auth/devices',
         'POST api/v1/auth/devices',
         'DELETE api/v1/auth/devices/{deviceId}',
-        // Account-management round: marketing self-registration and invitation activation.
-        'POST api/v1/auth/daftar/marketing',
-        'POST api/v1/auth/undangan/{token}/aktivasi',
     ]);
 
     $middlewareFor = static function (string $key) use ($routes): array {
@@ -1779,6 +1783,8 @@ test('the route table exposes exactly the twelve module 1 auth routes with the e
     $harusMemiliki('POST api/v1/auth/masuk', 'throttle:auth-login');
     $harusMemiliki('POST api/v1/auth/otp/verify', 'throttle:auth-otp-verify');
     $harusMemiliki('POST api/v1/auth/otp/resend', 'throttle:auth-otp-resend');
+    $harusMemiliki('POST api/v1/auth/daftar/marketing', 'throttle:auth-otp-send');
+    $harusMemiliki('POST api/v1/auth/undangan/{token}/aktivasi', 'throttle:auth-otp-verify');
     $harusMemiliki('POST api/v1/auth/sign-up/lengkapi', 'auth:sanctum');
     $harusMemiliki('POST api/v1/auth/sign-up/lengkapi', 'throttle:auth-otp-send');
     $harusMemiliki('POST api/v1/auth/logout', 'auth:sanctum');
@@ -2073,31 +2079,25 @@ test('every permission and tipe string in routes/api.php resolves against the Rb
         "'permission:promo.kelola'",
         "'permission:promo.kelola'",
         "'permission:promo.kelola'",
-        // The account-management round contributes FIVE strings for its five
-        // routes: `pengguna.lihat` on the directory read AND on the role
-        // catalogue (`GET /admin/roles`, the sidebar's per-role pages),
-        // `pengguna.kelola` on the three writes (create, status, reset-sandi).
-        // No new `tipe:` hit, because all five inherit `tipe:admin,superadmin`
-        // from the wrapping F14 group - the regex fires once on the group
-        // declaration, already counted.
+        // The account-management round contributes ELEVEN strings for its
+        // eleven routes (five from the original directory and six from the
+        // approval/invitation round): `pengguna.lihat` on the directory read,
+        // the summary read and the role catalogue; `pengguna.kelola` on the
+        // create, status, reset, approve, reject, invite, resend and cancel
+        // writes. No new `tipe:` hit, because all of them inherit
+        // `tipe:admin,superadmin` from the wrapping F14 group - the regex
+        // fires once on the group declaration, already counted.
         "'permission:pengguna.lihat'",
         "'permission:pengguna.lihat'",
+        "'permission:pengguna.lihat'",
         "'permission:pengguna.kelola'",
         "'permission:pengguna.kelola'",
         "'permission:pengguna.kelola'",
-        // The marketing self-registration and invitation activation routes sit
-        // OUTSIDE the admin group (they are public/unauthenticated), so they
-        // contribute NO `permission:` or `tipe:` strings to this census.
-        // The admin-side approval, rejection, invitation and password-reset
-        // routes ARE inside the admin group and each carries `pengguna.kelola`
-        // or `pengguna.lihat`; the eight new admin writes add EIGHT more hits
-        // and the two new admin reads add TWO more, for NINE additional strings.
-        "'permission:pengguna.kelola'",  // POST /admin/pengguna/{id}/setujui
-        "'permission:pengguna.kelola'",  // POST /admin/pengguna/{id}/tolak
-        "'permission:pengguna.kelola'",  // POST /admin/pengguna/undang
-        "'permission:pengguna.kelola'",  // POST /admin/pengguna/{id}/reset-sandi
-        "'permission:pengguna.kelola'",  // PUT  /admin/pengguna/{id}/status
-        "'permission:pengguna.lihat'",   // GET  /admin/pengguna
+        "'permission:pengguna.kelola'",
+        "'permission:pengguna.kelola'",
+        "'permission:pengguna.kelola'",
+        "'permission:pengguna.kelola'",
+        "'permission:pengguna.kelola'",
     ]);
 });
 
